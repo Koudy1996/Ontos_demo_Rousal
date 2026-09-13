@@ -2483,7 +2483,17 @@ runInNewContext(${JSON.stringify(code)}, {
   exports: module.exports, module, URL,
   ...${JSON.stringify(injection)},
   __resolve: name => 'file:///dependencies/' + name,
-  require: name => ({ effect, '@app/shared-contracts/ultramodern-build': buildIdentity, 'node:module': moduleShim, 'node:path': nodePath, 'node:url': nodeUrl }[name] ?? framework),
+  require: name => ({
+    effect,
+    'effect/Option': effect.Option,
+    'effect/Result': effect.Result,
+    'effect/Schema': effect.Schema,
+    'effect/SchemaTransformation': effect.SchemaTransformation,
+    '@app/shared-contracts/ultramodern-build': buildIdentity,
+    'node:module': moduleShim,
+    'node:path': nodePath,
+    'node:url': nodeUrl,
+  }[name] ?? framework),
 });
 const configuration = module.exports.default;
 const observations = {};

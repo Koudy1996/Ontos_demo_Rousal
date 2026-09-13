@@ -97,7 +97,10 @@ export const createModuleDeploymentAllowlistBuildInput = ({
   }
 
   const ontosModuleManifests = Object.fromEntries(
-    parsedTopology.verticals.map((vertical) => {
+    parsedTopology.verticals.flatMap((vertical) => {
+      if (vertical.surfaceProfile === 'api-only') {
+        return [];
+      }
       const deploymentVertical = getResultOrThrow(decodeUnknownResult(DeploymentPublicUrlVerticalSchema)(vertical));
       const environmentName = deploymentVertical.cloudflare.publicUrlEnv;
       const configuredOrigin = getResultOrThrow(
@@ -106,7 +109,7 @@ export const createModuleDeploymentAllowlistBuildInput = ({
         ),
       );
       const origin = getResultOrThrow(decodeResult(URLFromString)(configuredOrigin));
-      return [deploymentVertical.id, new URL(contractPath, origin).href] as const;
+      return [[deploymentVertical.id, new URL(contractPath, origin).href] as const];
     }),
   );
   const overlay = getResultOrThrow(

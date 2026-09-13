@@ -12,13 +12,13 @@ const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
 const createFilename = 'create.mjs';
 const routeGeneratorScript = 'generate-tanstack-routes';
 const wrappers = [
-  ['assert-mf-types', 'mf-types'],
-  ['generate-node-backend-federation', 'backend-federation-generate'],
-  ['generate-public-surface-assets', 'public-surface'],
-  ['proof-cloudflare-version', 'cloudflare-proof'],
-  ['ultramodern-performance-readiness', 'performance-readiness'],
-  ['ultramodern-typecheck', 'typecheck'],
-  ['verify-cloudflare-output', 'cloudflare-output-verify'],
+  ['assert-mf-types', 'mf-types', ['apps/shell-super-app', 'verticals/party-registry']],
+  ['generate-node-backend-federation', 'backend-federation-generate', []],
+  ['generate-public-surface-assets', 'public-surface', []],
+  ['proof-cloudflare-version', 'cloudflare-proof', []],
+  ['ultramodern-performance-readiness', 'performance-readiness', []],
+  ['ultramodern-typecheck', 'typecheck', []],
+  ['verify-cloudflare-output', 'cloudflare-output-verify', []],
 ] as const;
 
 const fixtureDirectory = () =>
@@ -50,7 +50,7 @@ const invokeWrapper = (script: string, environment: Readonly<Record<string, stri
     );
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer));
 
-for (const [script, command] of wrappers) {
+for (const [script, command, commandArgs] of wrappers) {
   it.live(
     `${script} forwards arguments, workspace and child exit status`,
     Effect.fn(function* mergedScenario1() {
@@ -69,7 +69,9 @@ for (const [script, command] of wrappers) {
         ['--probe', 'argument with spaces'],
       );
       expect(result.status, result.stderr).toBe(7);
-      expect(result.stdout).toBe(`ultramodern|${command}|--probe|argument with spaces\n${fixture}\n`);
+      expect(result.stdout).toBe(
+        `ultramodern|${command}|${[...commandArgs, '--probe', 'argument with spaces'].join('|')}\n${fixture}\n`,
+      );
     }),
   );
 }
@@ -102,7 +104,7 @@ it.live(
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/Failed to launch ultramodern-create from PATH/u);
-    expect(result.stderr).toMatch(/UltraModern command "mf-types"/u);
+    expect(result.stderr).toMatch(/UltraModern command "mf-types apps\/shell-super-app verticals\/party-registry"/u);
   }),
 );
 

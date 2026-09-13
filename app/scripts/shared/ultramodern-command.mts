@@ -4,6 +4,7 @@ import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
 
 interface CommandOptions<E> {
   readonly command: string;
+  readonly commandArgs?: readonly string[];
   readonly directoryFailure: string;
   readonly failure: (reason: string) => E;
   readonly launchErrorDetail?: (error: PlatformError.PlatformError) => string;
@@ -28,7 +29,7 @@ export const resolveUltramodernInvocation = <E,>(options: CommandOptions<E>) =>
       Effect.mapError(() => options.failure('ULTRAMODERN_CREATE_BIN is invalid')),
     );
     const forwardedArgs = yield* stdio.args;
-    const args = ['ultramodern', options.command, ...forwardedArgs];
+    const args = ['ultramodern', options.command, ...(options.commandArgs ?? []), ...forwardedArgs];
     const nodeExecutable = options.nodeExecutable ?? process.execPath;
     const launch = Option.match(createBin, {
       onNone: () => ({

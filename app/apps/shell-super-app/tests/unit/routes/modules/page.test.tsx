@@ -32,7 +32,7 @@ rstest.mock('@techsio/ui-kit/atoms/status-text', () => ({
   StatusText: ({ children }: { readonly children: ReactNode }) => <span>{children}</span>,
 }));
 
-rstest.mock('../../../../src/api/vertical-clients.ts', () => ({
+rstest.mock('../../../../src/api/vertical-page-clients.ts', () => ({
   findApprovedVerticalPageClient: findApprovedVerticalPageClientMock,
 }));
 

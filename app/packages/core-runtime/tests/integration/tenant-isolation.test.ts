@@ -67,6 +67,8 @@ const toReadResult = (rows: readonly { readonly value: string }[]) => ({
   evidence: { resultCount: rows.length },
   result: rows.map((row) => row.value),
 });
+const allowContextAccess = (keys: readonly string[]) =>
+  Effect.succeed(keys.map((key) => ({ decision: 'allowed' as const, key })));
 
 it('declares the composite same-tenant parent keys used by isolation foreign keys', () => {
   const names = new Set(
@@ -327,13 +329,8 @@ it.live('an unscoped owner repository remains isolated inside a governed read tr
       );
       const contextAccess = {
         legalEntities: ({ legalEntityIds }: { readonly legalEntityIds: readonly string[] }) =>
-          Effect.succeed(
-            legalEntityIds.map((key) => ({
-              decision: 'allowed' as const,
-              key,
-            })),
-          ),
-        modules: () => Effect.succeed([]),
+          allowContextAccess(legalEntityIds),
+        modules: ({ moduleIds }: { readonly moduleIds: readonly string[] }) => allowContextAccess(moduleIds),
         resources: () => Effect.succeed([]),
         tenants: () => Effect.succeed([]),
       };

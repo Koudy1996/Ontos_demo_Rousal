@@ -14,7 +14,7 @@ const withoutComments = (source: string): string => {
 
 const hasSharedUltramodernDispatch = (source: string): boolean =>
   source.includes("Config.string('ULTRAMODERN_CREATE_BIN')") &&
-  source.includes("['ultramodern', options.command, ...forwardedArgs]") &&
+  source.includes("['ultramodern', options.command, ...(options.commandArgs ?? []), ...forwardedArgs]") &&
   source.includes("executable: 'ultramodern-create'") &&
   source.includes('ChildProcess.make(launch.executable, launch.args,') &&
   source.includes('resolveUltramodernInvocation(options).pipe(') &&

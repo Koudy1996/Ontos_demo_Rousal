@@ -27,6 +27,7 @@ import { acquirePoolResource, makeAuthDatabase } from '../../api/auth/db/client.
 import { account, session, user } from '../../api/auth/db/schema.ts';
 
 const contactsModuleId = 'party.registry';
+const shellModuleId = 'core.shell';
 
 // Real server deadlines are what bound this fixture's finalizers: a stuck statement would
 // otherwise keep a client checked out and hold `pool.end()` open past the acquisition
@@ -85,7 +86,8 @@ const provisionContactsAccess = Effect.fn('provisionContactsAccess')(function* p
       Effect.gen(function* makeContactsRelationships() {
         const entityObject = toLegalEntityAccessObjectId(tenantId, legalEntityId);
         const moduleObject = toModuleAccessObjectId(tenantId, legalEntityId, contactsModuleId);
-        if (entityObject === undefined || moduleObject === undefined) {
+        const shellModuleObject = toModuleAccessObjectId(tenantId, legalEntityId, shellModuleId);
+        if (entityObject === undefined || moduleObject === undefined || shellModuleObject === undefined) {
           return yield* Effect.fail(
             new E2eAuthorizationFixtureError({
               reason: 'Invalid E2E authorization object identifier',
@@ -99,6 +101,8 @@ const provisionContactsAccess = Effect.fn('provisionContactsAccess')(function* p
             ['legal_entity', entityObject, 'member', 'principal', principalId],
             ['module_access', moduleObject, 'legal_entity', 'legal_entity', entityObject],
             ['module_access', moduleObject, 'accessor', 'principal', principalId],
+            ['module_access', shellModuleObject, 'legal_entity', 'legal_entity', entityObject],
+            ['module_access', shellModuleObject, 'accessor', 'principal', principalId],
           ] as const
         ).map(([resourceType, resourceId, relation, subjectType, subjectId]) =>
           v1.Relationship.create({

@@ -54,6 +54,7 @@ const DeploymentAllowlistVerticalSchema = Struct({
   ),
   id: OntosDeploymentAppIdSchema,
   kind: Literal('vertical'),
+  surfaceProfile: optionalKey(Literal('api-only')),
 });
 
 export const DeploymentAllowlistTopologySchema = Struct({
@@ -132,19 +133,23 @@ const DeploymentAllowlistInputSchema = Struct({
     }
 
     const expectedIds = new Set<string>();
+    const topologyIds = new Set<string>();
     for (const [index, vertical] of input.topology.verticals.entries()) {
-      if (expectedIds.has(vertical.id)) {
+      if (topologyIds.has(vertical.id)) {
         issues.push({
           issue: 'topology contains duplicate app IDs',
           path: ['topology', 'verticals', index, 'id'],
         });
       }
-      expectedIds.add(vertical.id);
+      topologyIds.add(vertical.id);
+      if (vertical.surfaceProfile !== 'api-only') {
+        expectedIds.add(vertical.id);
+      }
     }
 
     const configuredIds = Object.keys(input.overlay.ontosModuleManifests);
     for (const configuredId of configuredIds) {
-      if (!expectedIds.has(configuredId)) {
+      if (!topologyIds.has(configuredId)) {
         issues.push({
           issue: 'allowlist contains an app ID absent from topology',
           path: ['overlay', 'ontosModuleManifests', configuredId],
@@ -194,7 +199,9 @@ export const deriveDeploymentAllowlist = effectFn('DeploymentAllowlist.deriveDep
       onExcessProperty: 'preserve',
     })(input).pipe(mapError(invalid));
     const entries: DeploymentAllowlistEntry[] = [];
-    for (const appId of decoded.topology.verticals.map(({ id }) => id).toSorted()) {
+    for (const appId of decoded.topology.verticals
+      .flatMap(({ id, surfaceProfile }) => (surfaceProfile === 'api-only' ? [] : [id]))
+      .toSorted()) {
       const configuredUrl = decoded.overlay.ontosModuleManifests[appId];
       if (configuredUrl === undefined) {
         return yield* invalid(`allowlist omits topology app ID ${appId}`);

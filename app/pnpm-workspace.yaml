@@ -92,6 +92,8 @@ allowBuilds:
   workerd: true
 patchedDependencies:
   effect-rstest@0.1.0: patches/effect-rstest@0.1.0.patch
+  '@bleedingdev/modern-js-app-tools-extensions@3.9.0-ultramodern.10': patches/@bleedingdev__modern-js-app-tools-extensions@3.9.0-ultramodern.10.patch
+  '@bleedingdev/modern-js-code-tools@3.9.0-ultramodern.10': patches/@bleedingdev__modern-js-code-tools@3.9.0-ultramodern.10.patch
   effect@4.0.0-rc.112: patches/effect-cli-metadata@4.0.0-rc.112.patch
   eslint-plugin-perfectionist@5.10.1: patches/eslint-plugin-perfectionist@5.10.1.patch
   '@vercel/nft@0.29.2': patches/@vercel__nft@0.29.2.patch
@@ -103,6 +105,7 @@ patchedDependencies:
   msgpackr@2.1.0: patches/msgpackr@2.1.0.patch
   zod@4.5.4: patches/zod@4.5.4.patch
   drizzle-orm@1.0.0-rc.5-ab785fc: patches/drizzle-orm-rc5-declarations.patch
+  '@bleedingdev/modern-js-ultramodern-create@3.9.0-ultramodern.10': patches/@bleedingdev__modern-js-ultramodern-create@3.9.0-ultramodern.10.patch
 packageExtensions:
   eslint-plugin-perfectionist@5.10.1:
     dependencies:
