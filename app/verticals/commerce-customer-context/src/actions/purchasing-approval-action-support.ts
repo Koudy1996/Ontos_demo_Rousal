@@ -3,7 +3,6 @@ import type {
   ActionHandlerContext,
   CoreSearchResourceRef,
   OperationalScope,
-  ScopedTransactionExecutor,
 } from '@app/core-runtime';
 import { ContextAccess, CoreSearchResourceRefSchema, OperationContextUnavailable } from '@app/core-runtime';
 import { DateTime, Effect, Option, Schema, SchemaGetter } from 'effect';
@@ -146,8 +145,10 @@ interface PurchasingApprovalCurrentnessServices {
   readonly workflow: PurchasingApprovalWorkflowService;
 }
 
+type PurchasingApprovalTransaction = Parameters<typeof purchasingApprovalWorkflowForScope>[0];
+
 export const purchasingApprovalCurrentnessServicesForScope = (
-  transaction: ScopedTransactionExecutor,
+  transaction: PurchasingApprovalTransaction,
   scope: OperationalScope,
 ) => {
   const { legalEntityId, trustedStorefrontId } = scope;

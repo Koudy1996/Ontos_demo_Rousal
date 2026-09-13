@@ -1,4 +1,4 @@
-import type { ContextAccessService, OperationalScope, ScopedTransactionExecutor } from '@app/core-runtime'; // eslint-disable-line eslint/max-classes-per-file -- This owner-local port intentionally colocates its implementation and composition service tags; expires: 2027-09-10.
+import type { ContextAccessService, OperationalScope } from '@app/core-runtime'; // eslint-disable-line eslint/max-classes-per-file -- This owner-local port intentionally colocates its implementation and composition service tags; expires: 2027-09-10.
 import type { Effect } from 'effect';
 import { Context } from 'effect';
 
@@ -49,8 +49,8 @@ export interface PurchaseApprovalCurrentnessTrustedScope {
 
 export interface PurchaseApprovalCurrentnessService {
   /** Bind all reads to the same scoped transaction as the Action mutation. */
-  readonly forTransaction?: (
-    transaction: ScopedTransactionExecutor,
+  readonly forTransaction?: <Transaction>(
+    transaction: Transaction,
     scope: PurchaseApprovalCurrentnessTrustedScope,
   ) => PurchaseApprovalCurrentnessService;
   /**
@@ -96,8 +96,8 @@ class PurchaseApprovalCurrentnessPort extends Context.Service<
  * governed Action from importing the persistence implementation or exposing a database handle.
  */
 export interface PurchaseApprovalCurrentnessFactoryContract {
-  readonly make: (
-    transaction: ScopedTransactionExecutor,
+  readonly make: <Transaction>(
+    transaction: Transaction,
     scope: OperationalScope & {
       readonly legalEntityId: string;
       readonly trustedStorefrontId: string;

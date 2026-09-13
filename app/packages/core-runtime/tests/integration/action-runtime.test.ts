@@ -188,10 +188,13 @@ const withEvidencePersistenceFailure = (
           'invocation-success': 'action_invocations',
           outbox: 'outbox_messages',
         }[stage];
-        const operation = stage === 'invocation-success' ? 'update' : 'insert into';
+        const statementPrefix =
+          stage === 'invocation-success'
+            ? 'update "core"."action_invocations" set "status" = $1, "completed_at"'
+            : `insert into "core"."${table}"`;
         return transactionBody(transaction).pipe(
           Effect.provideService(TestQueryHook, (statement) =>
-            statement.startsWith(`${operation} "core"."${table}"`)
+            statement.startsWith(statementPrefix)
               ? Effect.fail(
                   new SqlError({
                     reason: new UnknownError({
@@ -993,7 +996,7 @@ const testProgram6 = Effect.fn(function* integrationProgram14() {
 
         expect(hasFailure(exit, scenario.expectedTag)).toBe(true);
         expect(states.length).toBe(0);
-        expect(invocations[0]?.status).toBe('running');
+        expect(invocations[0]?.status).toBe('received');
         expect(invocations[0]?.completedAt).toBe(null);
         expect(committedEvidence.length).toBe(0);
         expect(committedAccesses.length).toBe(0);
@@ -1069,7 +1072,7 @@ const testProgram7 = Effect.fn(function* integrationProgram16() {
 
         expect(hasFailure(exit, 'ActionTransactionError'), stage).toBe(true);
         expect(states.length, stage).toBe(0);
-        expect(invocation?.status, stage).toBe('running');
+        expect(invocation?.status, stage).toBe('received');
         expect(invocation?.completedAt, stage).toBe(null);
         expect(audits.length, stage).toBe(0);
         expect(accesses.length, stage).toBe(0);

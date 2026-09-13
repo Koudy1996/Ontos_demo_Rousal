@@ -13,7 +13,6 @@
   },
   "include": ["src", "tests"],
   "references": [
-    { "path": "../core-runtime" },
     { "path": "../payment-term-catalog-contracts" },
     { "path": "../shared-contracts" }
   ]

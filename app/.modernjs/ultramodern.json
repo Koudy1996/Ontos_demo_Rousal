@@ -538,11 +538,6 @@
             "invariant": "web-and-api-same-build",
             "identityRoot": "deliveryUnit",
             "packageName": "@app/commerce-customer-context",
-            "ui": {
-              "manifestEnv": "VERTICAL_COMMERCE_CUSTOMER_CONTEXT_MF_MANIFEST",
-              "manifestUrl": "http://localhost:4101/mf-manifest.json",
-              "buildMarker": "verticals/commerce-customer-context/src/routes/ultramodern-route-metadata.ts"
-            },
             "api": {
               "readiness": "/commerce-customer-context-api/commerce-customer-context/readiness",
               "buildMarker": "verticals/commerce-customer-context/shared/ultramodern-build.ts",
@@ -554,16 +549,13 @@
               "kind": "cloudflare-worker-snapshot",
               "workerName": "app-commerce-customer-context",
               "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_COMMERCE_CUSTOMER_CONTEXT",
-              "ssr": {
+              "api": {
                 "workerEntry": ".output/server/index.mjs",
                 "workerManifest": ".output/server/modern-worker-manifest.json",
-                "routeManifest": ".output/server/route.json",
-                "ssrBundle": ".output/worker/index.js",
-                "effectBffBundle": ".output/worker/__modern_bff_effect.js",
-                "assetsBinding": "ASSETS"
+                "effectBffBundle": ".output/worker/__modern_bff_effect.js"
               },
               "zephyr": {
-                "runtime": "ssr-worker",
+                "runtime": "api-worker",
                 "integration": "managed-cloudflare",
                 "snapshotIdEnv": "ZEPHYR_COMMERCE_CUSTOMER_CONTEXT_SNAPSHOT_ID",
                 "versionIdEnv": "ZEPHYR_COMMERCE_CUSTOMER_CONTEXT_VERSION_ID",
@@ -587,7 +579,7 @@
               "containerEntry": "http://localhost:4101/backendRemoteEntry.cjs",
               "remoteType": "commonjs-module",
               "expose": "./effect-api",
-              "runtimePackage": "@modern-js/plugin-bff/effect",
+              "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
               "expected": {
                 "unitId": "app/commerce-customer-context",
                 "buildMarker": "2b4d72d8d032dd53"
@@ -824,11 +816,6 @@
             "invariant": "web-and-api-same-build",
             "identityRoot": "deliveryUnit",
             "packageName": "@app/payment-term-catalog",
-            "ui": {
-              "manifestEnv": "VERTICAL_PAYMENT_TERM_CATALOG_MF_MANIFEST",
-              "manifestUrl": "http://localhost:4103/mf-manifest.json",
-              "buildMarker": "verticals/payment-term-catalog/src/routes/ultramodern-route-metadata.ts"
-            },
             "api": {
               "readiness": "/payment-term-catalog-api/payment-term-catalog/readiness",
               "buildMarker": "verticals/payment-term-catalog/shared/ultramodern-build.ts",
@@ -840,16 +827,13 @@
               "kind": "cloudflare-worker-snapshot",
               "workerName": "app-payment-term-catalog",
               "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_PAYMENT_TERM_CATALOG",
-              "ssr": {
+              "api": {
                 "workerEntry": ".output/server/index.mjs",
                 "workerManifest": ".output/server/modern-worker-manifest.json",
-                "routeManifest": ".output/server/route.json",
-                "ssrBundle": ".output/worker/index.js",
-                "effectBffBundle": ".output/worker/__modern_bff_effect.js",
-                "assetsBinding": "ASSETS"
+                "effectBffBundle": ".output/worker/__modern_bff_effect.js"
               },
               "zephyr": {
-                "runtime": "ssr-worker",
+                "runtime": "api-worker",
                 "integration": "managed-cloudflare",
                 "snapshotIdEnv": "ZEPHYR_PAYMENT_TERM_CATALOG_SNAPSHOT_ID",
                 "versionIdEnv": "ZEPHYR_PAYMENT_TERM_CATALOG_VERSION_ID",
@@ -873,7 +857,7 @@
               "containerEntry": "http://localhost:4103/backendRemoteEntry.cjs",
               "remoteType": "commonjs-module",
               "expose": "./effect-api",
-              "runtimePackage": "@modern-js/plugin-bff/effect",
+              "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
               "expected": {
                 "unitId": "app/payment-term-catalog",
                 "buildMarker": "3812f892cf5544cf"
@@ -1213,16 +1197,13 @@
             "kind": "cloudflare-worker-snapshot",
             "workerName": "app-commerce-customer-context",
             "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_COMMERCE_CUSTOMER_CONTEXT",
-            "ssr": {
+            "api": {
               "workerEntry": ".output/server/index.mjs",
               "workerManifest": ".output/server/modern-worker-manifest.json",
-              "routeManifest": ".output/server/route.json",
-              "ssrBundle": ".output/worker/index.js",
-              "effectBffBundle": ".output/worker/__modern_bff_effect.js",
-              "assetsBinding": "ASSETS"
+              "effectBffBundle": ".output/worker/__modern_bff_effect.js"
             },
             "zephyr": {
-              "runtime": "ssr-worker",
+              "runtime": "api-worker",
               "integration": "managed-cloudflare",
               "snapshotIdEnv": "ZEPHYR_COMMERCE_CUSTOMER_CONTEXT_SNAPSHOT_ID",
               "versionIdEnv": "ZEPHYR_COMMERCE_CUSTOMER_CONTEXT_VERSION_ID",
@@ -1246,7 +1227,7 @@
             "containerEntry": "http://localhost:4101/backendRemoteEntry.cjs",
             "remoteType": "commonjs-module",
             "expose": "./effect-api",
-            "runtimePackage": "@modern-js/plugin-bff/effect",
+            "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
             "expected": {
               "unitId": "app/commerce-customer-context",
               "buildMarker": "2b4d72d8d032dd53"
@@ -1276,16 +1257,13 @@
             "kind": "cloudflare-worker-snapshot",
             "workerName": "app-payment-term-catalog",
             "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_PAYMENT_TERM_CATALOG",
-            "ssr": {
+            "api": {
               "workerEntry": ".output/server/index.mjs",
               "workerManifest": ".output/server/modern-worker-manifest.json",
-              "routeManifest": ".output/server/route.json",
-              "ssrBundle": ".output/worker/index.js",
-              "effectBffBundle": ".output/worker/__modern_bff_effect.js",
-              "assetsBinding": "ASSETS"
+              "effectBffBundle": ".output/worker/__modern_bff_effect.js"
             },
             "zephyr": {
-              "runtime": "ssr-worker",
+              "runtime": "api-worker",
               "integration": "managed-cloudflare",
               "snapshotIdEnv": "ZEPHYR_PAYMENT_TERM_CATALOG_SNAPSHOT_ID",
               "versionIdEnv": "ZEPHYR_PAYMENT_TERM_CATALOG_VERSION_ID",
@@ -1309,7 +1287,7 @@
             "containerEntry": "http://localhost:4103/backendRemoteEntry.cjs",
             "remoteType": "commonjs-module",
             "expose": "./effect-api",
-            "runtimePackage": "@modern-js/plugin-bff/effect",
+            "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
             "expected": {
               "unitId": "app/payment-term-catalog",
               "buildMarker": "3812f892cf5544cf"

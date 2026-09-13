@@ -679,6 +679,14 @@ it.live(
         'module_access',
         requiredValue(toModuleAccessObjectId(tenantB, entityB1, GENERATED_OWNER.moduleId), 'Tenant B module access'),
       ],
+      [
+        'module_access',
+        requiredValue(toModuleAccessObjectId(tenantA, entityA1, 'core.shell'), 'Tenant A Shell module access'),
+      ],
+      [
+        'module_access',
+        requiredValue(toModuleAccessObjectId(tenantB, entityB1, 'core.shell'), 'Tenant B Shell module access'),
+      ],
       ['resource', requiredValue(toResourceAccessObjectId(tenantA, entityA1, resourceRef), 'Tenant A resource')],
       ['resource', requiredValue(toResourceAccessObjectId(tenantB, entityB1, resourceRef), 'Tenant B resource')],
       ['action', toSpiceDbActionObjectId(GENERATED_OWNER.actionKey)],
@@ -829,6 +837,14 @@ it.live(
       toModuleAccessObjectId(tenantB, entityB1, GENERATED_OWNER.moduleId),
       'Tenant B module access',
     );
+    const shellModuleA = requiredValue(
+      toModuleAccessObjectId(tenantA, entityA1, 'core.shell'),
+      'Tenant A Shell module access',
+    );
+    const shellModuleB = requiredValue(
+      toModuleAccessObjectId(tenantB, entityB1, 'core.shell'),
+      'Tenant B Shell module access',
+    );
     const resourceA = requiredValue(toResourceAccessObjectId(tenantA, entityA1, resourceRef), 'Tenant A resource');
     const resourceB = requiredValue(toResourceAccessObjectId(tenantB, entityB1, resourceRef), 'Tenant B resource');
     const actionId = toSpiceDbActionObjectId(GENERATED_OWNER.actionKey);
@@ -843,6 +859,10 @@ it.live(
       relationship('module_access', moduleA, 'accessor', 'principal', principalA),
       relationship('module_access', moduleB, 'legal_entity', 'legal_entity', legalB),
       relationship('module_access', moduleB, 'accessor', 'principal', principalB),
+      relationship('module_access', shellModuleA, 'legal_entity', 'legal_entity', legalA),
+      relationship('module_access', shellModuleA, 'accessor', 'principal', principalA),
+      relationship('module_access', shellModuleB, 'legal_entity', 'legal_entity', legalB),
+      relationship('module_access', shellModuleB, 'accessor', 'principal', principalB),
       relationship('resource', resourceA, 'module', 'module_access', moduleA),
       relationship('resource', resourceA, 'reader', 'principal', principalA),
       relationship('resource', resourceB, 'module', 'module_access', moduleB),

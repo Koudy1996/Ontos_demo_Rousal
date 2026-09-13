@@ -368,6 +368,28 @@ export const makeActionRepository = (): ActionRepositoryService => {
     'makeActionRepository.createOrResolveInvocation',
   )(function* createOrResolveInvocationEffect(executor: CoreDatabaseExecutor, input: PrepareActionInvocationInput) {
     const failureReason = 'Unable to create or resolve the Action invocation';
+    const resolveExisting = (idempotencyKey: string) =>
+      executor
+        .select(invocationSelection)
+        .from(actionInvocations)
+        .where(
+          and(
+            eq(actionInvocations.tenantId, input.principal.tenantId),
+            eq(actionInvocations.actionKey, input.actionKey),
+            eq(actionInvocations.principalId, input.principal.principalId),
+            eq(actionInvocations.idempotencyKey, idempotencyKey),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError((cause) => persistenceFailure(failureReason, cause)));
+    const { idempotencyKey } = input;
+    if (idempotencyKey !== undefined) {
+      const [existing] = yield* resolveExisting(idempotencyKey);
+      if (existing !== undefined) {
+        return existing;
+      }
+    }
+
     const inserted = yield* executor
       .insert(actionInvocations)
       .values({
@@ -397,7 +419,6 @@ export const makeActionRepository = (): ActionRepositoryService => {
       return created;
     }
 
-    const { idempotencyKey } = input;
     if (idempotencyKey === undefined) {
       return yield* persistenceFailure(
         failureReason,
@@ -407,19 +428,7 @@ export const makeActionRepository = (): ActionRepositoryService => {
       );
     }
 
-    const existing = yield* executor
-      .select(invocationSelection)
-      .from(actionInvocations)
-      .where(
-        and(
-          eq(actionInvocations.tenantId, input.principal.tenantId),
-          eq(actionInvocations.actionKey, input.actionKey),
-          eq(actionInvocations.principalId, input.principal.principalId),
-          eq(actionInvocations.idempotencyKey, idempotencyKey),
-        ),
-      )
-      .limit(1)
-      .pipe(Effect.mapError((cause) => persistenceFailure(failureReason, cause)));
+    const existing = yield* resolveExisting(idempotencyKey);
 
     const [resolved] = existing;
     if (resolved === undefined) {

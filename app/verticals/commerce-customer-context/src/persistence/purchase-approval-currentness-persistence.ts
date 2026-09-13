@@ -634,9 +634,22 @@ const purchaseApprovalCurrentnessForTransaction = (
  * behind the persistence boundary.
  */
 export const purchaseApprovalCurrentnessFactoryLive = Layer.succeed(PurchaseApprovalCurrentnessFactory, {
-  make: (transaction, scope, contextAccess, purchaseLimitCurrentness, evaluationSource) =>
+  make: <Transaction>(
+    transaction: Transaction,
+    scope: OperationalScope & {
+      readonly legalEntityId: string;
+      readonly trustedStorefrontId: string;
+    },
+    // eslint-disable-next-line effect-native/no-dependency-parameters -- The factory receives this already-yielded Core service before closing the owner-local Action adapter; expires: 2027-09-10.
+    contextAccess: ContextAccessService,
+    // eslint-disable-next-line effect-native/no-dependency-parameters -- The factory receives this already-yielded currentness port before closing the owner-local Action adapter; expires: 2027-09-10.
+    purchaseLimitCurrentness: PurchaseLimitEvaluationCurrentnessPortService,
+    // eslint-disable-next-line effect-native/no-dependency-parameters -- The factory receives this already-yielded evaluation source before closing the owner-local Action adapter; expires: 2027-09-10.
+    evaluationSource: PurchaseLimitEvaluationSourceService,
+  ) =>
     purchaseApprovalCurrentnessForTransaction(
-      transaction,
+      // eslint-disable-next-line typescript/no-unsafe-type-assertion -- SAFETY: Core invokes owner factories only with its branded, scope-installed transaction; expires: 2027-03-31.
+      transaction as ScopedTransactionExecutor,
       scope,
       contextAccess,
       purchaseLimitCurrentness,

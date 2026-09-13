@@ -151,6 +151,7 @@ const fixtureAuthorizationRelationships = (input: {
   readonly entityObject: string;
   readonly legalEntityOnly: FixtureActor;
   readonly manager: FixtureActor;
+  readonly moduleObject: string;
   readonly tenantId: string;
 }) => [
   ...input.actors.map((principal) =>
@@ -164,6 +165,10 @@ const fixtureAuthorizationRelationships = (input: {
     ['member', 'counterparty_manager', 'counterparty_reader'].map((relation) =>
       relationship('legal_entity', input.entityObject, relation, 'principal', principal.principalId),
     ),
+  ),
+  relationship('module_access', input.moduleObject, 'legal_entity', 'legal_entity', input.entityObject),
+  ...[input.manager, input.legalEntityOnly].map((principal) =>
+    relationship('module_access', input.moduleObject, 'accessor', 'principal', principal.principalId),
   ),
   ...buildActionAuthorizationRelationships(input.actionKeys, [
     { principalId: input.manager.principalId, tenantId: input.tenantId },
@@ -219,8 +224,9 @@ const setupLiveOperationFixture = Effect.fn('LiveOperations.setupLiveOperationFi
       .values(fixtureAuthBindingValues(input.actors, input.tenantId))
       .pipe(Effect.mapError((cause) => fixtureFailure('Unable to bind the live fixture principals', cause)));
     const entityObject = toLegalEntityAccessObjectId(input.tenantId, input.legalEntityId);
-    if (entityObject === undefined) {
-      return yield* fixtureFailure('Invalid fixture Legal Entity');
+    const moduleObject = toModuleAccessObjectId(input.tenantId, input.legalEntityId, 'party.registry');
+    if (entityObject === undefined || moduleObject === undefined) {
+      return yield* fixtureFailure('Invalid fixture authorization scope');
     }
     const relations = fixtureAuthorizationRelationships({
       actionKeys: input.actionKeys,
@@ -228,6 +234,7 @@ const setupLiveOperationFixture = Effect.fn('LiveOperations.setupLiveOperationFi
       entityObject,
       legalEntityOnly: input.legalEntityOnly,
       manager: input.manager,
+      moduleObject,
       tenantId: input.tenantId,
     });
     const writeRelationshipsRequest = v1.WriteRelationshipsRequest.create({

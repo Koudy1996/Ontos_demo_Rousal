@@ -119,6 +119,7 @@ it.live(
         const admin = yield* makeTestDatabaseFromPool(adminPool, partyRelations);
         const fixtureContext = yield* Layer.build(fixture.layer);
         const otherContext = yield* Layer.build(other.layer);
+        const managerReadPrincipal = { ...fixture.manager, legalEntityId: fixture.legalEntityId };
         const run = <A, E>(effect: Effect.Effect<A, E, Layer.Success<typeof fixture.layer>>) =>
           effect.pipe(Effect.provideContext(fixtureContext));
         const create = (
@@ -253,7 +254,7 @@ it.live(
                     input: {
                       actionInvocationId: invocation.actionInvocationId,
                     },
-                    principal: fixture.manager,
+                    principal: managerReadPrincipal,
                     transport: { correlationId: randomUUID() },
                   }),
                 ),
@@ -315,7 +316,7 @@ it.live(
         expect(independent.partyRef.resourceId).not.toBe(partyRef.resourceId);
         assert.isOk(
           Predicate.isTagged(
-            yield* run(readPartyDetail(independent.partyRef, fixture.manager).pipe(Effect.flip)),
+            yield* run(readPartyDetail(independent.partyRef, managerReadPrincipal).pipe(Effect.flip)),
             'ReadHandlerNotFound',
           ),
         );
@@ -360,7 +361,7 @@ it.live(
                   runtime.runRead({
                     registration: partyMatchDecisionRead,
                     input: { decisionRef: independent.decisionRef },
-                    principal: fixture.manager,
+                    principal: managerReadPrincipal,
                     transport: { correlationId: randomUUID() },
                   }),
                 ),
@@ -606,7 +607,7 @@ it.live(
         );
         assert.isOk(collision.outcome === 'BLOCKED' && collision.reasonCode === 'EXACT_CLAIM_CONFLICT');
 
-        const current = yield* run(readPartyDetail(partyRef, fixture.manager));
+        const current = yield* run(readPartyDetail(partyRef, managerReadPrincipal));
         const archived = yield* run(
           runAction({
             registration: archivePartyAction,
@@ -619,7 +620,7 @@ it.live(
             transport: transport(),
           }),
         );
-        const archivedParty = yield* run(readPartyDetail(partyRef, fixture.manager));
+        const archivedParty = yield* run(readPartyDetail(partyRef, managerReadPrincipal));
         assert.isOk(archivedParty.party.archivedAt);
 
         const archivedCounterparty = yield* readCounterparty();

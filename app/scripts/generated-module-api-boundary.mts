@@ -1139,7 +1139,8 @@ const exportedOperationsUseClientHelperAndGateway = (
   const authorizedInvocationEnd = authorizedArrow + 1 + authorizedInvocation.length;
   const authorizedInvocationTail = matchingSequenceEnd(tokens, authorizedInvocationEnd, invocationPayloads);
   const authorizedUsesHelper =
-    authorizedInvocationEnd !== undefined && hasInvocationClosure(tokens, authorizedInvocationTail);
+    matchesSequence(tokens, authorizedArrow + 1, authorizedInvocation) &&
+    hasInvocationClosure(tokens, authorizedInvocationTail);
   const gatewayInvocation = [
     [SyntaxKind.Identifier, 'operationGateway'],
     [SyntaxKind.DotToken],

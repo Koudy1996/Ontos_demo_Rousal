@@ -107,6 +107,7 @@ it.live(
         endPool,
       );
       const admin = yield* makeTestDatabaseFromPool(pool, partyRelations);
+      const managerWithLegalEntity = { ...fixture.manager, legalEntityId: fixture.legalEntityId };
       const { privateKey, publicKey } = yield* Effect.promise(() => generateKeyPair('Ed25519'));
       const kid = `ares-live-${randomUUID()}`;
       const issuer = 'https://disposable-shell.ontos.test';
@@ -127,9 +128,9 @@ it.live(
             .setJti(randomUUID())
             .sign(privateKey),
         );
-      const authorization = () => sign(fixture.manager).pipe(Effect.map((token) => `Bearer ${token}`));
+      const authorization = () => sign(managerWithLegalEntity).pipe(Effect.map((token) => `Bearer ${token}`));
       const gateway = makeOperationGateway(() =>
-        sign(fixture.manager).pipe(Effect.map((signedToken) => ({ expiresAt: 0, token: signedToken }))),
+        sign(managerWithLegalEntity).pipe(Effect.map((signedToken) => ({ expiresAt: 0, token: signedToken }))),
       );
       let providerRequests = 0;
       const provider = HttpClient.make((request, url) => {

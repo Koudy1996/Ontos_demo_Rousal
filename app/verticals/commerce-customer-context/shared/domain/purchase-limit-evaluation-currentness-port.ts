@@ -1,6 +1,5 @@
 import { Context, Schema } from 'effect';
 import type { Effect } from 'effect';
-import type { ScopedTransactionExecutor } from '@app/core-runtime';
 
 import type { PurchaseLimitCounterpartyRef, PurchaseLimitDependencyUnavailable } from './purchase-limit-policy.ts';
 import { PurchaseLimitExternalSourceRevisionVectorSchema } from './purchase-limit-evaluation.ts';
@@ -41,8 +40,8 @@ export interface PurchaseLimitEvaluationCurrentnessPortService {
    * adapters should implement it so current facts are read in the same scoped
    * transaction as the evaluation and proposal mutation.
    */
-  readonly forTransaction?: (
-    transaction: ScopedTransactionExecutor,
+  readonly forTransaction?: <Transaction>(
+    transaction: Transaction,
     scope: PurchaseLimitEvaluationTrustedScope,
   ) => PurchaseLimitEvaluationCurrentnessPortService;
   /**

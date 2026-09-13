@@ -112,13 +112,22 @@ it.live('derives worker actor evidence from the exact same-Tenant Action invocat
           .returning({ domainEventId: domainEvents.domainEventId }))[0],
       ),
     );
-    yield* executor.insert(outboxMessages).values({
-      domainEventId: event.domainEventId,
-      payloadJson: { mergeId: 'merge-1' },
-      producerModuleKey: 'party.registry',
-      tenantId,
-      topic: 'party.registry.party-merged.v1',
-    });
+    const now = yield* DateTime.nowAsDate;
+    const message = Option.getOrThrow(
+      Option.fromNullishOr(
+        (yield* executor
+          .insert(outboxMessages)
+          .values({
+            domainEventId: event.domainEventId,
+            matchedAt: now,
+            payloadJson: { mergeId: 'merge-1' },
+            producerModuleKey: 'party.registry',
+            tenantId,
+            topic: 'party.registry.party-merged.v1',
+          })
+          .returning({ messageId: outboxMessages.outboxMessageId }))[0],
+      ),
+    );
     yield* executor.insert(tenantModuleStates).values({
       moduleKey: 'commerce.customer-context',
       state: 'active',
@@ -149,8 +158,12 @@ it.live('derives worker actor evidence from the exact same-Tenant Action invocat
       () => Effect.void,
     );
     const repository = makeOutboxRepository(executor);
-    const now = yield* DateTime.nowAsDate;
-    yield* repository.matchUnmatched([registration.descriptor], now);
+    yield* executor.insert(outboxDeliveries).values({
+      availableAt: now,
+      consumerModuleKey: registration.descriptor.consumerModuleKey,
+      outboxMessageId: message.messageId,
+      workerKey: registration.descriptor.workerKey,
+    });
     const claimAt = DateTime.makeUnsafe(now).pipe(DateTime.add({ milliseconds: 1000 }), DateTime.toDateUtc);
     const claimed = Option.getOrThrow(yield* repository.claimNext([registration], 'worker-actor-evidence', claimAt));
     expect(claimed.actorPrincipalId).toBe(principalId);

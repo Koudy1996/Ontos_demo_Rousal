@@ -96,12 +96,12 @@ const EXPECTED_RUNTIME_ROUTINES = [
   'remove_customer_group_membership',
   'remove_price_group_assignment',
   'remove_saved_address',
-  'revalidate_purchase_approval',
   'reroute_purchase_approval_request',
   'reserve_payment_term_retirement',
   'resolve_price_group_assignments',
   'resolve_profile_reconciliation',
   'resolve_retail_principal',
+  'revalidate_purchase_approval',
   'stage_access_invitation_claim_grants',
   'stage_invitation_claim_proof_delivery',
   'stage_retail_portal_profile_binding_permission_mutations',
@@ -334,9 +334,9 @@ const verify = Effect.gen(function* verifyCommerceCustomerContextSchema() {
         }
         const unsafeInfrastructure = [
           row.forced_rls_count !== COMMERCE_CUSTOMER_CONTEXT_TABLES.length,
-          row.policy_count !== COMMERCE_CUSTOMER_CONTEXT_TABLES.length * 5,
+          row.policy_count !== COMMERCE_CUSTOMER_CONTEXT_TABLES.length * 5 + 2,
           row.raw_runtime_privilege_count !== 0,
-          row.exclusion_count !== 7,
+          row.exclusion_count !== 6,
           row.group_description_column_count !== 1,
           row.group_description_constraint_count !== 1,
           row.append_only_trigger_count !== 10,
@@ -363,8 +363,8 @@ const verify = Effect.gen(function* verifyCommerceCustomerContextSchema() {
           return yield* failure(
             `Commerce Customer Context database infrastructure is unsafe; ` +
               `forcedRls=${row.forced_rls_count}/${COMMERCE_CUSTOMER_CONTEXT_TABLES.length}, ` +
-              `policies=${row.policy_count}/${COMMERCE_CUSTOMER_CONTEXT_TABLES.length * 5}, ` +
-              `rawRuntimePrivileges=${row.raw_runtime_privilege_count}, exclusions=${row.exclusion_count}/7, ` +
+              `policies=${row.policy_count}/${COMMERCE_CUSTOMER_CONTEXT_TABLES.length * 5 + 2}, ` +
+              `rawRuntimePrivileges=${row.raw_runtime_privilege_count}, exclusions=${row.exclusion_count}/6, ` +
               `appendOnlyTriggers=${row.append_only_trigger_count}/10, ` +
               `triggers=${row.trigger_count}/${EXPECTED_TRIGGER_NAMES.length}, ` +
               `missingTriggers=[${missingTriggers.join(',')}], unexpectedTriggers=[${unexpectedTriggers.join(',')}], ` +

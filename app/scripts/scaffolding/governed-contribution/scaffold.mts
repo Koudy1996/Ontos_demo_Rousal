@@ -277,7 +277,6 @@ const claimsPublicContractModuleApi = (
 const hasGeneratedPublicContractPackageContract = (manifest: PublicContractPackageManifest, name: string): boolean =>
   manifest.exports[`./${name}`] === `./src/apis/${name}.ts` &&
   manifest.exports[`./${name}/client`] === `./src/api/${name}-client.ts` &&
-  manifest.dependencies['@app/core-runtime'] === WORKSPACE_DEPENDENCY &&
   manifest.dependencies['@app/shared-contracts'] === WORKSPACE_DEPENDENCY &&
   manifest.dependencies['effect'] !== undefined;
 
@@ -287,9 +286,11 @@ const discoverPublicContractPackage = Effect.fn('GovernedContributionScaffold.di
     const packagesDirectory = yield* tryScaffold('failed to resolve package root', () =>
       resolveContainedPath(workspaceRoot, 'packages'),
     );
-    const entries = yield* fileSystem
-      .readDirectory(packagesDirectory)
-      .pipe(Effect.mapError((cause) => scaffoldFailure('failed to inspect public contract packages', cause)));
+    const entries = (yield* fileSystem.exists(packagesDirectory))
+      ? yield* fileSystem
+          .readDirectory(packagesDirectory)
+          .pipe(Effect.mapError((cause) => scaffoldFailure('failed to inspect public contract packages', cause)))
+      : [];
     const matches: PublicContractPackage[] = [];
     // oxlint-disable-next-line sonarjs/too-many-break-or-continue-in-loop -- Discovery intentionally skips missing manifests and packages that do not claim this contract before validating matching candidates.
     for (const entry of entries.toSorted()) {

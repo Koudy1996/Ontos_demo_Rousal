@@ -455,6 +455,7 @@ export const createModernConfig = <Plugin, BuilderPlugin>({
       alias: {
         '@modern-js/plugin-i18n/runtime': '@modern-js/plugin-i18n/runtime/no-react-i18next',
       },
+      entriesDir: 'src/routes',
       globalVars: {
         ULTRAMODERN_SHELL_ORIGIN: build.moduleFederationDevServerOrigin,
         ULTRAMODERN_SITE_URL: build.siteUrl,

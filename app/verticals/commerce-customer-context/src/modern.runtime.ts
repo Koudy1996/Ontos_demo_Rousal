@@ -1,16 +1,32 @@
 import { defineRuntimeConfig } from '@modern-js/runtime';
+import { assertI18nInstance } from '@modern-js/plugin-i18n/i18n';
 import { createInstance } from 'i18next';
-import { createUltramodernApiRuntimeConfig } from '@app/shared-contracts';
 
 import csResource from '../locales/cs/commerce-customer-context.json';
 import enResource from '../locales/en/commerce-customer-context.json';
 
 const i18nInstance = createInstance();
+assertI18nInstance(i18nInstance);
+const resources = {
+  cs: { api: csResource },
+  en: { api: enResource },
+} as const;
 
-export default defineRuntimeConfig(
-  createUltramodernApiRuntimeConfig({
-    csResource,
-    enResource,
+export default defineRuntimeConfig({
+  i18n: {
     i18nInstance,
-  }),
-);
+    initOptions: {
+      defaultNS: 'api',
+      fallbackLng: 'en',
+      interpolation: {
+        escapeValue: false,
+      },
+      ns: ['api', 'translation'],
+      resources,
+      supportedLngs: ['en', 'cs'],
+    },
+  },
+  router: {
+    framework: 'tanstack',
+  },
+});
