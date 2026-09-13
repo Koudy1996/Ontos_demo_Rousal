@@ -161,8 +161,8 @@ export const buildApiOnlyCloudflareWorker = (input: {
             'pg-pool': postgresPoolCommonJsEntry,
             'pg-protocol': postgresProtocolCommonJsEntry,
           },
-          bundle: true,
           banner: { js: 'const require = process.getBuiltinModule;' },
+          bundle: true,
           conditions: ['workerd', 'worker', 'browser', 'import', 'module', 'default'],
           define: {
             ULTRAMODERN_BUILD_MARKER: buildMarker,

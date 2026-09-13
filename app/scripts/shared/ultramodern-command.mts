@@ -3,8 +3,8 @@ import type { PlatformError } from 'effect';
 import { ChildProcess, ChildProcessSpawner } from 'effect/unstable/process';
 
 interface CommandOptions<E> {
-  readonly commandArgs?: ReadonlyArray<string>;
   readonly command: string;
+  readonly commandArgs?: readonly string[];
   readonly directoryFailure: string;
   readonly failure: (reason: string) => E;
   readonly launchErrorDetail?: (error: PlatformError.PlatformError) => string;

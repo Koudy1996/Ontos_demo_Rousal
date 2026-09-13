@@ -180,11 +180,11 @@ interface BoundModule {
 }
 interface App {
   readonly apiPrefix: string | undefined;
-  readonly envelope: ExecutionEnvelope | undefined;
-  readonly envelopePath: string | undefined;
+  readonly envelope: ExecutionEnvelope | null;
+  readonly envelopePath: string | null;
   readonly id: string;
-  readonly identity: ReleaseEnvelopeIdentity | undefined;
-  readonly identityPath: string | undefined;
+  readonly identity: ReleaseEnvelopeIdentity | null;
+  readonly identityPath: string | null;
   readonly jsonSmokeChecks: readonly SmokeCheck[];
   readonly kind: 'shell' | 'vertical';
   readonly outputRoot: string;
@@ -520,24 +520,24 @@ const loadExecutionIdentity = (
   kind: App['kind'],
   outputRoot: string,
 ): ProofEffect<{
-  readonly envelope: ExecutionEnvelope | undefined;
-  readonly envelopePath: string | undefined;
-  readonly identity: ReleaseEnvelopeIdentity | undefined;
-  readonly identityPath: string | undefined;
+  readonly envelope: ExecutionEnvelope | null;
+  readonly envelopePath: string | null;
+  readonly identity: ReleaseEnvelopeIdentity | null;
+  readonly identityPath: string | null;
 }> => {
   if (kind !== 'vertical') {
     return Effect.succeed({
-      envelope: undefined,
-      envelopePath: undefined,
-      identity: undefined,
-      identityPath: undefined,
+      envelope: null,
+      envelopePath: null,
+      identity: null,
+      identityPath: null,
     });
   }
   if (rawApp.surfaceProfile === 'api-only') {
     return readApiOnlyExecutionIdentity(rawApp.id, outputRoot, rawApp.deliveryUnit?.unitId).pipe(
       Effect.map(({ identity, identityPath }) => ({
-        envelope: undefined,
-        envelopePath: undefined,
+        envelope: null,
+        envelopePath: null,
         identity,
         identityPath,
       })),
@@ -580,7 +580,6 @@ const loadApp = (workspaceRoot: string, rawApp: typeof RawAppSchema.Type): Proof
 
 const loadApps = (workspaceRoot: string): ProofEffect<readonly App[]> =>
   Effect.gen(function* loadAppsEffect() {
-    const fileSystem = yield* FileSystem.FileSystem;
     const compactConfig = yield* readJsonDocument(
       path.join(workspaceRoot, '.modernjs/ultramodern.json'),
       CompactConfigSchema,
@@ -609,7 +608,7 @@ const createWorkerConfiguration = (
     const boundModules = yield* Effect.forEach(
       modules,
       (module) =>
-        app.envelope === undefined
+        app.envelope === null
           ? Effect.gen(function* bindShellModuleEffect() {
               const bytes = yield* fileSystem.readFile(module.path);
               return {
@@ -683,10 +682,10 @@ const createWorkerConfiguration = (
         appId: app.id,
         envelopeDigest: app.envelope?.envelopeDigest ?? null,
         envelopePath:
-          app.envelopePath === undefined ? null : normalizePath(path.relative(workspaceRoot, app.envelopePath)),
+          app.envelopePath === null ? null : normalizePath(path.relative(workspaceRoot, app.envelopePath)),
         identity: app.identity ?? null,
         identityPath:
-          app.identityPath === undefined ? null : normalizePath(path.relative(workspaceRoot, app.identityPath)),
+          app.identityPath === null ? null : normalizePath(path.relative(workspaceRoot, app.identityPath)),
         main: mainLogicalPath,
         modules: boundModules,
         modulesRoot: normalizePath(path.relative(workspaceRoot, app.outputRoot)),
@@ -707,8 +706,8 @@ const responseEvidence = (app: App, response: MiniflareResponse): Effect.Effect<
     const body = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Json))(source).pipe(
       Effect.mapError((cause) => proofError(`${app.id} API response is not valid JSON`, cause)),
     );
-    const identity = app.identity;
-    if (identity === undefined) {
+    const { identity } = app;
+    if (identity === null) {
       return yield* proofError(`${app.id} has no executed release identity`);
     }
     const marker = findReleaseMarkers(body).find(
