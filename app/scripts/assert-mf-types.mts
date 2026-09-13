@@ -8,6 +8,7 @@ import { ultramodernCommandFailure } from './ultramodern-command-failure.mts';
 const exit = await Effect.runPromiseExit(
   runUltramodernScript({
     command: 'mf-types',
+    commandArgs: ['apps/shell-super-app', 'verticals/party-registry'],
     directoryFailure: 'Unable to resolve the MF types wrapper directory',
     failure: ultramodernCommandFailure,
     moduleUrl: import.meta.url,
