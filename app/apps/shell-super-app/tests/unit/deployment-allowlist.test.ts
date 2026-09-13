@@ -35,6 +35,25 @@ it.effect('derives an immutable, topology-authorized and deterministically order
   }),
 );
 
+it.effect('excludes API-only verticals from Shell module discovery', () =>
+  Effect.gen(function* testApiOnlyVertical() {
+    const allowlist = yield* deriveDeploymentAllowlist({
+      environment: 'development',
+      overlay: overlay({
+        ...validUrls,
+        'payment-term-catalog': 'http://localhost:4103/.well-known/ontos-module-manifest.json',
+      }),
+      topology: {
+        verticals: [
+          ...topology.verticals,
+          { id: 'payment-term-catalog', kind: 'vertical', surfaceProfile: 'api-only' },
+        ],
+      },
+    });
+    expect(allowlist.entries.map(({ appId }) => appId)).toEqual(['documents-center', 'property-registry']);
+  }),
+);
+
 it.effect.each([
   ['missing topology entry', { 'property-registry': validUrls['property-registry'] }],
   ['unknown shell entry', { ...validUrls, 'shell-super-app': validUrls['property-registry'] }],
