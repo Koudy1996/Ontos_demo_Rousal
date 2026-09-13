@@ -4,8 +4,8 @@ import { StatusText } from '@techsio/ui-kit/atoms/status-text';
 import { Effect, Predicate } from 'effect';
 import { useEffect, useState } from 'react';
 
-import type { ApprovedVerticalPageComponent } from '../../../../api/vertical-clients.ts';
-import { findApprovedVerticalPageClient } from '../../../../api/vertical-clients.ts';
+import type { ApprovedVerticalPageComponent } from '../../../../api/vertical-page-clients.ts';
+import { findApprovedVerticalPageClient } from '../../../../api/vertical-page-clients.ts';
 import { browserRuntime } from '../../../../runtime/browser-effect-runtime.ts';
 import { resolveThenLoadModuleTarget, settleModuleEntrypointLoad } from '../../../module-entrypoint-loader.ts';
 import { ShellContentLayout } from '../../../shell-content-layout.tsx';

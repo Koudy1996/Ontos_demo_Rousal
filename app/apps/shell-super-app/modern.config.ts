@@ -214,9 +214,26 @@ export default defineConfig(
           services: [
             {
               binding:
+                getOptionalBuildConfig('VERTICAL_COMMERCE_CUSTOMER_CONTEXT_WORKER_BINDING') ??
+                'VERTICAL_COMMERCE_CUSTOMER_CONTEXT_WORKER',
+              prefix: '/commerce-customer-context-api',
+              service:
+                getOptionalBuildConfig('VERTICAL_COMMERCE_CUSTOMER_CONTEXT_WORKER_NAME') ??
+                'app-commerce-customer-context',
+            },
+            {
+              binding:
                 getOptionalBuildConfig('VERTICAL_PARTY_REGISTRY_WORKER_BINDING') ?? 'VERTICAL_PARTY_REGISTRY_WORKER',
               prefix: '/party-registry-api',
               service: getOptionalBuildConfig('VERTICAL_PARTY_REGISTRY_WORKER_NAME') ?? 'app-party-registry',
+            },
+            {
+              binding:
+                getOptionalBuildConfig('VERTICAL_PAYMENT_TERM_CATALOG_WORKER_BINDING') ??
+                'VERTICAL_PAYMENT_TERM_CATALOG_WORKER',
+              prefix: '/payment-term-catalog-api',
+              service:
+                getOptionalBuildConfig('VERTICAL_PAYMENT_TERM_CATALOG_WORKER_NAME') ?? 'app-payment-term-catalog',
             },
           ],
           ssr: true,

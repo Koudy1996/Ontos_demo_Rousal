@@ -40,7 +40,7 @@
     "cloudflare:proof": "node ./scripts/proof-cloudflare-version.mts --out .codex/reports/cloudflare-version-proof/public-url-proof.json",
     "cloudflare-output:verify": "node ./scripts/verify-cloudflare-output.mts",
     "cloudflare:ssr-proof": "node ./scripts/proof-workerd-ssr.mts",
-    "mf:types": "node ./scripts/assert-mf-types.mts",
+    "mf:types": "node ./scripts/assert-mf-types.mts apps/shell-super-app verticals/party-registry",
     "node:backend-federation:generate": "node ./scripts/generate-node-backend-federation.mts",
     "node:proof": "node ./scripts/proof-node-backend-federation.mts",
     "performance:readiness": "node ./scripts/ultramodern-performance-readiness.mts",

@@ -52,7 +52,7 @@ test('keeps authentication in the existing Shell/Core ownership boundary', () =>
 });
 
 test('keeps the Contacts page in the Party Registry lazy browser allowlist', () => {
-  const source = readText('apps/shell-super-app/src/api/vertical-clients.ts');
+  const source = readText('apps/shell-super-app/src/api/vertical-page-clients.ts');
   const shellConfig = readText('apps/shell-super-app/modern.config.ts');
   const lazyRemotes = [...source.matchAll(/import\('(?<remote>[^']+)'\)/gu)].map((match) => match.groups?.['remote']);
   const componentKeys = [...source.matchAll(/componentKey: '(?<key>[^']+)'/gu)].map((match) => match.groups?.['key']);

@@ -62,6 +62,17 @@ const ReleaseEnvelopeIdentitySchema = Schema.Struct({
   sourceRevision: Schema.String,
   unitId: UnitIdSchema,
 });
+const ApiOnlyDeliveryUnitSchema = Schema.Struct({
+  appId: AppIdSchema,
+  buildMarker: Schema.String,
+  sourceRevision: Schema.String,
+  unitId: UnitIdSchema,
+  version: Schema.String,
+});
+const ApiOnlyBuildArtifactSchema = Schema.Struct({
+  deliveryUnit: ApiOnlyDeliveryUnitSchema,
+  surfaces: Schema.Struct({ api: ApiOnlyDeliveryUnitSchema }),
+});
 const ApiReleaseMarkerSchema = Schema.Struct({
   appId: AppIdSchema,
   build: Schema.String,
@@ -102,6 +113,7 @@ const RawAppSchema = Schema.Struct({
   ),
   path: Schema.optionalKey(Schema.String),
   port: Schema.Number,
+  surfaceProfile: Schema.optionalKey(Schema.Literal('api-only')),
 });
 const CompactConfigSchema = Schema.Struct({
   topology: Schema.optionalKey(Schema.Struct({ apps: Schema.optionalKey(Schema.Array(RawAppSchema)) })),
@@ -171,11 +183,14 @@ interface App {
   readonly envelope: ExecutionEnvelope | undefined;
   readonly envelopePath: string | undefined;
   readonly id: string;
+  readonly identity: ReleaseEnvelopeIdentity | undefined;
+  readonly identityPath: string | undefined;
   readonly jsonSmokeChecks: readonly SmokeCheck[];
   readonly kind: 'shell' | 'vertical';
   readonly outputRoot: string;
   readonly port: number;
   readonly proofRoutes: readonly string[];
+  readonly surfaceProfile: 'api-only' | undefined;
   readonly verticalRefs: readonly string[];
   readonly wrangler: Wrangler;
 }
@@ -185,6 +200,7 @@ interface ExecutionEvidence {
   readonly envelopeDigest: string | null;
   readonly envelopePath: string | null;
   readonly identity: ReleaseEnvelopeIdentity | null;
+  readonly identityPath: string | null;
   readonly main: string;
   readonly modules: readonly BoundModule[];
   readonly modulesRoot: string;
@@ -404,6 +420,47 @@ const readExecutionEnvelope = (
     return { envelope, envelopePath };
   });
 
+const readApiOnlyExecutionIdentity = (
+  appId: string,
+  outputRoot: string,
+  expectedUnitId: string | undefined,
+): ProofEffect<{
+  readonly identity: ReleaseEnvelopeIdentity;
+  readonly identityPath: string;
+}> =>
+  Effect.gen(function* readApiOnlyExecutionIdentityEffect() {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const identityPath = path.join(outputRoot, 'public/ultramodern-build.json');
+    yield* ensure(yield* fileSystem.exists(identityPath), `${appId} API-only delivery identity is missing`);
+    const artifact = yield* readJsonDocument(identityPath, ApiOnlyBuildArtifactSchema);
+    const { deliveryUnit, surfaces } = artifact;
+    yield* ensure(deliveryUnit.appId === appId, `${appId} API-only delivery app identity is invalid`);
+    yield* ensure(
+      expectedUnitId !== undefined && expectedUnitId.length > 0 && deliveryUnit.unitId === expectedUnitId,
+      `${appId} API-only delivery unit identity is invalid`,
+    );
+    yield* ensure(/^[a-f\d]{16}$/u.test(deliveryUnit.buildMarker), `${appId} API-only build marker is invalid`);
+    yield* ensure(deliveryUnit.sourceRevision.length > 0, `${appId} API-only source revision is missing`);
+    yield* ensure(deliveryUnit.version.length > 0, `${appId} API-only release version is missing`);
+    yield* ensure(
+      surfaces.api.appId === deliveryUnit.appId &&
+        surfaces.api.buildMarker === deliveryUnit.buildMarker &&
+        surfaces.api.sourceRevision === deliveryUnit.sourceRevision &&
+        surfaces.api.unitId === deliveryUnit.unitId &&
+        surfaces.api.version === deliveryUnit.version,
+      `${appId} API-only API surface identity does not match its delivery unit`,
+    );
+    return {
+      identity: {
+        buildMarker: deliveryUnit.buildMarker,
+        releaseVersion: deliveryUnit.version,
+        sourceRevision: deliveryUnit.sourceRevision,
+        unitId: deliveryUnit.unitId,
+      },
+      identityPath,
+    };
+  });
+
 const bindExecutedModule = (app: App, envelope: ExecutionEnvelope, module: WorkerModule): ProofEffect<BoundModule> =>
   Effect.gen(function* bindExecutedModuleEffect() {
     const fileSystem = yield* FileSystem.FileSystem;
@@ -458,6 +515,69 @@ const deriveAppConfiguration = (rawApp: typeof RawAppSchema.Type) => {
   };
 };
 
+const loadExecutionIdentity = (
+  rawApp: typeof RawAppSchema.Type,
+  kind: App['kind'],
+  outputRoot: string,
+): ProofEffect<{
+  readonly envelope: ExecutionEnvelope | undefined;
+  readonly envelopePath: string | undefined;
+  readonly identity: ReleaseEnvelopeIdentity | undefined;
+  readonly identityPath: string | undefined;
+}> => {
+  if (kind !== 'vertical') {
+    return Effect.succeed({
+      envelope: undefined,
+      envelopePath: undefined,
+      identity: undefined,
+      identityPath: undefined,
+    });
+  }
+  if (rawApp.surfaceProfile === 'api-only') {
+    return readApiOnlyExecutionIdentity(rawApp.id, outputRoot, rawApp.deliveryUnit?.unitId).pipe(
+      Effect.map(({ identity, identityPath }) => ({
+        envelope: undefined,
+        envelopePath: undefined,
+        identity,
+        identityPath,
+      })),
+    );
+  }
+  return readExecutionEnvelope(rawApp.id, outputRoot, rawApp.deliveryUnit?.unitId).pipe(
+    Effect.map(({ envelope, envelopePath }) => ({
+      envelope,
+      envelopePath,
+      identity: envelope.identity,
+      identityPath: envelopePath,
+    })),
+  );
+};
+
+const loadApp = (workspaceRoot: string, rawApp: typeof RawAppSchema.Type): ProofEffect<App> =>
+  Effect.gen(function* loadAppEffect() {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const kind: App['kind'] = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
+    const appPath = resolveAppPath(rawApp.id, kind, rawApp.path);
+    const outputRoot = path.join(workspaceRoot, appPath, '.output');
+    const wranglerPath = path.join(outputRoot, 'wrangler.json');
+    yield* ensure(
+      yield* fileSystem.exists(wranglerPath),
+      `${rawApp.id} Cloudflare output is missing; run pnpm cloudflare:build first`,
+    );
+    const [wrangler, execution] = yield* Effect.all([
+      readJsonDocument(wranglerPath, WranglerSchema),
+      loadExecutionIdentity(rawApp, kind, outputRoot),
+    ]);
+    return {
+      ...deriveAppConfiguration(rawApp),
+      ...execution,
+      kind,
+      outputRoot,
+      surfaceProfile: rawApp.surfaceProfile,
+      wrangler,
+    };
+  });
+
 const loadApps = (workspaceRoot: string): ProofEffect<readonly App[]> =>
   Effect.gen(function* loadAppsEffect() {
     const fileSystem = yield* FileSystem.FileSystem;
@@ -465,34 +585,9 @@ const loadApps = (workspaceRoot: string): ProofEffect<readonly App[]> =>
       path.join(workspaceRoot, '.modernjs/ultramodern.json'),
       CompactConfigSchema,
     );
-    return yield* Effect.forEach(
-      compactConfig.topology?.apps ?? [],
-      (rawApp) =>
-        Effect.gen(function* loadAppEffect() {
-          const kind: App['kind'] = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
-          const appPath = resolveAppPath(rawApp.id, kind, rawApp.path);
-          const outputRoot = path.join(workspaceRoot, appPath, '.output');
-          const wranglerPath = path.join(outputRoot, 'wrangler.json');
-          yield* ensure(
-            yield* fileSystem.exists(wranglerPath),
-            `${rawApp.id} Cloudflare output is missing; run pnpm cloudflare:build first`,
-          );
-          const wrangler = yield* readJsonDocument(wranglerPath, WranglerSchema);
-          const executedEnvelope =
-            kind === 'vertical'
-              ? yield* readExecutionEnvelope(rawApp.id, outputRoot, rawApp.deliveryUnit?.unitId)
-              : undefined;
-          return {
-            ...deriveAppConfiguration(rawApp),
-            envelope: executedEnvelope?.envelope,
-            envelopePath: executedEnvelope?.envelopePath,
-            kind,
-            outputRoot,
-            wrangler,
-          };
-        }),
-      { concurrency: 1 },
-    );
+    return yield* Effect.forEach(compactConfig.topology?.apps ?? [], (rawApp) => loadApp(workspaceRoot, rawApp), {
+      concurrency: 1,
+    });
   });
 
 const workerName = (app: App): Effect.Effect<string, WorkerdProofError> =>
@@ -534,7 +629,10 @@ const createWorkerConfiguration = (
       `${app.id} Miniflare main ${mainLogicalPath} is not in the selected module set`,
     );
     const validateSelectedSurfaces = Effect.gen(function* validateSelectedSurfacesEffect() {
-      const apiBackend = app.envelope?.surfaces.apiBackend ?? [];
+      const apiBackend =
+        app.surfaceProfile === 'api-only'
+          ? ['worker/__modern_bff_effect.js']
+          : (app.envelope?.surfaces.apiBackend ?? []);
       const ssr = app.envelope?.surfaces.ssr ?? [];
       const selectedPaths = new Set(boundModules.map((module) => module.logicalPath));
       yield* ensure(
@@ -544,6 +642,7 @@ const createWorkerConfiguration = (
       );
       yield* ensure(
         app.kind !== 'vertical' ||
+          app.surfaceProfile === 'api-only' ||
           (ssr.includes(mainLogicalPath) &&
             boundModules.every((module) => [...ssr, ...apiBackend].includes(module.logicalPath))),
         `${app.id} Miniflare main/SSR modules are not envelope-bound SSR surfaces`,
@@ -585,7 +684,9 @@ const createWorkerConfiguration = (
         envelopeDigest: app.envelope?.envelopeDigest ?? null,
         envelopePath:
           app.envelopePath === undefined ? null : normalizePath(path.relative(workspaceRoot, app.envelopePath)),
-        identity: app.envelope?.identity ?? null,
+        identity: app.identity ?? null,
+        identityPath:
+          app.identityPath === undefined ? null : normalizePath(path.relative(workspaceRoot, app.identityPath)),
         main: mainLogicalPath,
         modules: boundModules,
         modulesRoot: normalizePath(path.relative(workspaceRoot, app.outputRoot)),
@@ -606,11 +707,15 @@ const responseEvidence = (app: App, response: MiniflareResponse): Effect.Effect<
     const body = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Json))(source).pipe(
       Effect.mapError((cause) => proofError(`${app.id} API response is not valid JSON`, cause)),
     );
+    const identity = app.identity;
+    if (identity === undefined) {
+      return yield* proofError(`${app.id} has no executed release identity`);
+    }
     const marker = findReleaseMarkers(body).find(
       (candidate) =>
         candidate.appId === app.id &&
-        candidate.build === app.envelope?.identity.buildMarker &&
-        candidate.version === app.envelope.identity.releaseVersion,
+        candidate.build === identity.buildMarker &&
+        candidate.version === identity.releaseVersion,
     );
     if (marker === undefined) {
       return yield* proofError(`${app.id} API response is not tied to its executed release identity`);

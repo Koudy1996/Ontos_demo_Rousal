@@ -105,6 +105,7 @@ patchedDependencies:
   msgpackr@2.1.0: patches/msgpackr@2.1.0.patch
   zod@4.5.4: patches/zod@4.5.4.patch
   drizzle-orm@1.0.0-rc.5-ab785fc: patches/drizzle-orm-rc5-declarations.patch
+  '@bleedingdev/modern-js-ultramodern-create@3.9.0-ultramodern.10': patches/@bleedingdev__modern-js-ultramodern-create@3.9.0-ultramodern.10.patch
 packageExtensions:
   eslint-plugin-perfectionist@5.10.1:
     dependencies:

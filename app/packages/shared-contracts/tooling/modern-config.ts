@@ -3,7 +3,26 @@ import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { Config, Option, Result, Schema } from 'effect';
+import {
+  contains as optionContains,
+  getOrElse as getOptionOrElse,
+  getOrUndefined as getOptionOrUndefined,
+} from 'effect/Option';
+import { getOrThrow as getResultOrThrow, isSuccess as isResultSuccess } from 'effect/Result';
+import {
+  Boolean as BooleanSchema,
+  Literals,
+  NumberFromString,
+  OptionFromUndefinedOr,
+  Trim,
+  check,
+  decodeTo,
+  decodeUnknownResult,
+  isBetween,
+  isInt,
+  isMinLength,
+} from 'effect/Schema';
+import { transform } from 'effect/SchemaTransformation';
 
 const nodeBuiltinRequests = new Set(builtinModules.flatMap((name) => [name, `node:${name}`]));
 
@@ -37,7 +56,16 @@ const createCloudflareRuntimeExternal =
   };
 /* oxlint-enable promise/prefer-await-to-callbacks */
 
-const nonEmptyBuildStringSchema = Schema.Trim.pipe(Schema.check(Schema.isMinLength(1)));
+const nonEmptyBuildStringSchema = Trim.pipe(check(isMinLength(1)));
+const buildBooleanSchema = Literals(['true', 'yes', 'on', '1', 'y', 'false', 'no', 'off', '0', 'n']).pipe(
+  decodeTo(
+    BooleanSchema,
+    transform({
+      decode: (value) => value === 'true' || value === 'yes' || value === 'on' || value === '1' || value === 'y',
+      encode: (value) => (value ? 'true' : 'false'),
+    }),
+  ),
+);
 
 interface ModernBuildContext {
   assetPrefix: string;
@@ -58,28 +86,26 @@ type BuildConfigEnvironment = (name: string) => unknown;
 
 const createBuildConfigReaders = (getBuildConfigEnvironment: BuildConfigEnvironment) => {
   const envValue = (name: string): string | undefined => {
-    const decoded = Schema.decodeUnknownResult(Schema.OptionFromUndefinedOr(nonEmptyBuildStringSchema))(
+    const decoded = decodeUnknownResult(OptionFromUndefinedOr(nonEmptyBuildStringSchema))(
       getBuildConfigEnvironment(name),
     );
-    return Result.isSuccess(decoded) ? Option.getOrUndefined(decoded.success) : undefined;
+    return isResultSuccess(decoded) ? getOptionOrUndefined(decoded.success) : undefined;
   };
   const getBuildBoolean = (name: string): boolean =>
-    Option.getOrElse(
-      Result.getOrThrow(
-        Schema.decodeUnknownResult(Schema.OptionFromUndefinedOr(Config.Boolean))(getBuildConfigEnvironment(name)),
-      ),
+    getOptionOrElse(
+      getResultOrThrow(decodeUnknownResult(OptionFromUndefinedOr(buildBooleanSchema))(getBuildConfigEnvironment(name))),
       () => false,
     );
   return { envValue, getBuildBoolean };
 };
 
 const getCloudflareDeployEnabled = (getBuildConfigEnvironment: BuildConfigEnvironment): boolean => {
-  const cloudflareDeployMode = Result.getOrThrow(
-    Schema.decodeUnknownResult(Schema.OptionFromUndefinedOr(Schema.Literals(['cloudflare', 'node'])))(
+  const cloudflareDeployMode = getResultOrThrow(
+    decodeUnknownResult(OptionFromUndefinedOr(Literals(['cloudflare', 'node'])))(
       getBuildConfigEnvironment('MODERNJS_DEPLOY'),
     ),
   );
-  return Option.contains(cloudflareDeployMode, 'cloudflare');
+  return optionContains(cloudflareDeployMode, 'cloudflare');
 };
 
 const getBuildPort = (
@@ -87,12 +113,10 @@ const getBuildPort = (
   portEnvironmentVariable: string,
   defaultPort: number,
 ): number =>
-  Option.getOrElse(
-    Result.getOrThrow(
-      Schema.decodeUnknownResult(
-        Schema.OptionFromUndefinedOr(
-          Schema.NumberFromString.pipe(Schema.check(Schema.isInt(), Schema.isBetween({ maximum: 65_535, minimum: 1 }))),
-        ),
+  getOptionOrElse(
+    getResultOrThrow(
+      decodeUnknownResult(
+        OptionFromUndefinedOr(NumberFromString.pipe(check(isInt(), isBetween({ maximum: 65_535, minimum: 1 })))),
       )(getBuildConfigEnvironment(portEnvironmentVariable)),
     ),
     () => defaultPort,
