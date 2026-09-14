@@ -46,13 +46,16 @@ infer scope from hostname, locale, IP address, account type, currency, or anothe
 Supported Launch scope ranks from broader to narrower are:
 
 1. Selling Legal Entity + Channel;
-2. Selling Legal Entity + Channel + Commerce Market;
-3. Selling Legal Entity + Channel + Storefront;
+2. Selling Legal Entity + Channel + Storefront;
+3. Selling Legal Entity + Channel + Commerce Market;
 4. Selling Legal Entity + Channel + Commerce Market + Storefront.
 
-The two single refinements have the same specificity dimension count and are each narrower than the
-SLE+Channel baseline; a rule matching both Commerce Market and Storefront is narrower than either.
-An unresolved equal-rank conflict is handled by Assortment Resolution, not by technical ordering.
+Commerce Market is intentionally more specific than Storefront when only one of those optional
+dimensions is present. A rule matching both Commerce Market and Storefront is narrower than either.
+The exact precedence from narrower to broader is therefore:
+`SLE+Channel+Market+Storefront > SLE+Channel+Market > SLE+Channel+Storefront > SLE+Channel`.
+A conflict at the same resolved scope rank is handled by Assortment Resolution, never by technical
+ordering.
 
 ## Catalog selectors
 
@@ -121,40 +124,49 @@ the relevant Commerce Customer Profile. Commerce Customer Group and its Membersh
 facts only; Assortment owns their interpretation. Membership list order, name, creation time, or
 source order creates no priority.
 
-**Principal / Assortment Subject Separation** — Principal is the actor authorized to perform an
+**Principal / Assortment Subject Separation** — Principal is the Actor authorized to perform an
 operation. It is not automatically the commercial subject whose Assortment is being evaluated. One
 Principal may act for different Counterparties, and changing trusted Purchasing Subject may change
 Assortment without changing Principal identity.
 
 ## Rules, revisions, and assignments
 
-**Stable Assortment Rule** — Durable identity of one continuing Assortment Business Policy across
-successive immutable Rule Revisions. Display label, database row identity, or current payload is not
-the business identity. A materially different independent policy uses another Stable Assortment Rule;
-a changed version of the same continuing policy may create a successor revision under the same stable
-identity.
+**Assortment Stable Rule** — Durable identity of one continuing Assortment Business Policy across
+successive immutable Assortment Rule Revisions. Display label, database row identity, or Current
+payload is not the business identity. A materially different independent policy uses another
+Assortment Stable Rule; a changed version of the same continuing policy may create a successor
+revision under the same stable identity.
 
-**Assortment Rule Revision** — Immutable Effective representation of one Stable Assortment Rule's
+**Assortment Rule Revision** — Immutable Effective representation of one Assortment Stable Rule's
 business meaning. Material fields include at least Decision Purpose, Assortment Effect, Catalog
 selector and target, Assortment Commercial Scope, and Effective Period semantics. Material change
 creates another distinguishable revision and never rewrites a revision that was already Effective or
 used as evidence. Effective Period uses standard OntOS half-open semantics.
 
-**Subject Assignment** — Explicit Effective binding of one exact Assortment Subject-Specific Target
-to one **specific immutable Assortment Rule Revision**. It retains its own Effective Period,
-provenance, acting Principal/Actor and bounded reason/evidence. It never points only to Stable
-Assortment Rule identity.
+**Assortment Subject Assignment** — Explicit Effective binding of one exact Assortment
+Subject-Specific Target to one **specific immutable Assortment Rule Revision**. It retains its own
+Effective Period, provenance, acting Principal/Actor and bounded reason/evidence. It never points only
+to Assortment Stable Rule identity.
 
-Creating a successor Assortment Rule Revision does not change any existing Subject Assignment.
-Changing a subject from revision R1 to R2 is an explicit business transition represented in Launch by
-End Subject Assignment plus Create Subject Assignment at the intended Effective boundary. A
-partial, conflicting, or indeterminate replacement is not presented as complete and is reconciled
-before the system claims the new binding is Current.
+Creating a successor Assortment Rule Revision does not change any existing Assortment Subject
+Assignment. Changing a subject from revision R1 to R2 is an explicit business transition represented
+in Launch by End Subject Assignment plus Create Subject Assignment at the intended Effective
+boundary. A partial, conflicting, or indeterminate replacement is not presented as complete and is
+reconciled before the system claims the new binding is Current.
+
+**Assortment Rule / Subject Assignment Lifecycle Separation** — Change Rule / Create New Revision
+changes the shared Assortment Stable Rule's future/current revision semantics but never retargets
+existing Assortment Subject Assignments. End Rule ends shared Current/future applicability and blocks
+new Subject Assignments to that ended Stable Rule, but it does not automatically end existing
+Assignments pinned to already-existing immutable Rule Revisions. Those Assignments continue only
+according to their own Effective Period and End Subject Assignment lifecycle. This separation keeps
+`assortment.rule.*` and `assortment.assignment.*` authorization boundaries real rather than
+indirectly interchangeable.
 
 ## Resolution
 
 **Assortment Resolution** — Deterministic lexicographic evaluation of all applicable Current rules
-and explicit Subject Assignments. Resolution order is:
+and explicit Assortment Subject Assignments. Resolution order is:
 
 1. Catalog specificity;
 2. Assortment Commercial Scope specificity;
@@ -168,7 +180,7 @@ No technical ordering is a business tie-breaker.
 only in `PURCHASE` because they are invalid for `VISIBILITY`.
 
 **Subject Specificity** — At equal Catalog and commercial-scope rank, broader to narrower:
-shared rule < Commerce Customer Group rule < exact subject-specific assignment. Subject specificity
+shared rule < Commerce Customer Group rule < exact Assortment Subject Assignment. Subject specificity
 is evaluated after Catalog and commercial scope, so a broad exact-subject exception does not defeat a
 narrower Product/Variant/Package or commercial-scope rule solely because it names one subject.
 
@@ -180,9 +192,9 @@ event arrival order are forbidden tie-breakers.
 **Assortment Missing Configuration** — Required baseline/rule is absent for a supported evaluation.
 It yields `INDETERMINATE`, not implicit `ALLOW`, implicit `DENY`, or a platform default.
 
-**Broken Explicit Assortment Configuration** — Explicit Rule/Assignment exists but is dangling,
-incompatible, invalid, unusable or unverifiable. It is not equivalent to absence and must not be
-silently ignored in favor of a broader result when doing so could change eligibility.
+**Broken Explicit Assortment Configuration** — Explicit Rule/Assortment Subject Assignment exists but
+is dangling, incompatible, invalid, unusable or unverifiable. It is not equivalent to absence and
+must not be silently ignored in favor of a broader result when doing so could change eligibility.
 
 ## Evidence and currentness
 
@@ -190,10 +202,10 @@ silently ignored in favor of a broader result when doing so could change eligibi
 later determine whether it may still be used. As applicable it retains Decision Purpose and outcome,
 Product or exact Catalog Selection, material Catalog Revision References, trusted Commerce
 Purchasing Context or Guest Purchase Context, Purchasing Subject / exact subject-specific target,
-Current Commerce Customer Group Memberships used, exact Rule Revision and Subject Assignment
-revisions, trusted operation time, and resolution reason/rank. Category classification evidence is
-retained only when Category matching materially participated. Evidence does not transfer ownership of
-source facts to Assortment.
+Current Commerce Customer Group Memberships used, exact Assortment Rule Revisions and Assortment
+Subject Assignments used, trusted operation time, and resolution reason/rank. Category classification
+evidence is retained only when Category matching materially participated. Evidence does not transfer
+ownership of source facts to Assortment.
 
 **Stale Assortment Result** — Prospective result whose material source facts or applicability can no
 longer be established as Current for the next decision boundary. A cached result, lack of an
@@ -203,10 +215,11 @@ Assortment configuration.
 
 **Assortment Commitment Confirmation** — Assortment-owner-issued bounded proof for one exact purchase
 candidate and one exact Order Commitment Attempt, retaining the relevant Assortment evidence and an
-explicit short expiry. Once issued, ordinary later Rule, Subject Assignment, Commerce Customer Group
-Membership, Catalog classification or other source changes do **not** revoke that confirmation for
-its exact attempt before expiry. New evaluations use the new Current state. An expired, mismatched,
-or unverifiable confirmation is unusable and requires a new owner confirmation.
+explicit short expiry. Once issued, ordinary later Assortment Rule Revision, Assortment Subject
+Assignment, Commerce Customer Group Membership, Catalog classification or other source changes do
+**not** revoke that confirmation for its exact attempt before expiry. New evaluations use the new
+Current state. An expired, mismatched, or unverifiable confirmation is unusable and requires a new
+owner confirmation.
 
 Launch Assortment has no emergency-revocation mechanism for already-issued Assortment Commitment
 Confirmations. The validity window must therefore remain deliberately bounded and short. A timestamp,
@@ -249,8 +262,9 @@ reviewed groupings of these atomic Permissions.
 **Assortment Administration Scope** — Exact trusted target scope resolved before authorization. It
 may include Tenant, Selling Legal Entity, Channel, Commerce Market, Storefront and exact subject for
 subject-specific operations. A narrower grant never authorizes a broader target. Rule management and
-Subject Assignment management are separately authorized. Because Subject Assignments pin immutable
-Rule Revisions, Change Rule has no hidden authority to mutate downstream subject bindings.
+Assortment Subject Assignment management are separately authorized. Because Assortment Subject
+Assignments pin immutable Assortment Rule Revisions, Change Rule has no hidden authority to mutate
+downstream subject bindings.
 
 Buyer Permission, Catalog Editor authority and Counterparty Access Administrator authority do not
 imply Assortment administration. Missing, denied, unavailable or indeterminate authorization fails
@@ -282,11 +296,13 @@ Assortment directly and is not a privileged write path**. Any resulting canonica
 through the standard Assortment Management Actions, Permissions, scope, idempotency and audit.
 Reconciliation never silently unions subject-specific exceptions, Permissions or unrelated settings.
 
-**Assortment Cutover Acceptance** — Launch condition requiring every launch-critical legacy behavior
+**Assortment Cutover Acceptance** — Launch condition requiring every Launch-critical legacy behavior
 to have sufficient Active Behavior evidence, an explicit migration classification, canonical
-subject/target/scope and System of Record, completed standard Actions for retained/transformed state,
-and closed Reconciliation. A launch-critical `UNRESOLVED` item blocks the affected cutover rather
-than being approximated.
+subject/target/scope and System of Record, and any retained/transformed canonical state to have been
+applied through standard Assortment Management Actions or authoritatively reconciled. A
+Launch-critical `UNRESOLVED` item blocks the affected cutover rather than being approximated. A
+non-Launch or explicitly `RETIRE` item does not block unrelated Launch journeys merely because its
+legacy representation remains unresolved.
 
 ## Boundaries
 
