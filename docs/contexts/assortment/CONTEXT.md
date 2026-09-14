@@ -1,316 +1,227 @@
-# Assortment language
+# Assortment
 
-Assortment is the Commerce Business Policy capability that decides commercial eligibility for an
-explicit Decision Purpose in one trusted Commerce context. This context owns canonical Assortment
-semantics and vocabulary, not storage, transport, search-engine implementation, or UI mechanics. It
-extends [Commerce language](../commerce/CONTEXT.md) and [OntOS language](../ontos/CONTEXT.md); shared
-Commerce/OntOS terms retain their owning meanings. Accepted ADRs govern durable architecture.
+Canonical language for B09 Assortment, the Commerce Business Policy capability that decides commercial eligibility for one explicit decision purpose in one trusted Commerce context. This file is a glossary only; delivery scope belongs in GitHub issues, durable architectural rationale in ADRs, and shared Commerce/OntOS terms keep the meanings owned by their contexts.
 
-These terms describe the Current target contract for B09 Assortment. GitHub issue bodies own delivery
-scope and acceptance detail. Older planning/GOLD comments are discovery history and do not override
-Current issue bodies or this context.
+## Decision language
 
-## Decision model
+**Assortment**:
+A Commerce Business Policy capability that decides whether a supported Catalog target is commercially eligible for one Assortment Decision Purpose in one trusted Current Commerce context.
+_Avoid_: Catalog readiness, publication, Permission, Pricing, Availability, Payment, approval, or Order acceptance when the intended concept is Assortment.
 
-**Assortment Decision Purpose** — Explicit reason for an Assortment evaluation. Launch has exactly
-two purposes: `VISIBILITY` and `PURCHASE`. A result for one purpose is never authority for the other.
+**Assortment Decision Purpose**:
+The exact business question an Assortment evaluation answers. Launch purposes are `VISIBILITY` and `PURCHASE`, and a result for one purpose is never authority for the other.
+_Avoid_: Mode, operation type, generic eligibility.
 
-**VISIBILITY** — Product-level Assortment Decision Purpose answering whether one Product may be
-exposed as a commercial offer in the exact trusted context. It never decides visibility of Variant
-or Package Option as independent canonical targets and never proves that any exact Catalog Selection
-may be purchased.
+**VISIBILITY**:
+The Product-level Assortment Decision Purpose asking whether one Product may be exposed as a commercial offer in the exact trusted context.
+_Avoid_: Variant visibility, Package Option visibility, purchase eligibility.
 
-**PURCHASE** — Exact-purchase Assortment Decision Purpose answering whether one exact Catalog
-Selection may be purchased by the applicable Guest Purchase Context or Purchasing Subject in the
-trusted Commerce Purchasing Context. It does not prove Price, Availability, Permission, Payment,
-approval, or final Order acceptance.
+**PURCHASE**:
+The Assortment Decision Purpose asking whether one exact Catalog Selection may be purchased by the applicable Guest Purchase Context or Purchasing Subject in the trusted Commerce Purchasing Context.
+_Avoid_: Product visibility, Price, Availability, Permission, Payment, approval, Order acceptance.
 
-**Assortment Decision Outcome** — Typed result of one Assortment evaluation: `ELIGIBLE`,
-`INELIGIBLE`, or `INDETERMINATE`. `ELIGIBLE` means sufficient authoritative Assortment evidence
-allows the exact question. `INELIGIBLE` means sufficient authoritative Assortment evidence denies it.
-`INDETERMINATE` means neither conclusion can be established truthfully because required evidence or
-configuration is missing, conflicting, stale, unavailable, or otherwise unverifiable. It is neither
-implicit allow nor business deny.
+**Assortment Decision Outcome**:
+The result of one Assortment evaluation: `ELIGIBLE`, `INELIGIBLE`, or `INDETERMINATE`. `INDETERMINATE` means the required business conclusion cannot be established truthfully and is neither implicit allow nor business deny.
+_Avoid_: Boolean allowed, stale as a fourth outcome.
 
-**Assortment Effect** — Rule effect `ALLOW` or `DENY`. Effect does not carry implicit priority.
-Specificity and explicit resolution rules determine precedence; `DENY` is not globally stronger than
-`ALLOW` and vice versa.
+**Assortment Effect**:
+The immutable policy effect `ALLOW` or `DENY` carried by one Assortment Rule Revision. Effect has no inherent priority; canonical specificity and conflict rules determine the outcome.
+_Avoid_: Deny-overrides, allow-overrides.
+
+## Policy meaning and applicability
+
+**Assortment Stable Rule**:
+The durable governance and audit lineage under which immutable Assortment Rule Revisions are recorded. It has no resolver meaning and no implicit Current or latest Revision.
+_Avoid_: Runtime rule, current rule, moving rule target.
+
+**Assortment Rule Revision**:
+An immutable, time-neutral exact policy meaning containing Assortment Decision Purpose, Assortment Effect, and exactly one valid Assortment Catalog Selector plus target. It owns neither Assortment Commercial Scope nor Effective Period.
+_Avoid_: Editable rule, Current Revision, latest Revision, revision expiry, revision-level Commercial Scope.
+
+**Assortment Applicability Binding**:
+An immutable applicability fact that binds one exact Assortment Rule Revision to one audience, one Assortment Commercial Scope, and its own effective lifecycle. Its Effective Period is derived from Binding Create plus an optional Binding End lifecycle fact.
+_Avoid_: Assortment Subject Assignment, Rule Assignment, mutable binding, Binding to Stable Rule.
+
+**Assortment Binding Kind**:
+The audience form of one Assortment Applicability Binding: `SHARED`, `COMMERCE_CUSTOMER_GROUP`, or `SUBJECT`.
+_Avoid_: Customer type, role, Permission-derived audience.
+
+**SHARED Assortment Binding**:
+An Assortment Applicability Binding with no individual or Commerce Customer Group target.
+_Avoid_: Global wildcard, missing subject.
+
+**COMMERCE_CUSTOMER_GROUP Assortment Binding**:
+An Assortment Applicability Binding targeting one exact Commerce Customer Group and matched through Current Commerce Customer Group Membership evidence.
+_Avoid_: Segment name, group list order, inferred group.
+
+**SUBJECT Assortment Binding**:
+An Assortment Applicability Binding targeting one exact Commerce Retail Customer Profile or one exact Counterparty.
+_Avoid_: Customer assignment, Principal assignment, email/account/company-name targeting.
+
+**Retire Rule**:
+The governance transition that closes an Assortment Stable Rule lineage to new Revisions and new Bindings. Existing Bindings to already-existing Revisions continue according to their own lifecycle.
+_Avoid_: End Rule, deactivate Rule, bulk-end Bindings.
+
+**Replace Applicability Binding**:
+One atomic business transition that ends an existing Binding and creates its replacement at the same intended Effective boundary. The old Binding is never retargeted or edited in place.
+_Avoid_: Retarget Binding, edit Binding, replace Permission.
 
 ## Commercial scope
 
-**Assortment Commercial Scope** — Trusted commercial scope of one Assortment Rule Revision. Selling
-Legal Entity and Channel are mandatory. Commerce Market and Storefront are optional narrowing
-dimensions. Missing mandatory scope is invalid configuration, not a wildcard and not a request to
-infer scope from hostname, locale, IP address, account type, currency, or another convenience signal.
+**Assortment Commercial Scope**:
+The commercial applicability scope owned by one Assortment Applicability Binding. Selling Legal Entity and Channel are mandatory; Commerce Market and Storefront are independent optional narrowing dimensions.
+_Avoid_: Rule Revision scope, hostname scope, locale scope, currency scope, inferred Market or Storefront.
 
-Supported Launch scope ranks from broader to narrower are:
-
-1. Selling Legal Entity + Channel;
-2. Selling Legal Entity + Channel + Storefront;
-3. Selling Legal Entity + Channel + Commerce Market;
-4. Selling Legal Entity + Channel + Commerce Market + Storefront.
-
-Commerce Market is intentionally more specific than Storefront when only one of those optional
-dimensions is present. A rule matching both Commerce Market and Storefront is narrower than either.
-The exact precedence from narrower to broader is therefore:
-`SLE+Channel+Market+Storefront > SLE+Channel+Market > SLE+Channel+Storefront > SLE+Channel`.
-A conflict at the same resolved scope rank is handled by Assortment Resolution, never by technical
-ordering.
+**Assortment Commercial Scope Specificity**:
+A partial order in which `SLE+Channel` is broader, Market-only and Storefront-only are each narrower but mutually incomparable, and Market+Storefront is narrower than both. Higher-axis incomparability cannot be resolved by subject specificity or technical ordering.
+_Avoid_: `Market > Storefront`, `Storefront > Market`, one linear commercial-scope rank.
 
 ## Catalog selectors
 
-**Assortment Catalog Selector** — Explicit typed Catalog Policy Scope used by an Assortment Rule
-Revision. Launch has a closed selector set: `ALL`, `CATEGORY`, `PRODUCT`, `VARIANT`, and
-`PACKAGE_OPTION`. No missing selector, SKU/name convention, primary/main category, arbitrary query,
-expression, callback, or user code is an alternate selector.
+**Assortment Catalog Selector**:
+The explicit typed Catalog target semantics carried by one Assortment Rule Revision. Launch selectors are `ALL`, `CATEGORY`, `PRODUCT`, `VARIANT`, and `PACKAGE_OPTION` only.
+_Avoid_: `PRODUCER`, Brand, Manufacturer, SKU/name patterns, direct-only Category, primary/main Category, arbitrary query, expression, callback, missing target as selector.
 
-**ALL Assortment Selector** — Explicit broad selector covering all Catalog targets applicable to the
-Decision Purpose and commercial scope. `ALL` is a deliberate business value and never arises from a
-missing or broken target reference.
+**ALL Assortment Selector**:
+An explicit broad selector covering all Catalog targets valid for the Decision Purpose. It is a deliberate business value, never the result of a missing or broken target.
+_Avoid_: Default selector, wildcard inferred from null.
 
-**CATEGORY Assortment Selector** — Product Category subtree selector using Current Direct Category
-Assignment plus Ancestor Classification. It matches Products directly classified in the selected
-Product Category or any descendant. Launch has no separate direct-only Category selector and no
-implicit main/primary Product Category. Category hierarchy/classification changes can therefore
-materially change Current Assortment without editing the Assortment Rule.
+**CATEGORY Assortment Selector**:
+A Product Category subtree selector matching Products directly classified in the selected Product Category or in any descendant through Current Ancestor Classification.
+_Avoid_: Direct-only Category selector, main Category, first Category assignment.
 
-**PRODUCT Assortment Selector** — Selector for one stable Product ResourceRef. It is valid for both
-`VISIBILITY` and `PURCHASE`. For `PURCHASE`, it is a broader rule covering exact Catalog Selections
-belonging to that Product unless a more-specific applicable selector wins.
+**PRODUCT Assortment Selector**:
+A selector for one stable Product ResourceRef, valid for `VISIBILITY` and `PURCHASE`. For `PURCHASE` it is broader than Variant and Package Option selectors for exact Catalog Selections belonging to that Product.
+_Avoid_: Product name, SKU, Product Type.
 
-**VARIANT Assortment Selector** — Selector for one stable Variant ResourceRef. It is valid only for
-`PURCHASE`. It matches exact Catalog Selections whose Catalog Selection Target is that Variant or a
-Package Option belonging to it. `VISIBILITY + VARIANT` is invalid configuration and is never
-aggregated into Product visibility.
+**VARIANT Assortment Selector**:
+A `PURCHASE`-only selector for one stable Variant ResourceRef, covering that Variant and its Package Options as a broader candidate.
+_Avoid_: Variant visibility selector, Variant name or SKU selector.
 
-**PACKAGE_OPTION Assortment Selector** — Selector for one independently selectable Package Option.
-It is valid only for `PURCHASE` and matches that exact Package Option. Quantity multiples or
-packaging used only to explain quantity do not create a Package Option selector target.
+**PACKAGE_OPTION Assortment Selector**:
+A `PURCHASE`-only selector for one independently selectable Package Option and no sibling option. Quantity multiples or packaging used only to explain Quantity do not create this target.
+_Avoid_: Pack-size heuristic, quantity-as-package identity.
 
-**Assortment Purpose-Selector Compatibility** — Launch invariant:
+**Assortment Purpose-Selector Compatibility**:
+`VISIBILITY` accepts only `ALL`, `CATEGORY`, and `PRODUCT`; `PURCHASE` accepts `ALL`, `CATEGORY`, `PRODUCT`, `VARIANT`, and `PACKAGE_OPTION`.
+_Avoid_: Interpreting an incompatible combination at runtime instead of rejecting it as invalid configuration.
 
-| Selector | `VISIBILITY` | `PURCHASE` |
-| --- | --- | --- |
-| `ALL` | valid | valid |
-| `CATEGORY` | valid | valid |
-| `PRODUCT` | valid | valid |
-| `VARIANT` | invalid | valid |
-| `PACKAGE_OPTION` | invalid | valid |
+## Subject and actor language
 
-Create Rule and Change Rule reject incompatible combinations. Migration must not invent semantics for
-an incompatible legacy representation; it remains `UNRESOLVED` until a meaning-preserving
-transformation is approved.
+**Assortment Subject Context**:
+The subject side of an Assortment evaluation: either a Guest Purchase Context or an identified Purchasing Subject. Guest is not a Purchasing Subject.
+_Avoid_: Customer, account, Principal as the commercial subject.
 
-**Non-Launch Assortment Selector** — `PRODUCER`, Brand, Manufacturer and other undeclared Catalog
-dimensions are not Launch Assortment selectors. Legacy evidence that such targeting existed does not
-expand the canonical model. Active legacy behavior may be transformed only when its ongoing business
-meaning is preserved; otherwise it remains `UNRESOLVED`. Expanding a dynamic Producer/Brand rule to
-the Product list that happens to exist today is not meaning-preserving unless business explicitly
-confirms snapshot semantics.
+**Assortment Individual Target**:
+The exact individual audience target of a `SUBJECT` Binding: one Commerce Retail Customer Profile or one Counterparty.
+_Avoid_: Party similarity, email, account, domain, job title, Principal identity.
 
-## Subject model
+**Assortment Group Input**:
+Current Commerce Customer Group Membership evidence used to determine which `COMMERCE_CUSTOMER_GROUP` Bindings apply. Membership ownership remains with the Commerce Customer Group capability.
+_Avoid_: Assortment-owned membership, group order as precedence.
 
-**Assortment Subject Context** — Subject side of an Assortment evaluation. It is either a Guest
-Purchase Context or an identified Purchasing Subject. Guest is not a Purchasing Subject. The acting
-Principal remains separate from both.
-
-**Assortment Subject-Specific Target** — Canonical exact target for an individual Assortment
-exception. Launch supports one Commerce Retail Customer Profile or one Counterparty. Email, account,
-Party matching alone, job title, Principal identity, Permission, domain, or another heuristic never
-creates a subject-specific Assortment target.
-
-**Assortment Group Input** — Complete Current Commerce Customer Group Membership set applicable to
-the relevant Commerce Customer Profile. Commerce Customer Group and its Membership owner provide the
-facts only; Assortment owns their interpretation. Membership list order, name, creation time, or
-source order creates no priority.
-
-**Principal / Assortment Subject Separation** — Principal is the Actor authorized to perform an
-operation. It is not automatically the commercial subject whose Assortment is being evaluated. One
-Principal may act for different Counterparties, and changing trusted Purchasing Subject may change
-Assortment without changing Principal identity.
-
-## Rules, revisions, and assignments
-
-**Assortment Stable Rule** — Durable identity of one continuing Assortment Business Policy across
-successive immutable Assortment Rule Revisions. Display label, database row identity, or Current
-payload is not the business identity. A materially different independent policy uses another
-Assortment Stable Rule; a changed version of the same continuing policy may create a successor
-revision under the same stable identity.
-
-**Assortment Rule Revision** — Immutable Effective representation of one Assortment Stable Rule's
-business meaning. Material fields include at least Decision Purpose, Assortment Effect, Catalog
-selector and target, Assortment Commercial Scope, and Effective Period semantics. Material change
-creates another distinguishable revision and never rewrites a revision that was already Effective or
-used as evidence. Effective Period uses standard OntOS half-open semantics.
-
-**Assortment Subject Assignment** — Explicit Effective binding of one exact Assortment
-Subject-Specific Target to one **specific immutable Assortment Rule Revision**. It retains its own
-Effective Period, provenance, acting Principal/Actor and bounded reason/evidence. It never points only
-to Assortment Stable Rule identity.
-
-Creating a successor Assortment Rule Revision does not change any existing Assortment Subject
-Assignment. Changing a subject from revision R1 to R2 is an explicit business transition represented
-in Launch by End Subject Assignment plus Create Subject Assignment at the intended Effective
-boundary. A partial, conflicting, or indeterminate replacement is not presented as complete and is
-reconciled before the system claims the new binding is Current.
-
-**Assortment Rule / Subject Assignment Lifecycle Separation** — Change Rule / Create New Revision
-changes the shared Assortment Stable Rule's future/current revision semantics but never retargets
-existing Assortment Subject Assignments. End Rule ends shared Current/future applicability and blocks
-new Subject Assignments to that ended Stable Rule, but it does not automatically end existing
-Assignments pinned to already-existing immutable Rule Revisions. Those Assignments continue only
-according to their own Effective Period and End Subject Assignment lifecycle. This separation keeps
-`assortment.rule.*` and `assortment.assignment.*` authorization boundaries real rather than
-indirectly interchangeable.
+**Principal / Assortment Subject Separation**:
+Principal is the Actor used for authorization and audit, while Guest Purchase Context or Purchasing Subject is the commercial context whose Assortment is evaluated. One Principal may act for different Counterparties without becoming any of them.
+_Avoid_: Principal equals customer, Buyer Permission implies Assortment eligibility.
 
 ## Resolution
 
-**Assortment Resolution** — Deterministic lexicographic evaluation of all applicable Current rules
-and explicit Assortment Subject Assignments. Resolution order is:
+**Assortment Candidate**:
+One exact pair of a Current Applicable Assortment Applicability Binding and the immutable Assortment Rule Revision it references.
+_Avoid_: Stable Rule candidate, latest Revision candidate, Rule without Binding.
 
-1. Catalog specificity;
-2. Assortment Commercial Scope specificity;
-3. subject specificity;
-4. equal-rank conflict detection.
+**Assortment Resolution**:
+Deterministic resolution of applicable Assortment Candidates by Catalog specificity, then Binding Commercial Scope specificity, then Binding subject specificity, followed by maximal-effect conflict handling. Incomparability on a higher axis stops lower-axis precedence.
+_Avoid_: First match wins, last write wins, ID/timestamp/order tie-breaks.
 
-No technical ordering is a business tie-breaker.
+**Catalog Specificity**:
+The Catalog precedence axis `ALL < CATEGORY < PRODUCT < VARIANT < PACKAGE_OPTION`, with descendant Category narrower than ancestor and unrelated matching Categories incomparable.
+_Avoid_: Effect-based specificity, unrelated Category ordering.
 
-**Catalog Specificity** — For applicable selector kinds, broader to narrower:
-`ALL < CATEGORY < PRODUCT < VARIANT < PACKAGE_OPTION`. `VARIANT` and `PACKAGE_OPTION` participate
-only in `PURCHASE` because they are invalid for `VISIBILITY`.
+**Assortment Subject Specificity**:
+The audience precedence axis `SHARED < COMMERCE_CUSTOMER_GROUP < SUBJECT`, applied only after Catalog and Commercial Scope comparison leaves candidates comparable.
+_Avoid_: Subject always wins, individual exception bypasses narrower Catalog policy.
 
-**Subject Specificity** — At equal Catalog and commercial-scope rank, broader to narrower:
-shared rule < Commerce Customer Group rule < exact Assortment Subject Assignment. Subject specificity
-is evaluated after Catalog and commercial scope, so a broad exact-subject exception does not defeat a
-narrower Product/Variant/Package or commercial-scope rule solely because it names one subject.
+**Assortment Configuration Conflict**:
+A Current configuration state whose maximal applicable candidates cannot produce one unambiguous effect, including opposing `ALLOW` and `DENY` among unordered maximal candidates. The Assortment Decision Outcome is `INDETERMINATE`.
+_Avoid_: Technical tie-break, automatic DENY winner, automatic ALLOW winner.
 
-**Assortment Configuration Conflict** — State in which equally ranked applicable configuration cannot
-produce one unambiguous effect, including opposing `ALLOW`/`DENY` at the same resolved rank. Result
-is `INDETERMINATE`. Database order, numeric ID, created/updated time, last write, import order and
-event arrival order are forbidden tie-breakers.
+**Assortment Missing Configuration**:
+The absence of required applicable baseline/configuration for a supported Assortment evaluation. It yields `INDETERMINATE`, not a default Effect.
+_Avoid_: Missing means ALLOW, missing means DENY, missing means ALL.
 
-**Assortment Missing Configuration** — Required baseline/rule is absent for a supported evaluation.
-It yields `INDETERMINATE`, not implicit `ALLOW`, implicit `DENY`, or a platform default.
+**Broken Explicit Assortment Configuration**:
+An explicit Binding or pinned Rule Revision that is dangling, incompatible, invalid, unusable, or unverifiable and could affect the decision. It is not equivalent to absence and must not expose a broader result by silent fallback.
+_Avoid_: Ignore broken candidate, treat broken as no rule.
 
-**Broken Explicit Assortment Configuration** — Explicit Rule/Assortment Subject Assignment exists but
-is dangling, incompatible, invalid, unusable or unverifiable. It is not equivalent to absence and
-must not be silently ignored in favor of a broader result when doing so could change eligibility.
+## Evidence and Currentness
 
-## Evidence and currentness
+**Assortment Decision Evidence**:
+Evidence for one exact decision that identifies the relevant Product or Catalog Selection, trusted Commerce context, subject/group evidence, participating Applicability Bindings with lifecycle facts, exact Rule Revisions, and resolution path. Stable Rule or today's latest Revision is never a historical substitute.
+_Avoid_: Rule ID only, latest-state lookup for historical explanation.
 
-**Assortment Decision Evidence** — Evidence sufficient to explain one exact Assortment decision and
-later determine whether it may still be used. As applicable it retains Decision Purpose and outcome,
-Product or exact Catalog Selection, material Catalog Revision References, trusted Commerce
-Purchasing Context or Guest Purchase Context, Purchasing Subject / exact subject-specific target,
-Current Commerce Customer Group Memberships used, exact Assortment Rule Revisions and Assortment
-Subject Assignments used, trusted operation time, and resolution reason/rank. Category classification
-evidence is retained only when Category matching materially participated. Evidence does not transfer
-ownership of source facts to Assortment.
+**Assortment Current Evaluation**:
+An authoritative Assortment evaluation whose material owner evidence remains verifiable through final revalidation for that evaluation attempt. Trusted operation time, cache age, hash, or event silence alone is not Current proof.
+_Avoid_: Same timestamp equals snapshot, no event means unchanged.
 
-**Stale Assortment Result** — Prospective result whose material source facts or applicability can no
-longer be established as Current for the next decision boundary. A cached result, lack of an
-invalidation event, timestamp or hash is not Current proof. Material changes may include commercial
-scope, Purchasing Subject, Commerce Customer Group Membership, Catalog Selection/classification, or
-Assortment configuration.
+**Stale Assortment Result**:
+Previously valid Assortment evidence that is no longer Current enough for the requested prospective decision. Stale is an evidence state, not an Assortment Decision Outcome.
+_Avoid_: STALE as a fourth outcome, stale ELIGIBLE as entitlement.
 
-**Assortment Commitment Confirmation** — Assortment-owner-issued bounded proof for one exact purchase
-candidate and one exact Order Commitment Attempt, retaining the relevant Assortment evidence and an
-explicit short expiry. Once issued, ordinary later Assortment Rule Revision, Assortment Subject
-Assignment, Commerce Customer Group Membership, Catalog classification or other source changes do
-**not** revoke that confirmation for its exact attempt before expiry. New evaluations use the new
-Current state. An expired, mismatched, or unverifiable confirmation is unusable and requires a new
-owner confirmation.
-
-Launch Assortment has no emergency-revocation mechanism for already-issued Assortment Commitment
-Confirmations. The validity window must therefore remain deliberately bounded and short. A timestamp,
-old read, hash, cached `ELIGIBLE`, or absence of a change event is not a substitute for this owner
-confirmation.
+**Assortment Commitment Confirmation**:
+An Assortment-owner-issued guarantee for one exact `PURCHASE=ELIGIBLE` candidate and one exact Order Commitment Attempt, issued only from a Current fence-validated evaluation and expiring no later than 30 seconds after issuance. Ordinary Assortment source changes do not revoke it before expiry; a zero-stale immediate hard stop belongs to another mandatory commitment owner/gate.
+_Avoid_: Long-lived entitlement, approval as confirmation, emergency Assortment revocation.
 
 ## Consumers and projections
 
-**Assortment Visibility Evaluation** — Authoritative Current `VISIBILITY` evaluation for one Product
-in the exact Guest Purchase Context or Purchasing Subject/commercial context. Product detail and
-protected direct access use authoritative evaluation rather than trusting Search/index presence.
+**Assortment Visibility Evaluation**:
+The authoritative Current `VISIBILITY` evaluation for one Product in one exact Guest Purchase Context or Purchasing Subject and commercial context.
+_Avoid_: Search hit, route, sitemap, or known URL as visibility authority.
 
-**Assortment Purchase Evaluation** — Authoritative Current `PURCHASE` evaluation for the exact Catalog
-Selection and trusted Commerce Purchasing Context. Cart/Checkout/Order acceptance consumers use this
-meaning and never let Assortment substitute another selection.
+**Assortment Purchase Evaluation**:
+The authoritative Current `PURCHASE` evaluation for one exact Catalog Selection and trusted Commerce Purchasing Context.
+_Avoid_: Product-level shortcut, silent replacement of Variant, Package Option, configuration, Market, Storefront, or subject.
 
-**Assortment Search Projection** — Derived, rebuildable, bounded read model/filter for listing and
-Search in one exact context. It is never canonical Assortment authority. A safe positive projection
-may accelerate browse; omission is not proof of `INELIGIBLE`, and partial/degraded projection must be
-represented honestly. Projection/cache partitioning must prevent cross-subject, cross-Market and
-cross-Storefront leakage.
+**Assortment Search Projection**:
+A derived, rebuildable, context-bounded read model for listing or Search. It is never canonical Assortment authority; a hit is not authoritative `ELIGIBLE` and omission is not authoritative `INELIGIBLE`.
+_Avoid_: Search/index as System of Record, cross-subject or cross-scope cache reuse without proven equivalence.
 
-**Assortment Invalidation Event** — Notification that derived consumers may need to invalidate or
-rebuild state after a committed Assortment change. Delivery may be duplicated, delayed or out of
-order. Event receipt is not an Assortment decision and absence of an event is not proof that an older
-result remains Current.
+**Assortment Invalidation Event**:
+A notification that a committed Assortment change may require derived consumers to refresh or rebuild. Receipt is not a decision and absence or delay is not Current proof.
+_Avoid_: Event as ALLOW/DENY, event silence as validity guarantee.
 
 ## Administration and authorization
 
-**Assortment Management Action** — Named public mutation of canonical Assortment state. Launch has
-exactly five write Actions: Create Rule, Change Rule / Create New Revision, End Rule, Create Subject
-Assignment, and End Subject Assignment. Generic field patching is not another mutation path.
+**Assortment Management Action**:
+A named canonical state transition: `Create Rule`, `Create Rule Revision`, `Retire Rule`, `Create Applicability Binding`, `End Applicability Binding`, or atomic `Replace Applicability Binding`.
+_Avoid_: Change Rule, End Rule, Create Subject Assignment, End Subject Assignment, generic PATCH, reconciliation write bypass.
 
-**Assortment Management Permission** — Atomic Permission protecting one Assortment management Action
-or governed read. Launch codes are `assortment.configuration.read`, `assortment.decision.explain`,
-`assortment.rule.create`, `assortment.rule.change`, `assortment.rule.end`,
-`assortment.assignment.create`, and `assortment.assignment.end`. Named bundles, if provided, are only
-reviewed groupings of these atomic Permissions.
+**Assortment Management Permission**:
+An atomic Permission protecting Assortment administration or governed reads: `assortment.configuration.read`, `assortment.decision.explain`, `assortment.rule.create`, `assortment.rule.revision.create`, `assortment.rule.retire`, `assortment.binding.create`, and `assortment.binding.end`.
+_Avoid_: `assortment.manage`, `assortment.admin`, `assortment.rule.change`, `assortment.rule.end`, `assortment.assignment.*`.
 
-**Assortment Administration Scope** — Exact trusted target scope resolved before authorization. It
-may include Tenant, Selling Legal Entity, Channel, Commerce Market, Storefront and exact subject for
-subject-specific operations. A narrower grant never authorizes a broader target. Rule management and
-Assortment Subject Assignment management are separately authorized. Because Assortment Subject
-Assignments pin immutable Assortment Rule Revisions, Change Rule has no hidden authority to mutate
-downstream subject bindings.
-
-Buyer Permission, Catalog Editor authority and Counterparty Access Administrator authority do not
-imply Assortment administration. Missing, denied, unavailable or indeterminate authorization fails
-closed.
+**Assortment Administration Scope**:
+The exact trusted authorization target for one Assortment management operation, including the relevant policy meaning or Binding audience and Commercial Scope. Rule authority and Binding applicability authority are separate; a narrow grant never authorizes a broader or unrelated target.
+_Avoid_: Permission code alone, Tenant membership as authority, Buyer/Catalog/Counterparty Access authority as Assortment administration.
 
 ## Migration and reconciliation
 
-**Assortment Migration Classification** — Explicit verdict for one legacy behavior/fact family:
-`RETAIN`, `TRANSFORM`, `RETIRE`, or `UNRESOLVED`. `RETAIN` preserves a required business capability
-that already fits the canonical model. `TRANSFORM` preserves required business meaning through a
-different canonical representation. `RETIRE` deliberately excludes the behavior from Launch.
-`UNRESOLVED` means evidence is insufficient/contradictory or no meaning-preserving canonical
-transformation has been established. Code presence alone is not Active Behavior.
+**Assortment Migration Classification**:
+The explicit verdict `RETAIN`, `TRANSFORM`, `RETIRE`, or `UNRESOLVED` for one legacy behavior or fact family.
+_Avoid_: Code exists therefore retain, approximate unsupported meaning to finish migration.
 
-**Assortment Migration Correlation** — Provenance-backed mapping from an External Business System
-record/identifier to canonical OntOS identities. External IDs, SKU, URL, names and transport routes
-remain correlation/source evidence and never become Product, Commerce Retail Customer Profile,
-Counterparty, Commerce Customer Group or Assortment identity. System of Record is determined per
-fact, not per software product name.
+**Assortment Migration Correlation**:
+A provenance-backed mapping from an External Business System identifier or record to canonical OntOS identities. External IDs, names, SKU, URL, and transport routes remain correlations rather than canonical Assortment, Catalog, profile, Counterparty, or group identity.
+_Avoid_: External ID as Resource identity, software product name as universal System of Record.
 
-**Assortment Migration No-Implicit-Wildcard Rule** — Missing legacy Product, Commerce Market,
-subject, effect or other value never becomes `ALL`, all markets, unrestricted subject, ALLOW/DENY, or
-another broad default unless that exact business meaning is independently proven.
+**Assortment Migration No-Implicit-Wildcard Rule**:
+A migration invariant that missing legacy target, subject, Market, Storefront, effect, or lifecycle evidence never broadens into an undeclared canonical default.
+_Avoid_: Missing target becomes ALL, missing subject becomes SHARED, missing scope becomes wildcard.
 
-**Assortment Reconciliation** — Owner-governed evidence work for ambiguous, conflicting, partial or
-indeterminate migration/integration state. It preserves provenance and may conclude a migration
-classification/correlation or remain `UNRESOLVED`. Reconciliation **does not mutate canonical
-Assortment directly and is not a privileged write path**. Any resulting canonical change is performed
-through the standard Assortment Management Actions, Permissions, scope, idempotency and audit.
-Reconciliation never silently unions subject-specific exceptions, Permissions or unrelated settings.
+**Assortment Reconciliation**:
+Owner-governed evidence and disposition work for ambiguous or conflicting migration state. It may resolve canonical meaning or remain `UNRESOLVED`, but it never mutates canonical Assortment through a privileged path.
+_Avoid_: Reconciliation override, migration admin write, row/import order as authority.
 
-**Assortment Cutover Acceptance** — Launch condition requiring every Launch-critical legacy behavior
-to have sufficient Active Behavior evidence, an explicit migration classification, canonical
-subject/target/scope and System of Record, and any retained/transformed canonical state to have been
-applied through standard Assortment Management Actions or authoritatively reconciled. A
-Launch-critical `UNRESOLVED` item blocks the affected cutover rather than being approximated. A
-non-Launch or explicitly `RETIRE` item does not block unrelated Launch journeys merely because its
-legacy representation remains unresolved.
-
-## Boundaries
-
-Assortment does not own or imply Catalog readiness/lifecycle, Product publication/navigation, Search
-ranking, Price, Inventory, Availability/delivery promise, Principal Permission, Payment, purchasing
-approval, or Accepted Order. Positive results from those owners do not create Assortment eligibility,
-and Assortment `ELIGIBLE` does not create their positive results.
-
-Accepted Orders preserve the exact historical Assortment evidence used at acceptance time. Later
-Assortment changes do not rewrite Accepted history. Repeat Order creates a new Current purchase and
-therefore re-evaluates Assortment.
+**Assortment Cutover Acceptance**:
+The Launch condition that every Launch-critical legacy behavior has sufficient evidence, an explicit migration disposition, canonical identities and ownership, and any retained or transformed state represented through the ordinary Rule and Binding model. Launch-critical `UNRESOLVED` work blocks only the affected cutover journey.
+_Avoid_: Raw record parity, guessed canonical state, unresolved-but-enabled behavior.
