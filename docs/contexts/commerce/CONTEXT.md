@@ -804,10 +804,12 @@ Set Composition, Product Relationship, product identifiers, descriptive facts, m
 reference semantics and Current Catalog Selection validation. It provides Catalog Selection Evidence
 but owns no Price, Assortment, Inventory, Availability, Permission, approval, Payment or Accepted Order.
 
-**Assortment** — Domain determining eligibility of an exact Product/Catalog Selection for visibility
-or purchase in a Channel, Commerce Market, Storefront, Retail Customer context or Counterparty
-context. A Product-level browsing result is not proof that every Variant or Package Option may be
-purchased. Catalog existence or publication does not imply eligibility.
+**Assortment** — Commerce Business Policy domain determining one typed `VISIBILITY` or `PURCHASE`
+eligibility result under the canonical contract in `../assortment/CONTEXT.md`. `VISIBILITY` is
+Product-level. `PURCHASE` evaluates one exact Catalog Selection in the trusted Commerce Purchasing
+Context for a Guest Purchase Context or Purchasing Subject. Guest is not a Purchasing Subject. An
+Assortment result never creates Permission, Price, Availability, publication, or Order acceptance,
+and Product-level `VISIBILITY` is not proof that any Variant or Package Option is `PURCHASE` eligible.
 
 **Pricing** — Domain determining prices, discounts, fees, tax inputs, quantity tiers, quotations,
 and Price Group definitions for an explicit Commerce Purchasing Context and exact Catalog Selection
