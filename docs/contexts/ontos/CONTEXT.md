@@ -28,6 +28,15 @@ select a typed business outcome; it never creates identity, authentication, or P
 at the trusted operation time. A value retained by a client, cache, Cart, or previous evaluation is
 not Current merely because it still exists.
 
+**Owner-Verifiable Set Completeness Evidence** — Owner-verifiable evidence that, for one exact
+decision-relevant predicate or safely broader declared scope, an observed set contains every Current
+owner fact whose presence or absence can change the exact decision. A broader proof is valid only
+when its owner contract guarantees invalidation for every material insert, removal, lifecycle or
+matching change capable of altering that predicate.
+_Avoid_: returned rows assumed complete, final page or row count as business completeness, cache or
+event silence as completeness proof, winner revision standing in for complete candidate state,
+consumer-inferred completeness without owner authority.
+
 **Effective Period** — Explicit interval during which a fact or assignment is valid. Unless an owning
 capability states otherwise, `effective_from` is inclusive and `effective_to` is exclusive.
 
