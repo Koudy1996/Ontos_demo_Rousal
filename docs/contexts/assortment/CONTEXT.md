@@ -11,8 +11,8 @@ A Commerce Business Policy capability that decides whether a supported Catalog t
 _Avoid_: Catalog readiness, publication, Permission, Pricing, Availability, Payment, approval, or Order acceptance when the intended concept is Assortment.
 
 **Assortment Decision Purpose**:
-The exact business question an Assortment evaluation answers. Launch purposes are `VISIBILITY` and `PURCHASE`, and a result for one purpose is never authority for the other.
-_Avoid_: Mode, operation type, generic eligibility.
+The exact business question an Assortment evaluation answers. Launch purposes are `VISIBILITY` and `PURCHASE`, and a result or Closed Assortment Boundary for one purpose is never authority for the other.
+_Avoid_: Mode, operation type, generic eligibility, using PURCHASE closure as VISIBILITY authority.
 
 **VISIBILITY**:
 The Product-level Assortment Decision Purpose asking whether one Product may be exposed as a commercial offer in the exact trusted context.
@@ -23,12 +23,12 @@ The Assortment Decision Purpose asking whether one exact Catalog Selection may b
 _Avoid_: Product visibility, Price, Availability, Permission, Payment, approval, Order acceptance.
 
 **Assortment Decision Outcome**:
-The result of one Assortment evaluation: `ELIGIBLE`, `INELIGIBLE`, or `INDETERMINATE`. `INDETERMINATE` means the required business conclusion cannot be established truthfully and is neither implicit allow nor business deny.
-_Avoid_: Boolean allowed, stale as a fourth outcome.
+The result of one Assortment evaluation: `ELIGIBLE`, `INELIGIBLE`, or `INDETERMINATE`. `INELIGIBLE` is a known business exclusion or deny, including exclusion by a valid Current Closed Assortment Boundary or an ordinary resolved `DENY`. `INDETERMINATE` means the required business conclusion cannot be established truthfully and is neither implicit allow nor business deny.
+_Avoid_: Boolean allowed, stale as a fourth outcome, treating unverifiable closure as INELIGIBLE.
 
 **Assortment Effect**:
-The immutable policy effect `ALLOW` or `DENY` carried by one Assortment Rule Revision. Effect has no inherent priority; canonical specificity and conflict rules determine the outcome.
-_Avoid_: Deny-overrides, allow-overrides.
+The immutable policy effect `ALLOW` or `DENY` carried by one Assortment Rule Revision. Effect has no inherent priority; canonical specificity and conflict rules determine the ordinary resolver outcome.
+_Avoid_: Deny-overrides, allow-overrides, treating Closed Assortment Boundary as an Effect.
 
 ### Policy meaning and applicability
 
@@ -42,11 +42,11 @@ _Avoid_: Editable rule, Current Revision, latest Revision, revision expiry, revi
 
 **Assortment Applicability Binding**:
 An immutable applicability fact that binds one exact Assortment Rule Revision to one audience, one Assortment Commercial Scope, and its own effective lifecycle. Its Effective Period is derived from Binding Create plus an optional Binding End lifecycle fact.
-_Avoid_: Assortment Subject Assignment, Rule Assignment, mutable binding, Binding to Stable Rule.
+_Avoid_: Assortment Subject Assignment, Rule Assignment, mutable binding, Binding to Stable Rule, Closed Assortment Boundary as a Binding kind.
 
 **Assortment Binding Kind**:
 The audience form of one Assortment Applicability Binding: `SHARED`, `COMMERCE_CUSTOMER_GROUP`, or `SUBJECT`.
-_Avoid_: Customer type, role, Permission-derived audience.
+_Avoid_: Customer type, role, Permission-derived audience, CLOSED as a fourth Binding kind.
 
 **SHARED Assortment Binding**:
 An Assortment Applicability Binding with no individual or Commerce Customer Group target.
@@ -58,7 +58,11 @@ _Avoid_: Segment name, group list order, inferred group.
 
 **SUBJECT Assortment Binding**:
 An Assortment Applicability Binding targeting one exact Commerce Retail Customer Profile or one exact Counterparty.
-_Avoid_: Customer assignment, Principal assignment, email/account/company-name targeting.
+_Avoid_: Customer assignment, Principal assignment, email/account/company-name targeting, assuming SUBJECT applicability creates closed assortment.
+
+**Closed Assortment Boundary**:
+An explicit purpose-specific restrictive admission contract for one exact identified Purchasing Subject and relevant business scope. Before ordinary Assortment Resolution it determines whether the exact Product for `VISIBILITY` or exact Catalog Selection for `PURCHASE` is admitted. A valid Current boundary makes a non-admitted target `INELIGIBLE`; an admitted target still proceeds through ordinary Assortment Resolution and admission itself is not `ALLOW`, `ELIGIBLE`, or entitlement. Outside `SHARED` or `COMMERCE_CUSTOMER_GROUP` `ALLOW` cannot reopen a non-admitted target. It is not an Assortment Candidate, Binding kind, Effect priority, or specificity rank. Its canonical managed representation is not yet defined.
+_Avoid_: `SUBJECT ALL=DENY + ALLOW` as a closed whitelist, subject-first precedence, deny-overrides, implicit closure from allow-list rows, admission as entitlement, group or Guest closure inferred from F1.
 
 **Retire Rule**:
 The governance transition that closes an Assortment Stable Rule lineage to new Revisions and new Bindings. Existing Bindings to already-existing Revisions continue according to their own lifecycle.
@@ -85,8 +89,8 @@ The explicit typed Catalog target semantics carried by one Assortment Rule Revis
 _Avoid_: `PRODUCER`, Brand, Manufacturer, SKU/name patterns, direct-only Category, primary/main Category, arbitrary query, expression, callback, missing target as selector.
 
 **ALL Assortment Selector**:
-An explicit broad selector covering all Catalog targets valid for the Decision Purpose. It is a deliberate business value, never the result of a missing or broken target.
-_Avoid_: Default selector, wildcard inferred from null.
+An explicit broad selector covering all Catalog targets valid for the Decision Purpose. It is a deliberate business value, never the result of a missing or broken target. `ALL` remains the broadest ordinary Catalog specificity rank and is not a closed-assortment primitive.
+_Avoid_: Default selector, wildcard inferred from null, `SUBJECT ALL=DENY` treated as a Closed Assortment Boundary.
 
 **CATEGORY Assortment Selector**:
 A Product Category subtree selector matching Products directly classified in the selected Product Category or in any descendant through Current Ancestor Classification.
@@ -120,7 +124,7 @@ _Avoid_: Party similarity, email, account, domain, job title, Principal identity
 
 **Assortment Group Input**:
 Current Commerce Customer Group Membership evidence used to determine which `COMMERCE_CUSTOMER_GROUP` Bindings apply. Membership ownership remains with the Commerce Customer Group capability.
-_Avoid_: Assortment-owned membership, group order as precedence.
+_Avoid_: Assortment-owned membership, group order as precedence, group membership as implicit closed assortment.
 
 **Principal / Assortment Subject Separation**:
 Principal is the Actor used for authorization and audit, while Guest Purchase Context or Purchasing Subject is the commercial context whose Assortment is evaluated. One Principal may act for different Counterparties without becoming any of them.
@@ -130,63 +134,63 @@ _Avoid_: Principal equals customer, Buyer Permission implies Assortment eligibil
 
 **Assortment Candidate**:
 One exact pair of a Current Applicable Assortment Applicability Binding and the immutable Assortment Rule Revision it references.
-_Avoid_: Stable Rule candidate, latest Revision candidate, Rule without Binding, Catalog Selection as candidate.
+_Avoid_: Stable Rule candidate, latest Revision candidate, Rule without Binding, Catalog Selection as candidate, Closed Assortment Boundary as candidate.
 
 **Assortment Resolution**:
-Deterministic resolution of applicable Assortment Candidates by Catalog specificity, then Binding Commercial Scope specificity, then Binding subject specificity, followed by maximal-effect conflict handling. Incomparability on a higher axis stops lower-axis precedence.
-_Avoid_: First match wins, last write wins, ID/timestamp/order tie-breaks.
+Deterministic ordinary resolution applied after any applicable Closed Assortment Boundary admits the target, or when no such boundary applies. It resolves applicable Assortment Candidates by Catalog specificity, then Binding Commercial Scope specificity, then Binding subject specificity, followed by maximal-effect conflict handling. Incomparability on a higher axis stops lower-axis precedence.
+_Avoid_: First match wins, last write wins, ID/timestamp/order tie-breaks, moving subject specificity ahead of Catalog to simulate closure.
 
 **Catalog Specificity**:
 The Catalog precedence axis `ALL < CATEGORY < PRODUCT < VARIANT < PACKAGE_OPTION`, with descendant Category narrower than ancestor and unrelated matching Categories incomparable.
 _Avoid_: Effect-based specificity, unrelated Category ordering.
 
 **Assortment Subject Specificity**:
-The audience precedence axis `SHARED < COMMERCE_CUSTOMER_GROUP < SUBJECT`, applied only after Catalog and Commercial Scope comparison leaves candidates comparable.
-_Avoid_: Subject always wins, individual exception bypasses narrower Catalog policy.
+The audience precedence axis `SHARED < COMMERCE_CUSTOMER_GROUP < SUBJECT`, applied only after Catalog and Commercial Scope comparison leaves candidates comparable. Closed Assortment Boundary does not change this rank.
+_Avoid_: Subject always wins, individual exception bypasses narrower Catalog policy, closure implemented as subject-first precedence.
 
 **Assortment Configuration Conflict**:
-A Current configuration state whose maximal applicable candidates cannot produce one unambiguous effect, including opposing `ALLOW` and `DENY` among unordered maximal candidates. The Assortment Decision Outcome is `INDETERMINATE`.
-_Avoid_: Technical tie-break, automatic DENY winner, automatic ALLOW winner.
+A Current ordinary configuration state whose maximal applicable candidates cannot produce one unambiguous effect, including opposing `ALLOW` and `DENY` among unordered maximal candidates. The Assortment Decision Outcome is `INDETERMINATE`. A valid Closed Assortment Boundary exclusion is not an ordinary candidate conflict.
+_Avoid_: Technical tie-break, automatic DENY winner, automatic ALLOW winner, treating boundary exclusion plus outside ALLOW as conflict.
 
 **Assortment Missing Configuration**:
-The absence of required applicable baseline/configuration for a supported Assortment evaluation. It yields `INDETERMINATE`, not a default Effect.
-_Avoid_: Missing means ALLOW, missing means DENY, missing means ALL.
+The absence of required applicable ordinary baseline/configuration for a supported Assortment evaluation. It yields `INDETERMINATE`, not a default Effect. A valid Current Closed Assortment Boundary exclusion is a known `INELIGIBLE`, not missing configuration; an admitted target may still require ordinary baseline/configuration.
+_Avoid_: Missing means ALLOW, missing means DENY, missing means ALL, non-admission means missing configuration.
 
 **Broken Explicit Assortment Configuration**:
-An explicit Binding or pinned Rule Revision that is dangling, incompatible, invalid, unusable, or unverifiable and could affect the decision. It is not equivalent to absence and must not expose a broader result by silent fallback.
-_Avoid_: Ignore broken candidate, treat broken as no rule.
+An explicit Binding, pinned Rule Revision, or material Closed Assortment Boundary state that is dangling, incompatible, invalid, unusable, or unverifiable and could affect the decision. It is not equivalent to absence. A broken boundary is uncertainty, not known exclusion, and broken ordinary configuration must not expose a broader result by silent fallback.
+_Avoid_: Ignore broken candidate or boundary, treat broken as no rule, DENY for safety from unverifiable closure.
 
 ### Evidence and Currentness
 
 **Assortment Decision Evidence**:
-Evidence for one exact decision that identifies the relevant Product or Catalog Selection, trusted Commerce context, subject/group evidence, the full participating/maximal Assortment Candidate set with Binding lifecycle facts and exact Rule Revisions, and the resolution path. Stable Rule or today's latest Revision is never a historical substitute.
-_Avoid_: Rule ID only, one Candidate standing in for a multi-candidate resolution, latest-state lookup for historical explanation.
+Evidence for one exact decision that identifies the relevant Product or Catalog Selection, trusted Commerce context, subject/group evidence, any material Closed Assortment Boundary admission/exclusion path, and—when ordinary resolution occurs—the full participating/maximal Assortment Candidate set with Binding lifecycle facts, exact Rule Revisions, and resolution path. Stable Rule or today's latest Revision is never a historical substitute.
+_Avoid_: Rule ID only, one Candidate standing in for a multi-candidate resolution, fabricating a candidate winner for boundary exclusion, latest-state lookup for historical explanation.
 
 **Assortment Current Evaluation**:
-An authoritative Assortment evaluation whose material owner evidence remains verifiable through final revalidation for that evaluation attempt. Trusted operation time, cache age, hash, or event silence alone is not Current proof.
-_Avoid_: Same timestamp equals snapshot, no event means unchanged.
+An authoritative Assortment evaluation whose material owner evidence, including any applicable Closed Assortment Boundary evidence, remains verifiable through final revalidation for that evaluation attempt. Trusted operation time, cache age, hash, or event silence alone is not Current proof.
+_Avoid_: Same timestamp equals snapshot, no event means unchanged, stale closure means admitted or excluded.
 
 **Stale Assortment Result**:
 Previously valid Assortment evidence that is no longer Current enough for the requested prospective decision. Stale is an evidence state, not an Assortment Decision Outcome.
-_Avoid_: STALE as a fourth outcome, stale ELIGIBLE as entitlement.
+_Avoid_: STALE as a fourth outcome, stale ELIGIBLE as entitlement, stale boundary state reused as admission or exclusion.
 
 **Assortment Commitment Confirmation**:
-An Assortment-owner-issued guarantee for one exact Assortment Candidate—one exact Current Applicable Applicability Binding plus the immutable Rule Revision it references—and one exact Order Commitment Attempt. It may be issued only when that Candidate is explicitly requested by the caller, is validated by Assortment as a maximal `ALLOW` participant in the same Current fence-validated `PURCHASE=ELIGIBLE` resolution, and the exact Catalog Selection/context/attempt match. If several same-effect maximal candidates support the decision, full Assortment Decision Evidence still retains them; the Confirmation covers one exact Candidate and never creates precedence or a resolver tie-break. Ordinary Assortment source changes do not revoke the Confirmation before expiry for its covered Candidate and attempt; expiry is no later than 30 seconds after issuance. A zero-stale immediate hard stop belongs to another mandatory commitment owner/gate.
-_Avoid_: Assortment choosing the covered Candidate, implicit default Candidate, Decision-wide candidate set as one Candidate, confirmation as resolver tie-break, long-lived entitlement, approval as confirmation, emergency Assortment revocation.
+An Assortment-owner-issued guarantee for one exact Assortment Candidate—one exact Current Applicable Applicability Binding plus the immutable Rule Revision it references—and one exact Order Commitment Attempt. It may be issued only from a Current fence-validated `PURCHASE=ELIGIBLE` decision that passed any applicable Closed Assortment Boundary admission. When such a boundary participated, its exact admission evidence remains part of the bound decision evidence but is not the covered Candidate. The Candidate is explicitly requested by the caller and validated by Assortment as a maximal `ALLOW` participant in the same decision. If several same-effect maximal candidates support the decision, full Assortment Decision Evidence still retains them; the Confirmation covers one exact Candidate and never creates precedence or a resolver tie-break. Expiry is no later than 30 seconds after issuance; later-change behavior follows the bounded confirmation contract. A zero-stale immediate hard stop belongs to another mandatory commitment owner/gate.
+_Avoid_: Boundary admission as covered Candidate, Assortment choosing the covered Candidate, implicit default Candidate, Decision-wide candidate set as one Candidate, confirmation as resolver tie-break, long-lived entitlement, approval as confirmation, emergency Assortment revocation.
 
 **Assortment Confirmation Candidate Selection**:
-An explicit caller input naming one exact Assortment Candidate from the final-revalidated maximal `ALLOW` set that the caller asks Assortment to cover with an Assortment Commitment Confirmation. For the Order commitment flow, #329 or its trusted orchestration path supplies this input. Assortment validates membership, effect, Catalog Selection/context and Order Commitment Attempt; it does not choose, substitute, rerank or infer the Candidate. Invalid/non-maximal/non-`ALLOW` selection is rejected.
-_Avoid_: Assortment-selected winner, first/lowest/newest Candidate, Candidate inferred from ordering, implicit selection when only one Candidate exists.
+An explicit caller input naming one exact Assortment Candidate from the final-revalidated maximal `ALLOW` set that the caller asks Assortment to cover with an Assortment Commitment Confirmation. For the Order commitment flow, #329 or its trusted orchestration path supplies this input. Assortment validates that the same positive decision passed any applicable Closed Assortment Boundary and validates candidate membership, effect, Catalog Selection/context and Order Commitment Attempt; it does not choose, substitute, rerank or infer the Candidate. Invalid/non-maximal/non-`ALLOW` selection is rejected.
+_Avoid_: Assortment-selected winner, first/lowest/newest Candidate, Candidate inferred from ordering, implicit selection when only one Candidate exists, using ordinary ALLOW to replace failed boundary admission.
 
 ### Consumers and projections
 
 **Assortment Visibility Evaluation**:
-The authoritative Current `VISIBILITY` evaluation for one Product in one exact Guest Purchase Context or Purchasing Subject and commercial context.
-_Avoid_: Search hit, route, sitemap, or known URL as visibility authority.
+The authoritative Current `VISIBILITY` evaluation for one Product in one exact Guest Purchase Context or Purchasing Subject and commercial context. For an identified subject, any applicable closed VISIBILITY boundary may exclude the Product before ordinary resolution; admission still requires ordinary VISIBILITY resolution. PURCHASE closure is not VISIBILITY authority.
+_Avoid_: Search hit, route, sitemap, or known URL as visibility authority, PURCHASE closure as Product visibility deny.
 
 **Assortment Purchase Evaluation**:
-The authoritative Current `PURCHASE` evaluation for one exact Catalog Selection and trusted Commerce Purchasing Context.
-_Avoid_: Product-level shortcut, silent replacement of Variant, Package Option, configuration, Market, Storefront, or subject.
+The authoritative Current `PURCHASE` evaluation for one exact Catalog Selection and trusted Commerce Purchasing Context. For an identified subject, any applicable closed PURCHASE boundary may exclude the selection before ordinary resolution; admission still requires ordinary PURCHASE resolution. VISIBILITY closure is not PURCHASE authority.
+_Avoid_: Product-level shortcut, silent replacement of Variant, Package Option, configuration, Market, Storefront, or subject, admission as purchase entitlement.
 
 **Assortment Search Projection**:
 A derived, rebuildable, context-bounded read model for listing or Search. It is never canonical Assortment authority; a hit is not authoritative `ELIGIBLE` and omission is not authoritative `INELIGIBLE`.
@@ -199,12 +203,12 @@ _Avoid_: Event as ALLOW/DENY, event silence as validity guarantee.
 ### Administration and authorization
 
 **Assortment Management Action**:
-A named canonical state transition: `Create Rule`, `Create Rule Revision`, `Retire Rule`, `Create Applicability Binding`, `End Applicability Binding`, or atomic `Replace Applicability Binding`.
-_Avoid_: Change Rule, End Rule, Create Subject Assignment, End Subject Assignment, generic PATCH, reconciliation write bypass.
+A named canonical state transition for the currently defined Rule/Binding management model: `Create Rule`, `Create Rule Revision`, `Retire Rule`, `Create Applicability Binding`, `End Applicability Binding`, or atomic `Replace Applicability Binding`. These Actions do not by themselves define Closed Assortment Boundary management.
+_Avoid_: Change Rule, End Rule, Create Subject Assignment, End Subject Assignment, generic PATCH, reconciliation write bypass, silently reusing Rule/Binding Actions as boundary management.
 
 **Assortment Management Permission**:
-An atomic Permission protecting Assortment administration or governed reads: `assortment.configuration.read`, `assortment.decision.explain`, `assortment.rule.create`, `assortment.rule.revision.create`, `assortment.rule.retire`, `assortment.binding.create`, and `assortment.binding.end`.
-_Avoid_: `assortment.manage`, `assortment.admin`, `assortment.rule.change`, `assortment.rule.end`, `assortment.assignment.*`.
+An atomic Permission protecting currently defined Assortment Rule/Binding administration or governed reads: `assortment.configuration.read`, `assortment.decision.explain`, `assortment.rule.create`, `assortment.rule.revision.create`, `assortment.rule.retire`, `assortment.binding.create`, and `assortment.binding.end`. These codes do not implicitly grant Closed Assortment Boundary management authority.
+_Avoid_: `assortment.manage`, `assortment.admin`, `assortment.rule.change`, `assortment.rule.end`, `assortment.assignment.*`, implicit boundary-manage authority.
 
 **Assortment Administration Scope**:
 The exact trusted authorization target for one Assortment management operation, including the relevant policy meaning or Binding audience and Commercial Scope. Rule authority and Binding applicability authority are separate; a narrow grant never authorizes a broader or unrelated target.
@@ -221,13 +225,13 @@ A provenance-backed mapping from an External Business System identifier or recor
 _Avoid_: External ID as Resource identity, software product name as universal System of Record.
 
 **Assortment Migration No-Implicit-Wildcard Rule**:
-A migration invariant that missing legacy target, subject, Market, Storefront, effect, or lifecycle evidence never broadens into an undeclared canonical default.
-_Avoid_: Missing target becomes ALL, missing subject becomes SHARED, missing scope becomes wildcard.
+A migration invariant that missing legacy target, subject, Market, Storefront, effect, lifecycle evidence, or allow-list rows never broadens into an undeclared canonical default or implicit Closed Assortment Boundary.
+_Avoid_: Missing target becomes ALL, missing subject becomes SHARED, missing scope becomes wildcard, partial allow list becomes closure.
 
 **Assortment Reconciliation**:
 Owner-governed evidence and disposition work for ambiguous or conflicting migration state. It may resolve canonical meaning or remain `UNRESOLVED`, but it never mutates canonical Assortment through a privileged path.
-_Avoid_: Reconciliation override, migration admin write, row/import order as authority.
+_Avoid_: Reconciliation override, migration admin write, row/import order as authority, hidden boundary write.
 
 **Assortment Cutover Acceptance**:
-The Launch condition that every Launch-critical legacy behavior has sufficient evidence, an explicit migration disposition, canonical identities and ownership, and any retained or transformed state represented through the ordinary Rule and Binding model. Launch-critical `UNRESOLVED` work blocks only the affected cutover journey.
-_Avoid_: Raw record parity, guessed canonical state, unresolved-but-enabled behavior.
+The Launch condition that every Launch-critical legacy behavior has sufficient evidence, an explicit migration disposition, canonical identities and ownership, and a supported canonical representation preserving its business meaning. Ordinary retained behavior uses the Rule/Binding model; true closed per-subject behavior requires explicit Closed Assortment Boundary semantics and remains `UNRESOLVED` while its canonical managed representation is undefined. Launch-critical `UNRESOLVED` work blocks only the affected cutover journey.
+_Avoid_: Raw record parity, guessed canonical state, unresolved-but-enabled behavior, `SUBJECT ALL=DENY + ALLOW` claimed as true closed-whitelist equivalence.
