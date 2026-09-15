@@ -165,10 +165,22 @@ Namespaces are distinct and must never resolve through each other's Principal Au
 _Avoid_: treating a provider technology name such as `better_auth` as the realm identity when more
 than one trusted realm uses that provider.
 
-**Principal Auth Binding** — Core-owned non-secret mapping from one stable external authentication
-subject in one Authentication Namespace and Tenant to one Tenant-scoped Principal. The
-authentication provider continues to own credentials and sessions; mutable login identifiers such as
-email or telephone are not the binding identity.
+**External Authentication Subject** — Stable provider-issued subject qualified by its exact
+Authentication Namespace and subject type: `(Authentication Namespace, subjectType,
+providerSubjectId)`. `providerSubjectId` is the stable opaque identifier inside that namespace and
+subject type. Tenant is deliberately not part of this external-subject identity; Tenant is a
+separate scope dimension of Principal Auth Binding. Mutable login identifiers such as email or
+telephone, sessions, provider technology names and Party identity are not External Authentication
+Subject identity.
+_Avoid_: provider-local ID without namespace, `(Tenant, providerSubjectId)` as external subject,
+email/telephone as subject identity, provider technology name as realm identity, omitting subjectType
+when the provider can distinguish subject kinds.
+
+**Principal Auth Binding** — Core-owned non-secret mapping from one exact External Authentication
+Subject and one Tenant to one Tenant-scoped Principal. Its canonical key meaning is
+`(Tenant, Authentication Namespace, subjectType, providerSubjectId)`. The authentication provider
+continues to own credentials and sessions; mutable login identifiers such as email or telephone are
+not the binding identity.
 
 **Authenticated Principal Session** — Staff session context that activates exactly one valid
 Tenant-scoped Principal and Tenant. Selecting context grants no authority and is revalidated.
