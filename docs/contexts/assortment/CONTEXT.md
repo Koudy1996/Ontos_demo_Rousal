@@ -130,7 +130,7 @@ _Avoid_: Principal equals customer, Buyer Permission implies Assortment eligibil
 
 **Assortment Candidate**:
 One exact pair of a Current Applicable Assortment Applicability Binding and the immutable Assortment Rule Revision it references.
-_Avoid_: Stable Rule candidate, latest Revision candidate, Rule without Binding.
+_Avoid_: Stable Rule candidate, latest Revision candidate, Rule without Binding, Catalog Selection as candidate.
 
 **Assortment Resolution**:
 Deterministic resolution of applicable Assortment Candidates by Catalog specificity, then Binding Commercial Scope specificity, then Binding subject specificity, followed by maximal-effect conflict handling. Incomparability on a higher axis stops lower-axis precedence.
@@ -159,8 +159,8 @@ _Avoid_: Ignore broken candidate, treat broken as no rule.
 ### Evidence and Currentness
 
 **Assortment Decision Evidence**:
-Evidence for one exact decision that identifies the relevant Product or Catalog Selection, trusted Commerce context, subject/group evidence, participating Applicability Bindings with lifecycle facts, exact Rule Revisions, and resolution path. Stable Rule or today's latest Revision is never a historical substitute.
-_Avoid_: Rule ID only, latest-state lookup for historical explanation.
+Evidence for one exact decision that identifies the relevant Product or Catalog Selection, trusted Commerce context, subject/group evidence, the full participating/maximal Assortment Candidate set with Binding lifecycle facts and exact Rule Revisions, and the resolution path. Stable Rule or today's latest Revision is never a historical substitute.
+_Avoid_: Rule ID only, one Candidate standing in for a multi-candidate resolution, latest-state lookup for historical explanation.
 
 **Assortment Current Evaluation**:
 An authoritative Assortment evaluation whose material owner evidence remains verifiable through final revalidation for that evaluation attempt. Trusted operation time, cache age, hash, or event silence alone is not Current proof.
@@ -171,8 +171,12 @@ Previously valid Assortment evidence that is no longer Current enough for the re
 _Avoid_: STALE as a fourth outcome, stale ELIGIBLE as entitlement.
 
 **Assortment Commitment Confirmation**:
-An Assortment-owner-issued guarantee for one exact Assortment Candidate—one exact Current Applicable Applicability Binding plus the immutable Rule Revision it references—and one exact Order Commitment Attempt. It may be issued only when that candidate participates as `ALLOW` in a Current fence-validated `PURCHASE=ELIGIBLE` resolution and expires no later than 30 seconds after issuance. If several same-effect maximal candidates support the decision, full Assortment Decision Evidence still retains them; the Confirmation covers one exact candidate and never creates precedence or a resolver tie-break. Ordinary Assortment source changes do not revoke the Confirmation before expiry for its covered candidate and attempt; a zero-stale immediate hard stop belongs to another mandatory commitment owner/gate.
-_Avoid_: Decision-wide candidate set as one candidate, confirmation as resolver tie-break, long-lived entitlement, approval as confirmation, emergency Assortment revocation.
+An Assortment-owner-issued guarantee for one exact Assortment Candidate—one exact Current Applicable Applicability Binding plus the immutable Rule Revision it references—and one exact Order Commitment Attempt. It may be issued only when that Candidate is explicitly requested by the caller, is validated by Assortment as a maximal `ALLOW` participant in the same Current fence-validated `PURCHASE=ELIGIBLE` resolution, and the exact Catalog Selection/context/attempt match. If several same-effect maximal candidates support the decision, full Assortment Decision Evidence still retains them; the Confirmation covers one exact Candidate and never creates precedence or a resolver tie-break. Ordinary Assortment source changes do not revoke the Confirmation before expiry for its covered Candidate and attempt; expiry is no later than 30 seconds after issuance. A zero-stale immediate hard stop belongs to another mandatory commitment owner/gate.
+_Avoid_: Assortment choosing the covered Candidate, implicit default Candidate, Decision-wide candidate set as one Candidate, confirmation as resolver tie-break, long-lived entitlement, approval as confirmation, emergency Assortment revocation.
+
+**Assortment Confirmation Candidate Selection**:
+An explicit caller input naming one exact Assortment Candidate from the final-revalidated maximal `ALLOW` set that the caller asks Assortment to cover with an Assortment Commitment Confirmation. For the Order commitment flow, #329 or its trusted orchestration path supplies this input. Assortment validates membership, effect, Catalog Selection/context and Order Commitment Attempt; it does not choose, substitute, rerank or infer the Candidate. Invalid/non-maximal/non-`ALLOW` selection is rejected.
+_Avoid_: Assortment-selected winner, first/lowest/newest Candidate, Candidate inferred from ordering, implicit selection when only one Candidate exists.
 
 ### Consumers and projections
 
