@@ -39,10 +39,16 @@ non-negative.
 acting as seller/invoice issuer for one Commerce Purchasing Context. It is explicit and is not
 inferred from Tenant, Storefront hostname, or the Counterparty's Party.
 
-**Commerce Market** — Declarative commercial/legal market context used by Assortment, Pricing, Tax,
-currency, Payment Terms, delivery, and Customer Commerce Policy. It may correspond to a country or
-region but is not a Tenant, Environment, Deployment Topology, Storefront, or fact owner. One
-Storefront may serve several markets and one market may be served by several Storefronts.
+**Commerce Market** — Stable declarative commercial/legal selling context for exactly one Selling
+Legal Entity inside a Tenant. It may correspond to a country or region but is not a Tenant,
+Environment, Deployment Topology, Storefront, currency, or fact owner; one Storefront may serve
+several Markets and one Market may be served by several Storefronts. A different Selling Legal
+Entity requires a different Commerce Market identity rather than reusing the same Market label.
+
+**Commerce Market Resolution** — Current decision establishing one exact eligible Selling Legal
+Entity + Commerce Market + Channel tuple for purchase-ready use. It validates explicit/default
+selection against Market lifecycle and Storefront associations without inferring authority from
+hostname, locale, IP, shipping address, currency, or technical ordering.
 
 **Purchasing Subject** — Commercial subject whose Commerce profile and settings apply to one
 purchase: either a Retail Customer in relation to a Selling Legal Entity, or one Counterparty. The
@@ -104,10 +110,29 @@ shapes. It is not a Medusa runtime, canonical contract, commerce foundation, or 
 **Commerce Operations** — Purpose-built staff application for permissioned Commerce workflows and
 Assisted Support over public module contracts. It is not Shell/Core or a fact owner.
 
-**Commerce Portal Account** — Commerce-owned account in a BetterAuth realm separate from staff
-authentication. It links through owner-local bindings to Tenant-scoped Principals and
-Party/Counterparty ResourceRefs without becoming shared Party identity or granting profile or
-purchasing authority by itself.
+**Commerce Portal Account** — Commerce-governed authentication account represented by one stable
+external authentication subject in the dedicated Commerce Authentication Namespace. The
+authentication provider owns credentials, Authentication Identifiers and sessions; the account is
+not Party identity, a Tenant-scoped Principal, profile access, or purchasing authority.
+
+**Authentication Identifier** — Provider-owned login or recovery identifier for a Commerce Portal
+Account, such as email, telephone, or provider login handle. It is not a Party Registry Contact Point
+merely because the literal value is equal, and proving control of it does not prove Party/profile or
+Counterparty authority.
+
+**Commerce Portal Session** — Provider-owned session proving authentication of one stable Commerce
+Portal Account subject in the Commerce Authentication Namespace. It is not a Tenant selection,
+Principal Auth Binding, Retail Portal Profile Binding, Counterparty access, or Permission.
+
+**Commerce Portal Enrollment Attempt** — Commerce-owned durable correlation and recovery anchor for
+one exact portal enrollment intent across separately owned account, Core identity, Party/profile, and
+access transitions. It records their outcomes without becoming owner of those facts or pretending
+they share one business transaction.
+
+**Account Recovery** — Authentication flow restoring access to the same stable Commerce Portal
+Account subject under approved recovery evidence. It does not silently reactivate a Principal Auth
+Binding, Retail Portal Profile Binding or Permission Grant, Counterparty Permission, or Guest Order
+visibility.
 
 ## Customers, profiles, and channels
 
@@ -152,14 +177,22 @@ to one canonical business key. It preserves original ResourceRefs, blocks ambigu
 each conflicting fact to its owner, and never silently unions Permissions, claims Guest Orders, or
 rewrites historical Resources.
 
-**Retail Portal Profile Binding** — Explicit Commerce-owned relation connecting one Retail Portal
-Principal to one Commerce Retail Customer Profile for declared persistent portal capabilities.
-Registration, matching Contact Points, Party correction/merge, account ownership, or knowledge of
-the profile alone do not create the binding or grant visibility to pre-existing Guest Orders.
+**Retail Portal Profile Binding** — Explicit Commerce-owned relation connecting one Tenant-scoped
+Principal to one Commerce Retail Customer Profile. It identifies the profile relation only;
+registration, Authentication Identifier/Contact Point equality, Party correction/merge, account
+ownership, or knowledge of the profile do not create or move it or grant Permission.
 
-**Retail Portal Principal** — Principal with a valid Retail Portal Profile Binding and the concrete
-Permissions required for a Retail Customer's address book, history, aftercare, favorites, or
-notifications. It is optional for Guest Checkout.
+**Retail Portal Permission Catalog** — Versioned contract defining stable atomic Retail Portal
+Permission meanings and reviewed authority-group membership. It does not itself grant a Permission;
+individual Current grants are separately owned through the Retail Portal Profile Binding capability.
+
+**Retail Portal Permission Grant** — Explicit Commerce-owned Current grant of one atomic Retail
+Portal Permission through one Retail Portal Profile Binding. Binding existence or authority-group
+membership alone is not a grant, and Account Recovery does not silently recreate a revoked grant.
+
+**Retail Portal Principal** — Principal with a Current Retail Portal Profile Binding and every exact
+Retail Portal Permission Grant required for the operation. It is optional for Guest Checkout and
+remains distinct from the Commerce Portal Account used to authenticate it.
 
 ## Segmentation and customer commercial settings
 
@@ -174,9 +207,10 @@ and one Commerce Customer Group. Multiple concurrent memberships are allowed. Me
 within the profile and has no implicit Commerce Market, Storefront, Price Group, Permission,
 benefit, or priority; each consuming capability owns its own interpretation and conflict resolution.
 
-**Price Group** — Pricing-owned reusable pricing classification. Pricing owns its definition,
-revision, lifecycle, applicability, and interpretation; Commerce Customer Profiles may only
-reference it.
+**Price Group** — Pricing-owned reusable classification used as an explicit Pricing input. It is not
+a price list, price amount, discount, Commerce Customer Group, Permission, or customer assignment;
+Pricing owns its stable meaning, lifecycle, compatibility and interpretation while customer profiles
+may only reference it through Customer Price Group Assignment.
 
 **Customer Price Group Assignment** — Commerce-owned time-bounded reference from one Commerce
 Customer Profile to one Price Group. At most one assignment may be Current for a profile. Commerce
@@ -318,8 +352,8 @@ immediate for new operations and does not erase historical attribution or unrela
 
 **Counterparty Access Invitation** — Time-limited, one-time, revocable invitation to complete
 Commerce Portal Account/Principal enrollment and then invoke explicit Counterparty Access Grants.
-The invitation is not a Permission or Current access. Email domain, Party Relationship, account
-existence, or invitation delivery alone never grant authority.
+The invitation is not a Permission or Current access. Delivery endpoint, email domain, Party
+Relationship, account existence, or invitation delivery alone never grant authority.
 
 ## Catalog language and exact selection
 
@@ -850,10 +884,15 @@ Documents, and Claim lifecycles without replacing their ownership.
 **Claim** — Governed request concerning durable Order lines, with its own evidence, communication,
 deadlines, state, and resolution history.
 
-**Customer Commerce Policy** — Declarative Customer Configuration of shared Channel, purchasing,
-quantity, Commerce Market, currency, Payment Terms, approval, delivery and legal Business Policy.
-A typed field may declare Catalog Policy Scope; the bounded Commerce Quantity Rule family also owns
-explicit Customer Quantity Rule Assignments. Other profiles, customer settings and domain facts keep
-their respective owners. Defaults, constraints, scope precedence and absence are explicit, never
-arbitrary executable logic. Different executable semantics require a shared module change or an
-explicitly catalogued implementation.
+**Customer Commerce Policy** — Declarative typed Business Policy family configured by one Customer
+Configuration for shared Channel, Selling Legal Entity, Commerce Market, Storefront, purchasing,
+quantity, currency, Payment Term, approval, delivery, visibility and legal defaults/constraints. It
+is part of Customer Configuration rather than a synonym for the whole configuration; replaceable
+defaults and independently applicable non-relaxable constraints have explicit composition, scope,
+absence and conflict semantics. The bounded Commerce Quantity Rule family also owns explicit Customer
+Quantity Rule Assignments; profiles, customer settings and other domain facts retain their owners.
+
+**Customer Commerce Policy Resolution** — Current typed result for one declared policy field/purpose,
+retaining the chosen replacement/default, every applicable non-relaxable constraint, relevant rule
+or assignment revisions, trusted context and owner-issued validity evidence. A winning rule alone is
+not proof that no more-specific replacement or additional applicable constraint has become Current.
