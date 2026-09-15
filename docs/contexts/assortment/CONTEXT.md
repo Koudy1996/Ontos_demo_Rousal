@@ -171,8 +171,8 @@ Previously valid Assortment evidence that is no longer Current enough for the re
 _Avoid_: STALE as a fourth outcome, stale ELIGIBLE as entitlement.
 
 **Assortment Commitment Confirmation**:
-An Assortment-owner-issued guarantee for one exact `PURCHASE=ELIGIBLE` candidate and one exact Order Commitment Attempt, issued only from a Current fence-validated evaluation and expiring no later than 30 seconds after issuance. Ordinary Assortment source changes do not revoke it before expiry; a zero-stale immediate hard stop belongs to another mandatory commitment owner/gate.
-_Avoid_: Long-lived entitlement, approval as confirmation, emergency Assortment revocation.
+An Assortment-owner-issued guarantee for one exact Assortment Candidate—one exact Current Applicable Applicability Binding plus the immutable Rule Revision it references—and one exact Order Commitment Attempt. It may be issued only when that candidate participates as `ALLOW` in a Current fence-validated `PURCHASE=ELIGIBLE` resolution and expires no later than 30 seconds after issuance. If several same-effect maximal candidates support the decision, full Assortment Decision Evidence still retains them; the Confirmation covers one exact candidate and never creates precedence or a resolver tie-break. Ordinary Assortment source changes do not revoke the Confirmation before expiry for its covered candidate and attempt; a zero-stale immediate hard stop belongs to another mandatory commitment owner/gate.
+_Avoid_: Decision-wide candidate set as one candidate, confirmation as resolver tie-break, long-lived entitlement, approval as confirmation, emergency Assortment revocation.
 
 ### Consumers and projections
 
