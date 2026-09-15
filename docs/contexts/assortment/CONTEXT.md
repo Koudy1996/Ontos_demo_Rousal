@@ -19,12 +19,16 @@ The Product-level Assortment Decision Purpose asking whether one Product may be 
 _Avoid_: Variant visibility, Package Option visibility, purchase eligibility.
 
 **PURCHASE**:
-The Assortment Decision Purpose asking whether one exact Catalog Selection may be purchased by the applicable Guest Purchase Context or Purchasing Subject in the trusted Commerce Purchasing Context.
-_Avoid_: Product visibility, Price, Availability, Permission, Payment, approval, Order acceptance.
+The Assortment Decision Purpose asking whether the exact Current purchase meaning may be purchased by the applicable Guest Purchase Context or Purchasing Subject in the trusted Commerce Purchasing Context. A Non-Set purchase has one Assortment Purchase Constituent. A Set Product purchase composes the top-level Set constituent with every required exact non-set component constituent from the pinned Set Composition Revision.
+_Avoid_: Product visibility, Price, Availability, Permission, Payment, approval, Order acceptance, assuming one whole Set purchase is one resolver target.
+
+**Assortment Purchase Constituent**:
+One exact `Catalog Selection` independently evaluated under `PURCHASE` for the same trusted Guest Purchase Context or Purchasing Subject and Commerce Purchasing Context. A Non-Set purchase has exactly one constituent. A Set purchase has the top-level Set constituent plus every required exact non-set component constituent supplied by the pinned Set Composition Revision. Each constituent has its own Closed Assortment Boundary path, ordinary Assortment Candidate set, Currentness/completeness evidence, and typed outcome. Constituent identity is not an Assortment Candidate and is not a new Catalog Resource or selector.
+_Avoid_: Purchase candidate, component Candidate traversal, merged Set/component resolver, treating constituent and Assortment Candidate as synonyms.
 
 **Assortment Decision Outcome**:
-The result of one Assortment evaluation: `ELIGIBLE`, `INELIGIBLE`, or `INDETERMINATE`. `INELIGIBLE` is a known Current business exclusion or deny. `INDETERMINATE` means the required business conclusion cannot be established truthfully and is neither implicit allow nor business deny.
-_Avoid_: Boolean allowed, stale as a fourth outcome, treating unverifiable closure or Boundary conflict as INELIGIBLE.
+The result of one Assortment evaluation: `ELIGIBLE`, `INELIGIBLE`, or `INDETERMINATE`. `INELIGIBLE` is a known Current business exclusion or deny. `INDETERMINATE` means the required business conclusion cannot be established truthfully and is neither implicit allow nor business deny. For Set PURCHASE, typed constituent outcomes compose conjunctively: any authoritative constituent `INELIGIBLE` makes the Set `INELIGIBLE`; with no known deny, any required constituent `INDETERMINATE` makes the Set `INDETERMINATE`; Set `ELIGIBLE` requires every required constituent `ELIGIBLE`.
+_Avoid_: Boolean allowed, stale as a fourth outcome, treating unverifiable closure or Boundary conflict as INELIGIBLE, cross-selection DENY-overrides.
 
 **Assortment Effect**:
 The immutable ordinary policy effect `ALLOW` or `DENY` carried by one Assortment Rule Revision. Effect has no inherent priority; canonical ordinary specificity and conflict rules determine the resolver outcome.
@@ -61,7 +65,7 @@ An Assortment Applicability Binding targeting one exact Commerce Retail Customer
 _Avoid_: Customer assignment, Principal assignment, email/account/company-name targeting, assuming SUBJECT applicability creates closed assortment.
 
 **Closed Assortment Boundary**:
-An immutable first-class managed Assortment fact representing one complete purpose-specific closed-assortment meaning for one exact identified Commerce Retail Customer Profile or Counterparty. It contains exact subject, exact Assortment Decision Purpose, exact Assortment Commercial Scope, one complete Closed Assortment Admission Set, and its own effective lifecycle. Before ordinary Assortment Resolution, the applicable unique maximal Boundary determines whether the exact Product for `VISIBILITY` or exact Catalog Selection for `PURCHASE` is admitted. A non-admitted target is `INELIGIBLE`; an admitted target still proceeds through ordinary resolution and admission itself is not `ALLOW`, `ELIGIBLE`, or entitlement. Boundary is not an Assortment Candidate, Binding kind, Effect priority, or specificity rank.
+An immutable first-class managed Assortment fact representing one complete purpose-specific closed-assortment meaning for one exact identified Commerce Retail Customer Profile or Counterparty. It contains exact subject, exact Assortment Decision Purpose, exact Assortment Commercial Scope, one complete Closed Assortment Admission Set, and its own effective lifecycle. Before ordinary Assortment Resolution, the applicable unique maximal Boundary determines whether the exact Product for `VISIBILITY` or the exact Catalog Selection of one `Assortment Purchase Constituent` for `PURCHASE` is admitted. A non-admitted target is `INELIGIBLE`; an admitted target still proceeds through ordinary resolution and admission itself is not `ALLOW`, `ELIGIBLE`, or entitlement. Boundary is not an Assortment Candidate, Binding kind, Effect priority, or specificity rank.
 _Avoid_: `SUBJECT ALL=DENY + ALLOW` as a closed whitelist, subject-first precedence, deny-overrides, implicit closure from sparse allow rows, mutable Boundary, group or Guest closure inferred from the individual-subject contract.
 
 **Closed Assortment Admission Set**:
@@ -105,7 +109,7 @@ A Product Category subtree selector matching Products directly classified in the
 _Avoid_: Direct-only Category selector, main Category, first Category assignment.
 
 **PRODUCT Assortment Selector**:
-A selector for one stable Product ResourceRef, valid for `VISIBILITY` and `PURCHASE`. For `PURCHASE` it is broader than Variant and Package Option selectors for exact Catalog Selections belonging to that Product.
+A selector for one stable Product ResourceRef, valid for `VISIBILITY` and `PURCHASE`. For `PURCHASE` it is broader than Variant and Package Option selectors for an Assortment Purchase Constituent whose exact Catalog Selection belongs to that Product.
 _Avoid_: Product name, SKU, Product Type.
 
 **VARIANT Assortment Selector**:
@@ -117,7 +121,7 @@ A `PURCHASE`-only selector for one independently selectable Package Option and n
 _Avoid_: Pack-size heuristic, quantity-as-package identity.
 
 **Assortment Purpose-Selector Compatibility**:
-`VISIBILITY` accepts only `ALL`, `CATEGORY`, and `PRODUCT`; `PURCHASE` accepts `ALL`, `CATEGORY`, `PRODUCT`, `VARIANT`, and `PACKAGE_OPTION`. Closed Assortment Admission Set coverage follows the same purpose compatibility.
+`VISIBILITY` accepts only `ALL`, `CATEGORY`, and `PRODUCT`; `PURCHASE` accepts `ALL`, `CATEGORY`, `PRODUCT`, `VARIANT`, and `PACKAGE_OPTION` for each Assortment Purchase Constituent. Closed Assortment Admission Set coverage follows the same purpose compatibility.
 _Avoid_: Interpreting incompatible combinations at runtime or importing unsupported coverage into a Boundary.
 
 ### Subject and actor language
@@ -141,8 +145,8 @@ _Avoid_: Principal equals customer, Buyer Permission implies Assortment eligibil
 ### Resolution
 
 **Assortment Candidate**:
-One exact pair of a Current Applicable Assortment Applicability Binding and the immutable Assortment Rule Revision it references.
-_Avoid_: Stable Rule candidate, latest Revision candidate, Rule without Binding, Catalog Selection as candidate, Closed Assortment Boundary as candidate.
+One exact pair of a Current Applicable Assortment Applicability Binding and the immutable Assortment Rule Revision it references, participating in the ordinary resolution of one exact target or Assortment Purchase Constituent.
+_Avoid_: Stable Rule candidate, latest Revision candidate, Rule without Binding, Catalog Selection as candidate, Assortment Purchase Constituent as candidate, Closed Assortment Boundary as candidate.
 
 **Closed Assortment Boundary Applicability**:
 The pre-resolution step for an identified subject that determines the Current applicable Boundary set for the exact purpose and trusted Commerce context. No applicable Boundary, one unique maximal Boundary, or a complete maximal conflict set may be asserted only from owner-verifiably complete material Boundary applicability evidence. A strictly narrower Boundary replaces a broader Boundary for that context; Admission Sets are never unioned or intersected.
@@ -153,8 +157,8 @@ A Current configuration state with two or more distinct equally-maximal or Comme
 _Avoid_: Selecting one Boundary technically, merging Admission Sets, treating an observed but incomplete pair as the proven full conflict set, reporting the state as known INELIGIBLE.
 
 **Assortment Resolution**:
-Deterministic ordinary resolution applied after authoritative proof of no Boundary or successful admission by the applicable unique maximal Boundary. It resolves the complete material Assortment Candidate set by Catalog specificity, then Binding Commercial Scope specificity, then Binding subject specificity, followed by maximal-effect conflict handling. Incomparability on a higher axis stops lower-axis precedence.
-_Avoid_: First match wins, returned candidates assumed complete, last write wins, ID/timestamp/order tie-breaks, moving subject specificity ahead of Catalog to simulate closure.
+Deterministic ordinary resolution applied after authoritative proof of no Boundary or successful admission by the applicable unique maximal Boundary. It resolves the complete material Assortment Candidate set for one exact target/Assortment Purchase Constituent by Catalog specificity, then Binding Commercial Scope specificity, then Binding subject specificity, followed by maximal-effect conflict handling. Incomparability on a higher axis stops lower-axis precedence. Set/component composition happens only after independent constituent outcomes exist; Candidate sets are never merged across constituents.
+_Avoid_: First match wins, returned candidates assumed complete, last write wins, ID/timestamp/order tie-breaks, moving subject specificity ahead of Catalog to simulate closure, component Candidate traversal.
 
 **Catalog Specificity**:
 The ordinary Catalog precedence axis `ALL < CATEGORY < PRODUCT < VARIANT < PACKAGE_OPTION`, with descendant Category narrower than ancestor and unrelated matching Categories incomparable.
@@ -179,15 +183,15 @@ _Avoid_: Ignore broken candidate or Boundary, treat broken as no rule/no Boundar
 ### Evidence and Currentness
 
 **Assortment Decision Evidence**:
-Evidence for one exact decision that identifies the relevant Product or Catalog Selection, trusted Commerce context, subject/group evidence, exact immutable Closed Assortment Boundary meaning and applicability/admission/exclusion/conflict path when material, and—when ordinary resolution occurs—the full participating/maximal Assortment Candidate set with Binding lifecycle facts, exact Rule Revisions, and resolution path. It also identifies the material Fact Currentness and Owner-Verifiable Set Completeness Evidence required for the successful validated attempt. Stable Rule or today's latest state is never a historical substitute.
-_Avoid_: Rule ID only, one Candidate standing in for a multi-candidate resolution, returned rows assumed complete, fabricating a candidate winner for Boundary exclusion, replacing historical Boundary meaning with today's Boundary.
+Evidence for one exact Assortment evaluation path that identifies the relevant Product or Assortment Purchase Constituent/Catalog Selection, trusted Commerce context, subject/group evidence, exact immutable Closed Assortment Boundary meaning and applicability/admission/exclusion/conflict path when material, and—when ordinary resolution occurs—the full participating/maximal Assortment Candidate set with Binding lifecycle facts, exact Rule Revisions, and resolution path. It also identifies the material Fact Currentness and Owner-Verifiable Set Completeness Evidence required for the successful validated attempt. For Set PURCHASE, the pre-attempt evidence additionally pins the exact Set Composition Revision and complete constituent identity set, while preserving only constituent outcomes/evidence actually established to explain the composed result; an authoritative deny may short-circuit without fabricating sibling outcomes. Stable Rule or today's latest state is never a historical substitute.
+_Avoid_: Rule ID only, one Candidate standing in for a multi-candidate resolution, returned rows assumed complete, fabricated sibling outcomes, merged Set/component Candidate set, replacing historical Boundary meaning with today's Boundary.
 
 **Owner-Verifiable Set Completeness Evidence**:
 Owner-verifiable evidence that, for one exact decision-relevant predicate/scope, an observed set contains every Current fact whose presence or absence can change the exact Assortment decision. The proof may be exact-predicate scoped or safely broader if the owner contract guarantees that any change capable of altering the exact predicate invalidates it. It is distinct from individual Fact Currentness Evidence and from transport pagination/query completion.
 _Avoid_: All returned rows are Current therefore the set is complete, empty response means absence, final page means business completeness, event silence means completeness, local cache/row count as authority.
 
 **Assortment Current Evaluation**:
-An authoritative Assortment evaluation whose material individual Fact Currentness Evidence and every required Owner-Verifiable Set Completeness Evidence remain valid through final revalidation for that attempt. A changed material fact or set proof discards the attempt and triggers bounded retry; persistent inability to prove complete Current inputs yields `INDETERMINATE`. Revalidating returned resources alone never proves all material facts were returned.
+An authoritative Assortment evaluation whose material individual Fact Currentness Evidence and every required Owner-Verifiable Set Completeness Evidence remain valid through final revalidation for that attempt. A changed material fact or set proof discards the affected constituent attempt and triggers bounded retry; persistent inability to prove complete Current inputs yields `INDETERMINATE` unless another Set constituent independently proves the conjunction false by authoritative `INELIGIBLE`. Revalidating returned resources alone never proves all material facts were returned.
 _Avoid_: Same timestamp equals snapshot, no event means unchanged, one returned row proves uniqueness, returned ALLOW candidates prove ELIGIBLE without complete input, stale closure means admitted/excluded.
 
 **Stale Assortment Result**:
@@ -195,12 +199,12 @@ Previously valid Assortment evidence that is no longer Current enough for the re
 _Avoid_: STALE as a fourth outcome, stale ELIGIBLE as entitlement, stale Boundary/Membership/Candidate set reused as Current.
 
 **Assortment Commitment Confirmation**:
-An Assortment-owner-issued bounded guarantee for one exact Assortment Candidate—one exact Current Applicable Applicability Binding plus its immutable Rule Revision—and one exact Order Commitment Attempt. It may be issued only from a Current `PURCHASE=ELIGIBLE` decision that passed all material Fact Currentness and Owner-Verifiable Set Completeness requirements, including Boundary applicability and other material set-valued inputs, plus ordinary resolution. Boundary and set-completeness evidence remain source Decision Evidence rather than the covered Candidate. The Candidate is explicitly requested by the caller and validated by Assortment as a maximal `ALLOW` participant. Expiry is no later than 30 seconds after issuance; later Boundary-change revocation behavior belongs to the bounded confirmation/commitment contract rather than being inferred from ordinary Boundary lifecycle.
-_Avoid_: Boundary admission or set proof as covered Candidate, Assortment choosing the Candidate, implicit default Candidate, decision-wide set as one Candidate, long-lived entitlement.
+An Assortment-owner-issued bounded guarantee for one exact Assortment Candidate, one exact Assortment Purchase Constituent, one exact Order Commitment Attempt, and one exact bound #330 prospective purchase meaning. It may be issued only from that constituent's Current `PURCHASE=ELIGIBLE` decision after all material Fact Currentness and Owner-Verifiable Set Completeness requirements, Boundary applicability/admission, and ordinary resolution succeed. Boundary and set-completeness evidence remain source Decision Evidence rather than the covered Candidate. The Candidate is explicitly requested by the caller and validated by Assortment as a maximal `ALLOW` participant. Validity is `[issued_at, expires_at)` with maximum 30 seconds. Ordinary Assortment source changes after issuance do not revoke an unexpired exact-bound Confirmation; expiry is terminal, and renewal is a new Confirmation from a new complete Current positive constituent evaluation rather than in-place extension.
+_Avoid_: Boundary admission or set proof as covered Candidate, Assortment choosing the Candidate, implicit default Candidate, one Confirmation covering multiple Set constituents, long-lived entitlement, source/event change inferred as revocation, extending expiry in place.
 
 **Assortment Confirmation Candidate Selection**:
-An explicit caller input naming one exact Assortment Candidate from the final-revalidated maximal `ALLOW` set that the caller asks Assortment to cover. For Order commitment, #329 or trusted orchestration supplies it. Assortment validates the same positive decision's Boundary path, complete material input proof, candidate membership/effect, exact Catalog Selection/context and exact Attempt; it does not choose, substitute, rerank, or infer the Candidate.
-_Avoid_: Assortment-selected winner, first/lowest/newest Candidate, Candidate inferred from ordering, implicit selection when only one Candidate exists.
+An explicit caller input naming one exact Assortment Candidate from one exact Assortment Purchase Constituent's final-revalidated maximal `ALLOW` set that the caller asks Assortment to cover. For Order commitment, #329 or trusted orchestration supplies it. Assortment validates the same positive constituent decision's Boundary path, complete material input proof, candidate membership/effect, exact Catalog Selection/context and exact Attempt; it does not choose, substitute, rerank, or infer the Candidate.
+_Avoid_: Assortment-selected winner, first/lowest/newest Candidate, Candidate inferred from ordering, implicit selection when only one Candidate exists, Candidate reused across constituents.
 
 ### Consumers and projections
 
@@ -209,16 +213,16 @@ The authoritative Current `VISIBILITY` evaluation for one Product in one exact G
 _Avoid_: Search hit, route, sitemap, or known URL as visibility authority, incomplete Boundary/Candidate set treated as Current, PURCHASE closure as Product visibility deny.
 
 **Assortment Purchase Evaluation**:
-The authoritative Current `PURCHASE` evaluation for one exact Catalog Selection and trusted Commerce Purchasing Context. It uses all material Fact Currentness and Set Completeness Evidence; for an identified subject it establishes complete Boundary applicability and exact admission before ordinary purchase resolution.
-_Avoid_: Product-level shortcut, incomplete Membership/Candidate/Boundary set treated as Current, silent replacement of Variant, Package Option, configuration, Market, Storefront, or subject.
+The authoritative Current `PURCHASE` evaluation for one exact prospective purchase meaning in one trusted Commerce Purchasing Context. A Non-Set purchase contains one Assortment Purchase Constituent. A Set purchase pins the complete constituent identity set from the exact Set Composition Revision and composes independent constituent outcomes conjunctively. An authoritative constituent `INELIGIBLE` may short-circuit without fabricated sibling outcomes; Set `ELIGIBLE` requires every required constituent to be authoritatively `ELIGIBLE`.
+_Avoid_: Product-level shortcut, one whole Set treated as one resolver target, incomplete Membership/Candidate/Boundary state treated as Current, merged Set/component Candidates, silent replacement of Variant, Package Option, configuration, Market, Storefront, component, or subject.
 
 **Assortment Search Projection**:
 A derived, rebuildable, context-bounded read model for listing or Search. It is never canonical Assortment authority; a hit is not authoritative `ELIGIBLE` and omission is not authoritative `INELIGIBLE`.
 _Avoid_: Search/index as System of Record, cross-subject or cross-scope cache reuse without proven equivalence.
 
 **Assortment Invalidation Event**:
-A notification that a committed Assortment Rule/Binding/Closed Boundary change may require derived consumers to refresh or rebuild. Receipt is not a decision, not Owner-Verifiable Set Completeness Evidence, and absence or delay is not Current proof.
-_Avoid_: Event as ALLOW/DENY, event silence as validity/completeness guarantee, event order as Boundary precedence.
+A notification that a committed Assortment Rule/Binding/Closed Boundary change may require derived consumers to refresh or rebuild. Receipt is not a decision, not Owner-Verifiable Set Completeness Evidence, and absence or delay is not Current proof. It also does not revoke an already-issued unexpired Assortment Commitment Confirmation.
+_Avoid_: Event as ALLOW/DENY, event silence as validity/completeness guarantee, event order as Boundary precedence, event as Confirmation revocation authority.
 
 ### Administration and authorization
 
