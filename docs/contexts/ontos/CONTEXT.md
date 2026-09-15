@@ -150,9 +150,16 @@ own System of Record.
 **Principal** — Canonical Actor used for authentication resolution, authorization, invocation, and
 audit. It may represent a person, integration, service, agent, or system job.
 
-**Principal Auth Binding** — Core-owned non-secret mapping from a stable external authentication
-subject to one Tenant-scoped Principal. The authentication provider continues to own credentials
-and sessions.
+**Authentication Namespace** — Trusted provider-plus-realm or issuer identity qualifying an external
+authentication subject. Equal provider-local subject identifiers in different Authentication
+Namespaces are distinct and must never resolve through each other's Principal Auth Bindings.
+_Avoid_: treating a provider technology name such as `better_auth` as the realm identity when more
+than one trusted realm uses that provider.
+
+**Principal Auth Binding** — Core-owned non-secret mapping from one stable external authentication
+subject in one Authentication Namespace and Tenant to one Tenant-scoped Principal. The
+authentication provider continues to own credentials and sessions; mutable login identifiers such as
+email or telephone are not the binding identity.
 
 **Authenticated Principal Session** — Staff session context that activates exactly one valid
 Tenant-scoped Principal and Tenant. Selecting context grants no authority and is revalidated.
