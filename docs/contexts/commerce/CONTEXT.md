@@ -111,31 +111,40 @@ shapes. It is not a Medusa runtime, canonical contract, commerce foundation, or 
 **Commerce Operations** — Purpose-built staff application for permissioned Commerce workflows and
 Assisted Support over public module contracts. It is not Shell/Core or a fact owner.
 
-**Commerce Portal Account** — Commerce-governed authentication account identified by one stable
-external provider subject qualified by the dedicated Commerce Authentication Namespace. Its
-canonical account identity is `(Authentication Namespace, provider subject)` and is not Tenant-
-scoped; each Tenant uses a separate Principal Auth Binding to map that same account subject to one
-Tenant-scoped Principal. The authentication provider owns credentials, Authentication Identifiers
-and sessions; the account is not Party identity, Principal, profile access, or purchasing authority.
+**Commerce Portal Account** — Commerce-governed authentication account represented by one stable
+Commerce Portal Account Subject in the dedicated Commerce Authentication Namespace. It is not
+Tenant-scoped; each Tenant uses a separate Principal Auth Binding to map the same account subject to
+one Tenant-scoped Principal. The authentication provider owns credentials, Authentication
+Identifiers and sessions; the account is not Party identity, Principal, profile access, or purchasing
+authority.
 _Avoid_: email/telephone as account identity, Tenant as part of the account identity, provider
 technology name without realm/namespace qualification, Portal Account used as Purchasing Subject.
+
+**Commerce Portal Account Subject** — Exact external authentication subject representing one
+Commerce Portal Account: `(Authentication Namespace, subjectType=user, providerSubjectId)`.
+`providerSubjectId` is the provider's stable opaque user-subject identifier; `subjectType=user` is an
+explicit Commerce Launch invariant, not an omitted identity dimension. The subject is cross-Tenant;
+Tenant belongs to the separate Core Principal Auth Binding key, not to account-subject identity. It
+is not an Authentication Identifier, Session, Principal, Party, profile, or Permission.
+_Avoid_: `(Tenant, providerSubjectId)` as account identity, email/telephone as subject, provider
+technology name as namespace, provider-local ID without namespace/subject type.
 
 **Authentication Identifier** — Provider-owned login or recovery identifier for a Commerce Portal
 Account, such as email, telephone, or provider login handle. It is not a Party Registry Contact Point
 merely because the literal value is equal, and proving control of it does not prove Party/profile or
 Counterparty authority.
 
-**Commerce Portal Session** — Provider-owned session proving authentication of one stable Commerce
-Portal Account subject in the Commerce Authentication Namespace. It is not a Tenant selection,
-Principal Auth Binding, Retail Portal Profile Binding, Counterparty access, or Permission.
+**Commerce Portal Session** — Provider-owned session proving authentication of one exact Commerce
+Portal Account Subject. It is not a Tenant selection, Principal Auth Binding, Retail Portal Profile
+Binding, Counterparty access, or Permission.
 
 **Commerce Portal Enrollment Attempt** — Commerce-owned durable correlation and recovery anchor for
 one exact portal enrollment intent across separately owned account, Core identity, Party/profile, and
-access transitions. It records their outcomes without becoming owner of those facts or pretending
-they share one business transaction.
+access transitions. Once known, it correlates the exact Commerce Portal Account Subject without
+becoming owner of that subject or pretending downstream facts share one business transaction.
 
-**Account Recovery** — Authentication flow restoring access to the same stable Commerce Portal
-Account subject under approved recovery evidence. It does not silently reactivate a Principal Auth
+**Account Recovery** — Authentication flow restoring access to the same exact Commerce Portal
+Account Subject under approved recovery evidence. It does not silently reactivate a Principal Auth
 Binding, Retail Portal Profile Binding or Permission Grant, Counterparty Permission, or Guest Order
 visibility.
 
@@ -534,8 +543,9 @@ Product Configuration choices; stricter commercial multiples belong to Commerce 
 its unit step and target divisibility. A meaningful off-step divisible amount may be automatically
 rounded under the explicit unit rule, retaining and reporting requested and resulting values.
 A nonsensical fractional indivisible item is rejected, not legalized by rounding. A changed amount
-must belong to the explicitly presented candidate before Pricing, approval and final acceptance;
-normalization never silently modifies an already approved or committing candidate.
+must belong to the explicitly presented prospective purchase representation before Pricing, approval
+and final acceptance; normalization never silently modifies an already approved or committing
+purchase representation.
 
 **Package Definition** — Catalog Resource describing a required homogeneous packaging level for
 exactly one Variant. Its content and conversions are versioned. A higher level may refer to a
@@ -675,8 +685,8 @@ inferred from Principal identity, group membership or a missing rule.
 **Commerce Quantity Resolution** — Current policy-owned result for exact Catalog Selection and
 Quantity in a trusted Commerce Purchasing Context, retaining rule/assignment revisions and Catalog
 basis. It distinguishes permitted quantity, known violated commercial conditions and explicit
-missing/conflicting/unverifiable inputs. It neither changes the requested candidate silently nor
-creates Permission, Price, Availability or an Order.
+missing/conflicting/unverifiable inputs. It never silently changes the requested Quantity or creates
+Permission, Price, Availability or an Order.
 
 ## Purchasing limits and approval
 
@@ -864,10 +874,14 @@ Set Composition, Product Relationship, product identifiers, descriptive facts, m
 reference semantics and Current Catalog Selection validation. It provides Catalog Selection Evidence
 but owns no Price, Assortment, Inventory, Availability, Permission, approval, Payment or Accepted Order.
 
-**Assortment** — Commerce Business Policy domain determining one typed `VISIBILITY` or `PURCHASE`
-eligibility result under the canonical contract in `../assortment/CONTEXT.md`. `VISIBILITY` is
-Product-level. `PURCHASE` evaluates one exact Catalog Selection in the trusted Commerce Purchasing
-Context for a Guest Purchase Context or Purchasing Subject. Guest is not a Purchasing Subject. An
+**Assortment** — Commerce Business Policy domain determining typed `VISIBILITY` or `PURCHASE`
+eligibility under the canonical contract in `../assortment/CONTEXT.md`. `VISIBILITY` is Product-level.
+The unit of one independent `PURCHASE` evaluation is an `Assortment Purchase Constituent`: exactly
+one exact Catalog Selection in the trusted Commerce Purchasing Context for a Guest Purchase Context
+or Purchasing Subject. Non-Set purchase has one constituent; Set purchase composes the top-level Set
+constituent with every required exact non-set component constituent from the pinned Set Composition
+Revision. `Assortment Purchase Constituent` is distinct from `Assortment Candidate`, which is a
+Binding+Revision resolver participant inside one constituent. Guest is not a Purchasing Subject. An
 Assortment result never creates Permission, Price, Availability, publication, or Order acceptance,
 and Product-level `VISIBILITY` is not proof that any Variant or Package Option is `PURCHASE` eligible.
 
