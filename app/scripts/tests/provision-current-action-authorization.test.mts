@@ -77,6 +77,11 @@ const currentActionKeys = [
 ] as const;
 
 const addedVerticalActionKeys = [
+  'commerce.catalog.correct-product',
+  'commerce.catalog.create-product',
+  'commerce.catalog.reactivate-product',
+  'commerce.catalog.retire-product',
+  'commerce.catalog.update-product',
   'commerce.customer-context.add-saved-address',
   'commerce.customer-context.archive-customer-group',
   'commerce.customer-context.archive-customer-profile',
