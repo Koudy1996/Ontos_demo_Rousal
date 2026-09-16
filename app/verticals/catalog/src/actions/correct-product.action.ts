@@ -122,7 +122,11 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
     selectionRevalidation =
       payload.classification.variantRef === undefined
         ? requiredBase
-        : { ...requiredBase, affectedVariantRef: payload.classification.variantRef };
+        : {
+            ...requiredBase,
+            affectedVariantProductRef: correction.product.productRef,
+            affectedVariantRef: payload.classification.variantRef,
+          };
   }
   const result = { ...correction, classification: payload.classification, selectionRevalidation };
   const auditEvidence = { evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason };

@@ -137,6 +137,7 @@ describe('Catalog Product Action contracts', () => {
 
   it('publishes an exact typed #479 revalidation handoff for material open-selection impact', () => {
     const handoff = Schema.decodeUnknownSync(ProductSelectionRevalidationRequiredSchema)({
+      affectedVariantProductRef: productRef,
       affectedVariantRef: variantRef,
       evidenceRefs: ['urn:evidence:correction-1'],
       kind: 'REVALIDATION_REQUIRED',
@@ -145,6 +146,28 @@ describe('Catalog Product Action contracts', () => {
       sourceRevision: 2,
     });
     expect(handoff.affectedVariantRef).toEqual(variantRef);
+    expect(() =>
+      Schema.decodeUnknownSync(ProductSelectionRevalidationRequiredSchema)({
+        affectedVariantProductRef: productRef,
+        affectedVariantRef: { ...variantRef, tenantId: '99999999-9999-4999-8999-999999999999' },
+        evidenceRefs: ['urn:evidence:correction-1'],
+        kind: 'REVALIDATION_REQUIRED',
+        productRef,
+        reason: 'Cross-tenant Variant',
+        sourceRevision: 2,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(ProductSelectionRevalidationRequiredSchema)({
+        affectedVariantProductRef: { ...productRef, resourceId: '99999999-9999-4999-8999-999999999999' },
+        affectedVariantRef: variantRef,
+        evidenceRefs: ['urn:evidence:correction-1'],
+        kind: 'REVALIDATION_REQUIRED',
+        productRef,
+        reason: 'Wrong Product owner',
+        sourceRevision: 2,
+      }),
+    ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(ProductSelectionRevalidationRequiredSchema)({
         kind: 'REVALIDATION_REQUIRED',

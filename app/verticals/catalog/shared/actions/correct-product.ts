@@ -27,13 +27,26 @@ export type CorrectProductPayload = typeof CorrectProductPayloadSchema.Type;
 
 /** #479 consumes this handoff and performs final Current Catalog Selection revalidation. */
 export const ProductSelectionRevalidationRequiredSchema = Schema.Struct({
+  affectedVariantProductRef: Schema.optionalKey(ProductRefSchema),
   affectedVariantRef: Schema.optionalKey(VariantRefSchema),
   evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
   kind: Schema.Literal('REVALIDATION_REQUIRED'),
   productRef: ProductRefSchema,
   reason: ProductReasonSchema,
   sourceRevision: ProductRevisionSchema,
-});
+}).check(
+  Schema.makeFilter(({ affectedVariantProductRef, affectedVariantRef, productRef }) => {
+    if (affectedVariantRef === undefined) {
+      return affectedVariantProductRef === undefined ? undefined : 'Variant owner requires an affected Variant';
+    }
+    return affectedVariantProductRef !== undefined &&
+      affectedVariantRef.tenantId === productRef.tenantId &&
+      affectedVariantProductRef.tenantId === productRef.tenantId &&
+      affectedVariantProductRef.resourceId === productRef.resourceId
+      ? undefined
+      : 'Revalidation Variant must retain the same Product owner and Tenant';
+  }),
+);
 export type ProductSelectionRevalidationRequired = typeof ProductSelectionRevalidationRequiredSchema.Type;
 export const ProductSelectionRevalidationSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('NOT_REQUIRED') }),
