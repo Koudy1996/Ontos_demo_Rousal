@@ -19,6 +19,12 @@ const productRef = {
   resourceType: 'commerce.catalog.product',
   tenantId,
 } as const;
+const classification = {
+  evidenceRefs: ['urn:evidence:correction-1'],
+  kind: 'COSMETIC_CORRECTION',
+  productRef,
+  reason: 'Correct Product',
+} as const;
 const scope = {
   authBindingId: '77777777-7777-4777-8777-777777777777',
   authContextRef: 'better-auth-session:catalog-contract',
@@ -60,18 +66,19 @@ describe('Catalog Product Action contracts', () => {
     );
     expect(retire({ expectedRevision: 1, productRef, reason: 'Retire Product' }).expectedRevision).toBe(1);
     expect(reactivate({ expectedRevision: 2, productRef, reason: 'Reactivate Product' }).expectedRevision).toBe(2);
-    expect(correct({ expectedRevision: 1, name: 'Corrected', productRef, reason: 'Correct Product' }).name).toBe(
-      'Corrected',
-    );
+    expect(
+      correct({ classification, expectedRevision: 1, name: 'Corrected', productRef, reason: 'Correct Product' }).name,
+    ).toBe('Corrected');
     expect(() => update({ expectedRevision: 0, productRef, reason: 'Invalid' })).toThrow();
+    expect(() => correct({ expectedRevision: 1, name: 'Corrected', productRef, reason: 'Correct Product' })).toThrow();
     expect(
       correct({
-        evidenceRefs: ['urn:evidence:correction-1'],
+        classification,
         expectedRevision: 1,
         name: 'Corrected',
         productRef,
         reason: 'Correct Product',
-      }).evidenceRefs,
+      }).classification.evidenceRefs,
     ).toEqual(['urn:evidence:correction-1']);
   });
 

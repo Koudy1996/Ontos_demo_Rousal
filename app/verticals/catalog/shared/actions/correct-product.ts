@@ -2,17 +2,17 @@ import { Schema } from 'effect';
 
 import {
   ProductDescriptionSchema,
-  ProductEvidenceReferenceSchema,
   ProductNameSchema,
   ProductReasonSchema,
   ProductSchema,
   ProductRevisionSchema,
 } from '../domain/product.ts';
+import { CosmeticProductCorrectionSchema } from '../domain/product-change-classification.ts';
 import { ProductRefSchema } from '../resources/product.ts';
 
 export const CorrectProductPayloadSchema = Schema.Struct({
+  classification: CosmeticProductCorrectionSchema,
   description: Schema.optionalKey(ProductDescriptionSchema),
-  evidenceRefs: Schema.optionalKey(Schema.Array(ProductEvidenceReferenceSchema)),
   expectedRevision: ProductRevisionSchema,
   name: Schema.optionalKey(ProductNameSchema),
   productRef: ProductRefSchema,
@@ -22,6 +22,7 @@ export type CorrectProductPayload = typeof CorrectProductPayloadSchema.Type;
 
 export const CorrectProductResultSchema = Schema.Struct({
   changed: Schema.Boolean,
+  classification: CosmeticProductCorrectionSchema,
   product: ProductSchema,
 });
 export type CorrectProductResult = typeof CorrectProductResultSchema.Type;

@@ -1,6 +1,7 @@
 import { DateTime, Option, Schema, SchemaGetter } from 'effect';
 
 import { ProductRefSchema } from '../resources/product.ts';
+import { VariantRefSchema } from '../resources/variant.ts';
 
 const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
 
@@ -55,26 +56,9 @@ export interface CatalogResourceRefInput {
   readonly tenantId: string;
 }
 
-/**
- * Variant references stay schema-only until the Variant owner publishes its public contract.
- * The resource type is the exact Variant identity, not a Product or display/SKU surrogate.
- */
-export const CatalogVariantRefSchema = Schema.Struct({
-  moduleId: Schema.Literal('commerce.catalog'),
-  resourceId: CatalogRevisionResourceIdSchema.pipe(Schema.brand('CatalogVariantResourceId')),
-  resourceType: Schema.Literal('commerce.catalog.variant'),
-  tenantId: CatalogRevisionTenantIdSchema,
-});
-export type CatalogVariantRef = typeof CatalogVariantRefSchema.Type;
+/** Variant revision references use the Catalog-owned public Variant identity. */
 
-export interface CatalogVariantRefInput {
-  readonly moduleId: 'commerce.catalog';
-  readonly resourceId: string;
-  readonly resourceType: string;
-  readonly tenantId: string;
-}
-
-const instantPattern = Schema.String.check(
+const instantDecoded = Schema.String.check(
   Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u),
   Schema.makeFilter((value) => {
     const parsed = DateTime.make(value);
@@ -83,15 +67,14 @@ const instantPattern = Schema.String.check(
       ? undefined
       : 'Expected a canonical UTC timestamp';
   }),
-);
-
-/** Canonical UTC timestamp used for the observation of retained historical evidence. */
-export const CatalogRevisionInstantSchema = instantPattern.pipe(
-  Schema.decode({
-    decode: SchemaGetter.dateTimeUtcFromInput<string>().map(DateTime.formatIso),
-    encode: SchemaGetter.dateTimeUtcFromInput<string>().map(DateTime.formatIso),
+).pipe(
+  Schema.decodeTo(Schema.toType(Schema.DateTimeUtc), {
+    decode: SchemaGetter.transform(DateTime.makeUnsafe),
+    encode: SchemaGetter.transform(DateTime.formatIso),
   }),
 );
+/** Canonical UTC timestamp used for the observation of retained historical evidence. */
+export const CatalogRevisionInstantSchema = Schema.toEncoded(instantDecoded);
 export type CatalogRevisionInstant = typeof CatalogRevisionInstantSchema.Type;
 
 const revisionReferenceFields = {
@@ -118,7 +101,7 @@ export type ProductRevisionReference = typeof ProductRevisionReferenceSchema.Typ
 
 /** Variant-specific form without importing a future Variant implementation contract. */
 export const VariantRevisionReferenceSchema = Schema.Struct({
-  resourceRef: CatalogVariantRefSchema,
+  resourceRef: VariantRefSchema,
   revision: CatalogRevisionNumberSchema,
   revisionId: Schema.optionalKey(CatalogRevisionIdSchema),
 });
@@ -253,7 +236,6 @@ export const CatalogRevisionLookupResultSchema = Schema.Union([
 export type CatalogRevisionLookupResult = typeof CatalogRevisionLookupResultSchema.Type;
 
 export const CatalogHistoricalLookupResultSchema = CatalogRevisionLookupResultSchema;
-export type CatalogHistoricalLookupResult = CatalogRevisionLookupResult;
 
 /** A lookup result is safe to compose only when it preserves the requested exact reference. */
 export const catalogRevisionLookupPreservesReference = (

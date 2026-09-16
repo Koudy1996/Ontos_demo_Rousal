@@ -3,20 +3,30 @@ import { Effect, Schema } from 'effect';
 import { ProductEvidenceReferenceSchema, ProductReasonSchema } from './product.ts';
 import { ProductReferenceSchema, VariantReferenceSchema } from './product-form-separation.ts';
 
+export const CosmeticProductCorrectionSchema = Schema.Struct({
+  evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
+  kind: Schema.Literal('COSMETIC_CORRECTION'),
+  productRef: ProductReferenceSchema,
+  reason: ProductReasonSchema,
+  variantRef: Schema.optionalKey(VariantReferenceSchema),
+});
+export type CosmeticProductCorrection = typeof CosmeticProductCorrectionSchema.Type;
+
 /** Classification is an assertion about real-world meaning, not a textual diff. */
 export const ProductChangeClassificationSchema = Schema.Union([
-  Schema.Struct({
-    evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
-    kind: Schema.Literal('COSMETIC_CORRECTION'),
-    productRef: ProductReferenceSchema,
-    reason: ProductReasonSchema,
-    variantRef: VariantReferenceSchema,
-  }),
+  CosmeticProductCorrectionSchema,
   Schema.Struct({
     evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
     kind: Schema.Literal('NEW_REALIZATION'),
     newVariantRef: VariantReferenceSchema,
     productRef: ProductReferenceSchema,
+    reason: ProductReasonSchema,
+  }),
+  Schema.Struct({
+    evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
+    kind: Schema.Literal('NEW_PRODUCT'),
+    newProductRef: ProductReferenceSchema,
+    previousProductRef: Schema.optionalKey(ProductReferenceSchema),
     reason: ProductReasonSchema,
   }),
   Schema.Struct({
@@ -47,10 +57,32 @@ export class ProductChangeClassificationConflict extends Schema.TaggedError<Prod
 export const classifyProductChange = (
   change: ProductChangeClassification,
 ): Effect.Effect<ProductChangeClassification, ProductChangeClassificationConflict> => {
+  if (change.kind === 'NEW_PRODUCT') {
+    if (
+      change.previousProductRef !== undefined &&
+      change.previousProductRef.tenantId !== change.newProductRef.tenantId
+    ) {
+      return Effect.fail(
+        new ProductChangeClassificationConflict({
+          code: 'product_change_classification_conflict',
+          reason: 'Product successor references must belong to the same Tenant',
+        }),
+      );
+    }
+    if (change.previousProductRef?.resourceId === change.newProductRef.resourceId) {
+      return Effect.fail(
+        new ProductChangeClassificationConflict({
+          code: 'product_change_classification_conflict',
+          reason: 'A different Product must have a new Product identity',
+        }),
+      );
+    }
+    return Effect.succeed(change);
+  }
   const productTenantId = change.productRef.tenantId;
   let variantRefs: readonly { tenantId: string }[];
   if (change.kind === 'COSMETIC_CORRECTION') {
-    variantRefs = [change.variantRef];
+    variantRefs = change.variantRef === undefined ? [] : [change.variantRef];
   } else if (change.kind === 'NEW_REALIZATION') {
     variantRefs = [change.newVariantRef];
   } else {

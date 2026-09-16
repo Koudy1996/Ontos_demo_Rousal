@@ -7,7 +7,8 @@ import {
   defineReadResourcePermission,
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
-import { Effect, Option } from 'effect';
+import { Effect, Option, Schema } from 'effect';
+import { CatalogRevisionLookupResultSchema } from '../../shared/domain/catalog-revision-reference.ts';
 
 import { ProductHistoryRequestSchema, ProductHistoryResponseSchema } from '../../shared/apis/product-history.ts';
 import type { ProductHistoryRequest, ProductHistoryResponse } from '../../shared/apis/product-history.ts';
@@ -15,6 +16,15 @@ import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
 
 const catalogModuleKey = 'commerce.catalog';
+
+interface RetainedProductInput {
+  description?: string;
+  historical: true;
+  kind: 'PRODUCT';
+  lifecycle: 'DRAFT' | 'ACTIVE' | 'RETIRED';
+  name?: string;
+  reference: NonNullable<ProductHistoryRequest['revisionReference']>;
+}
 
 const productHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
@@ -51,7 +61,65 @@ export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function*
   if (Option.isNone(history)) {
     return yield* notFound();
   }
-  return { history: history.value };
+  if (input.revisionReference === undefined) {
+    return { history: history.value };
+  }
+  const requestedReference = input.revisionReference;
+  if (
+    requestedReference.resourceRef.resourceId !== input.productRef.resourceId ||
+    requestedReference.resourceRef.tenantId !== trustedTenantId
+  ) {
+    return yield* notFound();
+  }
+  const revision = history.value.revisions.find(
+    (entry) =>
+      entry.revision === requestedReference.revision &&
+      (requestedReference.revisionId === undefined ||
+        entry.revisionReference.revisionId === requestedReference.revisionId),
+  );
+  if (revision === undefined) {
+    return {
+      history: history.value,
+      lookup: {
+        kind: 'MISSING',
+        requestedReference,
+      },
+    };
+  }
+  const retained: RetainedProductInput = {
+    historical: true as const,
+    kind: 'PRODUCT' as const,
+    lifecycle: revision.lifecycle,
+    reference: requestedReference,
+  };
+  if (revision.name !== undefined) {
+    retained.name = revision.name;
+  }
+  if (revision.description !== undefined) {
+    retained.description = revision.description;
+  }
+  const candidate = {
+    evidence: {
+      capturedAt: revision.recordedAt,
+      evidenceRefs: revision.evidenceRefs,
+      historical: true,
+      reference: requestedReference,
+      retained,
+    },
+    kind: 'FOUND',
+    requestedReference,
+  } as const;
+  const lookup = Schema.decodeOption(CatalogRevisionLookupResultSchema)(candidate);
+  return {
+    history: history.value,
+    lookup: Option.isSome(lookup)
+      ? lookup.value
+      : {
+          kind: 'BROKEN',
+          reason: 'Retained Product revision evidence is invalid',
+          requestedReference,
+        },
+  };
 });
 
 export const productHistoryRead = defineRead(

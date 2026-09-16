@@ -3,14 +3,20 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { ProductHistorySchema } from '../domain/product.ts';
+import {
+  CatalogRevisionLookupResultSchema,
+  ProductRevisionReferenceSchema,
+} from '../domain/catalog-revision-reference.ts';
 import { ProductRefSchema } from '../resources/product.ts';
 
 export const ProductHistoryRequestSchema = Schema.Struct({
   productRef: ProductRefSchema,
+  revisionReference: Schema.optionalKey(ProductRevisionReferenceSchema),
 });
 export type ProductHistoryRequest = typeof ProductHistoryRequestSchema.Type;
 export const ProductHistoryResponseSchema = Schema.Struct({
   history: ProductHistorySchema,
+  lookup: Schema.optionalKey(CatalogRevisionLookupResultSchema),
 });
 export type ProductHistoryResponse = typeof ProductHistoryResponseSchema.Type;
 

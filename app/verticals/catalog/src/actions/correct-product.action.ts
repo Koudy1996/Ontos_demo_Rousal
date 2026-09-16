@@ -4,6 +4,7 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Match } from 'effect';
+import { classifyProductChange } from '../../shared/domain/product-change-classification.ts';
 
 import { CorrectProductPayloadSchema, CorrectProductResultSchema } from '../../shared/actions/correct-product.ts';
 import type { CorrectProductPayload } from '../../shared/actions/correct-product.ts';
@@ -44,18 +45,40 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
       reason: 'A correction must identify at least one corrected Product fact',
     });
   }
+  if (
+    payload.classification.productRef.resourceId !== payload.productRef.resourceId ||
+    payload.classification.productRef.tenantId !== payload.productRef.tenantId ||
+    payload.classification.reason !== payload.reason
+  ) {
+    return yield* new ProductCorrectionRequired({
+      code: 'product_correction_required',
+      productRef: payload.productRef,
+      reason: 'Correction classification must identify the same Product and reason',
+    });
+  }
+  yield* classifyProductChange(payload.classification).pipe(
+    Effect.mapError(
+      (classificationError) =>
+        new ProductCorrectionRequired({
+          code: 'product_correction_required',
+          productRef: payload.productRef,
+          reason: classificationError.reason,
+        }),
+    ),
+  );
   const outcome = yield* context.services.correct({
     actionInvocationId: context.actionInvocationId,
     description: payload.description,
-    evidenceRefs: payload.evidenceRefs ?? [],
+    evidenceRefs: payload.classification.evidenceRefs,
     expectedRevision: payload.expectedRevision,
     name: payload.name,
     principalId: context.scope.principalId,
     productId: payload.productRef.resourceId,
     reason: payload.reason,
     tenantId: context.scope.tenantId,
+    variantId: payload.classification.variantRef?.resourceId,
   });
-  const result = yield* Match.value(outcome).pipe(
+  const correction = yield* Match.value(outcome).pipe(
     Match.tag('corrected', ({ changed, product }) => Effect.succeed({ changed, product })),
     Match.tag('not_found', () => Effect.fail(productNotFound(payload.productRef))),
     Match.tag('revision_conflict', ({ actualRevision }) =>
@@ -64,12 +87,19 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
     Match.tag('retired', ({ product }) =>
       Effect.fail(productLifecycleConflict(product.productRef, 'A retired Product cannot be corrected for new use')),
     ),
+    Match.tag('variant_conflict', () =>
+      Effect.fail(
+        new ProductCorrectionRequired({
+          code: 'product_correction_required',
+          productRef: payload.productRef,
+          reason: 'Correction Variant does not belong to the Product',
+        }),
+      ),
+    ),
     Match.exhaustive,
   );
-  const auditEvidence =
-    payload.evidenceRefs === undefined
-      ? { reason: payload.reason }
-      : { evidenceRefs: payload.evidenceRefs, reason: payload.reason };
+  const result = { ...correction, classification: payload.classification };
+  const auditEvidence = { evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason };
   yield* context.recordAuditEvidence(auditEvidence);
   yield* recordProductAccess(context, result.product.productRef.resourceId);
   if (result.changed) {

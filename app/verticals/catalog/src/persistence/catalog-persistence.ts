@@ -16,6 +16,7 @@ import {
   type ProductVariant,
 } from '../../shared/domain/product.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
+import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
 import { productLifecycleEvents, productRevisions, productVariants, products } from '../database/schema.ts';
 
@@ -74,6 +75,7 @@ export interface CorrectProductPersistenceInput {
   readonly productId: string;
   readonly reason: string;
   readonly tenantId: string;
+  readonly variantId: string | undefined;
 }
 
 const CreateProductCreatedSchema = Schema.TaggedStruct('created', {
@@ -127,6 +129,7 @@ const CorrectProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('revision_conflict', { actualRevision: Schema.Finite }),
   Schema.TaggedStruct('retired', { product: ProductSchema }),
+  Schema.TaggedStruct('variant_conflict', {}),
 ]);
 export type CorrectProductPersistenceOutcome = typeof CorrectProductPersistenceOutcomeSchema.Type;
 
@@ -170,6 +173,12 @@ const toVariant = (row: typeof productVariants.$inferSelect): ProductVariant => 
   lifecycle:
     row.lifecycleState === 'ACTIVE' || row.lifecycleState === 'RETIRED' ? row.lifecycleState : 'WORK_IN_PROGRESS',
   variantId: row.variantId,
+  variantRef: {
+    moduleId: 'commerce.catalog',
+    resourceId: row.variantId,
+    resourceType: 'commerce.catalog.variant',
+    tenantId: row.tenantId,
+  },
 });
 
 const toProduct = (
@@ -627,6 +636,9 @@ export const catalogPersistenceForScope = (
     if (existing.lifecycle === 'RETIRED') {
       return { _tag: 'retired' as const, product: existing };
     }
+    if (input.variantId !== undefined && !existing.variants.some((variant) => variant.variantId === input.variantId)) {
+      return { _tag: 'variant_conflict' as const };
+    }
     const changed = input.name !== undefined || input.description !== undefined;
     if (!changed) {
       return { _tag: 'corrected' as const, changed: false, product: existing };
@@ -703,20 +715,36 @@ export const catalogPersistenceForScope = (
         )
         .orderBy(asc(productLifecycleEvents.effectiveAt))
         .pipe(Effect.mapError(unavailable));
-      const revisionRecords: ProductRevisionRecord[] = revisions.map((row) => ({
-        actionInvocationId: row.actionInvocationId,
-        changeKind:
-          row.changeKind === 'COSMETIC_CORRECTION' || row.changeKind === 'UPDATED' || row.changeKind === 'LIFECYCLE'
-            ? row.changeKind
-            : 'CREATED',
-        ...(row.description === null ? {} : { description: row.description }),
-        evidenceRefs: row.evidenceRefs,
-        ...(row.name === null ? {} : { name: row.name }),
-        productRef: productRef(tenantId, row.productId),
-        reason: row.reason,
-        recordedAt: row.recordedAt.toISOString(),
-        revision: row.revision,
-      }));
+      const revisionRecords: ProductRevisionRecord[] = yield* Effect.forEach(
+        revisions,
+        (row) =>
+          Schema.decodeEffect(ProductRevisionReferenceSchema)({
+            resourceRef: productRef(tenantId, row.productId),
+            revision: row.revision,
+            revisionId: row.productRevisionId,
+          }).pipe(
+            Effect.map((revisionReference): ProductRevisionRecord => ({
+              actionInvocationId: row.actionInvocationId,
+              changeKind:
+                row.changeKind === 'COSMETIC_CORRECTION' ||
+                row.changeKind === 'UPDATED' ||
+                row.changeKind === 'LIFECYCLE'
+                  ? row.changeKind
+                  : 'CREATED',
+              ...(row.description === null ? {} : { description: row.description }),
+              evidenceRefs: row.evidenceRefs,
+              lifecycle: toLifecycle(row.lifecycleState),
+              ...(row.name === null ? {} : { name: row.name }),
+              productRef: productRef(tenantId, row.productId),
+              reason: row.reason,
+              recordedAt: row.recordedAt.toISOString(),
+              revision: row.revision,
+              revisionReference,
+            })),
+            Effect.mapError(unavailable),
+          ),
+        { concurrency: 1 },
+      );
       return Option.some<ProductHistory>({
         lifecycle: lifecycle.map((row) => ({
           actionInvocationId: row.actionInvocationId,

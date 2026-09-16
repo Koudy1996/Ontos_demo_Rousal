@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 
 import { ProductRefSchema } from '../resources/product.ts';
+import { VariantRefSchema } from '../resources/variant.ts';
 
 /**
  * Contract-only references for the product-form vocabulary.
@@ -9,13 +10,13 @@ import { ProductRefSchema } from '../resources/product.ts';
  * Product Configuration is an immutable value, Package Option is a role of a
  * Package Definition, and Set is a role of an ordinary Product/Variant. This
  * module intentionally does not implement the lifecycle, package, configuration,
- * or set rules owned by the corresponding Catalog slices.
+ * or set rules owned by the corresponding Catalog slices. #479 owns final
+ * Catalog Selection assembly and Current revalidation of these references.
  */
 
 const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
 const catalogTenantId = checkedUuid.pipe(Schema.brand('CatalogProductFormTenantId'), Schema.decodeTo(checkedUuid));
 
-const variantResourceId = checkedUuid.pipe(Schema.brand('CatalogVariantResourceId'), Schema.decodeTo(checkedUuid));
 const packageDefinitionResourceId = checkedUuid.pipe(
   Schema.brand('CatalogPackageDefinitionResourceId'),
   Schema.decodeTo(checkedUuid),
@@ -32,19 +33,10 @@ const revision = Schema.Finite.check(Schema.isInt(), Schema.isBetween({ maximum:
 /** Product identity remains the generated Catalog Product ResourceRef. */
 export const ProductReferenceSchema = ProductRefSchema;
 export type ProductReference = typeof ProductReferenceSchema.Type;
-export type ProductRef = ProductReference;
-export { ProductRefSchema };
 
 /** A predefined realization of exactly one Product. */
-export const VariantReferenceSchema = Schema.Struct({
-  moduleId: Schema.Literal('commerce.catalog'),
-  resourceId: variantResourceId,
-  resourceType: Schema.Literal('commerce.catalog.variant'),
-  tenantId: catalogTenantId,
-});
+export const VariantReferenceSchema = VariantRefSchema;
 export type VariantReference = typeof VariantReferenceSchema.Type;
-export const VariantRefSchema = VariantReferenceSchema;
-export type VariantRef = VariantReference;
 
 /** A stable Catalog Resource describing one homogeneous packaging level. */
 export const PackageDefinitionReferenceSchema = Schema.Struct({
@@ -55,7 +47,6 @@ export const PackageDefinitionReferenceSchema = Schema.Struct({
 });
 export type PackageDefinitionReference = typeof PackageDefinitionReferenceSchema.Type;
 export const PackageDefinitionRefSchema = PackageDefinitionReferenceSchema;
-export type PackageDefinitionRef = PackageDefinitionReference;
 
 /** A Product-level Resource describing supported configuration choices. */
 export const ProductConfigurationDefinitionReferenceSchema = Schema.Struct({
@@ -66,7 +57,6 @@ export const ProductConfigurationDefinitionReferenceSchema = Schema.Struct({
 });
 export type ProductConfigurationDefinitionReference = typeof ProductConfigurationDefinitionReferenceSchema.Type;
 export const ProductConfigurationDefinitionRefSchema = ProductConfigurationDefinitionReferenceSchema;
-export type ProductConfigurationDefinitionRef = ProductConfigurationDefinitionReference;
 
 /**
  * A Package Option is a selectable role of one Package Definition for one Variant.
@@ -76,10 +66,15 @@ export const PackageOptionReferenceSchema = Schema.Struct({
   kind: Schema.Literal('PACKAGE_OPTION'),
   packageDefinitionRef: PackageDefinitionReferenceSchema,
   variantRef: VariantReferenceSchema,
-});
+}).check(
+  Schema.makeFilter(({ packageDefinitionRef, variantRef }) =>
+    packageDefinitionRef.tenantId === variantRef.tenantId
+      ? undefined
+      : 'Package Option references must share one Tenant',
+  ),
+);
 export type PackageOptionReference = typeof PackageOptionReferenceSchema.Type;
 export const PackageOptionRefSchema = PackageOptionReferenceSchema;
-export type PackageOptionRef = PackageOptionReference;
 
 /** One of the two stable predefined targets to which an SKU can point. */
 export const VariantTargetReferenceSchema = Schema.Struct({
@@ -115,19 +110,10 @@ export const SkuReferenceSchema = Schema.Struct({
 });
 export type SkuReference = typeof SkuReferenceSchema.Type;
 export const SkuRefSchema = SkuReferenceSchema;
-export type SkuRef = SkuReference;
 
 /** An owner-qualified immutable revision; a bare number or implicit "latest" is not a reference. */
-export const CatalogRevisionReferenceSchema = Schema.Struct({
-  revision,
-  sourceRef: Schema.Union([
-    ProductReferenceSchema,
-    VariantReferenceSchema,
-    PackageDefinitionReferenceSchema,
-    ProductConfigurationDefinitionReferenceSchema,
-  ]),
-});
-export type CatalogRevisionReference = typeof CatalogRevisionReferenceSchema.Type;
+export { CatalogRevisionReferenceSchema } from './catalog-revision-reference.ts';
+export type { CatalogRevisionReference } from './catalog-revision-reference.ts';
 
 export const PackageContentRevisionReferenceSchema = Schema.Struct({
   packageDefinitionRef: PackageDefinitionReferenceSchema,
@@ -160,7 +146,6 @@ export const ProductConfigurationSchema = Schema.Struct({
 });
 export type ProductConfiguration = typeof ProductConfigurationSchema.Type;
 export const ProductConfigurationReferenceSchema = ProductConfigurationSchema;
-export type ProductConfigurationReference = ProductConfiguration;
 
 /**
  * A Set is a normal Product whose selected Variant carries an exact composition
@@ -171,10 +156,17 @@ export const SetReferenceSchema = Schema.Struct({
   kind: Schema.Literal('SET'),
   productRef: ProductReferenceSchema,
   variantRef: VariantReferenceSchema,
-});
+}).check(
+  Schema.makeFilter(({ compositionRevision, productRef, variantRef }) =>
+    productRef.tenantId === variantRef.tenantId &&
+    variantRef.resourceId === compositionRevision.variantRef.resourceId &&
+    variantRef.tenantId === compositionRevision.variantRef.tenantId
+      ? undefined
+      : 'Set references must share one Tenant and the exact Variant',
+  ),
+);
 export type SetReference = typeof SetReferenceSchema.Type;
 export const SetProductReferenceSchema = SetReferenceSchema;
-export type SetProductReference = SetReference;
 
 /** Explicitly tagged vocabulary when a consumer needs to carry one product-form reference. */
 export const ProductFormReferenceSchema = Schema.Union([

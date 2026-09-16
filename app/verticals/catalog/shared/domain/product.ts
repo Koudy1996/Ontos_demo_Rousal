@@ -1,6 +1,8 @@
 import { DateTime, Option, Schema, SchemaGetter } from 'effect';
 
 import { ProductRefSchema } from '../resources/product.ts';
+import { VariantRefSchema } from '../resources/variant.ts';
+import { ProductRevisionReferenceSchema } from './catalog-revision-reference.ts';
 
 export const ProductLifecycleSchema = Schema.Literals(['DRAFT', 'ACTIVE', 'RETIRED']);
 export type ProductLifecycle = typeof ProductLifecycleSchema.Type;
@@ -50,6 +52,7 @@ export const ProductInstantSchema = Schema.String.check(
 export const ProductVariantSchema = Schema.Struct({
   lifecycle: ProductVariantLifecycleSchema,
   variantId: ProductVariantIdSchema,
+  variantRef: VariantRefSchema,
 });
 export type ProductVariant = typeof ProductVariantSchema.Type;
 
@@ -79,11 +82,13 @@ export const ProductRevisionRecordSchema = Schema.Struct({
   changeKind: ProductChangeKindSchema,
   description: Schema.optionalKey(ProductDescriptionSchema),
   evidenceRefs: Schema.Array(ProductEvidenceReferenceSchema),
+  lifecycle: ProductLifecycleSchema,
   name: Schema.optionalKey(ProductNameSchema),
   productRef: ProductRefSchema,
   reason: ProductReasonSchema,
   recordedAt: ProductInstantSchema,
   revision: ProductRevisionSchema,
+  revisionReference: ProductRevisionReferenceSchema,
 });
 export type ProductRevisionRecord = typeof ProductRevisionRecordSchema.Type;
 

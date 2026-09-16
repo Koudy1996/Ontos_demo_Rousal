@@ -97,6 +97,12 @@ describe('Catalog product-form reference separation', () => {
     expect(decoded.packageDefinitionRef).toEqual(packageDefinitionRef);
     expect(decoded.variantRef).toEqual(variantRef);
     expect(() =>
+      Schema.decodeUnknownSync(PackageOptionReferenceSchema)({
+        ...packageOption,
+        variantRef: { ...variantRef, tenantId: '99999999-9999-4999-8999-999999999999' },
+      }),
+    ).toThrow();
+    expect(() =>
       Schema.decodeUnknownSync(PackageOptionReferenceSchema, { onExcessProperty: 'error' })({
         ...packageOption,
         packageOptionResourceId: packageDefinitionId,
@@ -124,16 +130,24 @@ describe('Catalog product-form reference separation', () => {
     );
     expect(() =>
       Schema.decodeUnknownSync(ProductConfigurationSchema, { onExcessProperty: 'error' })({
+        configurationResourceId: configurationDefinitionId,
         kind: 'PRODUCT_CONFIGURATION',
         target: variantTarget,
         values: {},
-        configurationResourceId: configurationDefinitionId,
       }),
     ).toThrow();
   });
 
   it('represents a Set through its ordinary Product/Variant and exact composition revision', () => {
     const compositionRevision = { revision: 1, variantRef } as const;
+    expect(() =>
+      Schema.decodeUnknownSync(SetReferenceSchema)({
+        compositionRevision: { revision: 1, variantRef: { ...variantRef, resourceId: packageDefinitionId } },
+        kind: 'SET',
+        productRef,
+        variantRef,
+      }),
+    ).toThrow();
     const set = Schema.decodeUnknownSync(SetReferenceSchema, { onExcessProperty: 'error' })({
       compositionRevision,
       kind: 'SET',

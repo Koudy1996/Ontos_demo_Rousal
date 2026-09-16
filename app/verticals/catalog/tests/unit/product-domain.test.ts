@@ -13,6 +13,12 @@ import { ProductRefSchema } from '../../shared/resources/product.ts';
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const productId = '22222222-2222-4222-8222-222222222222';
 const variantId = '33333333-3333-4333-8333-333333333333';
+const variantRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: variantId,
+  resourceType: 'commerce.catalog.variant',
+  tenantId,
+} as const;
 const actionInvocationId = '44444444-4444-4444-8444-444444444444';
 const instant = '2026-09-16T12:00:00.000Z';
 const productRef = {
@@ -27,12 +33,12 @@ describe('Catalog Product domain', () => {
     const draft = {
       lifecycle: 'DRAFT',
       name: '  ',
-      variants: [{ lifecycle: 'WORK_IN_PROGRESS', variantId }],
+      variants: [{ lifecycle: 'WORK_IN_PROGRESS', variantId, variantRef }],
     } as const;
     const active = {
       lifecycle: 'ACTIVE',
       name: 'Standard Product',
-      variants: [{ lifecycle: 'ACTIVE', variantId }],
+      variants: [{ lifecycle: 'ACTIVE', variantId, variantRef }],
     } as const;
 
     expect(catalogReadiness(draft).catalogReady).toBe(false);
@@ -45,7 +51,7 @@ describe('Catalog Product domain', () => {
     const readiness = catalogReadiness({
       lifecycle: 'ACTIVE',
       name: 'Standard Product',
-      variants: [{ lifecycle: 'RETIRED', variantId }],
+      variants: [{ lifecycle: 'RETIRED', variantId, variantRef }],
     });
 
     expect(readiness).toEqual({
@@ -56,7 +62,7 @@ describe('Catalog Product domain', () => {
       catalogReadiness({
         lifecycle: 'ACTIVE',
         name: 'Standard Product',
-        variants: [{ lifecycle: 'WORK_IN_PROGRESS', variantId }],
+        variants: [{ lifecycle: 'WORK_IN_PROGRESS', variantId, variantRef }],
       }),
     ).toEqual({ catalogReady: false, reasons: ['Product needs at least one ACTIVE Variant'] });
     expect(() => Schema.decodeUnknownSync(ProductVariantSchema)({ lifecycle: 'INVALID', variantId })).toThrow();
@@ -71,7 +77,7 @@ describe('Catalog Product domain', () => {
       productRef,
       revision: 1,
       updatedAt: instant,
-      variants: [{ lifecycle: 'ACTIVE', variantId }],
+      variants: [{ lifecycle: 'ACTIVE', variantId, variantRef }],
     });
     const history = Schema.decodeUnknownSync(ProductHistorySchema)({
       lifecycle: [
@@ -90,11 +96,13 @@ describe('Catalog Product domain', () => {
           actionInvocationId,
           changeKind: 'CREATED',
           evidenceRefs: [],
+          lifecycle: 'ACTIVE',
           name: 'Standard Product',
           productRef,
           reason: 'Create the Product identity',
           recordedAt: instant,
           revision: 1,
+          revisionReference: { resourceRef: productRef, revision: 1, revisionId: actionInvocationId },
         },
       ],
     });

@@ -33,7 +33,9 @@ describe('Catalog Product change classification', () => {
         variantRef,
       });
       const result = yield* classifyProductChange(change);
-      expect(result.productRef).toEqual(productRef);
+      if (result.kind !== 'NEW_PRODUCT') {
+        expect(result.productRef).toEqual(productRef);
+      }
       expect(result.kind).toBe('COSMETIC_CORRECTION');
       expect(result).toHaveProperty('variantRef', variantRef);
     }),
@@ -47,7 +49,9 @@ describe('Catalog Product change classification', () => {
       ]) {
         const decoded = Schema.decodeUnknownSync(ProductChangeClassificationSchema)(change);
         const result = yield* classifyProductChange(decoded);
-        expect(result.productRef).toEqual(productRef);
+        if (result.kind !== 'NEW_PRODUCT') {
+          expect(result.productRef).toEqual(productRef);
+        }
         expect(result).toHaveProperty('newVariantRef', newVariantRef);
       }
     }),
@@ -73,6 +77,27 @@ describe('Catalog Product change classification', () => {
       }),
     ).toThrow();
   });
+
+  it.effect('allows Product-only corrections and requires a distinct new Product identity', () =>
+    Effect.gen(function* distinctProduct() {
+      const correction = Schema.decodeUnknownSync(ProductChangeClassificationSchema)({
+        ...evidence,
+        kind: 'COSMETIC_CORRECTION',
+        productRef,
+      });
+      expect((yield* classifyProductChange(correction)).kind).toBe('COSMETIC_CORRECTION');
+      const replacement = Schema.decodeUnknownSync(ProductChangeClassificationSchema)({
+        ...evidence,
+        kind: 'NEW_PRODUCT',
+        newProductRef: productRef,
+        previousProductRef: productRef,
+      });
+      const conflict = yield* classifyProductChange(replacement).pipe(
+        Effect.catchTag('ProductChangeClassificationConflict', (error) => Effect.succeed(error.code)),
+      );
+      expect(conflict).toBe('product_change_classification_conflict');
+    }),
+  );
 
   it.effect('rejects cross-Tenant references and reuse of a Variant for a material successor', () =>
     Effect.gen(function* invalidTransitions() {
