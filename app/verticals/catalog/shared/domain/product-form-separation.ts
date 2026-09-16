@@ -1,0 +1,194 @@
+import { Schema } from 'effect';
+
+import { ProductRefSchema } from '../resources/product.ts';
+
+/**
+ * Contract-only references for the product-form vocabulary.
+ *
+ * Product and Variant are Resources. SKU is a code for one selection target,
+ * Product Configuration is an immutable value, Package Option is a role of a
+ * Package Definition, and Set is a role of an ordinary Product/Variant. This
+ * module intentionally does not implement the lifecycle, package, configuration,
+ * or set rules owned by the corresponding Catalog slices.
+ */
+
+const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
+const catalogTenantId = checkedUuid.pipe(Schema.brand('CatalogProductFormTenantId'), Schema.decodeTo(checkedUuid));
+
+const variantResourceId = checkedUuid.pipe(Schema.brand('CatalogVariantResourceId'), Schema.decodeTo(checkedUuid));
+const packageDefinitionResourceId = checkedUuid.pipe(
+  Schema.brand('CatalogPackageDefinitionResourceId'),
+  Schema.decodeTo(checkedUuid),
+);
+const configurationDefinitionResourceId = checkedUuid.pipe(
+  Schema.brand('CatalogProductConfigurationDefinitionResourceId'),
+  Schema.decodeTo(checkedUuid),
+);
+
+const revision = Schema.Finite.check(Schema.isInt(), Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })).pipe(
+  Schema.brand('CatalogProductFormRevision'),
+);
+
+/** Product identity remains the generated Catalog Product ResourceRef. */
+export const ProductReferenceSchema = ProductRefSchema;
+export type ProductReference = typeof ProductReferenceSchema.Type;
+export type ProductRef = ProductReference;
+export { ProductRefSchema };
+
+/** A predefined realization of exactly one Product. */
+export const VariantReferenceSchema = Schema.Struct({
+  moduleId: Schema.Literal('commerce.catalog'),
+  resourceId: variantResourceId,
+  resourceType: Schema.Literal('commerce.catalog.variant'),
+  tenantId: catalogTenantId,
+});
+export type VariantReference = typeof VariantReferenceSchema.Type;
+export const VariantRefSchema = VariantReferenceSchema;
+export type VariantRef = VariantReference;
+
+/** A stable Catalog Resource describing one homogeneous packaging level. */
+export const PackageDefinitionReferenceSchema = Schema.Struct({
+  moduleId: Schema.Literal('commerce.catalog'),
+  resourceId: packageDefinitionResourceId,
+  resourceType: Schema.Literal('commerce.catalog.package-definition'),
+  tenantId: catalogTenantId,
+});
+export type PackageDefinitionReference = typeof PackageDefinitionReferenceSchema.Type;
+export const PackageDefinitionRefSchema = PackageDefinitionReferenceSchema;
+export type PackageDefinitionRef = PackageDefinitionReference;
+
+/** A Product-level Resource describing supported configuration choices. */
+export const ProductConfigurationDefinitionReferenceSchema = Schema.Struct({
+  moduleId: Schema.Literal('commerce.catalog'),
+  resourceId: configurationDefinitionResourceId,
+  resourceType: Schema.Literal('commerce.catalog.product-configuration-definition'),
+  tenantId: catalogTenantId,
+});
+export type ProductConfigurationDefinitionReference = typeof ProductConfigurationDefinitionReferenceSchema.Type;
+export const ProductConfigurationDefinitionRefSchema = ProductConfigurationDefinitionReferenceSchema;
+export type ProductConfigurationDefinitionRef = ProductConfigurationDefinitionReference;
+
+/**
+ * A Package Option is a selectable role of one Package Definition for one Variant.
+ * It deliberately has no independently allocated Package Option ResourceRef.
+ */
+export const PackageOptionReferenceSchema = Schema.Struct({
+  kind: Schema.Literal('PACKAGE_OPTION'),
+  packageDefinitionRef: PackageDefinitionReferenceSchema,
+  variantRef: VariantReferenceSchema,
+});
+export type PackageOptionReference = typeof PackageOptionReferenceSchema.Type;
+export const PackageOptionRefSchema = PackageOptionReferenceSchema;
+export type PackageOptionRef = PackageOptionReference;
+
+/** One of the two stable predefined targets to which an SKU can point. */
+export const VariantTargetReferenceSchema = Schema.Struct({
+  kind: Schema.Literal('VARIANT'),
+  variantRef: VariantReferenceSchema,
+});
+export type VariantTargetReference = typeof VariantTargetReferenceSchema.Type;
+
+export const PackageOptionTargetReferenceSchema = Schema.Struct({
+  kind: Schema.Literal('PACKAGE_OPTION'),
+  packageOptionRef: PackageOptionReferenceSchema,
+});
+export type PackageOptionTargetReference = typeof PackageOptionTargetReferenceSchema.Type;
+
+export const CatalogSelectionTargetReferenceSchema = Schema.Union([
+  VariantTargetReferenceSchema,
+  PackageOptionTargetReferenceSchema,
+]);
+export type CatalogSelectionTargetReference = typeof CatalogSelectionTargetReferenceSchema.Type;
+
+/** SKU is an internal code for exactly one Catalog Selection Target, not a Resource identity. */
+export const SkuCodeSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(200),
+  Schema.isTrimmed(),
+).pipe(Schema.brand('CatalogSkuCode'), Schema.decodeTo(Schema.String));
+export type SkuCode = typeof SkuCodeSchema.Type;
+
+export const SkuReferenceSchema = Schema.Struct({
+  code: SkuCodeSchema,
+  kind: Schema.Literal('SKU'),
+  target: CatalogSelectionTargetReferenceSchema,
+});
+export type SkuReference = typeof SkuReferenceSchema.Type;
+export const SkuRefSchema = SkuReferenceSchema;
+export type SkuRef = SkuReference;
+
+/** An owner-qualified immutable revision; a bare number or implicit "latest" is not a reference. */
+export const CatalogRevisionReferenceSchema = Schema.Struct({
+  revision,
+  sourceRef: Schema.Union([
+    ProductReferenceSchema,
+    VariantReferenceSchema,
+    PackageDefinitionReferenceSchema,
+    ProductConfigurationDefinitionReferenceSchema,
+  ]),
+});
+export type CatalogRevisionReference = typeof CatalogRevisionReferenceSchema.Type;
+
+export const PackageContentRevisionReferenceSchema = Schema.Struct({
+  packageDefinitionRef: PackageDefinitionReferenceSchema,
+  revision,
+});
+export type PackageContentRevisionReference = typeof PackageContentRevisionReferenceSchema.Type;
+
+export const ProductConfigurationDefinitionRevisionReferenceSchema = Schema.Struct({
+  definitionRef: ProductConfigurationDefinitionReferenceSchema,
+  revision,
+});
+export type ProductConfigurationDefinitionRevisionReference =
+  typeof ProductConfigurationDefinitionRevisionReferenceSchema.Type;
+
+export const SetCompositionRevisionReferenceSchema = Schema.Struct({
+  revision,
+  variantRef: VariantReferenceSchema,
+});
+export type SetCompositionRevisionReference = typeof SetCompositionRevisionReferenceSchema.Type;
+
+/**
+ * Product Configuration is an immutable value refining an exact target. The
+ * values remain JSON data here; definition-specific choice and unit rules are
+ * owned by the configuration slice.
+ */
+export const ProductConfigurationSchema = Schema.Struct({
+  kind: Schema.Literal('PRODUCT_CONFIGURATION'),
+  target: CatalogSelectionTargetReferenceSchema,
+  values: Schema.Record(Schema.String, Schema.Json),
+});
+export type ProductConfiguration = typeof ProductConfigurationSchema.Type;
+export const ProductConfigurationReferenceSchema = ProductConfigurationSchema;
+export type ProductConfigurationReference = ProductConfiguration;
+
+/**
+ * A Set is a normal Product whose selected Variant carries an exact composition
+ * revision. This role is not a parallel Set Resource or registry.
+ */
+export const SetReferenceSchema = Schema.Struct({
+  compositionRevision: SetCompositionRevisionReferenceSchema,
+  kind: Schema.Literal('SET'),
+  productRef: ProductReferenceSchema,
+  variantRef: VariantReferenceSchema,
+});
+export type SetReference = typeof SetReferenceSchema.Type;
+export const SetProductReferenceSchema = SetReferenceSchema;
+export type SetProductReference = SetReference;
+
+/** Explicitly tagged vocabulary when a consumer needs to carry one product-form reference. */
+export const ProductFormReferenceSchema = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal('PRODUCT'),
+    ref: ProductReferenceSchema,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal('VARIANT'),
+    ref: VariantReferenceSchema,
+  }),
+  SkuReferenceSchema,
+  ProductConfigurationSchema,
+  PackageOptionReferenceSchema,
+  SetReferenceSchema,
+]);
+export type ProductFormReference = typeof ProductFormReferenceSchema.Type;
