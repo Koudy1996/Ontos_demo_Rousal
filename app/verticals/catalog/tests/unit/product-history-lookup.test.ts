@@ -18,6 +18,7 @@ const revisionId = '33333333-3333-4333-8333-333333333333';
 const actionInvocationId = '44444444-4444-4444-8444-444444444444';
 const recordedAt = '2026-09-16T12:00:00.000Z';
 const history = Schema.decodeUnknownSync(ProductHistorySchema)({
+  historical: true,
   lifecycle: [],
   productRef,
   revisions: [
@@ -81,6 +82,7 @@ describe('governed Product historical lookup', () => {
           revisionReference: Schema.decodeUnknownSync(ProductRevisionReferenceSchema)({
             resourceRef: productRef,
             revision: 2,
+            revisionId: '55555555-5555-4555-8555-555555555555',
           }),
         },
         tenantId,

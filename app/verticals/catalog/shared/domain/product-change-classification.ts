@@ -4,6 +4,7 @@ import { ProductEvidenceReferenceSchema, ProductReasonSchema } from './product.t
 import { ProductReferenceSchema, VariantReferenceSchema } from './product-form-separation.ts';
 
 export const CosmeticProductCorrectionSchema = Schema.Struct({
+  affectsOpenSelection: Schema.Boolean,
   evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
   kind: Schema.Literal('COSMETIC_CORRECTION'),
   productRef: ProductReferenceSchema,
@@ -16,6 +17,7 @@ export type CosmeticProductCorrection = typeof CosmeticProductCorrectionSchema.T
 export const ProductChangeClassificationSchema = Schema.Union([
   CosmeticProductCorrectionSchema,
   Schema.Struct({
+    affectsOpenSelection: Schema.Literal(true),
     evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
     kind: Schema.Literal('NEW_REALIZATION'),
     newVariantRef: VariantReferenceSchema,
@@ -23,6 +25,7 @@ export const ProductChangeClassificationSchema = Schema.Union([
     reason: ProductReasonSchema,
   }),
   Schema.Struct({
+    affectsOpenSelection: Schema.Literal(true),
     evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
     kind: Schema.Literal('NEW_PRODUCT'),
     newProductRef: ProductReferenceSchema,
@@ -30,6 +33,7 @@ export const ProductChangeClassificationSchema = Schema.Union([
     reason: ProductReasonSchema,
   }),
   Schema.Struct({
+    affectsOpenSelection: Schema.Literal(true),
     evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
     kind: Schema.Literal('SUCCESSOR_REALIZATION'),
     newVariantRef: VariantReferenceSchema,

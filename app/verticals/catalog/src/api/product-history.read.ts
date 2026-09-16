@@ -74,8 +74,7 @@ export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function*
   const revision = history.value.revisions.find(
     (entry) =>
       entry.revision === requestedReference.revision &&
-      (requestedReference.revisionId === undefined ||
-        entry.revisionReference.revisionId === requestedReference.revisionId),
+      entry.revisionReference.revisionId === requestedReference.revisionId,
   );
   if (revision === undefined) {
     return {

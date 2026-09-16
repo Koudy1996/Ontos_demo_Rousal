@@ -9,8 +9,10 @@ import {
   ProductRevisionSchema,
 } from '../domain/product.ts';
 import { ProductRefSchema } from '../resources/product.ts';
+import { VariantRefSchema } from '../resources/variant.ts';
 
 export const UpdateProductPayloadSchema = Schema.Struct({
+  activateVariantRef: Schema.optionalKey(VariantRefSchema),
   description: Schema.optionalKey(ProductDescriptionSchema),
   expectedRevision: ProductRevisionSchema,
   name: Schema.optionalKey(ProductNameSchema),

@@ -37,8 +37,12 @@ const execute = Effect.fn('UpdateProductAction.execute')(function* execute(
   if (payload.productRef.tenantId !== context.scope.tenantId) {
     return yield* invalidCrossTenantProduct(payload.productRef);
   }
+  if (payload.activateVariantRef !== undefined && payload.activateVariantRef.tenantId !== context.scope.tenantId) {
+    return yield* invalidCrossTenantProduct(payload.productRef);
+  }
   const outcome = yield* context.services.update({
     actionInvocationId: context.actionInvocationId,
+    activateVariantId: payload.activateVariantRef?.resourceId,
     description: payload.description,
     expectedRevision: payload.expectedRevision,
     name: payload.name,
@@ -60,6 +64,11 @@ const execute = Effect.fn('UpdateProductAction.execute')(function* execute(
       Effect.fail(productRevisionConflict(payload.productRef, payload.expectedRevision, actualRevision)),
     ),
     Match.tag('updated', ({ changed, product }) => Effect.succeed({ changed, product })),
+    Match.tag('variant_conflict', ({ product }) =>
+      Effect.fail(
+        productLifecycleConflict(product.productRef, 'Variant is retired or does not belong to this Product'),
+      ),
+    ),
     Match.exhaustive,
   );
   yield* context.recordAuditEvidence({ reason: payload.reason });

@@ -80,7 +80,7 @@ export type CatalogRevisionInstant = typeof CatalogRevisionInstantSchema.Type;
 const revisionReferenceFields = {
   resourceRef: CatalogResourceRefSchema,
   revision: CatalogRevisionNumberSchema,
-  revisionId: Schema.optionalKey(CatalogRevisionIdSchema),
+  revisionId: CatalogRevisionIdSchema,
 };
 
 /**
@@ -95,7 +95,7 @@ export type CatalogRevisionReference = typeof CatalogRevisionReferenceSchema.Typ
 export const ProductRevisionReferenceSchema = Schema.Struct({
   resourceRef: ProductRefSchema,
   revision: CatalogRevisionNumberSchema,
-  revisionId: Schema.optionalKey(CatalogRevisionIdSchema),
+  revisionId: CatalogRevisionIdSchema,
 });
 export type ProductRevisionReference = typeof ProductRevisionReferenceSchema.Type;
 
@@ -103,7 +103,7 @@ export type ProductRevisionReference = typeof ProductRevisionReferenceSchema.Typ
 export const VariantRevisionReferenceSchema = Schema.Struct({
   resourceRef: VariantRefSchema,
   revision: CatalogRevisionNumberSchema,
-  revisionId: Schema.optionalKey(CatalogRevisionIdSchema),
+  revisionId: CatalogRevisionIdSchema,
 });
 export type VariantRevisionReference = typeof VariantRevisionReferenceSchema.Type;
 

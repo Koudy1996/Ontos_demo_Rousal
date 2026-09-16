@@ -36,6 +36,7 @@ export interface CreateProductPersistenceInput {
 
 export interface UpdateProductPersistenceInput {
   readonly actionInvocationId: string;
+  readonly activateVariantId: string | undefined;
   readonly description: string | undefined;
   readonly expectedRevision: number;
   readonly name: string | undefined;
@@ -94,6 +95,7 @@ const UpdateProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('revision_conflict', { actualRevision: Schema.Finite }),
   Schema.TaggedStruct('lifecycle_conflict', { product: ProductSchema }),
+  Schema.TaggedStruct('variant_conflict', { product: ProductSchema }),
   Schema.TaggedStruct('not_catalog_ready', {
     product: ProductSchema,
     reasons: Schema.Array(Schema.String),
@@ -172,6 +174,7 @@ const toLifecycle = (value: string): ProductLifecycle => {
 const toVariant = (row: typeof productVariants.$inferSelect): ProductVariant => ({
   lifecycle:
     row.lifecycleState === 'ACTIVE' || row.lifecycleState === 'RETIRED' ? row.lifecycleState : 'WORK_IN_PROGRESS',
+  productRef: productRef(row.tenantId, row.productId),
   variantId: row.variantId,
   variantRef: {
     moduleId: 'commerce.catalog',
@@ -401,6 +404,17 @@ export const catalogPersistenceForScope = (
     if (lifecycle === 'RETIRED') {
       return { _tag: 'lifecycle_conflict' as const, product: existing };
     }
+    const activatingVariant =
+      input.activateVariantId === undefined
+        ? undefined
+        : existing.variants.find((variant) => variant.variantId === input.activateVariantId);
+    if (
+      input.activateVariantId !== undefined &&
+      (activatingVariant === undefined || activatingVariant.lifecycle === 'RETIRED')
+    ) {
+      return { _tag: 'variant_conflict' as const, product: existing };
+    }
+    const variantActivationChanges = activatingVariant?.lifecycle === 'WORK_IN_PROGRESS';
     const candidate = {
       lifecycle,
       ...(input.name === undefined
@@ -408,7 +422,11 @@ export const catalogPersistenceForScope = (
           ? {}
           : { name: existing.name }
         : { name: input.name }),
-      variants: existing.variants,
+      variants: existing.variants.map((variant) =>
+        variantActivationChanges && variant.variantId === input.activateVariantId
+          ? { ...variant, lifecycle: 'ACTIVE' as const }
+          : variant,
+      ),
     } as const;
     if (lifecycle === 'ACTIVE') {
       const readiness = catalogReadiness(candidate);
@@ -416,7 +434,11 @@ export const catalogPersistenceForScope = (
         return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
       }
     }
-    const changed = input.name !== undefined || input.description !== undefined || lifecycle !== existing.lifecycle;
+    const changed =
+      input.name !== undefined ||
+      input.description !== undefined ||
+      lifecycle !== existing.lifecycle ||
+      variantActivationChanges;
     if (!changed) {
       return { _tag: 'updated' as const, changed: false, product: existing };
     }
@@ -448,6 +470,24 @@ export const catalogPersistenceForScope = (
         _tag: 'revision_conflict' as const,
         actualRevision: latest?.currentRevision ?? input.expectedRevision,
       };
+    }
+    if (variantActivationChanges && input.activateVariantId !== undefined) {
+      const [activated] = yield* transaction
+        .update(productVariants)
+        .set({ lifecycleState: 'ACTIVE', updatedAt: now })
+        .where(
+          and(
+            eq(productVariants.tenantId, tenantId),
+            eq(productVariants.productId, input.productId),
+            eq(productVariants.variantId, input.activateVariantId),
+            eq(productVariants.lifecycleState, 'WORK_IN_PROGRESS'),
+          ),
+        )
+        .returning()
+        .pipe(Effect.mapError(unavailable));
+      if (activated === undefined) {
+        return yield* conflict('Variant activation changed concurrently');
+      }
     }
     yield* insertRevision(transaction, {
       actionInvocationId: input.actionInvocationId,
@@ -746,6 +786,7 @@ export const catalogPersistenceForScope = (
         { concurrency: 1 },
       );
       return Option.some<ProductHistory>({
+        historical: true,
         lifecycle: lifecycle.map((row) => ({
           actionInvocationId: row.actionInvocationId,
           effectiveAt: row.effectiveAt.toISOString(),

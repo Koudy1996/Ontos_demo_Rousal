@@ -21,7 +21,11 @@ const variantRef = {
   tenantId,
 } as const;
 const newVariantRef = { ...variantRef, resourceId: '44444444-4444-4444-8444-444444444444' };
-const evidence = { evidenceRefs: ['catalog-review-123'], reason: 'Reviewed against the physical item' };
+const evidence = {
+  affectsOpenSelection: true,
+  evidenceRefs: ['catalog-review-123'],
+  reason: 'Reviewed against the physical item',
+};
 
 describe('Catalog Product change classification', () => {
   it.effect('preserves Product and Variant identity for an evidence-backed cosmetic correction', () =>

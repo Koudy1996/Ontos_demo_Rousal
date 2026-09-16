@@ -19,7 +19,14 @@ const productRef = {
   resourceType: 'commerce.catalog.product',
   tenantId,
 } as const;
+const variantRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: '33333333-3333-4333-8333-333333333333',
+  resourceType: 'commerce.catalog.variant',
+  tenantId,
+} as const;
 const classification = {
+  affectsOpenSelection: false,
   evidenceRefs: ['urn:evidence:correction-1'],
   kind: 'COSMETIC_CORRECTION',
   productRef,
@@ -64,6 +71,15 @@ describe('Catalog Product Action contracts', () => {
     expect(update({ expectedRevision: 1, name: 'Renamed', productRef, reason: 'Rename Product' }).productRef).toEqual(
       productRef,
     );
+    expect(
+      update({
+        activateVariantRef: variantRef,
+        expectedRevision: 1,
+        productRef,
+        reason: 'Activate Variant',
+        targetLifecycle: 'ACTIVE',
+      }).activateVariantRef,
+    ).toEqual(variantRef);
     expect(retire({ expectedRevision: 1, productRef, reason: 'Retire Product' }).expectedRevision).toBe(1);
     expect(reactivate({ expectedRevision: 2, productRef, reason: 'Reactivate Product' }).expectedRevision).toBe(2);
     expect(

@@ -45,6 +45,13 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
       reason: 'A correction must identify at least one corrected Product fact',
     });
   }
+  if (payload.classification.kind !== 'COSMETIC_CORRECTION') {
+    return yield* new ProductCorrectionRequired({
+      code: 'product_correction_required',
+      productRef: payload.productRef,
+      reason: 'A material or new Product realization requires its owning Variant or Product creation Action',
+    });
+  }
   if (
     payload.classification.productRef.resourceId !== payload.productRef.resourceId ||
     payload.classification.productRef.tenantId !== payload.productRef.tenantId ||

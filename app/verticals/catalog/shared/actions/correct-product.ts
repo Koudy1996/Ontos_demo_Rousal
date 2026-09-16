@@ -7,11 +7,14 @@ import {
   ProductSchema,
   ProductRevisionSchema,
 } from '../domain/product.ts';
-import { CosmeticProductCorrectionSchema } from '../domain/product-change-classification.ts';
+import {
+  CosmeticProductCorrectionSchema,
+  ProductChangeClassificationSchema,
+} from '../domain/product-change-classification.ts';
 import { ProductRefSchema } from '../resources/product.ts';
 
 export const CorrectProductPayloadSchema = Schema.Struct({
-  classification: CosmeticProductCorrectionSchema,
+  classification: ProductChangeClassificationSchema,
   description: Schema.optionalKey(ProductDescriptionSchema),
   expectedRevision: ProductRevisionSchema,
   name: Schema.optionalKey(ProductNameSchema),

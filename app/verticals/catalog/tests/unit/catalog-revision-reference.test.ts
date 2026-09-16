@@ -111,7 +111,7 @@ describe('Catalog revision references and historical lookup', () => {
   });
 
   it('requires a retained Variant and its Product owner to share the tenant', () => {
-    const variantRevision = { resourceRef: variantRef, revision: 1 } as const;
+    const variantRevision = { resourceRef: variantRef, revision: 1, revisionId } as const;
     expect(
       decodeEvidence({
         ...evidence,

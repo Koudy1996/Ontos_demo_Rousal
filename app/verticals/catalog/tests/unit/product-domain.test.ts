@@ -33,12 +33,12 @@ describe('Catalog Product domain', () => {
     const draft = {
       lifecycle: 'DRAFT',
       name: '  ',
-      variants: [{ lifecycle: 'WORK_IN_PROGRESS', variantId, variantRef }],
+      variants: [{ lifecycle: 'WORK_IN_PROGRESS', productRef, variantId, variantRef }],
     } as const;
     const active = {
       lifecycle: 'ACTIVE',
       name: 'Standard Product',
-      variants: [{ lifecycle: 'ACTIVE', variantId, variantRef }],
+      variants: [{ lifecycle: 'ACTIVE', productRef, variantId, variantRef }],
     } as const;
 
     expect(catalogReadiness(draft).catalogReady).toBe(false);
@@ -51,7 +51,7 @@ describe('Catalog Product domain', () => {
     const readiness = catalogReadiness({
       lifecycle: 'ACTIVE',
       name: 'Standard Product',
-      variants: [{ lifecycle: 'RETIRED', variantId, variantRef }],
+      variants: [{ lifecycle: 'RETIRED', productRef, variantId, variantRef }],
     });
 
     expect(readiness).toEqual({
@@ -62,7 +62,7 @@ describe('Catalog Product domain', () => {
       catalogReadiness({
         lifecycle: 'ACTIVE',
         name: 'Standard Product',
-        variants: [{ lifecycle: 'WORK_IN_PROGRESS', variantId, variantRef }],
+        variants: [{ lifecycle: 'WORK_IN_PROGRESS', productRef, variantId, variantRef }],
       }),
     ).toEqual({ catalogReady: false, reasons: ['Product needs at least one ACTIVE Variant'] });
     expect(() => Schema.decodeUnknownSync(ProductVariantSchema)({ lifecycle: 'INVALID', variantId })).toThrow();
@@ -77,9 +77,10 @@ describe('Catalog Product domain', () => {
       productRef,
       revision: 1,
       updatedAt: instant,
-      variants: [{ lifecycle: 'ACTIVE', variantId, variantRef }],
+      variants: [{ lifecycle: 'ACTIVE', productRef, variantId, variantRef }],
     });
     const history = Schema.decodeUnknownSync(ProductHistorySchema)({
+      historical: true,
       lifecycle: [
         {
           actionInvocationId,
@@ -113,5 +114,58 @@ describe('Catalog Product domain', () => {
       catalogReady: true,
       reasons: [],
     });
+  });
+
+  it('rejects missing or cross-owned Variants in the public Product aggregate', () => {
+    const base = {
+      catalogReady: false,
+      createdAt: instant,
+      lifecycle: 'DRAFT',
+      name: 'Product',
+      productRef,
+      revision: 1,
+      updatedAt: instant,
+    } as const;
+    const decode = Schema.decodeUnknownSync(ProductSchema);
+    expect(() => decode({ ...base, variants: [] })).toThrow();
+    expect(() =>
+      decode({
+        ...base,
+        variants: [
+          {
+            lifecycle: 'WORK_IN_PROGRESS',
+            productRef,
+            variantId,
+            variantRef: { ...variantRef, tenantId: '99999999-9999-4999-8999-999999999999' },
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        ...base,
+        variants: [
+          {
+            lifecycle: 'WORK_IN_PROGRESS',
+            productRef,
+            variantId,
+            variantRef: { ...variantRef, resourceId: '99999999-9999-4999-8999-999999999999' },
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        ...base,
+        variants: [
+          {
+            lifecycle: 'WORK_IN_PROGRESS',
+            productRef: { ...productRef, resourceId: '99999999-9999-4999-8999-999999999999' },
+            variantId,
+            variantRef,
+          },
+        ],
+      }),
+    ).toThrow();
   });
 });

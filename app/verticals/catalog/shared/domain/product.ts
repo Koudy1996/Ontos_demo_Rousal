@@ -51,6 +51,7 @@ export const ProductInstantSchema = Schema.String.check(
 
 export const ProductVariantSchema = Schema.Struct({
   lifecycle: ProductVariantLifecycleSchema,
+  productRef: ProductRefSchema,
   variantId: ProductVariantIdSchema,
   variantRef: VariantRefSchema,
 });
@@ -70,8 +71,20 @@ export const ProductSchema = Schema.Struct({
   productRef: ProductRefSchema,
   revision: ProductRevisionSchema,
   updatedAt: ProductInstantSchema,
-  variants: Schema.Array(ProductVariantSchema),
-});
+  variants: Schema.Array(ProductVariantSchema).check(Schema.isMinLength(1)),
+}).check(
+  Schema.makeFilter(({ productRef, variants }) =>
+    variants.every(
+      ({ productRef: owner, variantId, variantRef }) =>
+        owner.resourceId === productRef.resourceId &&
+        owner.tenantId === productRef.tenantId &&
+        variantRef.tenantId === productRef.tenantId &&
+        variantId === variantRef.resourceId,
+    )
+      ? undefined
+      : 'Every Variant must retain its Product owner, Tenant, and stable Variant identity',
+  ),
+);
 export type Product = typeof ProductSchema.Type;
 
 export const ProductChangeKindSchema = Schema.Literals(['CREATED', 'UPDATED', 'COSMETIC_CORRECTION', 'LIFECYCLE']);
@@ -103,10 +116,28 @@ export const ProductLifecycleEventSchema = Schema.Struct({
 export type ProductLifecycleEvent = typeof ProductLifecycleEventSchema.Type;
 
 export const ProductHistorySchema = Schema.Struct({
+  historical: Schema.Literal(true),
   lifecycle: Schema.Array(ProductLifecycleEventSchema),
   productRef: ProductRefSchema,
   revisions: Schema.Array(ProductRevisionRecordSchema),
-});
+}).check(
+  Schema.makeFilter(({ lifecycle, productRef, revisions }) =>
+    revisions.every(
+      (entry) =>
+        entry.productRef.resourceId === productRef.resourceId &&
+        entry.productRef.tenantId === productRef.tenantId &&
+        entry.revisionReference.resourceRef.resourceId === productRef.resourceId &&
+        entry.revisionReference.resourceRef.tenantId === productRef.tenantId &&
+        entry.revisionReference.revision === entry.revision,
+    ) &&
+    lifecycle.every(
+      (entry) =>
+        entry.productRef.resourceId === productRef.resourceId && entry.productRef.tenantId === productRef.tenantId,
+    )
+      ? undefined
+      : 'Product history must retain one Product identity and Tenant',
+  ),
+);
 export type ProductHistory = typeof ProductHistorySchema.Type;
 
 export const CatalogReadinessSchema = Schema.Struct({
