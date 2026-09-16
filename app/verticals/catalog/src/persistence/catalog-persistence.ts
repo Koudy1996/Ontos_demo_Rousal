@@ -147,10 +147,10 @@ const unavailable = (cause?: unknown): CatalogPersistenceUnavailable => {
   return failure;
 };
 
-const conflict = (reason: string): CatalogPersistenceConflict =>
+const conflict = (conflictKind: CatalogPersistenceConflict['conflict'], reason: string): CatalogPersistenceConflict =>
   new CatalogPersistenceConflict({
     code: 'catalog_persistence_conflict',
-    conflict: 'ACTION_INVOCATION_ID',
+    conflict: conflictKind,
     reason,
   });
 
@@ -167,8 +167,35 @@ export const mapCatalogWriteError = (error: unknown): CatalogPersistenceConflict
           constraint === 'catalog_product_lifecycle_invocation_uk'),
     ),
   )
-    ? conflict('Action invocation already recorded')
+    ? conflict('ACTION_INVOCATION_ID', 'Action invocation already recorded')
     : unavailable(error);
+
+const productIdentityConstraints = ['products_pkey', 'catalog_products_scope_id_uk'] as const;
+const variantIdentityConstraints = [
+  'product_variants_pkey',
+  'catalog_product_variants_scope_id_uk',
+  'catalog_product_variants_product_id_variant_id_uk',
+] as const;
+
+export const mapCatalogIdentityWriteError = (
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Driver causes are decoded by Core and retained only as non-serialized diagnostics. expires: 2027-03-31.
+  error: unknown,
+  identity: 'PRODUCT_ID' | 'VARIANT_ID',
+): CatalogPersistenceConflict | CatalogPersistenceUnavailable => {
+  const constraints = identity === 'PRODUCT_ID' ? productIdentityConstraints : variantIdentityConstraints;
+  return Option.isSome(
+    findPostgresFailure(
+      error,
+      ({ code, constraint }) =>
+        code === uniqueViolationSqlState && constraints.some((approved) => approved === constraint),
+    ),
+  )
+    ? conflict(
+        identity,
+        identity === 'PRODUCT_ID' ? 'Product identity already exists' : 'Variant identity already exists',
+      )
+    : unavailable(error);
+};
 
 const productRef = (tenantId: string, productId: string): ProductRef => ({
   moduleId: 'commerce.catalog',
@@ -360,11 +387,7 @@ export const catalogPersistenceForScope = (
         productId,
         tenantId,
       })
-      .pipe(
-        Effect.mapError((error) =>
-          String(error).includes('product') ? conflict('Product identity already exists') : unavailable(error),
-        ),
-      );
+      .pipe(Effect.mapError((error) => mapCatalogIdentityWriteError(error, 'PRODUCT_ID')));
     yield* transaction
       .insert(productVariants)
       .values({
@@ -375,11 +398,7 @@ export const catalogPersistenceForScope = (
         tenantId,
         variantId,
       })
-      .pipe(
-        Effect.mapError((error) =>
-          String(error).includes('variant') ? conflict('Variant identity already exists') : unavailable(error),
-        ),
-      );
+      .pipe(Effect.mapError((error) => mapCatalogIdentityWriteError(error, 'VARIANT_ID')));
     yield* insertRevision(transaction, {
       actionInvocationId: input.actionInvocationId,
       actingPrincipalId: input.principalId,
@@ -499,7 +518,7 @@ export const catalogPersistenceForScope = (
         .returning()
         .pipe(Effect.mapError(unavailable));
       if (activated === undefined) {
-        return yield* conflict('Variant activation changed concurrently');
+        return yield* conflict('REVISION', 'Variant activation changed concurrently');
       }
     }
     yield* insertRevision(transaction, {

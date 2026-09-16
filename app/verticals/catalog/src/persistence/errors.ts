@@ -4,7 +4,7 @@ export class CatalogPersistenceConflict extends Schema.TaggedError<CatalogPersis
   'CatalogPersistenceConflict',
   {
     code: Schema.Literal('catalog_persistence_conflict'),
-    conflict: Schema.Literals(['PRODUCT_ID', 'ACTION_INVOCATION_ID', 'REVISION']),
+    conflict: Schema.Literals(['PRODUCT_ID', 'VARIANT_ID', 'ACTION_INVOCATION_ID', 'REVISION']),
     reason: Schema.String,
   },
 ) {}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Schema } from 'effect';
 
-import { mapCatalogWriteError } from '../../src/persistence/catalog-persistence.ts';
+import { mapCatalogIdentityWriteError, mapCatalogWriteError } from '../../src/persistence/catalog-persistence.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 
 describe('Catalog write error mapping', () => {
@@ -23,6 +23,41 @@ describe('Catalog write error mapping', () => {
       const result = mapCatalogWriteError(failure);
       expect(Schema.is(CatalogPersistenceUnavailable)(result)).toBe(true);
       expect(result.cause).toBe(failure);
+    }
+  });
+
+  it('maps only exact Product and Variant identity collisions to their own conflict discriminators', () => {
+    for (const constraint of ['products_pkey', 'catalog_products_scope_id_uk']) {
+      const result = mapCatalogIdentityWriteError({ code: '23505', constraint }, 'PRODUCT_ID');
+      expect(Schema.is(CatalogPersistenceConflict)(result)).toBe(true);
+      expect(result).toMatchObject({ conflict: 'PRODUCT_ID' });
+    }
+    for (const constraint of [
+      'product_variants_pkey',
+      'catalog_product_variants_scope_id_uk',
+      'catalog_product_variants_product_id_variant_id_uk',
+    ]) {
+      const result = mapCatalogIdentityWriteError({ code: '23505', constraint }, 'VARIANT_ID');
+      expect(Schema.is(CatalogPersistenceConflict)(result)).toBe(true);
+      expect(result).toMatchObject({ conflict: 'VARIANT_ID' });
+    }
+  });
+
+  it('never turns message text, another SQLSTATE, or a foreign constraint into an identity conflict', () => {
+    for (const [identity, ownConstraint, otherConstraint] of [
+      ['PRODUCT_ID', 'catalog_products_scope_id_uk', 'catalog_product_variants_scope_id_uk'],
+      ['VARIANT_ID', 'catalog_product_variants_scope_id_uk', 'catalog_products_scope_id_uk'],
+    ] as const) {
+      for (const failure of [
+        new Error(`${identity.toLowerCase()} insert timed out`),
+        { code: '08006', constraint: ownConstraint },
+        { code: '23505', constraint: otherConstraint },
+        { code: '23505', message: `${identity.toLowerCase()} already exists` },
+      ]) {
+        const result = mapCatalogIdentityWriteError(failure, identity);
+        expect(Schema.is(CatalogPersistenceUnavailable)(result)).toBe(true);
+        expect(result.cause).toBe(failure);
+      }
     }
   });
 });
