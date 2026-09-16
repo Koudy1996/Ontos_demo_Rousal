@@ -145,7 +145,7 @@
     "node": ">=26",
     "pnpm": ">=11"
   },
-  "packageManager": "pnpm@11.25.0",
+  "packageManager": "pnpm@12.4.2",
   "modernjs": {
     "preset": "presetUltramodern",
     "workspace": "ultramodern-superapp",
