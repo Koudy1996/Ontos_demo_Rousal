@@ -6,6 +6,7 @@ import { loadDatabaseConnectionPair } from '../packages/core-runtime/src/db/conf
 
 const EXPECTED_APPLICATION_SCHEMAS = [
   'auth',
+  'catalog',
   'commerce_customer_context',
   'contacts',
   'core',
@@ -14,6 +15,7 @@ const EXPECTED_APPLICATION_SCHEMAS = [
 ] as const;
 const EXPECTED_MIGRATION_JOURNALS = [
   '__drizzle_migrations_auth',
+  '__drizzle_migrations_catalog',
   '__drizzle_migrations_commerce_customer_context',
   '__drizzle_migrations_contacts',
   '__drizzle_migrations_core',
@@ -96,6 +98,7 @@ const ownerVerifierPaths = [
   '../verticals/party-registry/scripts/verify-engagement-db-schema.mts',
   '../verticals/payment-term-catalog/scripts/verify-db-schema.mts',
   '../verticals/commerce-customer-context/scripts/verify-db-schema.mts',
+  '../verticals/catalog/scripts/verify-db-schema.mts',
 ] as const;
 
 const main = Effect.gen(function* verifyApplicationDatabase() {

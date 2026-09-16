@@ -1,4 +1,6 @@
 /** Static vertical API client surface required by the UltraModern shell contract. */
+export { createCatalogClient, getCatalogReadiness } from '@app/catalog/api/client';
+export type { CatalogClientOptions } from '@app/catalog/api/client';
 export { getPartyRegistryReadiness, partyRegistryClient } from '@app/party-registry/api/client';
 export type { PartyRegistryClientOptions } from '@app/party-registry/api/client';
 export {
