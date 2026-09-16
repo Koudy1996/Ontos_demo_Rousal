@@ -37,9 +37,9 @@ export interface CreateProductPersistenceInput {
 export interface UpdateProductPersistenceInput {
   readonly actionInvocationId: string;
   readonly activateVariantId: string | undefined;
-  readonly description: string | undefined;
+  readonly description?: string;
   readonly expectedRevision: number;
-  readonly name: string | undefined;
+  readonly name?: string;
   readonly principalId: string;
   readonly productId: string;
   readonly reason: string;

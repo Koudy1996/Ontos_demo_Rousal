@@ -6,8 +6,12 @@ import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypo
 import { Effect, Match } from 'effect';
 import { classifyProductChange } from '../../shared/domain/product-change-classification.ts';
 
-import { CorrectProductPayloadSchema, CorrectProductResultSchema } from '../../shared/actions/correct-product.ts';
-import type { CorrectProductPayload } from '../../shared/actions/correct-product.ts';
+import {
+  CorrectProductPayloadSchema,
+  CorrectProductResultSchema,
+  ProductSelectionRevalidationRequiredSchema,
+} from '../../shared/actions/correct-product.ts';
+import type { CorrectProductPayload, ProductSelectionRevalidation } from '../../shared/actions/correct-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { ProductCorrectionRequired } from '../../shared/domain/product-errors.ts';
 import {
@@ -29,6 +33,7 @@ export type { CorrectProductPayload } from '../../shared/actions/correct-product
 const MODULE_KEY = 'commerce.catalog' as const;
 const domainEvents = {
   'commerce.catalog.product-corrected.v1': CorrectProductResultSchema,
+  'commerce.catalog.selection-revalidation-required.v1': ProductSelectionRevalidationRequiredSchema,
 } as const;
 
 const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
@@ -105,7 +110,21 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
     ),
     Match.exhaustive,
   );
-  const result = { ...correction, classification: payload.classification };
+  const requiredBase = {
+    evidenceRefs: payload.classification.evidenceRefs,
+    kind: 'REVALIDATION_REQUIRED' as const,
+    productRef: correction.product.productRef,
+    reason: payload.reason,
+    sourceRevision: correction.product.revision,
+  };
+  let selectionRevalidation: ProductSelectionRevalidation = { kind: 'NOT_REQUIRED' };
+  if (payload.classification.affectsOpenSelection) {
+    selectionRevalidation =
+      payload.classification.variantRef === undefined
+        ? requiredBase
+        : { ...requiredBase, affectedVariantRef: payload.classification.variantRef };
+  }
+  const result = { ...correction, classification: payload.classification, selectionRevalidation };
   const auditEvidence = { evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason };
   yield* context.recordAuditEvidence(auditEvidence);
   yield* recordProductAccess(context, result.product.productRef.resourceId);
@@ -116,6 +135,14 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
       result.product.productRef.resourceId,
       result,
     );
+    if (selectionRevalidation.kind === 'REVALIDATION_REQUIRED') {
+      yield* recordProductEvent(
+        context,
+        'commerce.catalog.selection-revalidation-required.v1',
+        result.product.productRef.resourceId,
+        selectionRevalidation,
+      );
+    }
   }
   return result;
 });

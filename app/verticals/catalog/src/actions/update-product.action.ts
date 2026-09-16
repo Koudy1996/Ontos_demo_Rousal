@@ -43,9 +43,7 @@ const execute = Effect.fn('UpdateProductAction.execute')(function* execute(
   const outcome = yield* context.services.update({
     actionInvocationId: context.actionInvocationId,
     activateVariantId: payload.activateVariantRef?.resourceId,
-    description: payload.description,
     expectedRevision: payload.expectedRevision,
-    name: payload.name,
     principalId: context.scope.principalId,
     productId: payload.productRef.resourceId,
     reason: payload.reason,

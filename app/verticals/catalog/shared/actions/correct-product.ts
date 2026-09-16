@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 
 import {
   ProductDescriptionSchema,
+  ProductEvidenceReferenceSchema,
   ProductNameSchema,
   ProductReasonSchema,
   ProductSchema,
@@ -12,6 +13,7 @@ import {
   ProductChangeClassificationSchema,
 } from '../domain/product-change-classification.ts';
 import { ProductRefSchema } from '../resources/product.ts';
+import { VariantRefSchema } from '../resources/variant.ts';
 
 export const CorrectProductPayloadSchema = Schema.Struct({
   classification: ProductChangeClassificationSchema,
@@ -23,9 +25,26 @@ export const CorrectProductPayloadSchema = Schema.Struct({
 });
 export type CorrectProductPayload = typeof CorrectProductPayloadSchema.Type;
 
+/** #479 consumes this handoff and performs final Current Catalog Selection revalidation. */
+export const ProductSelectionRevalidationRequiredSchema = Schema.Struct({
+  affectedVariantRef: Schema.optionalKey(VariantRefSchema),
+  evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
+  kind: Schema.Literal('REVALIDATION_REQUIRED'),
+  productRef: ProductRefSchema,
+  reason: ProductReasonSchema,
+  sourceRevision: ProductRevisionSchema,
+});
+export type ProductSelectionRevalidationRequired = typeof ProductSelectionRevalidationRequiredSchema.Type;
+export const ProductSelectionRevalidationSchema = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal('NOT_REQUIRED') }),
+  ProductSelectionRevalidationRequiredSchema,
+]);
+export type ProductSelectionRevalidation = typeof ProductSelectionRevalidationSchema.Type;
+
 export const CorrectProductResultSchema = Schema.Struct({
   changed: Schema.Boolean,
   classification: CosmeticProductCorrectionSchema,
   product: ProductSchema,
+  selectionRevalidation: ProductSelectionRevalidationSchema,
 });
 export type CorrectProductResult = typeof CorrectProductResultSchema.Type;

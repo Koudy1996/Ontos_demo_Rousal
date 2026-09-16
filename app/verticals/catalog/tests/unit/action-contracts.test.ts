@@ -4,6 +4,7 @@ import { Schema } from 'effect';
 import { getActionResourcePermissionTargetResolver } from '../../../../packages/core-runtime/src/actions/definition.ts';
 
 import { CorrectProductPayloadSchema, correctProductAction } from '../../src/actions/correct-product.action.ts';
+import { ProductSelectionRevalidationRequiredSchema } from '../../shared/actions/correct-product.ts';
 import { CreateProductPayloadSchema, createProductAction } from '../../src/actions/create-product.action.ts';
 import {
   ReactivateProductPayloadSchema,
@@ -68,9 +69,17 @@ describe('Catalog Product Action contracts', () => {
     const correct = Schema.decodeUnknownSync(CorrectProductPayloadSchema);
 
     expect(create({ reason: 'Create Product' }).reason).toBe('Create Product');
-    expect(update({ expectedRevision: 1, name: 'Renamed', productRef, reason: 'Rename Product' }).productRef).toEqual(
-      productRef,
-    );
+    expect(
+      update({ expectedRevision: 1, productRef, reason: 'Activate Product', targetLifecycle: 'ACTIVE' }).productRef,
+    ).toEqual(productRef);
+    expect(() =>
+      Schema.decodeUnknownSync(UpdateProductPayloadSchema, { onExcessProperty: 'error' })({
+        expectedRevision: 1,
+        name: 'Material rename',
+        productRef,
+        reason: 'Bypass correction',
+      }),
+    ).toThrow();
     expect(
       update({
         activateVariantRef: variantRef,
@@ -108,9 +117,9 @@ describe('Catalog Product Action contracts', () => {
     const updateTarget = getActionResourcePermissionTargetResolver(updateProductAction)?.(
       {
         expectedRevision: 1,
-        name: 'Renamed',
         productRef,
-        reason: 'Rename Product',
+        reason: 'Activate Product',
+        targetLifecycle: 'ACTIVE',
       },
       scope,
     );
@@ -124,5 +133,28 @@ describe('Catalog Product Action contracts', () => {
       },
     });
     expect(updateTarget).toEqual({ permission: 'write', resource: productRef });
+  });
+
+  it('publishes an exact typed #479 revalidation handoff for material open-selection impact', () => {
+    const handoff = Schema.decodeUnknownSync(ProductSelectionRevalidationRequiredSchema)({
+      affectedVariantRef: variantRef,
+      evidenceRefs: ['urn:evidence:correction-1'],
+      kind: 'REVALIDATION_REQUIRED',
+      productRef,
+      reason: 'Correct Product',
+      sourceRevision: 2,
+    });
+    expect(handoff.affectedVariantRef).toEqual(variantRef);
+    expect(() =>
+      Schema.decodeUnknownSync(ProductSelectionRevalidationRequiredSchema)({
+        kind: 'REVALIDATION_REQUIRED',
+        productRef,
+        reason: 'Missing evidence',
+        sourceRevision: 2,
+      }),
+    ).toThrow();
+    expect(correctProductAction.descriptor.domainEvents).toHaveProperty(
+      'commerce.catalog.selection-revalidation-required.v1',
+    );
   });
 });
