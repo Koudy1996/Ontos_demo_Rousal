@@ -12,11 +12,19 @@ import { catalogApi, catalogApiContract, catalogOperationContexts } from '../../
 import type { CatalogReadiness, OperationContext } from '../../shared/api.ts';
 
 // <generated-action-http-client-exports>
-export * from './correct-product-action-client.ts';
-export * from './create-product-action-client.ts';
-export * from './reactivate-product-action-client.ts';
-export * from './retire-product-action-client.ts';
-export * from './update-product-action-client.ts';
+export { executeCorrectProduct, executeCorrectProductWithAuthorization } from './correct-product-action-client.ts';
+export type { CorrectProductActionClientOptions } from './correct-product-action-client.ts';
+export { executeCreateProduct, executeCreateProductWithAuthorization } from './create-product-action-client.ts';
+export type { CreateProductActionClientOptions } from './create-product-action-client.ts';
+export {
+  executeReactivateProduct,
+  executeReactivateProductWithAuthorization,
+} from './reactivate-product-action-client.ts';
+export type { ReactivateProductActionClientOptions } from './reactivate-product-action-client.ts';
+export { executeRetireProduct, executeRetireProductWithAuthorization } from './retire-product-action-client.ts';
+export type { RetireProductActionClientOptions } from './retire-product-action-client.ts';
+export { executeUpdateProduct, executeUpdateProductWithAuthorization } from './update-product-action-client.ts';
+export type { UpdateProductActionClientOptions } from './update-product-action-client.ts';
 // </generated-action-http-client-exports>
 export { executeProductDetail, executeProductDetailWithAuthorization } from './product-detail-client.ts';
 export type { ProductDetailClientOptions } from './product-detail-client.ts';

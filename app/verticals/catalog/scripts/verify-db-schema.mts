@@ -50,7 +50,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
   });
   const difference = compareCatalogTables(tables.rows.map((row) => `${CATALOG_SCHEMA_NAME}.${row.table_name}`));
   if (difference.missing.length > 0 || difference.unexpected.length > 0) {
-    return yield* new CatalogSchemaVerificationError({
+    yield* new CatalogSchemaVerificationError({
       reason: `Catalog table mismatch; missing=[${difference.missing.join(', ')}], unexpected=[${difference.unexpected.join(', ')}]`,
     });
   }
@@ -69,7 +69,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     actualColumns.length !== expectedColumns.length ||
     actualColumns.some((column, index) => column !== expectedColumns[index])
   ) {
-    return yield* new CatalogSchemaVerificationError({
+    yield* new CatalogSchemaVerificationError({
       reason: 'Catalog column inventory does not match the typed schema',
     });
   }
@@ -78,10 +78,10 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     try: async () =>
       await client.query<{
         forced_rls: number;
+        foreign_key_count: number;
         journal_count: number;
         policy_count: number;
         trigger_count: number;
-        foreign_key_count: number;
       }>(`select
       (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and c.relkind='r' and c.relrowsecurity and c.relforcerowsecurity) forced_rls,
       (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='drizzle' and c.relname='__drizzle_migrations_catalog') journal_count,
@@ -89,7 +89,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
       (select count(*)::integer from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and not t.tgisinternal) trigger_count,
       (select count(*)::integer from pg_constraint k join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and k.contype='f') foreign_key_count`),
   });
-  const row = infrastructure.rows[0];
+  const [row] = infrastructure.rows;
   if (
     row?.forced_rls !== 4 ||
     row.journal_count !== 1 ||
@@ -97,15 +97,12 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row.trigger_count !== 4 ||
     row.foreign_key_count !== 3
   ) {
-    return yield* new CatalogSchemaVerificationError({
+    yield* new CatalogSchemaVerificationError({
       reason: 'Catalog RLS, journal, trigger, or foreign-key inventory differs from its migration',
     });
   }
   yield* Console.log('Verified Catalog database schema, columns, and security metadata');
-}).pipe(
-  Effect.scoped,
-  Effect.tapError((error) => Console.error(error.reason)),
-);
+}).pipe(Effect.scoped, Effect.tapError(Console.error));
 
 const exit = await Effect.runPromiseExit(verification);
 process.exitCode = Exit.isFailure(exit) ? 1 : 0;

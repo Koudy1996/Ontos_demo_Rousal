@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 
 import {
   CatalogRevisionEvidenceSchema,
+  CatalogRevisionLookupFoundSchema,
   CatalogRevisionLookupResultSchema,
   CatalogRevisionReferenceSchema,
   catalogRevisionLookupPreservesReference,
@@ -43,18 +44,20 @@ const evidence = {
   reference,
   retained,
 } as const;
-const decode = <S extends Schema.Top>(schema: S, value: unknown) =>
-  Schema.decodeUnknownSync(schema, { onExcessProperty: 'error' })(value);
+const decodeReference = Schema.decodeUnknownSync(CatalogRevisionReferenceSchema, { onExcessProperty: 'error' });
+const decodeEvidence = Schema.decodeUnknownSync(CatalogRevisionEvidenceSchema, { onExcessProperty: 'error' });
+const decodeResult = Schema.decodeUnknownSync(CatalogRevisionLookupResultSchema, { onExcessProperty: 'error' });
+const decodeFound = Schema.decodeUnknownSync(CatalogRevisionLookupFoundSchema, { onExcessProperty: 'error' });
 
 describe('Catalog revision references and historical lookup', () => {
   it('requires a tenant-qualified exact business revision, not a timestamp or latest alias', () => {
-    expect(decode(CatalogRevisionReferenceSchema, reference)).toMatchObject(reference);
-    expect(() => decode(CatalogRevisionReferenceSchema, { resourceRef: productRef })).toThrow();
-    expect(() => decode(CatalogRevisionReferenceSchema, { ...reference, revision: 0 })).toThrow();
-    expect(() => decode(CatalogRevisionReferenceSchema, { ...reference, revision: 'latest' })).toThrow();
-    expect(() => decode(CatalogRevisionReferenceSchema, { ...reference, buildRevision: 'abc' })).toThrow();
+    expect(decodeReference(reference)).toMatchObject(reference);
+    expect(() => decodeReference({ resourceRef: productRef })).toThrow();
+    expect(() => decodeReference({ ...reference, revision: 0 })).toThrow();
+    expect(() => decodeReference({ ...reference, revision: 'latest' })).toThrow();
+    expect(() => decodeReference({ ...reference, buildRevision: 'abc' })).toThrow();
     expect(() =>
-      decode(CatalogRevisionReferenceSchema, {
+      decodeReference({
         ...reference,
         resourceRef: { ...productRef, tenantId: ` ${tenantId}` },
       }),
@@ -62,7 +65,7 @@ describe('Catalog revision references and historical lookup', () => {
   });
 
   it('keeps retired original identity distinct from a successor and a different tenant', () => {
-    expect(decode(CatalogRevisionEvidenceSchema, evidence)).toMatchObject(evidence);
+    expect(decodeEvidence(evidence)).toMatchObject(evidence);
     expect(
       sameCatalogRevisionReference(reference, {
         ...reference,
@@ -76,18 +79,19 @@ describe('Catalog revision references and historical lookup', () => {
       }),
     ).toBe(false);
     expect(sameCatalogRevisionReference(reference, { ...reference, revision: 2 })).toBe(false);
-    expect(sameCatalogRevisionReference(reference, { ...reference, revisionId: undefined })).toBe(false);
+    const { revisionId: _discardedRevisionId, ...withoutRevisionId } = reference;
+    expect(sameCatalogRevisionReference(reference, withoutRevisionId)).toBe(false);
   });
 
   it('retains exact source evidence and rejects a substituted revision, successor or tenant', () => {
     expect(() =>
-      decode(CatalogRevisionEvidenceSchema, {
+      decodeEvidence({
         ...evidence,
         retained: { ...retained, reference: { ...reference, revision: 2 } },
       }),
     ).toThrow();
     expect(() =>
-      decode(CatalogRevisionEvidenceSchema, {
+      decodeEvidence({
         ...evidence,
         retained: {
           ...retained,
@@ -96,7 +100,7 @@ describe('Catalog revision references and historical lookup', () => {
       }),
     ).toThrow();
     expect(() =>
-      decode(CatalogRevisionEvidenceSchema, {
+      decodeEvidence({
         ...evidence,
         retained: {
           ...retained,
@@ -109,7 +113,7 @@ describe('Catalog revision references and historical lookup', () => {
   it('requires a retained Variant and its Product owner to share the tenant', () => {
     const variantRevision = { resourceRef: variantRef, revision: 1 } as const;
     expect(
-      decode(CatalogRevisionEvidenceSchema, {
+      decodeEvidence({
         ...evidence,
         reference: variantRevision,
         retained: {
@@ -122,7 +126,7 @@ describe('Catalog revision references and historical lookup', () => {
       }),
     ).toMatchObject({ reference: variantRevision });
     expect(() =>
-      decode(CatalogRevisionEvidenceSchema, {
+      decodeEvidence({
         ...evidence,
         reference: variantRevision,
         retained: {
@@ -142,40 +146,36 @@ describe('Catalog revision references and historical lookup', () => {
       { kind: 'BROKEN', reason: 'retained evidence unavailable', requestedReference: reference },
       { kind: 'UNAVAILABLE', reason: 'retry later', requestedReference: reference, retryable: true },
     ] as const) {
-      expect(decode(CatalogRevisionLookupResultSchema, result)).toMatchObject(result);
+      expect(decodeResult(result)).toMatchObject(result);
       expect(
-        catalogRevisionLookupPreservesReference(
-          { reference: decode(CatalogRevisionReferenceSchema, reference) },
-          decode(CatalogRevisionLookupResultSchema, result),
-        ),
+        catalogRevisionLookupPreservesReference({ reference: decodeReference(reference) }, decodeResult(result)),
       ).toBe(true);
     }
+    expect(() => decodeResult({ kind: 'CURRENT', requestedReference: reference })).toThrow();
     expect(() =>
-      decode(CatalogRevisionLookupResultSchema, { kind: 'CURRENT', requestedReference: reference }),
-    ).toThrow();
-    expect(() =>
-      decode(CatalogRevisionLookupResultSchema, {
+      decodeResult({
+        evidence: { ...evidence, reference: { ...reference, revision: 2 } },
         kind: 'FOUND',
         requestedReference: reference,
-        evidence: { ...evidence, reference: { ...reference, revision: 2 } },
       }),
     ).toThrow();
   });
 
   it('checks both a found result declaration and its evidence against the lookup request', () => {
-    const request = { reference: decode(CatalogRevisionReferenceSchema, reference) };
-    const found = decode(CatalogRevisionLookupResultSchema, { kind: 'FOUND', requestedReference: reference, evidence });
+    const request = { reference: decodeReference(reference) };
+    const found = decodeFound({ evidence, kind: 'FOUND', requestedReference: reference });
+    const otherRevision = decodeReference({ ...reference, revision: 2 });
     expect(catalogRevisionLookupPreservesReference(request, found)).toBe(true);
     expect(
       catalogRevisionLookupPreservesReference(request, {
         ...found,
-        requestedReference: { ...request.reference, revision: 2 },
+        requestedReference: otherRevision,
       }),
     ).toBe(false);
     expect(
       catalogRevisionLookupPreservesReference(request, {
         ...found,
-        evidence: { ...found.evidence, reference: { ...request.reference, revision: 2 } },
+        evidence: { ...found.evidence, reference: otherRevision },
       }),
     ).toBe(false);
   });
