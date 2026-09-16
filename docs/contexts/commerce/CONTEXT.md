@@ -636,7 +636,7 @@ not create the absent translation.
 Documents Center Resource. Live use follows that same Resource's Current version without a separate
 Catalog approval for each compatible version; replacing the Resource is an explicit relation change.
 Applicability and access still govern. Evidence required for an Accepted result pins the actual
-version/content, not the later live reference. Catalog owns no duplicate document store.
+version/bytes, not the later live reference. Catalog owns no duplicate document store.
 
 **Catalog Media Assignment** — Catalog-owned relation recording media Resource, Product/Variant
 applicability, purpose and explicit order. Variant media takes precedence; absent Variant media uses
