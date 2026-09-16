@@ -157,7 +157,9 @@ export const validateQualityAuditSummary = Effect.fn('qualityAuditGate.validate'
       return yield* reject(`Quality audit gate failed: ${details}`);
     }
     return summary.results.filter(
-      (result) => qualityAuditDisposition[result.name] === 'advisory' && result.findings > 0,
+      (result) =>
+        qualityAuditDisposition[result.name] === 'advisory' &&
+        (result.findings > 0 || (result.name === FALLOW_HEALTH && result.coverage.uiOnlyFindings > 0)),
     );
   },
 );
@@ -174,7 +176,13 @@ const cli = Command.make(
       const root = yield* path.fromFileUrl(new URL('..', import.meta.url));
       const advisories = yield* validateQualityAuditSummary(yield* fs.readFileString(path.resolve(root, summary)));
       if (advisories.length > 0) {
-        const details = advisories.map(({ findings, name }) => `${name}=${findings}`).join(', ');
+        const details = advisories
+          .map((result) =>
+            result.name === FALLOW_HEALTH
+              ? `${result.name}: control-flow=${result.findings}, UI-only=${result.coverage.uiOnlyFindings}`
+              : `${result.name}=${result.findings}`,
+          )
+          .join(', ');
         yield* Console.warn(
           `Quality audit advisory: ${details}. Review source reports; do not refactor solely to reach zero.`,
         );

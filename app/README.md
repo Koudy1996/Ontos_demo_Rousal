@@ -160,7 +160,7 @@ Readiness accepts a fixed environment name and loads source-controlled contexts 
 
 ## Validation
 
-For quality reports and their explicit blocking/advisory policy, see [Quality audits](docs/quality-audit.md). Run `mise exec -- pnpm quality:audit` from this directory. Knip findings and report-integrity failures block; duplication, complexity, and semantic similarity findings are advisory. Upstream Effect TSGo, Ultracite, and custom Oxlint enforcement are unchanged.
+For quality reports and their explicit blocking/advisory policy, see [Quality audits](docs/quality-audit.md). Run `mise exec -- pnpm quality:check` from this directory to produce a fresh full report and enforce the gate. `quality:audit` alone produces reports without rejecting Knip findings; `quality:audit:gate` applies the blocking checks to that report. Knip findings and report-integrity failures block; duplication, complexity, and semantic similarity findings are advisory. Upstream Effect TSGo, Ultracite, and custom Oxlint enforcement are unchanged.
 
 Use the explicit local feedback scopes instead of repeatedly running the aggregate gate while editing:
 
