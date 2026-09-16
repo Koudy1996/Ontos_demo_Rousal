@@ -886,20 +886,25 @@ Assortment result never creates Permission, Price, Availability, publication, or
 and Product-level `VISIBILITY` is not proof that any Variant or Package Option is `PURCHASE` eligible.
 
 **Pricing** — Domain determining the commercial price of one exact purchase candidate in an explicit
-Commerce Purchasing Context. One Pricing Decision evaluates `1..N Pricing Lines`; each Pricing Line
-binds one exact Catalog Selection, resulting Quantity and Unit. Pricing owns prices, Pricing-owned
-discounts and fees, quantity tiers, quotations and Price Group interpretation. Set/Package prices are
-not silently derived from component sums or loose-piece prices.
+Commerce Purchasing Context. One Pricing Decision evaluates `1..N stable Pricing Lines`; each Pricing
+Line has an identity supplied by the exact candidate before Pricing calculation and binds one exact
+Catalog Selection, resulting Quantity and Unit. Pricing owns prices, Pricing-owned discounts and fees,
+quantity tiers, quotations and Price Group interpretation. Pricing calculation does not create, merge
+or split Pricing Lines; a purpose-specific aggregation may group stable Pricing Lines without changing
+their identities. Set/Package prices are not silently derived from component sums or loose-piece prices.
 
 **Pricing Decision** — Pricing-owned Current commercial decision for one exact purchase candidate
-with `1..N Pricing Lines` in one explicit currency, trusted Commerce Purchasing Context and trusted
-operation time. A candidate with one Pricing Line uses the same authoritative model as a multi-line
-candidate; there is no second line-only Pricing Decision semantics.
+with `1..N stable Pricing Lines` in one explicit currency, trusted Commerce Purchasing Context and
+trusted operation time. A candidate with one Pricing Line uses the same authoritative model as a
+multi-line candidate; there is no second line-only Pricing Decision semantics. Pricing evaluation
+preserves the stable candidate line structure.
 
-**Pricing Line** — Per-selection Pricing part of one exact purchase candidate. It binds one exact
-Catalog Selection, resulting Quantity and Unit for Pricing evaluation. Catalog owns the Catalog
-Selection meaning; Pricing Line does not create another Catalog identity and does not by itself
-define Cart/Order line lifecycle or split/merge equivalence.
+**Pricing Line** — Stable per-selection Pricing part of one exact purchase candidate. Its identity
+and the candidate's Pricing-Line cardinality are supplied before Pricing calculation; it binds one
+exact Catalog Selection, resulting Quantity and Unit. Catalog owns the Catalog Selection meaning.
+Pricing does not create, merge or split Pricing Lines as a calculation side effect. A purpose-specific
+aggregation group or bounded quantity/calculation portion is not another Pricing Line. Pricing Line
+does not by itself define Cart/Order line lifecycle.
 
 **Inventory** — Domain owning stock and reservations when the Customer Configuration owns those
 lifecycles. Inventory maps exact Catalog selections to explicitly owned stock requirements without
