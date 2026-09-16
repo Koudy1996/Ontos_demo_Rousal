@@ -2,7 +2,7 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug retire-product
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { DateTime, Effect, Match } from 'effect';
 
 import { RetireProductPayloadSchema, RetireProductResultSchema } from '../../shared/actions/retire-product.ts';
@@ -12,7 +12,6 @@ import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
   invalidCrossTenantProduct,
-  productActionResourcePermission,
   productLifecycleConflict,
   productNotFound,
   productRevisionConflict,
@@ -94,7 +93,6 @@ export const retireProductAction = defineAction(
     owningModuleKey: MODULE_KEY,
     payloadSchema: RetireProductPayloadSchema,
     policies: [],
-    resourcePermission: defineActionResourcePermission<RetireProductPayload>(productActionResourcePermission),
     resultSchema: RetireProductResultSchema,
     schemaVersion: '1',
   },

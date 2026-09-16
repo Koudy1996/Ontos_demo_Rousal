@@ -34,12 +34,6 @@ export type ProductEventContext<Events extends DomainEventContractMap> = ActionH
 
 export { catalogPersistenceForScope as catalogPersistenceServiceFactory } from '../persistence/catalog-persistence.ts';
 
-export const productRootResourceFor = (tenantId: string) => ({
-  moduleId: CATALOG_MODULE_KEY,
-  resourceId: tenantId,
-  resourceType: 'commerce.catalog.catalog-root',
-});
-
 export const invalidCrossTenantProduct = (productRef: ProductRef) =>
   new ProductNotFound({
     code: 'product_not_found',
@@ -108,12 +102,4 @@ export const recordProductEvent = Effect.fn('CatalogProductAction.recordEvent')(
     subjectResourceId: productId,
     subjectResourceType: PRODUCT_RESOURCE_TYPE,
   });
-});
-
-export const productActionResourcePermission = <Payload extends { readonly productRef?: ProductRef }>(
-  payload: Payload,
-  scope: { readonly tenantId: string },
-) => ({
-  permission: 'write' as const,
-  resource: payload.productRef ?? productRootResourceFor(scope.tenantId),
 });

@@ -2,7 +2,7 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug create-product
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Match } from 'effect';
 
 import { CreateProductPayloadSchema, CreateProductResultSchema } from '../../shared/actions/create-product.ts';
@@ -12,7 +12,6 @@ import { ProductPersistenceConflict } from '../../shared/domain/product-errors.t
 import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
-  productRootResourceFor,
   recordProductAccess,
   recordProductEvent,
 } from './product-action-support.ts';
@@ -86,10 +85,6 @@ export const createProductAction = defineAction(
     owningModuleKey: MODULE_KEY,
     payloadSchema: CreateProductPayloadSchema,
     policies: [],
-    resourcePermission: defineActionResourcePermission<CreateProductPayload>((_payload, scope) => ({
-      permission: 'write',
-      resource: productRootResourceFor(scope.tenantId),
-    })),
     resultSchema: CreateProductResultSchema,
     schemaVersion: '1',
   },

@@ -4,7 +4,6 @@ import {
   ReadHandlerNotFound,
   ReadHandlerUnavailable,
   defineRead,
-  defineReadResourcePermission,
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
 import { Effect, Option } from 'effect';
@@ -65,13 +64,9 @@ export const productDetailRead = defineRead(
     inputSchema: ProductDetailRequestSchema,
     legalEntityScope: 'forbidden',
     owningModuleKey: catalogModuleKey,
-    permissionTarget: 'module',
+    permissionTarget: 'tenant',
     policies: [],
     readKey: 'commerce.catalog.api.product-detail',
-    resourcePermission: defineReadResourcePermission<ProductDetailRequest>((input) => ({
-      permission: 'read',
-      resource: input.productRef,
-    })),
     resultSchema: ProductDetailResponseSchema,
     schemaVersion: '1',
   },
@@ -83,5 +78,5 @@ export const productDetailRead = defineRead(
       })),
     ),
   (transaction, scope) => catalogPersistenceForScope(transaction, scope),
-  () => ({ kind: 'module', moduleId: catalogModuleKey }),
+  () => ({ kind: 'tenant', permission: 'access' }),
 );

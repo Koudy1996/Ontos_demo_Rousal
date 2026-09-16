@@ -5,7 +5,6 @@ import {
   createMicroVerticalOperationContext,
 } from '@modern-js/bff-effect/microvertical-api';
 import type { MicroVerticalOperationContext } from '@modern-js/bff-effect/microvertical-api';
-// oxlint-disable-next-line typescript/consistent-type-imports -- The framework baseline requires Schema in the exact value import.
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
 
 // <generated-governed-http-api-imports>
@@ -17,6 +16,7 @@ import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts'
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
 // </generated-governed-http-api-imports>
+import { ProductActionInvocationIdSchema } from './domain/product.ts';
 
 export const catalogMarkerSchema: Schema.Codec<typeof MicroVerticalBuildMarkerSchema.Type> =
   MicroVerticalBuildMarkerSchema;
@@ -113,7 +113,7 @@ export const catalogPublicOperationContracts = {
     version: '1',
   },
   'commerce.catalog.update-product': {
-    authorityBundle: 'PRODUCT_EDITOR',
+    authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     permission: 'commerce.catalog.update-product',
     permissionKind: 'action_execution',
     scope: 'product',
@@ -123,11 +123,69 @@ export const catalogPublicOperationContracts = {
 
 export const catalogAuthorityBundles = {
   CATALOG_DEFINITION_MANAGER: [],
-  CATALOG_LIFECYCLE_MANAGER: ['commerce.catalog.retire-product', 'commerce.catalog.reactivate-product'],
-  CATALOG_READER: ['commerce.catalog.read.product-detail', 'commerce.catalog.read.product-history'],
-  PRODUCT_EDITOR: [
-    'commerce.catalog.create-product',
-    'commerce.catalog.correct-product',
+  CATALOG_LIFECYCLE_MANAGER: [
+    'commerce.catalog.reactivate-product',
+    'commerce.catalog.retire-product',
     'commerce.catalog.update-product',
   ],
+  CATALOG_READER: ['commerce.catalog.read.product-detail', 'commerce.catalog.read.product-history'],
+  PRODUCT_EDITOR: ['commerce.catalog.create-product', 'commerce.catalog.correct-product'],
 } as const;
+
+const safeOutcomeText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200), Schema.isTrimmed());
+const catalogOutcomeBase = {
+  correlationId: safeOutcomeText,
+};
+
+/**
+ * Business meanings are independent of HTTP and of the #479 Selection shape.
+ * VALID_CURRENT carries only an owner-issued evidence reference; the evidence
+ * contents and binding rules belong to the concrete Current-validation API.
+ */
+export const CatalogOperationOutcomeSchema = Schema.Union([
+  Schema.Struct({
+    ...catalogOutcomeBase,
+    evidenceRef: safeOutcomeText,
+    kind: Schema.Literal('VALID_CURRENT'),
+  }),
+  Schema.Struct({
+    ...catalogOutcomeBase,
+    kind: Schema.Literal('INVALID_SELECTION'),
+    reasonCode: safeOutcomeText,
+  }),
+  Schema.Struct({
+    ...catalogOutcomeBase,
+    kind: Schema.Literal('NOT_FOUND'),
+  }),
+  Schema.Struct({
+    ...catalogOutcomeBase,
+    kind: Schema.Literal('CONFLICT'),
+    reasonCode: safeOutcomeText,
+  }),
+  Schema.Struct({
+    ...catalogOutcomeBase,
+    kind: Schema.Literal('PERMISSION_DENIED'),
+  }),
+  Schema.Struct({
+    ...catalogOutcomeBase,
+    kind: Schema.Literal('UNAVAILABLE_OR_INDETERMINATE'),
+  }),
+  Schema.Struct({
+    ...catalogOutcomeBase,
+    invocationId: ProductActionInvocationIdSchema,
+    kind: Schema.Literal('INDETERMINATE_WRITE_OUTCOME'),
+    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    retryCommand: Schema.Literal(false),
+  }),
+]);
+export type CatalogOperationOutcome = typeof CatalogOperationOutcomeSchema.Type;
+
+export const catalogOutcomeHttpStatus = {
+  CONFLICT: 409,
+  INDETERMINATE_WRITE_OUTCOME: 503,
+  INVALID_SELECTION: 422,
+  NOT_FOUND: 404,
+  PERMISSION_DENIED: 403,
+  UNAVAILABLE_OR_INDETERMINATE: 503,
+  VALID_CURRENT: 200,
+} as const satisfies Record<CatalogOperationOutcome['kind'], number>;

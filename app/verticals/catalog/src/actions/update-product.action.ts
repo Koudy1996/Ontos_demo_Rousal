@@ -2,7 +2,7 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug update-product
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Match } from 'effect';
 
 import { UpdateProductPayloadSchema, UpdateProductResultSchema } from '../../shared/actions/update-product.ts';
@@ -12,7 +12,6 @@ import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
   invalidCrossTenantProduct,
-  productActionResourcePermission,
   productLifecycleConflict,
   productNotCatalogReady,
   productNotFound,
@@ -105,7 +104,6 @@ export const updateProductAction = defineAction(
     owningModuleKey: MODULE_KEY,
     payloadSchema: UpdateProductPayloadSchema,
     policies: [],
-    resourcePermission: defineActionResourcePermission<UpdateProductPayload>(productActionResourcePermission),
     resultSchema: UpdateProductResultSchema,
     schemaVersion: '1',
   },

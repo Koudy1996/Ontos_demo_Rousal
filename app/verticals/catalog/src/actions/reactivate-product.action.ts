@@ -2,7 +2,7 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug reactivate-product
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Match } from 'effect';
 
 import {
@@ -15,7 +15,6 @@ import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
   invalidCrossTenantProduct,
-  productActionResourcePermission,
   productLifecycleConflict,
   productNotCatalogReady,
   productNotFound,
@@ -96,7 +95,6 @@ export const reactivateProductAction = defineAction(
     owningModuleKey: MODULE_KEY,
     payloadSchema: ReactivateProductPayloadSchema,
     policies: [],
-    resourcePermission: defineActionResourcePermission<ReactivateProductPayload>(productActionResourcePermission),
     resultSchema: ReactivateProductResultSchema,
     schemaVersion: '1',
   },

@@ -2,7 +2,7 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug correct-product
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Match } from 'effect';
 import { classifyProductChange } from '../../shared/domain/product-change-classification.ts';
 
@@ -18,7 +18,6 @@ import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
   invalidCrossTenantProduct,
-  productActionResourcePermission,
   productLifecycleConflict,
   productNotFound,
   productRevisionConflict,
@@ -174,7 +173,6 @@ export const correctProductAction = defineAction(
     owningModuleKey: MODULE_KEY,
     payloadSchema: CorrectProductPayloadSchema,
     policies: [],
-    resourcePermission: defineActionResourcePermission<CorrectProductPayload>(productActionResourcePermission),
     resultSchema: CorrectProductResultSchema,
     schemaVersion: '1',
   },

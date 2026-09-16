@@ -7,7 +7,6 @@ import {
   ActionPermissionDenied,
   ActionRequestHashConflict,
 } from '@app/core-runtime';
-import { getActionResourcePermissionTargetResolver } from '../../../../packages/core-runtime/src/actions/definition.ts';
 import { mapCorrectProductActionProblem } from '../../api/correct-product-action-problems.ts';
 import { mapCreateProductActionProblem } from '../../api/create-product-action-problems.ts';
 import { mapReactivateProductActionProblem } from '../../api/reactivate-product-action-problems.ts';
@@ -16,6 +15,7 @@ import { mapUpdateProductActionProblem } from '../../api/update-product-action-p
 
 import { CorrectProductPayloadSchema, correctProductAction } from '../../src/actions/correct-product.action.ts';
 import { ProductSelectionRevalidationRequiredSchema } from '../../shared/actions/correct-product.ts';
+import { catalogAuthorityBundles } from '../../shared/api.ts';
 import { ProductPersistenceConflict } from '../../shared/domain/product-errors.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 import { CreateProductPayloadSchema, createProductAction } from '../../src/actions/create-product.action.ts';
@@ -46,14 +46,6 @@ const classification = {
   productRef,
   reason: 'Correct Product',
 } as const;
-const scope = {
-  authBindingId: '77777777-7777-4777-8777-777777777777',
-  authContextRef: 'better-auth-session:catalog-contract',
-  authMethod: 'session' as const,
-  correlationId: 'catalog-contract',
-  principalId: '88888888-8888-4888-8888-888888888888',
-  tenantId,
-};
 
 describe('Catalog Product Action contracts', () => {
   it('reports known persistence conflicts as non-retryable conflicts on every public Action', () => {
@@ -135,6 +127,7 @@ describe('Catalog Product Action contracts', () => {
       expect(action.descriptor.entrypoint.scope).toBe('tenant');
       expect(action.descriptor.legalEntityScope).toBe('forbidden');
       expect(action.descriptor.idempotency).toBe('required');
+      expect(action.descriptor.resourcePermission).toBeUndefined();
     }
   });
 
@@ -184,32 +177,13 @@ describe('Catalog Product Action contracts', () => {
     ).toEqual(['urn:evidence:correction-1']);
   });
 
-  it('targets the Catalog root for creation and the exact Product Resource thereafter', () => {
-    const createTarget = getActionResourcePermissionTargetResolver(createProductAction)?.(
-      {
-        reason: 'Create Product',
-      },
-      scope,
-    );
-    const updateTarget = getActionResourcePermissionTargetResolver(updateProductAction)?.(
-      {
-        expectedRevision: 1,
-        productRef,
-        reason: 'Activate Product',
-        targetLifecycle: 'ACTIVE',
-      },
-      scope,
-    );
-
-    expect(createTarget).toEqual({
-      permission: 'write',
-      resource: {
-        moduleId: 'commerce.catalog',
-        resourceId: tenantId,
-        resourceType: 'commerce.catalog.catalog-root',
-      },
-    });
-    expect(updateTarget).toEqual({ permission: 'write', resource: productRef });
+  it('separates Product Editor from Product lifecycle authority', () => {
+    expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain(createProductAction.descriptor.actionKey);
+    expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain(correctProductAction.descriptor.actionKey);
+    for (const lifecycleAction of [updateProductAction, retireProductAction, reactivateProductAction]) {
+      expect(catalogAuthorityBundles.PRODUCT_EDITOR).not.toContain(lifecycleAction.descriptor.actionKey);
+      expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).toContain(lifecycleAction.descriptor.actionKey);
+    }
   });
 
   it('publishes an exact typed #479 revalidation handoff for material open-selection impact', () => {

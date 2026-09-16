@@ -1,15 +1,20 @@
 import { expect, it } from 'effect-rstest';
+import { Effect, Schema } from 'effect';
+import { ReadHandlerNotFound } from '@app/core-runtime';
 
 import {
   catalogApiContract,
   catalogAuthorityBundles,
+  catalogOutcomeHttpStatus,
   catalogOperationContexts,
   catalogPublicOperationContracts,
+  CatalogOperationOutcomeSchema,
 } from '../../shared/api.ts';
 import { ProductDetailApi } from '../../shared/apis/product-detail.ts';
 import { ProductHistoryApi } from '../../shared/apis/product-history.ts';
-import { productDetailRead } from '../../src/api/product-detail.read.ts';
+import { productDetailRead, readProductDetail } from '../../src/api/product-detail.read.ts';
 import { productHistoryRead } from '../../src/api/product-history.read.ts';
+import type { CatalogPersistence } from '../../src/persistence/catalog-persistence.ts';
 
 it('publishes governed Product detail and historical-read APIs behind the Catalog BFF prefix', () => {
   expect(catalogApiContract).toEqual({
@@ -38,9 +43,44 @@ it('keeps current-detail and historical reads separately permissioned and tenant
     authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-history' },
     scope: 'tenant',
   });
-  expect(productDetailRead.descriptor.resourcePermission).toBeDefined();
-  expect(productHistoryRead.descriptor.resourcePermission).toBeDefined();
+  for (const read of [productDetailRead, productHistoryRead]) {
+    expect(read.descriptor.legalEntityScope).toBe('forbidden');
+    expect(read.descriptor.permissionTarget).toBe('tenant');
+    expect(read.descriptor.resourcePermission).toBeUndefined();
+  }
 });
+
+it.effect('rejects a foreign Product before resolving tenant-local persistence', () =>
+  Effect.gen(function* rejectForeignProduct() {
+    let currentReads = 0;
+    const services: CatalogPersistence = {
+      correct: () => Effect.die('unused'),
+      create: () => Effect.die('unused'),
+      getCurrent: () => {
+        currentReads += 1;
+        return Effect.die('foreign Product was read');
+      },
+      getHistory: () => Effect.die('unused'),
+      reactivate: () => Effect.die('unused'),
+      retire: () => Effect.die('unused'),
+      update: () => Effect.die('unused'),
+    };
+    const result = yield* readProductDetail(
+      {
+        productRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '22222222-2222-4222-8222-222222222222',
+          resourceType: 'commerce.catalog.product',
+          tenantId: '99999999-9999-4999-8999-999999999999',
+        },
+      },
+      '11111111-1111-4111-8111-111111111111',
+      services,
+    ).pipe(Effect.flip);
+    expect(Schema.is(ReadHandlerNotFound)(result)).toBe(true);
+    expect(currentReads).toBe(0);
+  }),
+);
 
 it('publishes only explicitly implemented atomic permissions with disjoint authority bundles', () => {
   const contracts = Object.entries(catalogPublicOperationContracts);
@@ -59,4 +99,46 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   expect(bundlePermissions).toHaveLength(contracts.length);
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).not.toContain('commerce.catalog.retire-product');
   expect(catalogAuthorityBundles.CATALOG_READER).not.toContain('commerce.catalog.create-product');
+});
+
+it('publishes seven exhaustive and safely bounded Catalog outcome meanings', () => {
+  const outcomes = [
+    { evidenceRef: 'urn:catalog:evidence:1', kind: 'VALID_CURRENT' },
+    { kind: 'INVALID_SELECTION', reasonCode: 'MISSING_REQUIRED_AXIS' },
+    { kind: 'NOT_FOUND' },
+    { kind: 'CONFLICT', reasonCode: 'STALE_BASIS' },
+    { kind: 'PERMISSION_DENIED' },
+    { kind: 'UNAVAILABLE_OR_INDETERMINATE' },
+    {
+      invocationId: '44444444-4444-4444-8444-444444444444',
+      kind: 'INDETERMINATE_WRITE_OUTCOME',
+      resolution: 'RESOLVE_COMMIT',
+      retryCommand: false,
+    },
+  ] as const;
+  const statuses = [200, 422, 404, 409, 403, 503, 503];
+  for (const [index, outcome] of outcomes.entries()) {
+    const decoded = Schema.decodeUnknownSync(CatalogOperationOutcomeSchema, { onExcessProperty: 'error' })({
+      correlationId: 'catalog-test',
+      ...outcome,
+    });
+    expect(catalogOutcomeHttpStatus[decoded.kind]).toBe(statuses[index]);
+  }
+  expect(() =>
+    Schema.decodeUnknownSync(CatalogOperationOutcomeSchema, { onExcessProperty: 'error' })({
+      correlationId: 'catalog-test',
+      evidenceRef: 'urn:catalog:evidence:1',
+      kind: 'VALID_CURRENT',
+      price: 100,
+    }),
+  ).toThrow();
+  expect(() =>
+    Schema.decodeUnknownSync(CatalogOperationOutcomeSchema)({
+      correlationId: 'catalog-test',
+      invocationId: '44444444-4444-4444-8444-444444444444',
+      kind: 'INDETERMINATE_WRITE_OUTCOME',
+      resolution: 'RESOLVE_COMMIT',
+      retryCommand: true,
+    }),
+  ).toThrow();
 });
