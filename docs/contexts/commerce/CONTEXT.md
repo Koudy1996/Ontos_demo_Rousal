@@ -636,7 +636,7 @@ not create the absent translation.
 Documents Center Resource. Live use follows that same Resource's Current version without a separate
 Catalog approval for each compatible version; replacing the Resource is an explicit relation change.
 Applicability and access still govern. Evidence required for an Accepted result pins the actual
-version/bytes, not the later live reference. Catalog owns no duplicate document store.
+version/content, not the later live reference. Catalog owns no duplicate document store.
 
 **Catalog Media Assignment** — Catalog-owned relation recording media Resource, Product/Variant
 applicability, purpose and explicit order. Variant media takes precedence; absent Variant media uses
@@ -885,9 +885,21 @@ Binding+Revision resolver participant inside one constituent. Guest is not a Pur
 Assortment result never creates Permission, Price, Availability, publication, or Order acceptance,
 and Product-level `VISIBILITY` is not proof that any Variant or Package Option is `PURCHASE` eligible.
 
-**Pricing** — Domain determining prices, discounts, fees, tax inputs, quantity tiers, quotations,
-and Price Group definitions for an explicit Commerce Purchasing Context and exact Catalog Selection
-and Quantity. Set/Package prices are not silently derived from component sums or loose-piece prices.
+**Pricing** — Domain determining the commercial price of one exact purchase candidate in an explicit
+Commerce Purchasing Context. One Pricing Decision evaluates `1..N Pricing Lines`; each Pricing Line
+binds one exact Catalog Selection, resulting Quantity and Unit. Pricing owns prices, Pricing-owned
+discounts and fees, quantity tiers, quotations and Price Group interpretation. Set/Package prices are
+not silently derived from component sums or loose-piece prices.
+
+**Pricing Decision** — Pricing-owned Current commercial decision for one exact purchase candidate
+with `1..N Pricing Lines` in one explicit currency, trusted Commerce Purchasing Context and trusted
+operation time. A candidate with one Pricing Line uses the same authoritative model as a multi-line
+candidate; there is no second line-only Pricing Decision semantics.
+
+**Pricing Line** — Per-selection Pricing part of one exact purchase candidate. It binds one exact
+Catalog Selection, resulting Quantity and Unit for Pricing evaluation. Catalog owns the Catalog
+Selection meaning; Pricing Line does not create another Catalog identity and does not by itself
+define Cart/Order line lifecycle or split/merge equivalence.
 
 **Inventory** — Domain owning stock and reservations when the Customer Configuration owns those
 lifecycles. Inventory maps exact Catalog selections to explicitly owned stock requirements without
