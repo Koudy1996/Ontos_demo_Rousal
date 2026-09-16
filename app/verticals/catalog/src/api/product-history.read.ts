@@ -28,7 +28,7 @@ interface RetainedProductInput {
 
 const productHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
-  authorization: { kind: 'authenticated_principal' },
+  authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-history' },
   entrypointKey: 'commerce.catalog.api.product-history',
   moduleKey: catalogModuleKey,
   role: 'api',

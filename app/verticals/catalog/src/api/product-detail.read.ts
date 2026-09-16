@@ -18,7 +18,7 @@ const catalogModuleKey = 'commerce.catalog';
 
 const productDetailEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
-  authorization: { kind: 'authenticated_principal' },
+  authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-detail' },
   entrypointKey: 'commerce.catalog.api.product-detail',
   moduleKey: catalogModuleKey,
   role: 'api',

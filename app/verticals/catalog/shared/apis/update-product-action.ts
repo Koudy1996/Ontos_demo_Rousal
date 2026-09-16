@@ -45,7 +45,9 @@ export const UpdateProductActionConflictProblemSchema = makeProblemDetailsSchema
     code: Schema.Literals([
       'action_request_hash_conflict',
       'action_invocation_state_invalid',
+      'catalog_persistence_conflict',
       'product_lifecycle_conflict',
+      'product_persistence_conflict',
       'product_revision_conflict',
     ]),
   },
@@ -70,9 +72,7 @@ export const UpdateProductActionUnavailableProblemSchema = makeRetryableProblemD
       'action_transaction_failed',
       'module_state_check_unavailable',
       'operation_context_unavailable',
-      'catalog_persistence_conflict',
       'catalog_persistence_unavailable',
-      'product_persistence_conflict',
     ]),
   },
 );

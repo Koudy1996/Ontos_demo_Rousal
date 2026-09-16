@@ -127,13 +127,13 @@ export const createProductActionProblem = {
 const mapDomainProblem = (error: DomainError): CreateProductActionProblem =>
   Match.value(error).pipe(
     Match.tags({
-      CatalogPersistenceConflict: () => createProductActionProblem.unavailable('catalog_persistence_conflict'),
+      CatalogPersistenceConflict: () => createProductActionProblem.conflict('catalog_persistence_conflict'),
       CatalogPersistenceUnavailable: () => createProductActionProblem.unavailable('catalog_persistence_unavailable'),
       ProductCorrectionRequired: () => createProductActionProblem.ineligible('product_correction_required'),
       ProductLifecycleConflict: () => createProductActionProblem.conflict('product_lifecycle_conflict'),
       ProductNotCatalogReady: () => createProductActionProblem.ineligible('product_not_catalog_ready'),
       ProductNotFound: () => createProductActionProblem.notFound('product_not_found'),
-      ProductPersistenceConflict: () => createProductActionProblem.unavailable('product_persistence_conflict'),
+      ProductPersistenceConflict: () => createProductActionProblem.conflict('product_persistence_conflict'),
       ProductRevisionConflict: () => createProductActionProblem.conflict('product_revision_conflict'),
     }),
     Match.exhaustive,

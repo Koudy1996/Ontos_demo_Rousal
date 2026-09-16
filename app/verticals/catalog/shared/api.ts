@@ -63,3 +63,71 @@ export const catalogApiContract = {
   ownerId: 'catalog',
   readinessPath: '/catalog-api/catalog/readiness',
 } as const;
+
+/**
+ * Versioned Catalog operation inventory. Each key is an atomic Core authorization
+ * identity, not a runtime role check. Bundles are provisioning aids only: adding
+ * an operation here never grants it to an existing Principal.
+ */
+export const catalogPublicOperationContracts = {
+  'commerce.catalog.api.product-detail': {
+    authorityBundle: 'CATALOG_READER',
+    permission: 'commerce.catalog.read.product-detail',
+    permissionKind: 'context_permission',
+    scope: 'product',
+    version: '1',
+  },
+  'commerce.catalog.api.product-history': {
+    authorityBundle: 'CATALOG_READER',
+    permission: 'commerce.catalog.read.product-history',
+    permissionKind: 'context_permission',
+    scope: 'product',
+    version: '1',
+  },
+  'commerce.catalog.correct-product': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    permission: 'commerce.catalog.correct-product',
+    permissionKind: 'action_execution',
+    scope: 'product',
+    version: '1',
+  },
+  'commerce.catalog.create-product': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    permission: 'commerce.catalog.create-product',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.reactivate-product': {
+    authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
+    permission: 'commerce.catalog.reactivate-product',
+    permissionKind: 'action_execution',
+    scope: 'product',
+    version: '1',
+  },
+  'commerce.catalog.retire-product': {
+    authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
+    permission: 'commerce.catalog.retire-product',
+    permissionKind: 'action_execution',
+    scope: 'product',
+    version: '1',
+  },
+  'commerce.catalog.update-product': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    permission: 'commerce.catalog.update-product',
+    permissionKind: 'action_execution',
+    scope: 'product',
+    version: '1',
+  },
+} as const;
+
+export const catalogAuthorityBundles = {
+  CATALOG_DEFINITION_MANAGER: [],
+  CATALOG_LIFECYCLE_MANAGER: ['commerce.catalog.retire-product', 'commerce.catalog.reactivate-product'],
+  CATALOG_READER: ['commerce.catalog.read.product-detail', 'commerce.catalog.read.product-history'],
+  PRODUCT_EDITOR: [
+    'commerce.catalog.create-product',
+    'commerce.catalog.correct-product',
+    'commerce.catalog.update-product',
+  ],
+} as const;

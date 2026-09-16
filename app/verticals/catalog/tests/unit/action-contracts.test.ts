@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Schema } from 'effect';
 
+import {
+  ActionCommitIndeterminate,
+  ActionPermissionCheckError,
+  ActionPermissionDenied,
+  ActionRequestHashConflict,
+} from '@app/core-runtime';
 import { getActionResourcePermissionTargetResolver } from '../../../../packages/core-runtime/src/actions/definition.ts';
+import { mapCorrectProductActionProblem } from '../../api/correct-product-action-problems.ts';
+import { mapCreateProductActionProblem } from '../../api/create-product-action-problems.ts';
+import { mapReactivateProductActionProblem } from '../../api/reactivate-product-action-problems.ts';
+import { mapRetireProductActionProblem } from '../../api/retire-product-action-problems.ts';
+import { mapUpdateProductActionProblem } from '../../api/update-product-action-problems.ts';
 
 import { CorrectProductPayloadSchema, correctProductAction } from '../../src/actions/correct-product.action.ts';
 import { ProductSelectionRevalidationRequiredSchema } from '../../shared/actions/correct-product.ts';
+import { ProductPersistenceConflict } from '../../shared/domain/product-errors.ts';
+import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 import { CreateProductPayloadSchema, createProductAction } from '../../src/actions/create-product.action.ts';
 import {
   ReactivateProductPayloadSchema,
@@ -43,6 +56,70 @@ const scope = {
 };
 
 describe('Catalog Product Action contracts', () => {
+  it('reports known persistence conflicts as non-retryable conflicts on every public Action', () => {
+    const mappers = [
+      mapCorrectProductActionProblem,
+      mapCreateProductActionProblem,
+      mapReactivateProductActionProblem,
+      mapRetireProductActionProblem,
+      mapUpdateProductActionProblem,
+    ] as const;
+    for (const mapProblem of mappers) {
+      for (const failure of [
+        new CatalogPersistenceConflict({
+          code: 'catalog_persistence_conflict',
+          conflict: 'ACTION_INVOCATION_ID',
+          reason: 'Known invocation collision',
+        }),
+        new ProductPersistenceConflict({
+          code: 'product_persistence_conflict',
+          conflict: 'PRODUCT_ID',
+          reason: 'Known Product collision',
+        }),
+      ]) {
+        const problem = mapProblem(failure);
+        expect(problem.status).toBe(409);
+        expect(problem).not.toHaveProperty('retryable');
+      }
+    }
+  });
+
+  it('keeps denial, authorization outage, stale intent, and indeterminate commit distinct', () => {
+    const denied = mapCreateProductActionProblem(
+      new ActionPermissionDenied({ code: 'action_permission_denied', reason: 'Denied' }),
+    );
+    const checkUnavailable = mapCreateProductActionProblem(
+      new ActionPermissionCheckError({ code: 'action_permission_check_failed', reason: 'Unavailable' }),
+    );
+    const staleIntent = mapCreateProductActionProblem(
+      new ActionRequestHashConflict({ code: 'action_request_hash_conflict', reason: 'Different payload' }),
+    );
+    const persistenceUnavailable = mapCreateProductActionProblem(
+      new CatalogPersistenceUnavailable({
+        code: 'catalog_persistence_unavailable',
+        reason: 'Unavailable',
+      }),
+    );
+    const indeterminate = mapCreateProductActionProblem(
+      new ActionCommitIndeterminate({
+        code: 'action_commit_indeterminate',
+        invocationId: '44444444-4444-4444-8444-444444444444',
+        reason: 'Commit unconfirmed',
+      }),
+    );
+
+    expect(denied.status).toBe(403);
+    expect(checkUnavailable.status).toBe(503);
+    expect(staleIntent.status).toBe(409);
+    expect(persistenceUnavailable.status).toBe(503);
+    expect(indeterminate).toMatchObject({
+      resolution: 'RESOLVE_COMMIT',
+      retryCommand: false,
+      status: 503,
+    });
+    expect(JSON.stringify(denied)).not.toContain(productRef.resourceId);
+  });
+
   it('exposes five explicitly provisioned tenant Actions with no legal-entity scope', () => {
     for (const action of [
       createProductAction,
