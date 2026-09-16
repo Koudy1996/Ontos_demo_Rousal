@@ -1,4 +1,5 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
+import { findPostgresFailure } from '@app/core-runtime';
 import { DateTime, Effect, Option, Schema } from 'effect';
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
@@ -153,9 +154,21 @@ const conflict = (reason: string): CatalogPersistenceConflict =>
     reason,
   });
 
+const uniqueViolationSqlState = ['23', '505'].join('');
+
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Drizzle driver causes stay opaque and are attached only as non-serialized diagnostics. expires: 2027-03-31.
-const mapWriteError = (error: unknown): CatalogPersistenceConflict | CatalogPersistenceUnavailable =>
-  String(error).includes('invocation') ? conflict('Action invocation already recorded') : unavailable(error);
+export const mapCatalogWriteError = (error: unknown): CatalogPersistenceConflict | CatalogPersistenceUnavailable =>
+  Option.isSome(
+    findPostgresFailure(
+      error,
+      ({ code, constraint }) =>
+        code === uniqueViolationSqlState &&
+        (constraint === 'catalog_product_revisions_invocation_uk' ||
+          constraint === 'catalog_product_lifecycle_invocation_uk'),
+    ),
+  )
+    ? conflict('Action invocation already recorded')
+    : unavailable(error);
 
 const productRef = (tenantId: string, productId: string): ProductRef => ({
   moduleId: 'commerce.catalog',
@@ -268,7 +281,7 @@ const insertRevision = (
       revision: input.revision,
       tenantId: input.tenantId,
     })
-    .pipe(Effect.mapError(mapWriteError));
+    .pipe(Effect.mapError(mapCatalogWriteError));
 
 const insertLifecycleEvent = (
   transaction: ScopedTransaction,
@@ -293,7 +306,7 @@ const insertLifecycleEvent = (
       reason: input.reason,
       tenantId: input.tenantId,
     })
-    .pipe(Effect.mapError(mapWriteError));
+    .pipe(Effect.mapError(mapCatalogWriteError));
 
 export interface CatalogPersistence {
   readonly correct: (
