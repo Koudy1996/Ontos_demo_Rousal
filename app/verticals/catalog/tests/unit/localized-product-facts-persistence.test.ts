@@ -141,4 +141,46 @@ describe('localized Product facts persistence', () => {
       expect(result).toEqual({ kind: 'TEXT_MINIMUM_CONFLICT' });
     }),
   );
+
+  it.effect('replays only the exact recorded invocation without another write', () =>
+    Effect.gen(function* replayExactInvocation() {
+      const transaction = {
+        insert: () => {
+          throw new Error('replay inserted another revision');
+        },
+        select: () => ({
+          from: (table: unknown) =>
+            selected(
+              table === products
+                ? [{ lifecycleState: 'DRAFT', productId }]
+                : [
+                    {
+                      actingPrincipalId: principalId,
+                      description: null,
+                      evidenceRefs: base.evidenceRefs,
+                      locale: 'cs-CZ',
+                      name: 'Police',
+                      productId,
+                      reason: base.reason,
+                      revision: 1,
+                      state: 'SET',
+                    },
+                  ],
+            ),
+        }),
+        update: () => {
+          throw new Error('replay changed Current');
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = localizedProductFactsPersistenceForScope(transaction, scope);
+      expect(yield* service.changeProduct({ ...base, value: { facts: { name: 'Police' }, kind: 'SET' } })).toEqual({
+        kind: 'REPLAYED',
+        revision: 1,
+      });
+      expect(yield* service.changeProduct({ ...base, value: { facts: { name: 'Other' }, kind: 'SET' } })).toEqual({
+        kind: 'INVALID',
+      });
+    }),
+  );
 });
