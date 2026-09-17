@@ -68,7 +68,7 @@ export const AttributeValueSchema = Schema.Union([
 ]);
 export type AttributeValue = typeof AttributeValueSchema.Type;
 
-/** A caller-supplied, evidenced conversion ratio for one measured quantity. */
+/** A proposed conversion; only owner-known exact relationships can authorize it. */
 export interface UnitConversion {
   readonly from: string;
   readonly to: string;
@@ -76,6 +76,12 @@ export interface UnitConversion {
   readonly numerator: number;
   readonly denominator: number;
 }
+
+// Catalog-owned exact relationships. Request payloads cannot establish unit semantics.
+const trustedConversions: readonly UnitConversion[] = [
+  { denominator: 1, from: 'cm', numerator: 10, quantity: 'length', to: 'mm' },
+  { denominator: 10, from: 'mm', numerator: 1, quantity: 'length', to: 'cm' },
+];
 
 interface Rational {
   readonly numerator: bigint;
@@ -163,6 +169,25 @@ export const validateAttributeValues = (
     ) {
       reasons.push('Invalid unit conversion');
       continue;
+    }
+    if (conversion !== undefined) {
+      const trusted = trustedConversions.find(
+        (item) => item.from === conversion.from && item.to === conversion.to && item.quantity === conversion.quantity,
+      );
+      if (
+        trusted === undefined ||
+        compareRatios(
+          {
+            denominator:
+              decimalRatio(conversion.numerator).denominator * decimalRatio(conversion.denominator).numerator,
+            numerator: decimalRatio(conversion.numerator).numerator * decimalRatio(conversion.denominator).denominator,
+          },
+          { denominator: BigInt(trusted.denominator), numerator: BigInt(trusted.numerator) },
+        ) !== 0
+      ) {
+        reasons.push('No evidenced compatible unit conversion');
+        continue;
+      }
     }
     const source = decimalRatio(value.amount);
     const numerator =

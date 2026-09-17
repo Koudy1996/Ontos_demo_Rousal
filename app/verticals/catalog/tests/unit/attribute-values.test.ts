@@ -50,6 +50,20 @@ describe('Attribute Definition and per-subject values', () => {
         [{ ...centimeters[0], quantity: 'mass' }],
       ).valid,
     ).toBe(false);
+    expect(
+      validateAttributeValues(
+        definition,
+        [{ kind: 'MEASUREMENT', amount: 8, unit: 'cm' }],
+        [{ ...centimeters[0], numerator: 1 }],
+      ).reasons,
+    ).toContain('No evidenced compatible unit conversion');
+    expect(
+      validateAttributeValues(
+        definition,
+        [{ kind: 'MEASUREMENT', amount: 8, unit: 'inch' }],
+        [{ from: 'inch', to: 'mm', quantity: 'length', numerator: 254, denominator: 10 }],
+      ).valid,
+    ).toBe(false);
   });
 
   it('checks exact range and decimal precision after conversion, without rounding', () => {
