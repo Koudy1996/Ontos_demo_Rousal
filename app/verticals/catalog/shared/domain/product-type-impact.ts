@@ -7,6 +7,8 @@ export interface ProductTypeImpactRule {
 
 export interface ProductTypeImpactValue {
   readonly attributeDefinitionId: string;
+  /** Value validity is established by #402, not inferred from presence. */
+  readonly valid: boolean;
 }
 
 export interface ProductTypeImpactVariant {
@@ -25,6 +27,7 @@ export interface ProductTypeImpactSubject {
   readonly affectedVariantAxes: readonly string[];
   readonly catalogReadyForAffectedUse: boolean;
   readonly disallowedCurrentValues: readonly string[];
+  readonly invalidCurrentValues: readonly string[];
   readonly missingRequired: readonly string[];
   readonly productId: string;
   readonly variantId?: string;
@@ -37,6 +40,27 @@ export interface ProductTypeImpactPreview {
 }
 
 const uniqueSorted = (values: readonly string[]): string[] => [...new Set(values)].toSorted();
+
+const inspectValues = (
+  values: readonly ProductTypeImpactValue[],
+  level: ProductTypeImpactRule['level'],
+  allowed: ReadonlySet<string>,
+) => {
+  const valid = new Set<string>();
+  const invalid: string[] = [];
+  const disallowed: string[] = [];
+  for (const value of values) {
+    if (value.valid) {
+      valid.add(value.attributeDefinitionId);
+    } else {
+      invalid.push(value.attributeDefinitionId);
+    }
+    if (!allowed.has(`${level}:${value.attributeDefinitionId}`)) {
+      disallowed.push(value.attributeDefinitionId);
+    }
+  }
+  return { disallowed: uniqueSorted(disallowed), invalid: uniqueSorted(invalid), valid };
+};
 
 /**
  * `nextRules === null` means type removal, not permission for free-form values.
@@ -60,42 +84,43 @@ export const previewProductTypeImpact = (
   const subjects: ProductTypeImpactSubject[] = [];
 
   for (const product of products) {
-    const productValues = new Set(product.values.map((value) => value.attributeDefinitionId));
-    const productMissing = uniqueSorted(requiredProduct.filter((id) => !productValues.has(id)));
-    const productDisallowedValues: string[] = [];
-    for (const value of product.values) {
-      if (!allowed.has(`PRODUCT:${value.attributeDefinitionId}`)) {
-        productDisallowedValues.push(value.attributeDefinitionId);
-      }
-    }
-    const productDisallowed = uniqueSorted(productDisallowedValues);
+    const productValues = inspectValues(product.values, 'PRODUCT', allowed);
+    const productMissing = uniqueSorted(requiredProduct.filter((id) => !productValues.valid.has(id)));
+    const productInvalid = productValues.invalid;
+    const productDisallowed = productValues.disallowed;
     const affectedVariantAxes = uniqueSorted(product.variantAxes.filter((id) => !allowed.has(`VARIANT:${id}`)));
-    const productAffected = productMissing.length > 0 || productDisallowed.length > 0 || affectedVariantAxes.length > 0;
+    const productAffected =
+      productMissing.length > 0 ||
+      productDisallowed.length > 0 ||
+      productInvalid.length > 0 ||
+      affectedVariantAxes.length > 0;
     if (productAffected) {
       subjects.push({
         affectedVariantAxes,
         catalogReadyForAffectedUse: false,
         disallowedCurrentValues: productDisallowed,
+        invalidCurrentValues: productInvalid,
         missingRequired: productMissing,
         productId: product.productId,
       });
     }
 
     for (const variant of product.variants) {
-      const variantValues = new Set(variant.values.map((value) => value.attributeDefinitionId));
-      const missingRequired = requiredVariant.filter((id) => !variantValues.has(id));
-      const disallowedValues: string[] = [];
-      for (const value of variant.values) {
-        if (!allowed.has(`VARIANT:${value.attributeDefinitionId}`)) {
-          disallowedValues.push(value.attributeDefinitionId);
-        }
-      }
-      const disallowedCurrentValues = uniqueSorted(disallowedValues);
-      if (productAffected || missingRequired.length > 0 || disallowedCurrentValues.length > 0) {
+      const variantValues = inspectValues(variant.values, 'VARIANT', allowed);
+      const missingRequired = requiredVariant.filter((id) => !variantValues.valid.has(id));
+      const invalidCurrentValues = variantValues.invalid;
+      const disallowedCurrentValues = variantValues.disallowed;
+      if (
+        productAffected ||
+        missingRequired.length > 0 ||
+        disallowedCurrentValues.length > 0 ||
+        invalidCurrentValues.length > 0
+      ) {
         subjects.push({
           affectedVariantAxes,
           catalogReadyForAffectedUse: false,
           disallowedCurrentValues,
+          invalidCurrentValues,
           missingRequired,
           productId: product.productId,
           variantId: variant.variantId,

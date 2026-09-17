@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 
 import {
   ProductTypeRulesRevisionSchema,
+  ProductTypeCurrentRulesRevisionSchema,
   ProductTypeSubjectSchema,
   evaluateProductTypeRules,
 } from '../../shared/domain/product-type-rules.ts';
@@ -36,15 +37,21 @@ const material = {
 const note = { ...material, resourceId: '77777777-7777-4777-8777-777777777777' } as const;
 const length = { ...material, resourceId: '88888888-8888-4888-8888-888888888888' } as const;
 const motorPower = { ...material, resourceId: '99999999-9999-4999-8999-999999999999' } as const;
-const revision = Schema.decodeUnknownSync(ProductTypeRulesRevisionSchema)({
+const revisionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const effectiveFrom = '2026-09-01T00:00:00.000Z';
+const evaluatedAt = '2026-09-17T00:00:00.000Z';
+const revision = Schema.decodeUnknownSync(ProductTypeCurrentRulesRevisionSchema)({
+  effectiveFrom,
   productTypeRef,
   revision: 1,
+  revisionId,
   rules: [
     { attributeDefinitionRef: material, level: 'PRODUCT', required: true },
     { attributeDefinitionRef: note, level: 'PRODUCT', required: false },
     { attributeDefinitionRef: length, level: 'VARIANT', required: true },
   ],
 });
+const basis = { currentRevision: 1, effectiveFrom, evaluatedAt, productTypeRef, revision: 1, revisionId } as const;
 
 describe('Product Type allowed and required rules', () => {
   it('names missing required Product and specific Variant values, never borrowing from a sibling', () => {
@@ -54,11 +61,16 @@ describe('Product Type allowed and required rules', () => {
         productRef,
         productValues: [],
         variants: [
-          { effectiveValues: [], variantRef },
-          { effectiveValues: [{ attributeDefinitionRef: length, valid: true }], variantRef: otherVariantRef },
+          { effectiveValues: [], productRef, variantRef },
+          {
+            effectiveValues: [{ attributeDefinitionRef: length, valid: true }],
+            productRef,
+            variantRef: otherVariantRef,
+          },
         ],
       },
       revision,
+      basis,
     );
     expect(result.minimumSatisfied).toBe(false);
     expect(result.violations).toEqual([
@@ -77,9 +89,15 @@ describe('Product Type allowed and required rules', () => {
       currentProductTypeRef: productTypeRef,
       productRef,
       productValues: [{ attributeDefinitionRef: material, valid: true }],
-      variants: [{ effectiveValues: [{ attributeDefinitionRef: length, valid: true }], variantRef }],
+      variants: [{ effectiveValues: [{ attributeDefinitionRef: length, valid: true }], productRef, variantRef }],
     } as const;
-    expect(evaluateProductTypeRules(base, revision)).toEqual({ minimumSatisfied: true, revision: 1, violations: [] });
+    expect(evaluateProductTypeRules(base, revision, basis)).toEqual({
+      basisStatus: 'CURRENT',
+      minimumSatisfied: true,
+      revision: 1,
+      revisionContext: basis,
+      violations: [],
+    });
     const result = evaluateProductTypeRules(
       {
         ...base,
@@ -90,6 +108,7 @@ describe('Product Type allowed and required rules', () => {
         ],
       },
       revision,
+      basis,
     );
     expect(result.violations.map((v) => v.kind)).toEqual(['INVALID', 'DISALLOWED']);
   });
@@ -150,8 +169,47 @@ describe('Product Type allowed and required rules', () => {
     expect(() =>
       decode({
         ...base,
-        variants: [{ effectiveValues: [], variantRef: { ...variantRef, tenantId: foreignTenantId } }],
+        variants: [{ effectiveValues: [], productRef, variantRef: { ...variantRef, tenantId: foreignTenantId } }],
       }),
     ).toThrow();
+    expect(() =>
+      decode({
+        ...base,
+        variants: [
+          {
+            effectiveValues: [],
+            productRef: { ...productRef, resourceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+            variantRef,
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
+  it('requires exact Current revision identity and an effective canonical time basis', () => {
+    const subject = { currentProductTypeRef: productTypeRef, productRef, productValues: [], variants: [] } as const;
+    expect(evaluateProductTypeRules(subject, revision).basisStatus).toBe('MISSING');
+    expect(
+      evaluateProductTypeRules(subject, revision, { ...basis, revisionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' })
+        .basisStatus,
+    ).toBe('STALE_REVISION');
+    expect(evaluateProductTypeRules(subject, revision, { ...basis, currentRevision: 2 }).basisStatus).toBe(
+      'STALE_REVISION',
+    );
+    expect(
+      evaluateProductTypeRules(subject, revision, {
+        ...basis,
+        productTypeRef: { ...productTypeRef, resourceId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
+      }).basisStatus,
+    ).toBe('WRONG_TYPE');
+    expect(
+      evaluateProductTypeRules(subject, revision, { ...basis, evaluatedAt: '2026-08-31T00:00:00.000Z' }).basisStatus,
+    ).toBe('NOT_EFFECTIVE');
+    expect(
+      evaluateProductTypeRules(subject, revision, { ...basis, effectiveUntil: '2026-09-17T00:00:00.000Z' }).basisStatus,
+    ).toBe('NOT_EFFECTIVE');
+    expect(evaluateProductTypeRules(subject, revision, { ...basis, evaluatedAt: 'not-a-time' }).basisStatus).toBe(
+      'MALFORMED',
+    );
   });
 });

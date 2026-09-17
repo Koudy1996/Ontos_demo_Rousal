@@ -7,9 +7,9 @@ import {
 
 const shelf = {
   productId: 'shelf',
-  values: [{ attributeDefinitionId: 'width' }],
+  values: [{ attributeDefinitionId: 'width', valid: true }],
   variantAxes: ['color'],
-  variants: [{ values: [{ attributeDefinitionId: 'color' }], variantId: 'oak' }],
+  variants: [{ values: [{ attributeDefinitionId: 'color', valid: true }], variantId: 'oak' }],
 } as const;
 
 describe('Product Type impact preview', () => {
@@ -25,7 +25,7 @@ describe('Product Type impact preview', () => {
     expect(preview.affectedProductIds).toEqual(['shelf']);
     expect(preview.subjects[0]?.missingRequired).toEqual(['capacity']);
     expect(preview.subjects[0]?.catalogReadyForAffectedUse).toBe(false);
-    expect(shelf.values).toEqual([{ attributeDefinitionId: 'width' }]);
+    expect(shelf.values).toEqual([{ attributeDefinitionId: 'width', valid: true }]);
   });
 
   it('does not reinterpret similarly named or otherwise disallowed values', () => {
@@ -62,11 +62,36 @@ describe('Product Type impact preview', () => {
         affectedVariantAxes: [],
         catalogReadyForAffectedUse: false,
         disallowedCurrentValues: [],
+        invalidCurrentValues: [],
         missingRequired: ['size'],
         productId: 'shelf',
         variantId: 'oak',
       },
     ]);
+  });
+
+  it('treats present-invalid required and optional values as unresolved, not complete', () => {
+    const invalidShelf = {
+      ...shelf,
+      values: [
+        { attributeDefinitionId: 'width', valid: false },
+        { attributeDefinitionId: 'note', valid: false },
+      ],
+      variants: [{ values: [{ attributeDefinitionId: 'color', valid: false }], variantId: 'oak' }],
+    } as const;
+    const preview = previewProductTypeImpact(
+      [invalidShelf],
+      [
+        { attributeDefinitionId: 'width', level: 'PRODUCT', required: true },
+        { attributeDefinitionId: 'note', level: 'PRODUCT', required: false },
+        { attributeDefinitionId: 'color', level: 'VARIANT', required: true },
+      ],
+    );
+    expect(preview.subjects[0]?.missingRequired).toEqual(['width']);
+    expect(preview.subjects[0]?.invalidCurrentValues).toEqual(['note', 'width']);
+    expect(preview.subjects[1]?.missingRequired).toEqual(['color']);
+    expect(preview.subjects[1]?.invalidCurrentValues).toEqual(['color']);
+    expect(preview.requiresExplicitRemediation).toBe(true);
   });
 
   it('fails closed on overlapping effective revisions', () => {

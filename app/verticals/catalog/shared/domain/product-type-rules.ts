@@ -1,9 +1,14 @@
-import { Schema } from 'effect';
+import { Option, Schema } from 'effect';
 
 import { ProductRefSchema } from '../resources/product.ts';
 import { ProductTypeRefSchema } from '../resources/product-type.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
-import { CatalogResourceRefSchema, CatalogRevisionNumberSchema } from './catalog-revision-reference.ts';
+import {
+  CatalogResourceRefSchema,
+  CatalogRevisionIdSchema,
+  CatalogRevisionInstantSchema,
+  CatalogRevisionNumberSchema,
+} from './catalog-revision-reference.ts';
 
 /** The Definition resource is owned by #402; a type only references its identity. */
 const AttributeDefinitionRefSchema = CatalogResourceRefSchema.check(
@@ -46,6 +51,16 @@ export const ProductTypeRulesRevisionSchema = Schema.Struct({
 );
 export type ProductTypeRulesRevision = typeof ProductTypeRulesRevisionSchema.Type;
 
+/** Persisted, immutable revision identity used for Current evaluation. */
+export const ProductTypeCurrentRulesRevisionSchema = Schema.Struct({
+  effectiveFrom: CatalogRevisionInstantSchema,
+  productTypeRef: ProductTypeRefSchema,
+  revision: CatalogRevisionNumberSchema,
+  revisionId: CatalogRevisionIdSchema,
+  rules: Schema.Array(ProductTypeAttributeRuleSchema),
+});
+export type ProductTypeCurrentRulesRevision = typeof ProductTypeCurrentRulesRevisionSchema.Type;
+
 export const ProductTypeCurrentValueSchema = Schema.Struct({
   attributeDefinitionRef: AttributeDefinitionRefSchema,
   /** #402 validates shape, unit and business values; an invalid optional value still fails. */
@@ -56,6 +71,7 @@ export type ProductTypeCurrentValue = typeof ProductTypeCurrentValueSchema.Type;
 export const ProductTypeVariantValuesSchema = Schema.Struct({
   /** Inheritance is included here only after #429/#430 explicitly permit and validate it. */
   effectiveValues: Schema.Array(ProductTypeCurrentValueSchema),
+  productRef: ProductRefSchema,
   variantRef: VariantRefSchema,
 });
 export type ProductTypeVariantValues = typeof ProductTypeVariantValuesSchema.Type;
@@ -72,6 +88,8 @@ export const ProductTypeSubjectSchema = Schema.Struct({
     variants.every(
       (variant) =>
         variant.variantRef.tenantId === productRef.tenantId &&
+        variant.productRef.resourceId === productRef.resourceId &&
+        variant.productRef.tenantId === productRef.tenantId &&
         variant.effectiveValues.every((value) => value.attributeDefinitionRef.tenantId === productRef.tenantId),
     )
       ? undefined
@@ -79,6 +97,24 @@ export const ProductTypeSubjectSchema = Schema.Struct({
   ),
 );
 export type ProductTypeSubject = typeof ProductTypeSubjectSchema.Type;
+
+/** Owner-issued Current basis, not an implicit latest revision or a caller-selected rule set. */
+export const ProductTypeCurrentBasisSchema = Schema.Struct({
+  currentRevision: CatalogRevisionNumberSchema,
+  effectiveFrom: CatalogRevisionInstantSchema,
+  effectiveUntil: Schema.optionalKey(CatalogRevisionInstantSchema),
+  evaluatedAt: CatalogRevisionInstantSchema,
+  productTypeRef: ProductTypeRefSchema,
+  revision: CatalogRevisionNumberSchema,
+  revisionId: CatalogRevisionIdSchema,
+}).check(
+  Schema.makeFilter(({ effectiveFrom, effectiveUntil }) =>
+    effectiveUntil === undefined || effectiveFrom < effectiveUntil
+      ? undefined
+      : 'Product Type revision effective interval must be nonempty',
+  ),
+);
+export type ProductTypeCurrentBasis = typeof ProductTypeCurrentBasisSchema.Type;
 
 export interface ProductTypeViolation {
   readonly attributeDefinitionId: string;
@@ -88,18 +124,74 @@ export interface ProductTypeViolation {
 }
 
 export interface ProductTypeRulesResult {
+  readonly basisStatus:
+    | 'CURRENT'
+    | 'UNTYPED'
+    | 'MISSING'
+    | 'MALFORMED'
+    | 'WRONG_TYPE'
+    | 'STALE_REVISION'
+    | 'NOT_EFFECTIVE';
   readonly minimumSatisfied: boolean;
-  readonly revision: number | undefined;
+  revision?: number;
+  revisionContext?: ProductTypeCurrentBasis;
   readonly violations: readonly ProductTypeViolation[];
 }
 
 /** Evaluates only Product Type minimum, never overall Catalog readiness or purchasing permission. */
 export const evaluateProductTypeRules = (
   subject: ProductTypeSubject,
-  rulesRevision?: ProductTypeRulesRevision,
+  rulesRevision?: ProductTypeCurrentRulesRevision,
+  currentBasis?: typeof ProductTypeCurrentBasisSchema.Encoded,
 ): ProductTypeRulesResult => {
   const violations: ProductTypeViolation[] = [];
+  if (!Schema.is(ProductTypeSubjectSchema)(subject)) {
+    return { basisStatus: 'MALFORMED', minimumSatisfied: false, violations };
+  }
+  const decodedBasis =
+    currentBasis === undefined
+      ? undefined
+      : Option.getOrUndefined(Schema.decodeOption(ProductTypeCurrentBasisSchema)(currentBasis));
+  const basisStatus: ProductTypeRulesResult['basisStatus'] = (() => {
+    if (subject.currentProductTypeRef === undefined) {
+      return currentBasis === undefined ? 'UNTYPED' : 'WRONG_TYPE';
+    }
+    if (rulesRevision === undefined || currentBasis === undefined) {
+      return 'MISSING';
+    }
+    if (
+      decodedBasis === undefined ||
+      !Schema.is(ProductTypeCurrentRulesRevisionSchema)(rulesRevision) ||
+      !Schema.is(ProductTypeRulesRevisionSchema)(rulesRevision)
+    ) {
+      return 'MALFORMED';
+    }
+    if (
+      decodedBasis.productTypeRef.resourceId !== subject.currentProductTypeRef.resourceId ||
+      decodedBasis.productTypeRef.tenantId !== subject.currentProductTypeRef.tenantId ||
+      rulesRevision.productTypeRef.resourceId !== decodedBasis.productTypeRef.resourceId ||
+      rulesRevision.productTypeRef.tenantId !== decodedBasis.productTypeRef.tenantId
+    ) {
+      return 'WRONG_TYPE';
+    }
+    if (
+      decodedBasis.revision !== rulesRevision.revision ||
+      decodedBasis.currentRevision !== rulesRevision.revision ||
+      decodedBasis.revisionId !== rulesRevision.revisionId ||
+      decodedBasis.effectiveFrom !== rulesRevision.effectiveFrom
+    ) {
+      return 'STALE_REVISION';
+    }
+    if (
+      decodedBasis.evaluatedAt < decodedBasis.effectiveFrom ||
+      (decodedBasis.effectiveUntil !== undefined && decodedBasis.evaluatedAt >= decodedBasis.effectiveUntil)
+    ) {
+      return 'NOT_EFFECTIVE';
+    }
+    return 'CURRENT';
+  })();
   const activeRevision =
+    basisStatus === 'CURRENT' &&
     rulesRevision !== undefined &&
     subject.currentProductTypeRef !== undefined &&
     rulesRevision.productTypeRef.resourceId === subject.currentProductTypeRef.resourceId &&
@@ -164,10 +256,14 @@ export const evaluateProductTypeRules = (
   for (const variant of subject.variants) {
     inspect('VARIANT', variant.effectiveValues, variant.variantRef.resourceId);
   }
-  return {
-    minimumSatisfied:
-      violations.length === 0 && (subject.currentProductTypeRef === undefined || activeRevision !== undefined),
-    revision: activeRevision?.revision,
+  const result: ProductTypeRulesResult = {
+    basisStatus,
+    minimumSatisfied: violations.length === 0 && (basisStatus === 'CURRENT' || basisStatus === 'UNTYPED'),
     violations,
   };
+  if (activeRevision !== undefined && decodedBasis !== undefined) {
+    result.revision = activeRevision.revision;
+    result.revisionContext = decodedBasis;
+  }
+  return result;
 };
