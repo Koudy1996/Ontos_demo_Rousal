@@ -748,12 +748,15 @@ export const productConfigurationPersistenceForScope = (
       .pipe(Effect.mapError(unavailable));
     const ordered = [...activations].toSorted((a, b) => epoch(a.effectiveAt) - epoch(b.effectiveAt));
     if (
+      !Number.isSafeInteger(definition.currentRevision) ||
+      definition.currentRevision < 1 ||
       ordered.length !== definition.currentRevision ||
       ordered.some((activation, index) => {
         const predecessor = ordered[index - 1];
         return (
           activation.revision !== index + 1 ||
           activation.supersededRevision !== (index === 0 ? null : index) ||
+          !Number.isFinite(epoch(activation.effectiveAt)) ||
           (predecessor !== undefined && epoch(activation.effectiveAt) <= epoch(predecessor.effectiveAt))
         );
       })
@@ -784,7 +787,11 @@ export const productConfigurationPersistenceForScope = (
       revision === undefined ||
       revision.productId !== input.productId ||
       revision.state !== 'ACTIVE' ||
-      epoch(revision.effectiveFrom) !== epoch(activation.effectiveAt)
+      epoch(revision.effectiveFrom) !== epoch(activation.effectiveAt) ||
+      revision.actionInvocationId !== activation.actionInvocationId ||
+      revision.actingPrincipalId !== activation.actingPrincipalId ||
+      revision.reason !== activation.reason ||
+      !isDeepStrictEqual(revision.evidenceRefs, activation.evidenceRefs)
     ) {
       return yield* unavailable();
     }

@@ -1,4 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import type { SQL } from 'drizzle-orm';
 import { Effect, Exit, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
@@ -235,14 +236,43 @@ describe('Product Configuration private publication', () => {
   );
 });
 
+const boundValues = (condition: SQL) =>
+  condition.toQuery({
+    escapeName: (name) => name,
+    escapeParam: () => '?',
+    escapeString: (value) => value,
+  }).params;
+
+const updateFixtureRows = (
+  rows: Map<Table, WriteValue[]>,
+  table: Table,
+  patch: { currentRevision: number },
+  condition: SQL,
+) => {
+  const values = boundValues(condition);
+  const existing = (rows.get(table) ?? []).filter((row) => values.every((value) => Object.values(row).includes(value)));
+  rows.set(
+    table,
+    (rows.get(table) ?? []).map((row) =>
+      existing.includes(row) ? { ...row, currentRevision: patch.currentRevision } : row,
+    ),
+  );
+  return Effect.succeed(existing.map((row) => ({ ...row, currentRevision: patch.currentRevision })));
+};
+
 const statefulFixture = () => {
   const rows = new Map<Table, WriteValue[]>();
-  const loaded = (table: Table) =>
-    Effect.succeed(table === products ? [{ lifecycleState: 'ACTIVE' }] : (rows.get(table) ?? []));
-  const filter = (table: Table) =>
-    Object.assign(loaded(table), {
-      for: () => ({ limit: () => loaded(table) }),
-      limit: () => loaded(table),
+  const loaded = (table: Table, condition: SQL) => {
+    const candidates = table === products ? [{ lifecycleState: 'ACTIVE' }] : (rows.get(table) ?? []);
+    const values = boundValues(condition);
+    return Effect.succeed(
+      candidates.filter((row) => table === products || values.every((value) => Object.values(row).includes(value))),
+    );
+  };
+  const filter = (table: Table, condition: SQL) =>
+    Object.assign(loaded(table, condition), {
+      for: () => ({ limit: () => loaded(table, condition) }),
+      limit: () => loaded(table, condition),
     });
   return {
     rows,
@@ -253,7 +283,14 @@ const statefulFixture = () => {
           return empty;
         },
       }),
-      select: () => ({ from: (table: Table) => ({ where: () => filter(table) }) }),
+      select: () => ({ from: (table: Table) => ({ where: (condition: SQL) => filter(table, condition) }) }),
+      update: (table: Table) => ({
+        set: (patch: { currentRevision: number }) => ({
+          where: (condition: SQL) => ({
+            returning: updateFixtureRows.bind(null, rows, table, patch, condition),
+          }),
+        }),
+      }),
     },
   };
 };
@@ -291,6 +328,89 @@ describe('Product Configuration effectiveness timeline', () => {
         choices: [{ ...input.choices[0], label: 'New label' }, input.choices[1]],
       });
       expect('reason' in conflict ? conflict.reason : null).toContain('different Configuration rule snapshot');
+    }),
+  );
+
+  it.effect('supersedes at the next effective instant while preserving earlier replay', () =>
+    Effect.gen(function* supersession() {
+      const state = statefulFixture();
+      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
+        verify: () => Effect.succeed(true),
+      });
+      yield* service.publish(input);
+      const second = {
+        ...input,
+        actionInvocationId: '77777777-7777-4777-8777-777777777777',
+        choices: [{ ...input.choices[0], label: 'New mount' }, input.choices[1]],
+        effectiveFrom: new Date('2026-09-19T00:00:00Z'),
+        expectedRevision: 1,
+      };
+      const published = yield* service.publish(second);
+      expect('revision' in published ? published.revision : null).toBe(2);
+      const earlier = yield* service.readCurrent({
+        at: input.effectiveFrom,
+        definitionId: input.definitionId,
+        productId: input.productId,
+      });
+      expect(Option.isSome(earlier)).toBe(true);
+      if (Option.isSome(earlier)) {
+        expect(earlier.value.revision).toBe(1);
+        expect(earlier.value.effectiveTo).toEqual(second.effectiveFrom);
+      }
+      const later = yield* service.readCurrent({
+        at: second.effectiveFrom,
+        definitionId: input.definitionId,
+        productId: input.productId,
+      });
+      expect(Option.isSome(later) && later.value.revision).toBe(2);
+      const replay = yield* service.publish(input);
+      expect('revision' in replay ? replay.revision : null).toBe(1);
+      expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(2);
+      const losingPublisher = yield* service.publish({
+        ...second,
+        actionInvocationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      });
+      expect('actualRevision' in losingPublisher ? losingPublisher.actualRevision : null).toBe(2);
+      expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(2);
+    }),
+  );
+
+  it.effect('fails closed on mismatched activation evidence and missing impact proof', () =>
+    Effect.gen(function* corruptedHistory() {
+      const state = statefulFixture();
+      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
+        verify: () => Effect.succeed(true),
+      });
+      yield* service.publish(input);
+      const activations = state.rows.get(productConfigurationRevisionActivations);
+      expect(activations).toHaveLength(1);
+      const activation = activations?.[0];
+      if (activation === undefined) {
+        return;
+      }
+      state.rows.set(productConfigurationRevisionActivations, [
+        { ...activation, reason: 'Conflicting activation evidence' },
+      ]);
+      const failed = yield* Effect.exit(
+        service.readCurrent({ at: input.effectiveFrom, definitionId: input.definitionId, productId: input.productId }),
+      );
+      expect(Exit.isFailure(failed)).toBe(true);
+      const noProof = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        state.transaction,
+        scope,
+        { verify: () => Effect.succeed(false) },
+      );
+      const result = yield* noProof.publish({
+        ...input,
+        actionInvocationId: '88888888-8888-4888-8888-888888888888',
+        effectiveFrom: new Date('2026-09-20T00:00:00Z'),
+        expectedRevision: 1,
+      });
+      expect('reason' in result ? result.reason : null).toContain('impact');
+      expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(1);
     }),
   );
 });
