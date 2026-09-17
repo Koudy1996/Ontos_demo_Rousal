@@ -6,13 +6,19 @@ import { catalogManifest } from './vertical.manifest.ts';
 // <generated-module-registration-imports>
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
+import { createAttributeDefinitionAction } from './src/actions/create-attribute-definition.action.ts';
+import { createControlledAttributeValueAction } from './src/actions/create-controlled-attribute-value.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
 import { createProductCategoryAction } from './src/actions/create-product-category.action.ts';
 import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
+import { reactivateControlledAttributeValueAction } from './src/actions/reactivate-controlled-attribute-value.action.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
 import { removeProductCategoryAssignmentAction } from './src/actions/remove-product-category-assignment.action.ts';
+import { renameAttributeDefinitionAction } from './src/actions/rename-attribute-definition.action.ts';
+import { renameControlledAttributeValueAction } from './src/actions/rename-controlled-attribute-value.action.ts';
 import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
+import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
 import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
@@ -25,13 +31,19 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     // <generated-module-registration-actions>
     addProductCategoryAssignmentAction,
     correctProductAction,
+    createAttributeDefinitionAction,
+    createControlledAttributeValueAction,
     createProductAction,
     createProductCategoryAction,
     createProductTypeAction,
     moveProductCategoryAction,
+    reactivateControlledAttributeValueAction,
     reactivateProductAction,
     removeProductCategoryAssignmentAction,
+    renameAttributeDefinitionAction,
+    renameControlledAttributeValueAction,
     renameProductCategoryAction,
+    retireControlledAttributeValueAction,
     retireProductAction,
     retireProductCategoryAction,
     reviseProductTypeAction,
