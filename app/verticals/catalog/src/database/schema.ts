@@ -6,17 +6,23 @@ import {
   foreignKey,
   index,
   integer,
+  numeric,
   pgSchema,
   primaryKey,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
 export const CATALOG_SCHEMA_NAME = 'catalog';
 
 export const CATALOG_TABLE_INVENTORY = [
+  'attribute_definition_revisions',
+  'attribute_definitions',
+  'controlled_attribute_value_revisions',
+  'controlled_attribute_values',
   'product_categories',
   'product_category_assignments',
   'product_category_events',
@@ -239,13 +245,233 @@ export const productTypeRevisions = catalogSchema.table.withRLS(
   ],
 );
 
+export const attributeDefinitions = catalogSchema.table.withRLS(
+  'attribute_definitions',
+  {
+    attributeDefinitionId: uuid('attribute_definition_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    currentRevision: integer('current_revision').default(1).notNull(),
+    name: text('name').notNull(),
+    meaning: text('meaning').notNull(),
+    valueKind: text('value_kind').notNull(),
+    controlledValueKind: text('controlled_value_kind'),
+    multiplicity: text('multiplicity').notNull(),
+    applicableLevels: text('applicable_levels').array().notNull(),
+    measuredQuantity: text('measured_quantity'),
+    canonicalUnit: text('canonical_unit'),
+    minimumValue: numeric('minimum_value'),
+    maximumValue: numeric('maximum_value'),
+    decimalPlaces: integer('decimal_places'),
+    allowsUnknown: integer('allows_unknown').default(0).notNull(),
+    allowsNotApplicable: integer('allows_not_applicable').default(0).notNull(),
+    allowsNone: integer('allows_none').default(0).notNull(),
+    createdByActionInvocationId: uuid('created_by_action_invocation_id').notNull(),
+    createdByPrincipalId: uuid('created_by_principal_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_attribute_definitions_scope_id_uk').on(table.tenantId, table.attributeDefinitionId),
+    check('catalog_attribute_definitions_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_attribute_definitions_kind_ck', sql`${table.valueKind} in ('TEXT', 'CONTROLLED', 'MEASUREMENT')`),
+    check('catalog_attribute_definitions_multiplicity_ck', sql`${table.multiplicity} in ('SINGLE', 'MULTIPLE')`),
+    check(
+      'catalog_attribute_definitions_controlled_kind_ck',
+      sql`(${table.valueKind} = 'CONTROLLED' and ${table.controlledValueKind} in ('GENERAL', 'COLOR', 'SIZE')) or (${table.valueKind} <> 'CONTROLLED' and ${table.controlledValueKind} is null)`,
+    ),
+    check(
+      'catalog_attribute_definitions_levels_ck',
+      sql`cardinality(${table.applicableLevels}) between 1 and 2 and ${table.applicableLevels} <@ array['PRODUCT', 'VARIANT']::text[] and array_position(${table.applicableLevels}, null) is null and (${table.applicableLevels} = array['PRODUCT']::text[] or ${table.applicableLevels} = array['VARIANT']::text[] or ${table.applicableLevels} in (array['PRODUCT','VARIANT']::text[], array['VARIANT','PRODUCT']::text[]))`,
+    ),
+    check(
+      'catalog_attribute_definitions_meaning_ck',
+      sql`${table.meaning} = btrim(${table.meaning}) and length(${table.meaning}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_attribute_definitions_name_ck',
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240`,
+    ),
+    check(
+      'catalog_attribute_definitions_measurement_ck',
+      sql`(${table.valueKind} = 'MEASUREMENT' and ${table.measuredQuantity} is not null and ${table.canonicalUnit} is not null and ${table.decimalPlaces} is not null) or (${table.valueKind} <> 'MEASUREMENT' and ${table.measuredQuantity} is null and ${table.canonicalUnit} is null and ${table.minimumValue} is null and ${table.maximumValue} is null and ${table.decimalPlaces} is null)`,
+    ),
+    check(
+      'catalog_attribute_definitions_range_ck',
+      sql`${table.minimumValue} is null or ${table.maximumValue} is null or ${table.minimumValue} <= ${table.maximumValue}`,
+    ),
+    check(
+      'catalog_attribute_definitions_precision_ck',
+      sql`${table.decimalPlaces} is null or ${table.decimalPlaces} between 0 and 12`,
+    ),
+    check(
+      'catalog_attribute_definitions_special_ck',
+      sql`${table.allowsUnknown} in (0, 1) and ${table.allowsNotApplicable} in (0, 1) and ${table.allowsNone} in (0, 1)`,
+    ),
+    ...tenantRlsPolicies('catalog_attribute_definitions_tenant', table.tenantId),
+  ],
+);
+
+export const attributeDefinitionRevisions = catalogSchema.table.withRLS(
+  'attribute_definition_revisions',
+  {
+    attributeDefinitionRevisionId: uuid('attribute_definition_revision_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    revision: integer('revision').notNull(),
+    name: text('name').notNull(),
+    meaning: text('meaning').notNull(),
+    valueKind: text('value_kind').notNull(),
+    controlledValueKind: text('controlled_value_kind'),
+    multiplicity: text('multiplicity').notNull(),
+    applicableLevels: text('applicable_levels').array().notNull(),
+    measuredQuantity: text('measured_quantity'),
+    canonicalUnit: text('canonical_unit'),
+    minimumValue: numeric('minimum_value'),
+    maximumValue: numeric('maximum_value'),
+    decimalPlaces: integer('decimal_places'),
+    allowsUnknown: integer('allows_unknown').notNull(),
+    allowsNotApplicable: integer('allows_not_applicable').notNull(),
+    allowsNone: integer('allows_none').notNull(),
+    reason: text('reason').notNull(),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    unique('catalog_attribute_definition_revisions_number_uk').on(
+      table.tenantId,
+      table.attributeDefinitionId,
+      table.revision,
+    ),
+    unique('catalog_attribute_definition_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId],
+      foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId],
+      name: 'catalog_attribute_definition_revisions_definition_fk',
+    }).onDelete('restrict'),
+    check('catalog_attribute_definition_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_attribute_definition_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_attribute_definition_revisions_tenant', table.tenantId),
+  ],
+);
+
+export const controlledAttributeValues = catalogSchema.table.withRLS(
+  'controlled_attribute_values',
+  {
+    controlledAttributeValueId: uuid('controlled_attribute_value_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    currentRevision: integer('current_revision').default(1).notNull(),
+    name: text('name').notNull(),
+    meaning: text('meaning').notNull(),
+    specialization: text('specialization').notNull(),
+    lifecycleState: text('lifecycle_state').default('ACTIVE').notNull(),
+    colorGroup: text('color_group'),
+    swatchSystem: text('swatch_system'),
+    swatchCode: text('swatch_code'),
+    previewHex: text('preview_hex'),
+    previewEvidenceRef: text('preview_evidence_ref'),
+    createdByActionInvocationId: uuid('created_by_action_invocation_id').notNull(),
+    createdByPrincipalId: uuid('created_by_principal_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_controlled_values_scope_id_uk').on(table.tenantId, table.controlledAttributeValueId),
+    unique('catalog_controlled_values_definition_id_uk').on(
+      table.tenantId,
+      table.attributeDefinitionId,
+      table.controlledAttributeValueId,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId],
+      foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId],
+      name: 'catalog_controlled_values_definition_fk',
+    }).onDelete('restrict'),
+    check('catalog_controlled_values_revision_ck', sql`${table.currentRevision} > 0`),
+    check(
+      'catalog_controlled_values_name_ck',
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240`,
+    ),
+    check('catalog_controlled_values_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
+    check('catalog_controlled_values_specialization_ck', sql`${table.specialization} in ('GENERAL', 'COLOR', 'SIZE')`),
+    check(
+      'catalog_controlled_values_swatch_ck',
+      sql`(${table.swatchSystem} is null and ${table.swatchCode} is null) or (${table.specialization} = 'COLOR' and ${table.swatchSystem} is not null and ${table.swatchCode} is not null)`,
+    ),
+    check(
+      'catalog_controlled_values_meaning_ck',
+      sql`${table.meaning} = btrim(${table.meaning}) and length(${table.meaning}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_controlled_values_preview_ck',
+      sql`${table.previewHex} is null or ${table.previewHex} ~ '^#[0-9A-Fa-f]{6}$'`,
+    ),
+    ...tenantRlsPolicies('catalog_controlled_values_tenant', table.tenantId),
+  ],
+);
+
+export const controlledAttributeValueRevisions = catalogSchema.table.withRLS(
+  'controlled_attribute_value_revisions',
+  {
+    controlledAttributeValueRevisionId: uuid('controlled_attribute_value_revision_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    controlledAttributeValueId: uuid('controlled_attribute_value_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    revision: integer('revision').notNull(),
+    name: text('name').notNull(),
+    meaning: text('meaning').notNull(),
+    specialization: text('specialization').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    colorGroup: text('color_group'),
+    swatchSystem: text('swatch_system'),
+    swatchCode: text('swatch_code'),
+    previewHex: text('preview_hex'),
+    previewEvidenceRef: text('preview_evidence_ref'),
+    reason: text('reason').notNull(),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    unique('catalog_controlled_value_revisions_number_uk').on(
+      table.tenantId,
+      table.controlledAttributeValueId,
+      table.revision,
+    ),
+    unique('catalog_controlled_value_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId, table.controlledAttributeValueId],
+      foreignColumns: [
+        controlledAttributeValues.tenantId,
+        controlledAttributeValues.attributeDefinitionId,
+        controlledAttributeValues.controlledAttributeValueId,
+      ],
+      name: 'catalog_controlled_value_revisions_value_fk',
+    }).onDelete('restrict'),
+    check('catalog_controlled_value_revisions_number_ck', sql`${table.revision} > 0`),
+    check('catalog_controlled_value_revisions_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
+    check(
+      'catalog_controlled_value_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_controlled_value_revisions_tenant', table.tenantId),
+  ],
+);
+
 export const productTypeRevisionAttributes = catalogSchema.table.withRLS(
   'product_type_revision_attributes',
   {
     tenantId: uuid('tenant_id').notNull(),
     productTypeId: uuid('product_type_id').notNull(),
     revision: integer('revision').notNull(),
-    // #402 will add the tenant-qualified Attribute Definition FK when its owner table exists.
     attributeDefinitionId: uuid('attribute_definition_id').notNull(),
     level: text('level').notNull(),
     requirement: text('requirement').notNull(),
@@ -263,6 +489,11 @@ export const productTypeRevisionAttributes = catalogSchema.table.withRLS(
         productTypeRevisions.revision,
       ],
       name: 'catalog_product_type_revision_attributes_revision_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId],
+      foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId],
+      name: 'catalog_product_type_revision_attributes_definition_fk',
     }).onDelete('restrict'),
     check(
       'catalog_product_type_revision_attributes_requirement_ck',
@@ -462,6 +693,9 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
   (table) => [
     unique('catalog_product_category_events_scope_id_uk').on(table.tenantId, table.productCategoryEventId),
     unique('catalog_product_category_events_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    uniqueIndex('catalog_product_category_events_category_revision_uk')
+      .on(table.tenantId, table.categoryId, table.categoryRevision)
+      .where(sql`${table.changeKind} in ('CREATED', 'RENAMED', 'MOVED', 'RETIRED')`),
     foreignKey({
       columns: [table.tenantId, table.categoryId],
       foreignColumns: [productCategories.tenantId, productCategories.categoryId],
@@ -491,9 +725,10 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
       'catalog_product_category_events_revisions_ck',
       sql`${table.hierarchyRevision} >= 0 and ${table.assignmentRevision} >= 0`,
     ),
+    check('catalog_product_category_events_category_revision_ck', sql`${table.categoryRevision} > 0`),
     check(
-      'catalog_product_category_events_category_revision_ck',
-      sql`${table.categoryRevision} is null or ${table.categoryRevision} > 0`,
+      'catalog_product_category_events_snapshot_ck',
+      sql`${table.changeKind} not in ('CREATED', 'RENAMED', 'MOVED', 'RETIRED') or (${table.nextName} is not null and ${table.nextLifecycleState} is not null)`,
     ),
     check(
       'catalog_product_category_events_previous_lifecycle_ck',
@@ -520,6 +755,10 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
 );
 
 const catalogDatabaseSchema = {
+  attributeDefinitionRevisions,
+  attributeDefinitions,
+  controlledAttributeValueRevisions,
+  controlledAttributeValues,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
@@ -536,6 +775,10 @@ const catalogDatabaseSchema = {
 } as const;
 
 export const CATALOG_TABLES = [
+  attributeDefinitionRevisions,
+  attributeDefinitions,
+  controlledAttributeValueRevisions,
+  controlledAttributeValues,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
