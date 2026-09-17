@@ -24,6 +24,22 @@ describe('SKU persistence input guard', () => {
     expect(base.code).toBe('  Ab-12  ');
   });
 
+  it('accepts only an exact Package Option in the same Tenant', () => {
+    const option = {
+      ...base,
+      target: {
+        kind: 'PACKAGE_OPTION' as const,
+        packageDefinitionId: '00000000-0000-4000-8000-000000000004',
+        tenantId: 'tenant-a',
+      },
+    };
+    expect(validSkuChangeInput(option, 'tenant-a')).toBe(true);
+    expect(validSkuChangeInput(option, 'tenant-b')).toBe(false);
+    expect(validSkuChangeInput({ ...option, target: { ...option.target, packageDefinitionId: '' } }, 'tenant-a')).toBe(
+      false,
+    );
+  });
+
   it('rejects cross-tenant, blank, and overlong comparison codes', () => {
     expect(validSkuChangeInput(base, 'tenant-b')).toBe(false);
     expect(validSkuChangeInput({ ...base, code: '  ' }, 'tenant-a')).toBe(false);
@@ -83,6 +99,9 @@ describe('SKU Package Option Current proof', () => {
     );
     expect(currentPackageOptionSnapshotMatches({ ...active, role: { ...active.role, revision: 1 } })).toBe(false);
     expect(
+      currentPackageOptionSnapshotMatches({ ...active, role: { ...active.role, independentlyRequested: false } }),
+    ).toBe(false);
+    expect(
       currentPackageOptionSnapshotMatches({ ...active, role: { ...active.role, looseUnitsSubstitutable: true } }),
     ).toBe(false);
   });
@@ -92,6 +111,11 @@ describe('SKU Package Option Current proof', () => {
       currentPackageOptionSnapshotMatches({ ...active, definition: { ...active.definition, optionState: 'RETIRED' } }),
     ).toBe(false);
     expect(currentPackageOptionSnapshotMatches({ ...active, productLifecycle: 'RETIRED' })).toBe(false);
+    expect(currentPackageOptionSnapshotMatches({ ...active, variantLifecycle: 'RETIRED' })).toBe(false);
+    expect(currentPackageOptionSnapshotMatches({ ...active, unitLifecycle: 'RETIRED' })).toBe(false);
+    expect(currentPackageOptionSnapshotMatches({ ...active, content: { ...active.content, variantId: 'other' } })).toBe(
+      false,
+    );
     expect(
       currentPackageOptionSnapshotMatches({
         ...active,

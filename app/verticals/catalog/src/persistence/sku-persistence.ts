@@ -1,5 +1,5 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
 
 import { normalizeSku } from '../../shared/domain/commercial-code.ts';
@@ -78,18 +78,6 @@ export const currentPackageOptionSnapshotMatches = (snapshot: SkuCurrentOptionSn
   );
 };
 /* oxlint-enable eslint/complexity */
-
-/** This owner attests the pinned Option role/content remains a valid Current selection basis. */
-export interface SkuPackageOptionBasis {
-  readonly verify: (input: {
-    readonly contentRevision: number;
-    readonly optionRevision: number;
-    readonly packageDefinitionId: string;
-    readonly productId: string;
-    readonly tenantId: string;
-    readonly variantId: string;
-  }) => Effect.Effect<boolean, SkuPersistenceUnavailable>;
-}
 
 export class SkuPersistenceUnavailable extends Schema.TaggedError<SkuPersistenceUnavailable>()(
   'SkuPersistenceUnavailable',
@@ -250,12 +238,11 @@ const sameTarget = (row: typeof commercialSkuReservations.$inferSelect, target: 
     ? row.variantId === target.variantId && row.packageDefinitionId === null
     : row.packageDefinitionId === target.packageDefinitionId;
 
+const unchangedCorrection = (row: typeof commercialSkuReservations.$inferSelect, input: SkuCorrectionInput) =>
+  sameTarget(row, input.target) && row.displayCode === input.code;
+
 /** Core owns the transaction and permissions. This owner service cannot open or commit one. */
-export const skuPersistenceForScope = (
-  transaction: ScopedTransaction,
-  scope: OperationalScope,
-  packageOptionBasis?: SkuPackageOptionBasis,
-) => {
+export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: OperationalScope) => {
   const { tenantId } = scope;
   const reservationWhere = (normalizedCode: string) =>
     and(eq(commercialSkuReservations.tenantId, tenantId), eq(commercialSkuReservations.normalizedCode, normalizedCode));
@@ -347,9 +334,6 @@ export const skuPersistenceForScope = (
       if (definition === undefined) {
         return null;
       }
-      if (packageOptionBasis === undefined) {
-        return yield* unavailable();
-      }
       const [[content], [role], [variant], [product]] = yield* Effect.all(
         [
           transaction
@@ -421,15 +405,7 @@ export const skuPersistenceForScope = (
           role,
           unitLifecycle: unit.lifecycleState,
           variantLifecycle: variant.lifecycleState,
-        }) ||
-        !(yield* packageOptionBasis.verify({
-          contentRevision: definition.currentRevision,
-          optionRevision: definition.currentOptionRevision,
-          packageDefinitionId: definition.packageDefinitionId,
-          productId: definition.productId,
-          tenantId,
-          variantId: definition.variantId,
-        }))
+        })
       ) {
         return yield* unavailable();
       }
@@ -519,6 +495,26 @@ export const skuPersistenceForScope = (
     if (existing !== undefined) {
       return { _tag: 'conflict' } as const;
     }
+    const [targetCurrent] = yield* transaction
+      .select({ normalizedCode: commercialSkuReservations.normalizedCode })
+      .from(commercialSkuReservations)
+      .where(
+        and(
+          eq(commercialSkuReservations.tenantId, tenantId),
+          ...(target.packageDefinitionId === null
+            ? [
+                eq(commercialSkuReservations.variantId, target.variantId),
+                isNull(commercialSkuReservations.packageDefinitionId),
+              ]
+            : [eq(commercialSkuReservations.packageDefinitionId, target.packageDefinitionId)]),
+          eq(commercialSkuReservations.state, 'CURRENT'),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (targetCurrent !== undefined) {
+      return { _tag: 'conflict' } as const;
+    }
     const now = DateTime.toDateUtc(yield* DateTime.now);
     const [inserted] = yield* transaction
       .insert(commercialSkuReservations)
@@ -582,9 +578,10 @@ export const skuPersistenceForScope = (
     if (!sameTarget(existing, input.previousTarget) || existing.state !== 'CURRENT') {
       return { _tag: 'conflict' } as const;
     }
-    if (sameTarget(existing, input.target)) {
-      return { _tag: 'invalid', reason: 'Correction requires a different exact target' } as const;
+    if (unchangedCorrection(existing, input)) {
+      return { _tag: 'invalid', reason: 'Correction requires a changed exact target or display code' } as const;
     }
+    // The reservation being corrected is the expected Current row for a display-only correction.
     const [targetCurrent] = yield* transaction
       .select({ normalizedCode: commercialSkuReservations.normalizedCode })
       .from(commercialSkuReservations)
@@ -597,6 +594,7 @@ export const skuPersistenceForScope = (
                 isNull(commercialSkuReservations.packageDefinitionId),
               ]
             : [eq(commercialSkuReservations.packageDefinitionId, target.packageDefinitionId)]),
+          ne(commercialSkuReservations.normalizedCode, normalizeSku(input.code)),
           eq(commercialSkuReservations.state, 'CURRENT'),
         ),
       )
