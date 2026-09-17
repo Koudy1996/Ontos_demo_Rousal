@@ -24,6 +24,8 @@ import {
   productCategoryEvents,
   productCategoryHierarchyRevisions,
   productLifecycleEvents,
+  productRelationshipRevisions,
+  productRelationships,
   productRevisions,
   productTypeAssignmentEvents,
   productTypeAssignments,
@@ -41,7 +43,7 @@ import {
   products,
 } from '../../src/database/schema.ts';
 
-it('owns thirty-one tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns thirty-three tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -68,6 +70,8 @@ it('owns thirty-one tenant-scoped Catalog tables with RLS and immutable history'
     'product_category_events',
     'product_category_hierarchy_revisions',
     'product_lifecycle_events',
+    'product_relationship_revisions',
+    'product_relationships',
     'product_revisions',
     'product_type_assignment_events',
     'product_type_assignments',
@@ -92,6 +96,31 @@ it('owns thirty-one tenant-scoped Catalog tables with RLS and immutable history'
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('constrains directed Product relationships and their immutable revision snapshots', () => {
+  const current = getTableConfig(productRelationships);
+  const history = getTableConfig(productRelationshipRevisions);
+  expect(current.foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_relationships_source_product_fk',
+    'catalog_product_relationships_source_variant_fk',
+    'catalog_product_relationships_target_product_fk',
+    'catalog_product_relationships_target_variant_fk',
+  ]);
+  expect(
+    current.uniqueConstraints.find((key) => key.name === 'catalog_product_relationships_exact_uk')?.nullsNotDistinct,
+  ).toBe(true);
+  expect(current.checks.map((key) => key.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_product_relationships_source_ck',
+      'catalog_product_relationships_target_ck',
+      'catalog_product_relationships_period_ck',
+      'catalog_product_relationships_self_ck',
+    ]),
+  );
+  expect(history.primaryKeys.map((key) => key.getName())).toContain('catalog_product_relationship_revisions_pk');
+  expect(history.foreignKeys).toHaveLength(5);
+  expect(history.checks.map((key) => key.name)).toContain('catalog_product_relationship_revisions_evidence_ck');
 });
 
 it('pins homogeneous Package content to one Variant and an exact lower revision', () => {
@@ -320,5 +349,8 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_variant_unit_divisibility_identity_immutable');
   expect(combined).toContain('catalog_package_unit_divisibility_identity_immutable');
   expect(combined).toContain('catalog_package_content_revisions_unit_fk');
+  expect(combined).toContain('catalog_product_relationship_revisions_append_only');
+  expect(combined).toContain('catalog_product_relationships_identity_immutable');
+  expect(combined).toContain('catalog_product_relationships_exact_uk" UNIQUE NULLS NOT DISTINCT');
   expect(combined).toContain("'commerce.catalog.product-unit') NOT VALID");
 });

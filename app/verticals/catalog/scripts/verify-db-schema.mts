@@ -31,6 +31,7 @@ const pointersAreCurrent = (pointers: {
   package_mismatch: number;
   package_unit_mismatch: number;
   package_unit_reference_mismatch: number;
+  relationship_mismatch: number;
   type_mismatch: number;
   unit_rule_mismatch: number;
   variant_axis_integrity_mismatch: number;
@@ -119,7 +120,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 33 ||
+    row.trigger_count !== 35 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -141,6 +142,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         package_mismatch: number;
         package_unit_mismatch: number;
         package_unit_reference_mismatch: number;
+        relationship_mismatch: number;
         type_mismatch: number;
         unit_rule_mismatch: number;
         variant_axis_integrity_mismatch: number;
@@ -200,6 +202,18 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             where r.tenant_id=s.tenant_id and r.attribute_value_set_id=s.attribute_value_set_id)
           or (s.current_state='REMOVED' and exists (select 1 from catalog.attribute_value_items i
             where i.tenant_id=s.tenant_id and i.attribute_value_set_id=s.attribute_value_set_id))) attribute_value_mismatch,
+      (select count(*)::integer from catalog.product_relationships p
+        where not exists (select 1 from catalog.product_relationship_revisions r
+          where r.tenant_id=p.tenant_id and r.relationship_id=p.relationship_id
+            and r.revision=p.current_revision and r.relationship_type=p.relationship_type
+            and r.source_product_id is not distinct from p.source_product_id
+            and r.source_variant_id is not distinct from p.source_variant_id
+            and r.target_product_id is not distinct from p.target_product_id
+            and r.target_variant_id is not distinct from p.target_variant_id
+            and r.effective_from is not distinct from p.effective_from
+            and r.effective_to is not distinct from p.effective_to)
+          or p.current_revision <> (select max(r.revision) from catalog.product_relationship_revisions r
+            where r.tenant_id=p.tenant_id and r.relationship_id=p.relationship_id)) relationship_mismatch,
       (select count(*)::integer from catalog.product_variants v
         where not exists (select 1 from catalog.product_variant_revisions r
           where r.tenant_id=v.tenant_id and r.variant_id=v.variant_id and r.revision=v.current_revision

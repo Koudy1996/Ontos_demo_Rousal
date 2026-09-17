@@ -37,6 +37,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_category_events',
   'product_category_hierarchy_revisions',
   'product_lifecycle_events',
+  'product_relationship_revisions',
+  'product_relationships',
   'product_revisions',
   'product_type_assignment_events',
   'product_type_assignments',
@@ -311,6 +313,174 @@ export const productVariantRevisions = catalogSchema.table.withRLS(
       sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
     ),
     ...tenantRlsPolicies('catalog_product_variant_revisions_tenant', table.tenantId),
+  ],
+);
+
+/** The directed assertion is independent of a set or a substitution rule. */
+export const productRelationships = catalogSchema.table.withRLS(
+  'product_relationships',
+  {
+    relationshipId: uuid('relationship_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    relationshipType: text('relationship_type').notNull(),
+    sourceProductId: uuid('source_product_id'),
+    sourceVariantId: uuid('source_variant_id'),
+    targetProductId: uuid('target_product_id'),
+    targetVariantId: uuid('target_variant_id'),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    currentRevision: integer('current_revision').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_product_relationships_scope_id_uk').on(table.tenantId, table.relationshipId),
+    unique('catalog_product_relationships_exact_uk')
+      .on(
+        table.tenantId,
+        table.relationshipType,
+        table.sourceProductId,
+        table.sourceVariantId,
+        table.targetProductId,
+        table.targetVariantId,
+        table.effectiveFrom,
+        table.effectiveTo,
+      )
+      .nullsNotDistinct(),
+    foreignKey({
+      columns: [table.tenantId, table.sourceProductId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_relationships_source_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.sourceVariantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_product_relationships_source_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.targetProductId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_relationships_target_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.targetVariantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_product_relationships_target_variant_fk',
+    }).onDelete('restrict'),
+    index('catalog_product_relationships_source_product_idx').on(table.tenantId, table.sourceProductId),
+    index('catalog_product_relationships_source_variant_idx').on(table.tenantId, table.sourceVariantId),
+    index('catalog_product_relationships_target_product_idx').on(table.tenantId, table.targetProductId),
+    index('catalog_product_relationships_target_variant_idx').on(table.tenantId, table.targetVariantId),
+    check(
+      'catalog_product_relationships_type_ck',
+      sql`${table.relationshipType} in ('ACCESSORY_FOR', 'RELATED_PRODUCT', 'SUCCESSOR')`,
+    ),
+    check(
+      'catalog_product_relationships_source_ck',
+      sql`num_nonnulls(${table.sourceProductId}, ${table.sourceVariantId}) = 1`,
+    ),
+    check(
+      'catalog_product_relationships_target_ck',
+      sql`num_nonnulls(${table.targetProductId}, ${table.targetVariantId}) = 1`,
+    ),
+    check(
+      'catalog_product_relationships_self_ck',
+      sql`${table.sourceProductId} is distinct from ${table.targetProductId} or ${table.sourceVariantId} is distinct from ${table.targetVariantId}`,
+    ),
+    check(
+      'catalog_product_relationships_period_ck',
+      sql`${table.effectiveFrom} is null or ${table.effectiveTo} is null or ${table.effectiveFrom} < ${table.effectiveTo}`,
+    ),
+    check('catalog_product_relationships_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_product_relationships_tenant', table.tenantId),
+  ],
+);
+
+export const productRelationshipRevisions = catalogSchema.table.withRLS(
+  'product_relationship_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    relationshipId: uuid('relationship_id').notNull(),
+    revision: integer('revision').notNull(),
+    relationshipType: text('relationship_type').notNull(),
+    sourceProductId: uuid('source_product_id'),
+    sourceVariantId: uuid('source_variant_id'),
+    targetProductId: uuid('target_product_id'),
+    targetVariantId: uuid('target_variant_id'),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    changeKind: text('change_kind').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.relationshipId, table.revision],
+      name: 'catalog_product_relationship_revisions_pk',
+    }),
+    unique('catalog_product_relationship_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.relationshipId],
+      foreignColumns: [productRelationships.tenantId, productRelationships.relationshipId],
+      name: 'catalog_product_relationship_revisions_relationship_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.sourceProductId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_relationship_revisions_source_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.sourceVariantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_product_relationship_revisions_source_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.targetProductId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_relationship_revisions_target_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.targetVariantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_product_relationship_revisions_target_variant_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_relationship_revisions_revision_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_product_relationship_revisions_type_ck',
+      sql`${table.relationshipType} in ('ACCESSORY_FOR', 'RELATED_PRODUCT', 'SUCCESSOR')`,
+    ),
+    check(
+      'catalog_product_relationship_revisions_source_ck',
+      sql`num_nonnulls(${table.sourceProductId}, ${table.sourceVariantId}) = 1`,
+    ),
+    check(
+      'catalog_product_relationship_revisions_target_ck',
+      sql`num_nonnulls(${table.targetProductId}, ${table.targetVariantId}) = 1`,
+    ),
+    check(
+      'catalog_product_relationship_revisions_self_ck',
+      sql`${table.sourceProductId} is distinct from ${table.targetProductId} or ${table.sourceVariantId} is distinct from ${table.targetVariantId}`,
+    ),
+    check(
+      'catalog_product_relationship_revisions_period_ck',
+      sql`${table.effectiveFrom} is null or ${table.effectiveTo} is null or ${table.effectiveFrom} < ${table.effectiveTo}`,
+    ),
+    check(
+      'catalog_product_relationship_revisions_kind_ck',
+      sql`${table.changeKind} in ('CREATED', 'CORRECTED', 'ENDED')`,
+    ),
+    check(
+      'catalog_product_relationship_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_product_relationship_revisions_evidence_ck',
+      sql`cardinality(${table.evidenceRefs}) > 0 and array_position(${table.evidenceRefs}, null) is null`,
+    ),
+    ...tenantRlsPolicies('catalog_product_relationship_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -1400,6 +1570,8 @@ const catalogDatabaseSchema = {
   productCategoryEvents,
   productCategoryHierarchyRevisions,
   productLifecycleEvents,
+  productRelationshipRevisions,
+  productRelationships,
   productRevisions,
   productTypeAssignmentEvents,
   productTypeAssignments,
@@ -1434,6 +1606,8 @@ export const CATALOG_TABLES = [
   productCategoryEvents,
   productCategoryHierarchyRevisions,
   productLifecycleEvents,
+  productRelationshipRevisions,
+  productRelationships,
   productRevisions,
   productTypeAssignmentEvents,
   productTypeAssignments,
