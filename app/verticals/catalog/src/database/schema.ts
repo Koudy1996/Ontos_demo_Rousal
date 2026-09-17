@@ -47,6 +47,13 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_category_assignments',
   'product_category_events',
   'product_category_hierarchy_revisions',
+  'product_configuration_choice_options',
+  'product_configuration_choices',
+  'product_configuration_compatibility_rules',
+  'product_configuration_definition_revisions',
+  'product_configuration_definitions',
+  'product_configuration_measured_rules',
+  'product_configuration_option_allowances',
   'product_lifecycle_events',
   'product_localized_fact_revisions',
   'product_localized_facts',
@@ -2471,7 +2478,424 @@ export const catalogMediaAssignmentRevisions = catalogSchema.table.withRLS(
   ],
 );
 
+/** Stable Product-scoped definition identity; selected configurations remain values, not rows here. */
+export const productConfigurationDefinitions = catalogSchema.table.withRLS(
+  'product_configuration_definitions',
+  {
+    definitionId: uuid('definition_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    createdAt: recordedAt(),
+  },
+  (table) => [
+    unique('catalog_configuration_definitions_scope_id_uk').on(table.tenantId, table.definitionId),
+    unique('catalog_configuration_definitions_product_id_uk').on(table.tenantId, table.productId, table.definitionId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_configuration_definitions_product_fk',
+    }).onDelete('restrict'),
+    check('catalog_configuration_definitions_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_configuration_definitions_tenant', table.tenantId),
+  ],
+);
+
+/** An immutable, exact rule snapshot; effective_to is exclusive. */
+export const productConfigurationDefinitionRevisions = catalogSchema.table.withRLS(
+  'product_configuration_definition_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    state: text('state').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.definitionId, table.revision],
+      name: 'catalog_configuration_definition_revisions_pk',
+    }),
+    unique('catalog_configuration_definition_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.definitionId],
+      foreignColumns: [
+        productConfigurationDefinitions.tenantId,
+        productConfigurationDefinitions.productId,
+        productConfigurationDefinitions.definitionId,
+      ],
+      name: 'catalog_configuration_definition_revisions_definition_fk',
+    }).onDelete('restrict'),
+    check('catalog_configuration_definition_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_configuration_definition_revisions_period_ck',
+      sql`${table.effectiveTo} is null or ${table.effectiveTo} > ${table.effectiveFrom}`,
+    ),
+    check('catalog_configuration_definition_revisions_state_ck', sql`${table.state} in ('ACTIVE', 'RETIRED')`),
+    check(
+      'catalog_configuration_definition_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_definition_revisions_tenant', table.tenantId),
+  ],
+);
+
+/** Choice keys are stable semantic identities across revisions, not display labels. */
+export const productConfigurationChoices = catalogSchema.table.withRLS(
+  'product_configuration_choices',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    revision: integer('revision').notNull(),
+    choiceKey: text('choice_key').notNull(),
+    meaning: text('meaning').notNull(),
+    label: text('label').notNull(),
+    valueKind: text('value_kind').notNull(),
+    required: boolean('required').notNull(),
+    unitId: uuid('unit_id'),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.choiceKey],
+      name: 'catalog_configuration_choices_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.revision],
+      foreignColumns: [
+        productConfigurationDefinitionRevisions.tenantId,
+        productConfigurationDefinitionRevisions.definitionId,
+        productConfigurationDefinitionRevisions.revision,
+      ],
+      name: 'catalog_configuration_choices_revision_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_configuration_choices_unit_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_configuration_choices_key_ck',
+      sql`${table.choiceKey} = btrim(${table.choiceKey}) and length(${table.choiceKey}) between 1 and 160`,
+    ),
+    check(
+      'catalog_configuration_choices_meaning_ck',
+      sql`${table.meaning} = btrim(${table.meaning}) and length(${table.meaning}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_configuration_choices_label_ck',
+      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 240`,
+    ),
+    check(
+      'catalog_configuration_choices_kind_ck',
+      sql`(${table.valueKind} = 'SINGLE_CHOICE' and ${table.unitId} is null) or (${table.valueKind} = 'MEASURED_VALUE' and ${table.unitId} is not null)`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_choices_tenant', table.tenantId),
+  ],
+);
+
+export const productConfigurationChoiceOptions = catalogSchema.table.withRLS(
+  'product_configuration_choice_options',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    revision: integer('revision').notNull(),
+    choiceKey: text('choice_key').notNull(),
+    optionKey: text('option_key').notNull(),
+    meaning: text('meaning').notNull(),
+    label: text('label').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.choiceKey, table.optionKey],
+      name: 'catalog_configuration_choice_options_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.choiceKey],
+      foreignColumns: [
+        productConfigurationChoices.tenantId,
+        productConfigurationChoices.definitionId,
+        productConfigurationChoices.revision,
+        productConfigurationChoices.choiceKey,
+      ],
+      name: 'catalog_configuration_choice_options_choice_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_configuration_choice_options_key_ck',
+      sql`${table.optionKey} = btrim(${table.optionKey}) and length(${table.optionKey}) between 1 and 160`,
+    ),
+    check(
+      'catalog_configuration_choice_options_meaning_ck',
+      sql`${table.meaning} = btrim(${table.meaning}) and length(${table.meaning}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_configuration_choice_options_label_ck',
+      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 240`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_choice_options_tenant', table.tenantId),
+  ],
+);
+
+/** A target-specific option decision is explicit; absent rows are not an implicit allow. */
+export const productConfigurationOptionAllowances = catalogSchema.table.withRLS(
+  'product_configuration_option_allowances',
+  {
+    allowanceId: uuid('allowance_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    choiceKey: text('choice_key').notNull(),
+    optionKey: text('option_key').notNull(),
+    variantId: uuid('variant_id'),
+    packageDefinitionId: uuid('package_definition_id'),
+    allowed: boolean('allowed').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+  },
+  (table) => [
+    uniqueIndex('catalog_configuration_allowances_product_uk')
+      .on(table.tenantId, table.definitionId, table.revision, table.choiceKey, table.optionKey)
+      .where(sql`${table.variantId} is null and ${table.packageDefinitionId} is null`),
+    uniqueIndex('catalog_configuration_allowances_variant_uk')
+      .on(table.tenantId, table.definitionId, table.revision, table.choiceKey, table.optionKey, table.variantId)
+      .where(sql`${table.variantId} is not null and ${table.packageDefinitionId} is null`),
+    uniqueIndex('catalog_configuration_allowances_package_uk')
+      .on(
+        table.tenantId,
+        table.definitionId,
+        table.revision,
+        table.choiceKey,
+        table.optionKey,
+        table.variantId,
+        table.packageDefinitionId,
+      )
+      .where(sql`${table.packageDefinitionId} is not null`),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.definitionId],
+      foreignColumns: [
+        productConfigurationDefinitions.tenantId,
+        productConfigurationDefinitions.productId,
+        productConfigurationDefinitions.definitionId,
+      ],
+      name: 'catalog_configuration_allowances_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.choiceKey, table.optionKey],
+      foreignColumns: [
+        productConfigurationChoiceOptions.tenantId,
+        productConfigurationChoiceOptions.definitionId,
+        productConfigurationChoiceOptions.revision,
+        productConfigurationChoiceOptions.choiceKey,
+        productConfigurationChoiceOptions.optionKey,
+      ],
+      name: 'catalog_configuration_allowances_option_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_configuration_allowances_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_configuration_allowances_package_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_configuration_allowances_target_ck',
+      sql`${table.packageDefinitionId} is null or ${table.variantId} is not null`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_allowances_tenant', table.tenantId),
+  ],
+);
+
+/** One explicit rule per choice and exact target; null bound or step means confirmed absence. */
+export const productConfigurationMeasuredRules = catalogSchema.table.withRLS(
+  'product_configuration_measured_rules',
+  {
+    ruleId: uuid('rule_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    choiceKey: text('choice_key').notNull(),
+    variantId: uuid('variant_id'),
+    packageDefinitionId: uuid('package_definition_id'),
+    minimum: numeric('minimum'),
+    minimumInclusive: boolean('minimum_inclusive'),
+    maximum: numeric('maximum'),
+    maximumInclusive: boolean('maximum_inclusive'),
+    step: numeric('step'),
+    stepBase: numeric('step_base'),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+  },
+  (table) => [
+    uniqueIndex('catalog_configuration_measured_rules_product_uk')
+      .on(table.tenantId, table.definitionId, table.revision, table.choiceKey)
+      .where(sql`${table.variantId} is null and ${table.packageDefinitionId} is null`),
+    uniqueIndex('catalog_configuration_measured_rules_variant_uk')
+      .on(table.tenantId, table.definitionId, table.revision, table.choiceKey, table.variantId)
+      .where(sql`${table.variantId} is not null and ${table.packageDefinitionId} is null`),
+    uniqueIndex('catalog_configuration_measured_rules_package_uk')
+      .on(
+        table.tenantId,
+        table.definitionId,
+        table.revision,
+        table.choiceKey,
+        table.variantId,
+        table.packageDefinitionId,
+      )
+      .where(sql`${table.packageDefinitionId} is not null`),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.definitionId],
+      foreignColumns: [
+        productConfigurationDefinitions.tenantId,
+        productConfigurationDefinitions.productId,
+        productConfigurationDefinitions.definitionId,
+      ],
+      name: 'catalog_configuration_measured_rules_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.choiceKey],
+      foreignColumns: [
+        productConfigurationChoices.tenantId,
+        productConfigurationChoices.definitionId,
+        productConfigurationChoices.revision,
+        productConfigurationChoices.choiceKey,
+      ],
+      name: 'catalog_configuration_measured_rules_choice_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_configuration_measured_rules_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_configuration_measured_rules_package_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_configuration_measured_rules_bounds_ck',
+      sql`(${table.minimum} is null) = (${table.minimumInclusive} is null) and (${table.maximum} is null) = (${table.maximumInclusive} is null) and (${table.minimum} is null or ${table.maximum} is null or ${table.minimum} <= ${table.maximum})`,
+    ),
+    check(
+      'catalog_configuration_measured_rules_step_ck',
+      sql`(${table.step} is null and ${table.stepBase} is null) or (${table.step} > 0 and ${table.stepBase} is not null)`,
+    ),
+    check(
+      'catalog_configuration_measured_rules_target_ck',
+      sql`${table.packageDefinitionId} is null or ${table.variantId} is not null`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_measured_rules_tenant', table.tenantId),
+  ],
+);
+
+/** Bounded compatibility kinds; operands are exact choice/option or measured maximum. */
+export const productConfigurationCompatibilityRules = catalogSchema.table.withRLS(
+  'product_configuration_compatibility_rules',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    ruleId: uuid('rule_id').notNull(),
+    variantId: uuid('variant_id'),
+    packageDefinitionId: uuid('package_definition_id'),
+    kind: text('kind').notNull(),
+    choiceKey: text('choice_key').notNull(),
+    optionKey: text('option_key').notNull(),
+    otherChoiceKey: text('other_choice_key').notNull(),
+    otherOptionKey: text('other_option_key'),
+    maximum: numeric('maximum'),
+    maximumInclusive: boolean('maximum_inclusive'),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.ruleId],
+      name: 'catalog_configuration_compatibility_rules_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.definitionId],
+      foreignColumns: [
+        productConfigurationDefinitions.tenantId,
+        productConfigurationDefinitions.productId,
+        productConfigurationDefinitions.definitionId,
+      ],
+      name: 'catalog_configuration_compatibility_rules_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.choiceKey, table.optionKey],
+      foreignColumns: [
+        productConfigurationChoiceOptions.tenantId,
+        productConfigurationChoiceOptions.definitionId,
+        productConfigurationChoiceOptions.revision,
+        productConfigurationChoiceOptions.choiceKey,
+        productConfigurationChoiceOptions.optionKey,
+      ],
+      name: 'catalog_configuration_compatibility_rules_option_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.revision, table.otherChoiceKey],
+      foreignColumns: [
+        productConfigurationChoices.tenantId,
+        productConfigurationChoices.definitionId,
+        productConfigurationChoices.revision,
+        productConfigurationChoices.choiceKey,
+      ],
+      name: 'catalog_configuration_compatibility_rules_other_choice_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_configuration_compatibility_rules_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_configuration_compatibility_rules_package_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_configuration_compatibility_rules_kind_ck',
+      sql`(${table.kind} = 'FORBIDDEN_PAIR' and ${table.otherOptionKey} is not null and ${table.maximum} is null and ${table.maximumInclusive} is null) or (${table.kind} = 'CONDITIONAL_MAXIMUM' and ${table.otherOptionKey} is null and ${table.maximum} is not null and ${table.maximumInclusive} is not null)`,
+    ),
+    check(
+      'catalog_configuration_compatibility_rules_target_ck',
+      sql`${table.packageDefinitionId} is null or ${table.variantId} is not null`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_compatibility_rules_tenant', table.tenantId),
+  ],
+);
+
 const catalogDatabaseSchema = {
+  productConfigurationDefinitions,
+  productConfigurationDefinitionRevisions,
+  productConfigurationChoices,
+  productConfigurationChoiceOptions,
+  productConfigurationMeasuredRules,
+  productConfigurationOptionAllowances,
+  productConfigurationCompatibilityRules,
   catalogMediaAssignmentRevisions,
   catalogMediaAssignments,
   catalogMediaAssignmentSetRevisions,
@@ -2528,6 +2952,13 @@ const catalogDatabaseSchema = {
 } as const;
 
 export const CATALOG_TABLES = [
+  productConfigurationDefinitions,
+  productConfigurationDefinitionRevisions,
+  productConfigurationChoices,
+  productConfigurationChoiceOptions,
+  productConfigurationMeasuredRules,
+  productConfigurationOptionAllowances,
+  productConfigurationCompatibilityRules,
   catalogMediaAssignmentRevisions,
   catalogMediaAssignments,
   catalogMediaAssignmentSetRevisions,

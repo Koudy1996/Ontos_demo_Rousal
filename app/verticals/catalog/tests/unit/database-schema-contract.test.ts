@@ -21,6 +21,13 @@ import {
   catalogMediaAssignments,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
+  productConfigurationChoiceOptions,
+  productConfigurationChoices,
+  productConfigurationCompatibilityRules,
+  productConfigurationDefinitionRevisions,
+  productConfigurationDefinitions,
+  productConfigurationMeasuredRules,
+  productConfigurationOptionAllowances,
   manufacturerRelationRevisions,
   manufacturerRelations,
   packageContentRevisions,
@@ -63,7 +70,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns fifty-three tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns sixty tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -100,6 +107,13 @@ it('owns fifty-three tenant-scoped Catalog tables with RLS and immutable history
     'product_category_assignments',
     'product_category_events',
     'product_category_hierarchy_revisions',
+    'product_configuration_choice_options',
+    'product_configuration_choices',
+    'product_configuration_compatibility_rules',
+    'product_configuration_definition_revisions',
+    'product_configuration_definitions',
+    'product_configuration_measured_rules',
+    'product_configuration_option_allowances',
     'product_lifecycle_events',
     'product_localized_fact_revisions',
     'product_localized_facts',
@@ -136,6 +150,35 @@ it('owns fifty-three tenant-scoped Catalog tables with RLS and immutable history
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('keeps Product Configuration definitions and exact rules revision-scoped', () => {
+  expect(getTableConfig(productConfigurationDefinitions).foreignKeys.map((key) => key.getName())).toContain(
+    'catalog_configuration_definitions_product_fk',
+  );
+  expect(getTableConfig(productConfigurationDefinitionRevisions).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_configuration_definition_revisions_pk',
+  );
+  expect(getTableConfig(productConfigurationChoices).checks.map((rule) => rule.name)).toContain(
+    'catalog_configuration_choices_kind_ck',
+  );
+  expect(getTableConfig(productConfigurationChoiceOptions).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_configuration_choice_options_pk',
+  );
+  expect(getTableConfig(productConfigurationMeasuredRules).checks.map((rule) => rule.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_configuration_measured_rules_bounds_ck',
+      'catalog_configuration_measured_rules_step_ck',
+    ]),
+  );
+  expect(getTableConfig(productConfigurationCompatibilityRules).checks.map((rule) => rule.name)).toContain(
+    'catalog_configuration_compatibility_rules_kind_ck',
+  );
+  expect(getTableConfig(productConfigurationOptionAllowances).indexes.map((index) => index.config.name)).toEqual([
+    'catalog_configuration_allowances_product_uk',
+    'catalog_configuration_allowances_variant_uk',
+    'catalog_configuration_allowances_package_uk',
+  ]);
 });
 
 it('persists Product-local Size order and only evidenced, scoped equivalence', () => {
@@ -470,6 +513,10 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
     expect(combined).toContain(`ALTER TABLE "catalog"."${table}" FORCE ROW LEVEL SECURITY`);
   }
   expect(combined).toContain('catalog_product_revisions_append_only');
+  expect(combined).toContain('catalog_configuration_definition_revisions_append_only');
+  expect(combined).toContain('catalog_configuration_choices_append_only');
+  expect(combined).toContain('catalog_configuration_option_allowances_append_only');
+  expect(combined).toContain('catalog_configuration_definitions_identity_immutable');
   expect(combined).toContain('catalog_product_lifecycle_events_append_only');
   expect(combined).toContain('catalog_products_identity_immutable');
   expect(combined).toContain('catalog_product_variants_identity_immutable');

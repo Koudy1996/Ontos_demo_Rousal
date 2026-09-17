@@ -27,6 +27,7 @@ const pointersAreCurrent = (pointers: {
   axis_mismatch: number;
   brand_mismatch: number;
   category_mismatch: number;
+  configuration_definition_mismatch: number;
   controlled_value_mismatch: number;
   counter_mismatch: number;
   manufacturer_mismatch: number;
@@ -129,7 +130,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 54 ||
+    row.trigger_count !== 61 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -147,6 +148,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         axis_mismatch: number;
         brand_mismatch: number;
         category_mismatch: number;
+        configuration_definition_mismatch: number;
         controlled_value_mismatch: number;
         counter_mismatch: number;
         manufacturer_mismatch: number;
@@ -172,6 +174,12 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
           and r.revision=b.current_revision and r.name=b.name and r.lifecycle_state=b.lifecycle_state)
         or b.current_revision <> (select max(r.revision) from catalog.brand_revisions r
           where r.tenant_id=b.tenant_id and r.brand_id=b.brand_id)) brand_mismatch,
+      (select count(*)::integer from catalog.product_configuration_definitions d where not exists
+        (select 1 from catalog.product_configuration_definition_revisions r
+          where r.tenant_id=d.tenant_id and r.definition_id=d.definition_id
+            and r.product_id=d.product_id and r.revision=d.current_revision)
+        or d.current_revision <> (select max(r.revision) from catalog.product_configuration_definition_revisions r
+          where r.tenant_id=d.tenant_id and r.definition_id=d.definition_id)) configuration_definition_mismatch,
       (select count(*)::integer from catalog.product_brand_assignments a where not exists
         (select 1 from catalog.product_brand_assignment_revisions r where r.tenant_id=a.tenant_id
           and r.product_id=a.product_id and r.revision=a.current_revision and r.claim_kind=a.claim_kind
