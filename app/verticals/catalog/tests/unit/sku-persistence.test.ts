@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'effect-rstest';
+import { Match, Schema } from 'effect';
 
-import { currentPackageOptionSnapshotMatches, validSkuChangeInput } from '../../src/persistence/sku-persistence.ts';
+import {
+  assessSkuLookupSnapshot,
+  currentPackageOptionSnapshotMatches,
+  SkuPersistenceUnavailable,
+  validSkuChangeInput,
+} from '../../src/persistence/sku-persistence.ts';
 
 const base = {
   actionInvocationId: '00000000-0000-4000-8000-000000000001',
@@ -92,5 +98,99 @@ describe('SKU Package Option Current proof', () => {
         content: { ...active.content, effectiveAt: new Date('2026-09-18T00:00:00.000Z') },
       }),
     ).toBe(false);
+  });
+});
+
+describe('owner-local SKU lookup', () => {
+  const tenantId = 'tenant-a';
+  const current = {
+    currentRevision: 1,
+    displayCode: ' D-10 ',
+    normalizedCode: 'D-10',
+    packageDefinitionId: null,
+    state: 'CURRENT',
+    tenantId,
+    variantId: 'variant-a',
+  };
+  const first = {
+    normalizedCode: 'D-10',
+    packageDefinitionId: null,
+    revision: 1,
+    state: 'CURRENT',
+    tenantId,
+    variantId: 'variant-a',
+  };
+
+  it('returns a precise Current Variant in one Tenant using normalized comparison', () => {
+    expect(assessSkuLookupSnapshot(tenantId, ' d-10 ', current, [first])).toMatchObject({
+      displayCode: ' D-10 ',
+      revision: 1,
+      state: 'CURRENT',
+      target: { kind: 'VARIANT', tenantId, variantId: 'variant-a' },
+    });
+    expect(
+      Match.value(assessSkuLookupSnapshot('tenant-b', 'D-10', undefined, [])).pipe(
+        Match.tag('not_found', () => true),
+        Match.orElse(() => false),
+      ),
+    ).toBe(true);
+  });
+
+  it('preserves Historical status without declaring Current usability', () => {
+    expect(
+      assessSkuLookupSnapshot(tenantId, 'D-10', { ...current, currentRevision: 2, state: 'HISTORICAL' }, [
+        { ...first, revision: 2, state: 'HISTORICAL' },
+        first,
+      ]),
+    ).toMatchObject({ state: 'HISTORICAL', target: { kind: 'VARIANT', variantId: 'variant-a' } });
+  });
+
+  it('keeps Package Option identity distinct from its Variant', () => {
+    const option = { ...current, packageDefinitionId: 'package-a' };
+    const optionRevision = { ...first, packageDefinitionId: 'package-a' };
+    expect(assessSkuLookupSnapshot(tenantId, 'D-10', option, [optionRevision])).toMatchObject({
+      target: { kind: 'PACKAGE_OPTION', packageDefinitionId: 'package-a', tenantId },
+    });
+  });
+
+  it('does not silently reinterpret an earlier incorrect attribution', () => {
+    const corrected = { ...current, currentRevision: 2, variantId: 'variant-b' };
+    const correctedOutcome = assessSkuLookupSnapshot(tenantId, 'D-10', corrected, [
+      { ...first, revision: 2, variantId: 'variant-b' },
+      first,
+    ]);
+    expect(
+      Match.value(correctedOutcome).pipe(
+        Match.tag('ambiguous', () => true),
+        Match.orElse(() => false),
+      ),
+    ).toBe(true);
+    const unresolvedOutcome = assessSkuLookupSnapshot(tenantId, 'D-10', { ...current, state: 'UNRESOLVED' }, [first]);
+    expect(
+      Match.value(unresolvedOutcome).pipe(
+        Match.tag('ambiguous', () => true),
+        Match.orElse(() => false),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects blank input and fails closed on incomplete or cross-tenant history', () => {
+    expect(
+      Match.value(assessSkuLookupSnapshot(tenantId, ' ', undefined, [])).pipe(
+        Match.tag('invalid', () => true),
+        Match.orElse(() => false),
+      ),
+    ).toBe(true);
+    expect(Schema.is(SkuPersistenceUnavailable)(assessSkuLookupSnapshot(tenantId, 'D-10', current, []))).toBe(true);
+    expect(
+      Schema.is(SkuPersistenceUnavailable)(
+        assessSkuLookupSnapshot(tenantId, 'D-10', current, [{ ...first, tenantId: 'tenant-b' }]),
+      ),
+    ).toBe(true);
+    expect(
+      Schema.is(SkuPersistenceUnavailable)(
+        assessSkuLookupSnapshot(tenantId, 'D-10', { ...current, currentRevision: 2 }, [{ ...first, revision: 2 }]),
+      ),
+    ).toBe(true);
   });
 });

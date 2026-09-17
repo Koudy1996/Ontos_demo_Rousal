@@ -1,9 +1,10 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
 
 import { normalizeSku } from '../../shared/domain/commercial-code.ts';
 import type { SkuTarget } from '../../shared/domain/commercial-code.ts';
+import { SkuTargetSchema } from '../../shared/actions/assign-sku.ts';
 import {
   commercialSkuAssignmentRevisions,
   commercialSkuReservations,
@@ -124,6 +125,31 @@ export const SkuChangeOutcomeSchema = Schema.Union([
 ]);
 export type SkuChangeOutcome = typeof SkuChangeOutcomeSchema.Type;
 
+type SkuReservation = Pick<
+  typeof commercialSkuReservations.$inferSelect,
+  'currentRevision' | 'displayCode' | 'normalizedCode' | 'packageDefinitionId' | 'state' | 'tenantId' | 'variantId'
+>;
+type SkuRevision = Pick<
+  typeof commercialSkuAssignmentRevisions.$inferSelect,
+  'normalizedCode' | 'packageDefinitionId' | 'revision' | 'state' | 'tenantId' | 'variantId'
+>;
+
+export const SkuLookupOutcomeSchema = Schema.Union([
+  Schema.TaggedStruct('found', {
+    displayCode: Schema.String,
+    revision: Schema.Int,
+    state: Schema.Literals(['CURRENT', 'HISTORICAL']),
+    target: SkuTargetSchema,
+  }),
+  Schema.TaggedStruct('ambiguous', {}),
+  Schema.TaggedStruct('not_found', {}),
+  Schema.TaggedStruct('invalid', {}),
+]);
+export type SkuLookupOutcome = typeof SkuLookupOutcomeSchema.Type;
+
+const validSkuLookupCode = (normalizedCode: string): boolean =>
+  normalizedCode.length > 0 && normalizedCode.length <= 240;
+
 const unavailable = (cause?: unknown): SkuPersistenceUnavailable => {
   const failure = new SkuPersistenceUnavailable({
     code: 'sku_persistence_unavailable',
@@ -133,6 +159,68 @@ const unavailable = (cause?: unknown): SkuPersistenceUnavailable => {
     Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
   }
   return failure;
+};
+
+/** A bare code cannot disambiguate pre-correction occurrences without source/time context. */
+export const assessSkuLookupSnapshot = (
+  tenantId: string,
+  code: string,
+  reservation: SkuReservation | undefined,
+  revisions: readonly SkuRevision[],
+): SkuLookupOutcome | SkuPersistenceUnavailable => {
+  const normalizedCode = normalizeSku(code);
+  if (!validSkuLookupCode(normalizedCode)) {
+    return { _tag: 'invalid' };
+  }
+  if (reservation === undefined) {
+    return revisions.length === 0 ? { _tag: 'not_found' } : unavailable();
+  }
+  if (
+    reservation.tenantId !== tenantId ||
+    reservation.normalizedCode !== normalizedCode ||
+    revisions.length === 0 ||
+    revisions.some((revision) => revision.tenantId !== tenantId || revision.normalizedCode !== normalizedCode)
+  ) {
+    return unavailable();
+  }
+  if (reservation.state === 'UNRESOLVED') {
+    return { _tag: 'ambiguous' };
+  }
+  if (reservation.state !== 'CURRENT' && reservation.state !== 'HISTORICAL') {
+    return unavailable();
+  }
+  const [latest] = revisions;
+  if (
+    latest === undefined ||
+    latest.revision !== reservation.currentRevision ||
+    latest.state !== reservation.state ||
+    latest.variantId !== reservation.variantId ||
+    latest.packageDefinitionId !== reservation.packageDefinitionId ||
+    revisions.length !== reservation.currentRevision ||
+    revisions.some((revision) => revision.revision < 1 || revision.revision > reservation.currentRevision)
+  ) {
+    return unavailable();
+  }
+  if (
+    revisions.some(
+      (revision) =>
+        revision.variantId !== reservation.variantId ||
+        revision.packageDefinitionId !== reservation.packageDefinitionId,
+    )
+  ) {
+    return { _tag: 'ambiguous' };
+  }
+  const target: SkuTarget =
+    reservation.packageDefinitionId === null
+      ? { kind: 'VARIANT', tenantId, variantId: reservation.variantId }
+      : { kind: 'PACKAGE_OPTION', packageDefinitionId: reservation.packageDefinitionId, tenantId };
+  return {
+    _tag: 'found',
+    displayCode: reservation.displayCode,
+    revision: reservation.currentRevision,
+    state: reservation.state,
+    target,
+  };
 };
 
 export const validSkuChangeInput = (input: SkuChangeInput, tenantId: string): boolean =>
@@ -171,6 +259,52 @@ export const skuPersistenceForScope = (
   const { tenantId } = scope;
   const reservationWhere = (normalizedCode: string) =>
     and(eq(commercialSkuReservations.tenantId, tenantId), eq(commercialSkuReservations.normalizedCode, normalizedCode));
+  const lookup = Effect.fn('SkuPersistence.lookup')(function* lookup(code: string) {
+    const normalizedCode = normalizeSku(code);
+    if (!validSkuLookupCode(normalizedCode)) {
+      return { _tag: 'invalid' } as const;
+    }
+    const [reservations, revisions] = yield* Effect.all(
+      [
+        transaction
+          .select({
+            currentRevision: commercialSkuReservations.currentRevision,
+            displayCode: commercialSkuReservations.displayCode,
+            normalizedCode: commercialSkuReservations.normalizedCode,
+            packageDefinitionId: commercialSkuReservations.packageDefinitionId,
+            state: commercialSkuReservations.state,
+            tenantId: commercialSkuReservations.tenantId,
+            variantId: commercialSkuReservations.variantId,
+          })
+          .from(commercialSkuReservations)
+          .where(reservationWhere(normalizedCode))
+          .limit(2),
+        transaction
+          .select({
+            normalizedCode: commercialSkuAssignmentRevisions.normalizedCode,
+            packageDefinitionId: commercialSkuAssignmentRevisions.packageDefinitionId,
+            revision: commercialSkuAssignmentRevisions.revision,
+            state: commercialSkuAssignmentRevisions.state,
+            tenantId: commercialSkuAssignmentRevisions.tenantId,
+            variantId: commercialSkuAssignmentRevisions.variantId,
+          })
+          .from(commercialSkuAssignmentRevisions)
+          .where(
+            and(
+              eq(commercialSkuAssignmentRevisions.tenantId, tenantId),
+              eq(commercialSkuAssignmentRevisions.normalizedCode, normalizedCode),
+            ),
+          )
+          .orderBy(desc(commercialSkuAssignmentRevisions.revision)),
+      ],
+      { concurrency: 1 },
+    ).pipe(Effect.mapError(unavailable));
+    if (reservations.length > 1) {
+      return { _tag: 'ambiguous' } as const;
+    }
+    const outcome = assessSkuLookupSnapshot(tenantId, code, reservations[0], revisions);
+    return Schema.is(SkuPersistenceUnavailable)(outcome) ? yield* outcome : outcome;
+  });
   const readInvocation = (actionInvocationId: string, normalizedCode: string) =>
     transaction
       .select()
@@ -608,5 +742,5 @@ export const skuPersistenceForScope = (
   });
   /* oxlint-enable eslint/complexity */
 
-  return { assign, correct, rename };
+  return { assign, correct, lookup, rename };
 };
