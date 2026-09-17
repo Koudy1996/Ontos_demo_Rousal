@@ -282,6 +282,13 @@ export const packagePersistenceForScope = (
     if (DateTime.toEpochMillis(DateTime.makeUnsafe(content.effectiveAt)) <= prior.effectiveAt.getTime()) {
       return { _tag: 'invalid', reason: 'Successor effectiveness must follow the prior content revision' };
     }
+    // currentRevision is also consumed as the effective Current pointer by Package Option and
+    // activation. Until those readers support an as-of timeline, never publish a future row.
+    if (
+      DateTime.toEpochMillis(DateTime.makeUnsafe(content.effectiveAt)) > DateTime.toEpochMillis(yield* DateTime.now)
+    ) {
+      return { _tag: 'invalid', reason: 'Future-effective Package content scheduling is not supported' };
+    }
     if (!(yield* verify(content, id))) {
       return { _tag: 'invalid', reason: 'Package content basis is invalid' };
     }

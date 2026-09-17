@@ -66,6 +66,19 @@ const activeOptionSelection = () => ({
     }),
   }),
 });
+const futureDefinitionSelection = () => ({
+  where: () => ({
+    for: () => ({
+      limit: () =>
+        Effect.succeed([
+          { currentRevision: 1, lifecycleState: 'ACTIVE', packageDefinitionId: packageId, productId, variantId },
+        ]),
+    }),
+  }),
+});
+const priorContentSelection = () => ({
+  where: () => ({ limit: () => Effect.succeed([{ effectiveAt: new Date('2026-01-01T00:00:00.000Z') }]) }),
+});
 
 describe('Package persistence', () => {
   it.effect('appends an immutable draft revision only after trusted basis verification', () =>
@@ -201,6 +214,39 @@ describe('Package persistence', () => {
           Match.orElse(() => 0),
         ),
       ).toBe(2);
+    }),
+  );
+
+  it.effect('keeps effective Current unchanged when a successor is scheduled for the future', () =>
+    Effect.gen(function* futureSuccessor() {
+      const revisionPayload = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        content: { ...payload.content, effectiveAt: '2099-01-01T00:00:00.000Z' },
+        evidenceRefs: payload.evidenceRefs,
+        expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
+        reason: payload.reason,
+      });
+      const transaction = {
+        insert: () => {
+          throw new Error('Future content must not be appended as Current');
+        },
+        select: () => ({
+          from: (table: typeof packageDefinitions | typeof packageContentRevisions) =>
+            table === packageDefinitions ? futureDefinitionSelection() : priorContentSelection(),
+        }),
+        update: () => {
+          throw new Error('Future content must not advance Current');
+        },
+      };
+      const basis = { verify: () => Effect.die('Future content must not be verified as Current') };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = packagePersistenceForScope(transaction, scope, basis);
+      const outcome = yield* service.revise({ ...evidence, payload: revisionPayload });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('invalid', ({ reason }) => reason),
+          Match.orElse(() => ''),
+        ),
+      ).toBe('Future-effective Package content scheduling is not supported');
     }),
   );
 
