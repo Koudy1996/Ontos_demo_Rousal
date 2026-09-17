@@ -26,6 +26,7 @@ type UnitRow = typeof productUnits.$inferSelect;
 type Evidence = { readonly actionInvocationId: string; readonly principalId: string };
 type Input<Payload> = Evidence & { readonly payload: Payload };
 type Target = SetProductUnitTargetDivisibilityPayload['target'];
+type ExpectedSources = SetProductUnitTargetDivisibilityPayload['expectedSources'];
 const unitType = 'commerce.catalog.product-unit';
 
 export class ProductUnitPersistenceUnavailable extends Schema.TaggedError<ProductUnitPersistenceUnavailable>()(
@@ -61,7 +62,10 @@ export interface ProductUnitPersistence {
 
 /** Supplied by an owner-local Current-basis service; request metadata never proves Current. */
 export interface ProductUnitTargetBasis {
-  readonly verify: (target: Target) => Effect.Effect<'valid' | 'invalid', ProductUnitPersistenceUnavailable>;
+  readonly verify: (
+    target: Target,
+    expectedSources: ExpectedSources,
+  ) => Effect.Effect<'valid' | 'invalid' | 'stale', ProductUnitPersistenceUnavailable>;
 }
 
 const unavailable = (cause?: unknown) => {
@@ -260,7 +264,7 @@ export const productUnitPersistenceForScope = (
   const setTargetDivisibility: ProductUnitPersistence['setTargetDivisibility'] = Effect.fn(
     'ProductUnitPersistence.setTargetDivisibility',
   )(function* setTargetDivisibility(input) {
-    const { target, divisible, expectedCurrentRevision } = input.payload;
+    const { target, divisible, expectedCurrentRevision, expectedSources } = input.payload;
     if (!validRef(target.unit, tenantId) || target.tenantId !== tenantId || !validEvidence(input))
       return { _tag: 'invalid', reason: 'Product Unit target or evidence is invalid' };
     const [unit] = yield* getUnit(target.unit.resourceId);
@@ -271,8 +275,10 @@ export const productUnitPersistenceForScope = (
       return yield* unavailable();
     const currentRounding = rule.rounding;
     if (basis === undefined) return yield* unavailable();
-    if ((yield* basis.verify(target)) === 'invalid')
+    const basisResult = yield* basis.verify(target, expectedSources);
+    if (basisResult === 'invalid')
       return { _tag: 'invalid', reason: 'Product Unit target is not an active Tenant-owned purchase target' };
+    if (basisResult === 'stale') return { _tag: 'stale', actualRevision: 0 };
     const variant = target.targetType === 'commerce.catalog.variant';
     const currentTable = variant ? variantUnitDivisibility : packageUnitDivisibility;
     const targetColumn = variant ? variantUnitDivisibility.variantId : packageUnitDivisibility.packageDefinitionId;

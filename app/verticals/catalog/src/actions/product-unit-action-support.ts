@@ -19,9 +19,22 @@ export const productUnitPersistenceServiceFactory = (
       reason: 'Authoritative Product Unit target basis is unavailable',
     });
   const basis: NonNullable<Parameters<typeof productUnitPersistenceForScope>[2]> = {
-    verify: (target) =>
+    verify: (target, expectedSources) =>
       Effect.gen(function* () {
         if (target.tenantId !== scope.tenantId) return 'invalid' as const;
+        if (
+          expectedSources.product.resourceRef.tenantId !== scope.tenantId ||
+          expectedSources.variant.resourceRef.tenantId !== scope.tenantId ||
+          (expectedSources.packageDefinition !== undefined &&
+            expectedSources.packageDefinition.resourceRef.tenantId !== scope.tenantId)
+        )
+          return 'invalid' as const;
+        if (
+          (target.targetType === 'commerce.catalog.variant' && expectedSources.packageDefinition !== undefined) ||
+          (target.targetType === 'commerce.catalog.package-definition' &&
+            expectedSources.packageDefinition === undefined)
+        )
+          return 'invalid' as const;
         let variantId = target.targetId;
         let packageProductId: string | undefined;
         if (target.targetType === 'commerce.catalog.package-definition') {
@@ -37,6 +50,9 @@ export const productUnitPersistenceServiceFactory = (
             .for('update')
             .limit(1);
           if (packageRow === undefined || packageRow.lifecycleState !== 'ACTIVE') return 'invalid' as const;
+          if (expectedSources.packageDefinition?.resourceRef.resourceId !== packageRow.packageDefinitionId)
+            return 'invalid' as const;
+          if (expectedSources.packageDefinition.revision !== packageRow.currentRevision) return 'stale' as const;
           variantId = packageRow.variantId;
           packageProductId = packageRow.productId;
         }
@@ -48,6 +64,8 @@ export const productUnitPersistenceServiceFactory = (
           .limit(1);
         if (variantRow === undefined) return 'invalid' as const;
         if (variantRow.lifecycleState !== 'ACTIVE') return 'invalid' as const;
+        if (expectedSources.variant.resourceRef.resourceId !== variantRow.variantId) return 'invalid' as const;
+        if (expectedSources.variant.revision !== variantRow.currentRevision) return 'stale' as const;
         if (packageProductId !== undefined && packageProductId !== variantRow.productId) return 'invalid' as const;
         const [product] = yield* transaction
           .select()
@@ -55,7 +73,9 @@ export const productUnitPersistenceServiceFactory = (
           .where(and(eq(products.tenantId, scope.tenantId), eq(products.productId, variantRow.productId)))
           .for('update')
           .limit(1);
-        return product?.lifecycleState === 'ACTIVE' ? ('valid' as const) : ('invalid' as const);
+        if (product?.lifecycleState !== 'ACTIVE') return 'invalid' as const;
+        if (expectedSources.product.resourceRef.resourceId !== product.productId) return 'invalid' as const;
+        return expectedSources.product.revision === product.currentRevision ? ('valid' as const) : ('stale' as const);
       }).pipe(Effect.mapError(unavailable)),
   };
   return Effect.succeed(productUnitPersistenceForScope(transaction, scope, basis));
