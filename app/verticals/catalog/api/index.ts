@@ -15,6 +15,7 @@ import {
   OperationalScopeResolverLive,
 } from '@app/core-runtime/actions/runtime-wiring';
 import { assembleEffectBffRuntime } from '@app/shared-contracts/server/effect-bff-runtime';
+import type { EffectBffRuntimeAssembly } from '@app/shared-contracts/server/effect-bff-runtime';
 import { Effect, HttpApiBuilder, HttpRouter, Layer } from '@modern-js/bff-effect/effect-edge';
 import type { EffectBffDefinition, EffectBffRuntime } from '@modern-js/bff-effect/effect-edge';
 import { Layer as GovernedReadLayer, Logger, References, Schema, Tracer } from 'effect';
@@ -26,15 +27,21 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 
 // <generated-governed-http-handler-imports>
 import { activatePackageDefinitionActionApiLive } from './activate-package-definition-action-server.ts';
+import { activatePackageOptionActionApiLive } from './activate-package-option-action-server.ts';
 import { addProductCategoryAssignmentActionApiLive } from './add-product-category-assignment-action-server.ts';
+import { assertSizeEquivalenceActionApiLive } from './assert-size-equivalence-action-server.ts';
 import { assignCatalogMediaActionApiLive } from './assign-catalog-media-action-server.ts';
+import { assignSkuActionApiLive } from './assign-sku-action-server.ts';
 import { brandCurrentReadApiLive } from './brand-current-read-server.ts';
 import { brandHistoryReadApiLive } from './brand-history-read-server.ts';
 import { catalogMediaCurrentReadApiLive } from './catalog-media-current-read-server.ts';
 import { changeProductManufacturerActionApiLive } from './change-product-manufacturer-action-server.ts';
 import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
 import { changeVariantActionApiLive } from './change-variant-action-server.ts';
+import { confirmGtinActionApiLive } from './confirm-gtin-action-server.ts';
+import { correctGtinActionApiLive } from './correct-gtin-action-server.ts';
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
+import { correctSkuActionApiLive } from './correct-sku-action-server.ts';
 import { createAttributeDefinitionActionApiLive } from './create-attribute-definition-action-server.ts';
 import { createBrandActionApiLive } from './create-brand-action-server.ts';
 import { createControlledAttributeValueActionApiLive } from './create-controlled-attribute-value-action-server.ts';
@@ -45,6 +52,7 @@ import { createProductRecoveryReadApiLive } from './create-product-recovery-read
 import { createProductRelationshipActionApiLive } from './create-product-relationship-action-server.ts';
 import { createProductTypeActionApiLive } from './create-product-type-action-server.ts';
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
+import { createSetCompositionActionApiLive } from './create-set-composition-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
 import { manufacturerRelationCurrentReadApiLive } from './manufacturer-relation-current-read-server.ts';
 import { manufacturerRelationHistoryReadApiLive } from './manufacturer-relation-history-read-server.ts';
@@ -57,6 +65,7 @@ import { productDetailReadApiLive } from './product-detail-read-server.ts';
 import { productHistoryReadApiLive } from './product-history-read-server.ts';
 import { productRelationshipCurrentReadApiLive } from './product-relationship-current-read-server.ts';
 import { productRelationshipHistoryReadApiLive } from './product-relationship-history-read-server.ts';
+import { publishProductConfigurationActionApiLive } from './publish-product-configuration-action-server.ts';
 import { reactivateBrandActionApiLive } from './reactivate-brand-action-server.ts';
 import { reactivateControlledAttributeValueActionApiLive } from './reactivate-controlled-attribute-value-action-server.ts';
 import { reactivateProductActionApiLive } from './reactivate-product-action-server.ts';
@@ -73,10 +82,13 @@ import { renameAttributeDefinitionActionApiLive } from './rename-attribute-defin
 import { renameBrandActionApiLive } from './rename-brand-action-server.ts';
 import { renameControlledAttributeValueActionApiLive } from './rename-controlled-attribute-value-action-server.ts';
 import { renameProductCategoryActionApiLive } from './rename-product-category-action-server.ts';
+import { renameSkuActionApiLive } from './rename-sku-action-server.ts';
 import { reorderCatalogMediaActionApiLive } from './reorder-catalog-media-action-server.ts';
+import { replaceProductSizesActionApiLive } from './replace-product-sizes-action-server.ts';
 import { retireBrandActionApiLive } from './retire-brand-action-server.ts';
 import { retireControlledAttributeValueActionApiLive } from './retire-controlled-attribute-value-action-server.ts';
 import { retirePackageDefinitionActionApiLive } from './retire-package-definition-action-server.ts';
+import { retirePackageOptionActionApiLive } from './retire-package-option-action-server.ts';
 import { retireProductActionApiLive } from './retire-product-action-server.ts';
 import { retireProductCategoryActionApiLive } from './retire-product-category-action-server.ts';
 import { retireProductUnitActionApiLive } from './retire-product-unit-action-server.ts';
@@ -84,6 +96,7 @@ import { retireVariantActionApiLive } from './retire-variant-action-server.ts';
 import { revisePackageDefinitionActionApiLive } from './revise-package-definition-action-server.ts';
 import { reviseProductTypeActionApiLive } from './revise-product-type-action-server.ts';
 import { reviseProductUnitActionApiLive } from './revise-product-unit-action-server.ts';
+import { reviseSetCompositionActionApiLive } from './revise-set-composition-action-server.ts';
 import { setProductAttributeValuesActionApiLive } from './set-product-attribute-values-action-server.ts';
 import { setProductBrandActionApiLive } from './set-product-brand-action-server.ts';
 import { setProductLocalizedFactsActionApiLive } from './set-product-localized-facts-action-server.ts';
@@ -177,6 +190,8 @@ type CatalogApiRuntimeArguments = readonly [
   gatewayAssertionRedemption: Layer.Layer<GatewayAssertionRedemptionService>,
 ];
 
+type CatalogApiGroups = (typeof catalogApi.groups)[keyof typeof catalogApi.groups];
+
 export const makeCatalogApiRuntime = (
   ...args: CatalogApiRuntimeArguments
 ): EffectBffDefinition<typeof catalogApi> & EffectBffRuntime<typeof catalogApi> => {
@@ -189,15 +204,21 @@ export const makeCatalogApiRuntime = (
     catalogReadinessLayer,
     // <generated-governed-http-handler-layers>
     activatePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    activatePackageOptionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     addProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    assertSizeEquivalenceActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     assignCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    assignSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     brandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     brandHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     catalogMediaCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    confirmGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    correctGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    correctSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -211,6 +232,7 @@ export const makeCatalogApiRuntime = (
     createProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     manufacturerRelationCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
@@ -223,6 +245,7 @@ export const makeCatalogApiRuntime = (
     productHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productRelationshipCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productRelationshipHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    publishProductConfigurationActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reactivateBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reactivateControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reactivateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -239,10 +262,13 @@ export const makeCatalogApiRuntime = (
     renameBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     renameControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     renameProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    renameSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reorderCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    replaceProductSizesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retirePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retirePackageOptionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -250,6 +276,7 @@ export const makeCatalogApiRuntime = (
     revisePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -261,7 +288,15 @@ export const makeCatalogApiRuntime = (
     updateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     // </generated-governed-http-handler-layers>
   ).pipe(Layer.provide(Layer.mergeAll(actionPrincipalVerifierLive, gatewayAssertionRedemption)));
-  const resolvedApiHandlersLive = apiHandlersLive.pipe(Layer.provide(runtimeObservabilityLive), Layer.orDie);
+  type CatalogHandlerRequirements =
+    typeof apiHandlersLive extends Layer.Layer<infer _Services, infer _Error, infer Requirements>
+      ? Requirements
+      : never;
+  const resolvedApiHandlersLive: EffectBffRuntimeAssembly<
+    'CatalogApi',
+    CatalogApiGroups,
+    CatalogHandlerRequirements
+  >['handlers'] = apiHandlersLive.pipe(Layer.provide(runtimeObservabilityLive), Layer.orDie);
   const transportLive = HttpRouter.cors({
     allowedHeaders: [...catalogCorsAllowedHeaders],
     allowedMethods: [...catalogCorsAllowedMethods],
@@ -276,7 +311,7 @@ export const makeCatalogApiRuntime = (
   });
 };
 
-const apiRuntime = makeCatalogApiRuntime(
+const apiRuntime: EffectBffDefinition<typeof catalogApi> & EffectBffRuntime<typeof catalogApi> = makeCatalogApiRuntime(
   catalogReadRuntime,
   catalogActionRuntime,
   GovernedGatewayAssertionRedemptionLive,

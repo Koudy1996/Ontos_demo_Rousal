@@ -12,9 +12,11 @@ import {
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
 import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
+import { activatePackageOptionAction } from './src/actions/activate-package-option.action.ts';
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
 import { assertSizeEquivalenceAction } from './src/actions/assert-size-equivalence.action.ts';
 import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
+import { assignSkuAction } from './src/actions/assign-sku.action.ts';
 import { attributeDefinitionResourceDescriptor } from './shared/resources/attribute-definition.ts';
 import { BrandCurrentApi } from './shared/apis/brand-current.ts';
 import { BrandHistoryApi } from './shared/apis/brand-history.ts';
@@ -25,8 +27,11 @@ import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
 import { changeVariantAction } from './src/actions/change-variant.action.ts';
+import { confirmGtinAction } from './src/actions/confirm-gtin.action.ts';
 import { controlledAttributeValueResourceDescriptor } from './shared/resources/controlled-attribute-value.ts';
+import { correctGtinAction } from './src/actions/correct-gtin.action.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
+import { correctSkuAction } from './src/actions/correct-sku.action.ts';
 import { createAttributeDefinitionAction } from './src/actions/create-attribute-definition.action.ts';
 import { createBrandAction } from './src/actions/create-brand.action.ts';
 import { createControlledAttributeValueAction } from './src/actions/create-controlled-attribute-value.action.ts';
@@ -37,6 +42,7 @@ import { CreateProductRecoveryApi } from './shared/apis/create-product-recovery.
 import { createProductRelationshipAction } from './src/actions/create-product-relationship.action.ts';
 import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
 import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
+import { createSetCompositionAction } from './src/actions/create-set-composition.action.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
 import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
@@ -54,6 +60,7 @@ import { ProductRelationshipHistoryApi } from './shared/apis/product-relationshi
 import { productResourceDescriptor } from './shared/resources/product.ts';
 import { productTypeResourceDescriptor } from './shared/resources/product-type.ts';
 import { productUnitResourceDescriptor } from './shared/resources/product-unit.ts';
+import { publishProductConfigurationAction } from './src/actions/publish-product-configuration.action.ts';
 import { reactivateBrandAction } from './src/actions/reactivate-brand.action.ts';
 import { reactivateControlledAttributeValueAction } from './src/actions/reactivate-controlled-attribute-value.action.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
@@ -70,11 +77,13 @@ import { renameAttributeDefinitionAction } from './src/actions/rename-attribute-
 import { renameBrandAction } from './src/actions/rename-brand.action.ts';
 import { renameControlledAttributeValueAction } from './src/actions/rename-controlled-attribute-value.action.ts';
 import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
+import { renameSkuAction } from './src/actions/rename-sku.action.ts';
 import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.action.ts';
 import { replaceProductSizesAction } from './src/actions/replace-product-sizes.action.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
 import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
+import { retirePackageOptionAction } from './src/actions/retire-package-option.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
 import { retireProductUnitAction } from './src/actions/retire-product-unit.action.ts';
@@ -82,6 +91,7 @@ import { retireVariantAction } from './src/actions/retire-variant.action.ts';
 import { revisePackageDefinitionAction } from './src/actions/revise-package-definition.action.ts';
 import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
 import { reviseProductUnitAction } from './src/actions/revise-product-unit.action.ts';
+import { reviseSetCompositionAction } from './src/actions/revise-set-composition.action.ts';
 import { setProductAttributeValuesAction } from './src/actions/set-product-attribute-values.action.ts';
 import { setProductBrandAction } from './src/actions/set-product-brand.action.ts';
 import { setProductLocalizedFactsAction } from './src/actions/set-product-localized-facts.action.ts';
@@ -129,13 +139,18 @@ export const catalogManifest = defineOntosModuleManifest({
     actions: [
       // <generated-module-manifest-actions>
       activatePackageDefinitionAction,
+      activatePackageOptionAction,
       addProductCategoryAssignmentAction,
       assertSizeEquivalenceAction,
       assignCatalogMediaAction,
+      assignSkuAction,
       changeProductManufacturerAction,
       changeProductRelationshipAction,
       changeVariantAction,
+      confirmGtinAction,
+      correctGtinAction,
       correctProductAction,
+      correctSkuAction,
       createAttributeDefinitionAction,
       createBrandAction,
       createControlledAttributeValueAction,
@@ -145,8 +160,10 @@ export const catalogManifest = defineOntosModuleManifest({
       createProductRelationshipAction,
       createProductTypeAction,
       createProductUnitAction,
+      createSetCompositionAction,
       createVariantAction,
       moveProductCategoryAction,
+      publishProductConfigurationAction,
       reactivateBrandAction,
       reactivateControlledAttributeValueAction,
       reactivateProductAction,
@@ -163,11 +180,13 @@ export const catalogManifest = defineOntosModuleManifest({
       renameBrandAction,
       renameControlledAttributeValueAction,
       renameProductCategoryAction,
+      renameSkuAction,
       reorderCatalogMediaAction,
       replaceProductSizesAction,
       retireBrandAction,
       retireControlledAttributeValueAction,
       retirePackageDefinitionAction,
+      retirePackageOptionAction,
       retireProductAction,
       retireProductCategoryAction,
       retireProductUnitAction,
@@ -175,6 +194,7 @@ export const catalogManifest = defineOntosModuleManifest({
       revisePackageDefinitionAction,
       reviseProductTypeAction,
       reviseProductUnitAction,
+      reviseSetCompositionAction,
       setProductAttributeValuesAction,
       setProductBrandAction,
       setProductLocalizedFactsAction,

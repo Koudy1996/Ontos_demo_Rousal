@@ -9,15 +9,21 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 
 // <generated-governed-http-api-imports>
 import { ActivatePackageDefinitionActionApi } from './apis/activate-package-definition-action.ts';
+import { ActivatePackageOptionActionApi } from './apis/activate-package-option-action.ts';
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
+import { AssertSizeEquivalenceActionApi } from './apis/assert-size-equivalence-action.ts';
 import { AssignCatalogMediaActionApi } from './apis/assign-catalog-media-action.ts';
+import { AssignSkuActionApi } from './apis/assign-sku-action.ts';
 import { BrandCurrentApi } from './apis/brand-current.ts';
 import { BrandHistoryApi } from './apis/brand-history.ts';
 import { CatalogMediaCurrentApi } from './apis/catalog-media-current.ts';
 import { ChangeProductManufacturerActionApi } from './apis/change-product-manufacturer-action.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
 import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
+import { ConfirmGtinActionApi } from './apis/confirm-gtin-action.ts';
+import { CorrectGtinActionApi } from './apis/correct-gtin-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
+import { CorrectSkuActionApi } from './apis/correct-sku-action.ts';
 import { CreateAttributeDefinitionActionApi } from './apis/create-attribute-definition-action.ts';
 import { CreateBrandActionApi } from './apis/create-brand-action.ts';
 import { CreateControlledAttributeValueActionApi } from './apis/create-controlled-attribute-value-action.ts';
@@ -28,6 +34,7 @@ import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
 import { CreateProductRelationshipActionApi } from './apis/create-product-relationship-action.ts';
 import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
+import { CreateSetCompositionActionApi } from './apis/create-set-composition-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
 import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
@@ -40,6 +47,7 @@ import { ProductDetailApi } from './apis/product-detail.ts';
 import { ProductHistoryApi } from './apis/product-history.ts';
 import { ProductRelationshipCurrentApi } from './apis/product-relationship-current.ts';
 import { ProductRelationshipHistoryApi } from './apis/product-relationship-history.ts';
+import { PublishProductConfigurationActionApi } from './apis/publish-product-configuration-action.ts';
 import { ReactivateBrandActionApi } from './apis/reactivate-brand-action.ts';
 import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
@@ -56,10 +64,13 @@ import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-defi
 import { RenameBrandActionApi } from './apis/rename-brand-action.ts';
 import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
 import { RenameProductCategoryActionApi } from './apis/rename-product-category-action.ts';
+import { RenameSkuActionApi } from './apis/rename-sku-action.ts';
 import { ReorderCatalogMediaActionApi } from './apis/reorder-catalog-media-action.ts';
+import { ReplaceProductSizesActionApi } from './apis/replace-product-sizes-action.ts';
 import { RetireBrandActionApi } from './apis/retire-brand-action.ts';
 import { RetireControlledAttributeValueActionApi } from './apis/retire-controlled-attribute-value-action.ts';
 import { RetirePackageDefinitionActionApi } from './apis/retire-package-definition-action.ts';
+import { RetirePackageOptionActionApi } from './apis/retire-package-option-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
 import { RetireProductUnitActionApi } from './apis/retire-product-unit-action.ts';
@@ -67,6 +78,7 @@ import { RetireVariantActionApi } from './apis/retire-variant-action.ts';
 import { RevisePackageDefinitionActionApi } from './apis/revise-package-definition-action.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
 import { ReviseProductUnitActionApi } from './apis/revise-product-unit-action.ts';
+import { ReviseSetCompositionActionApi } from './apis/revise-set-composition-action.ts';
 import { SetProductAttributeValuesActionApi } from './apis/set-product-attribute-values-action.ts';
 import { SetProductBrandActionApi } from './apis/set-product-brand-action.ts';
 import { SetProductLocalizedFactsActionApi } from './apis/set-product-localized-facts-action.ts';
@@ -101,15 +113,21 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(ActivatePackageDefinitionActionApi)
+  .addHttpApi(ActivatePackageOptionActionApi)
   .addHttpApi(AddProductCategoryAssignmentActionApi)
+  .addHttpApi(AssertSizeEquivalenceActionApi)
   .addHttpApi(AssignCatalogMediaActionApi)
+  .addHttpApi(AssignSkuActionApi)
   .addHttpApi(BrandCurrentApi)
   .addHttpApi(BrandHistoryApi)
   .addHttpApi(CatalogMediaCurrentApi)
   .addHttpApi(ChangeProductManufacturerActionApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
   .addHttpApi(ChangeVariantActionApi)
+  .addHttpApi(ConfirmGtinActionApi)
+  .addHttpApi(CorrectGtinActionApi)
   .addHttpApi(CorrectProductActionApi)
+  .addHttpApi(CorrectSkuActionApi)
   .addHttpApi(CreateAttributeDefinitionActionApi)
   .addHttpApi(CreateBrandActionApi)
   .addHttpApi(CreateControlledAttributeValueActionApi)
@@ -120,6 +138,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductRelationshipActionApi)
   .addHttpApi(CreateProductTypeActionApi)
   .addHttpApi(CreateProductUnitActionApi)
+  .addHttpApi(CreateSetCompositionActionApi)
   .addHttpApi(CreateVariantActionApi)
   .addHttpApi(ManufacturerRelationCurrentApi)
   .addHttpApi(ManufacturerRelationHistoryApi)
@@ -132,6 +151,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductHistoryApi)
   .addHttpApi(ProductRelationshipCurrentApi)
   .addHttpApi(ProductRelationshipHistoryApi)
+  .addHttpApi(PublishProductConfigurationActionApi)
   .addHttpApi(ReactivateBrandActionApi)
   .addHttpApi(ReactivateControlledAttributeValueActionApi)
   .addHttpApi(ReactivateProductActionApi)
@@ -148,10 +168,13 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RenameBrandActionApi)
   .addHttpApi(RenameControlledAttributeValueActionApi)
   .addHttpApi(RenameProductCategoryActionApi)
+  .addHttpApi(RenameSkuActionApi)
   .addHttpApi(ReorderCatalogMediaActionApi)
+  .addHttpApi(ReplaceProductSizesActionApi)
   .addHttpApi(RetireBrandActionApi)
   .addHttpApi(RetireControlledAttributeValueActionApi)
   .addHttpApi(RetirePackageDefinitionActionApi)
+  .addHttpApi(RetirePackageOptionActionApi)
   .addHttpApi(RetireProductActionApi)
   .addHttpApi(RetireProductCategoryActionApi)
   .addHttpApi(RetireProductUnitActionApi)
@@ -159,6 +182,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RevisePackageDefinitionActionApi)
   .addHttpApi(ReviseProductTypeActionApi)
   .addHttpApi(ReviseProductUnitActionApi)
+  .addHttpApi(ReviseSetCompositionActionApi)
   .addHttpApi(SetProductAttributeValuesActionApi)
   .addHttpApi(SetProductBrandActionApi)
   .addHttpApi(SetProductLocalizedFactsActionApi)
