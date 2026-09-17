@@ -136,15 +136,18 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     0,
   );
   const expectedInfrastructure = [CATALOG_TABLES.length, 1, expectedPolicyCount, 1, 71, 1, expectedForeignKeyCount];
-  const actualInfrastructure = row === undefined ? undefined : [
-    row.forced_rls,
-    row.journal_count,
-    row.policy_count,
-    row.result_snapshot_guard_count,
-    row.trigger_count,
-    row.validated_combination_count,
-    row.foreign_key_count,
-  ];
+  const actualInfrastructure =
+    row === undefined
+      ? undefined
+      : [
+          row.forced_rls,
+          row.journal_count,
+          row.policy_count,
+          row.result_snapshot_guard_count,
+          row.trigger_count,
+          row.validated_combination_count,
+          row.foreign_key_count,
+        ];
   if (
     actualInfrastructure === undefined ||
     actualInfrastructure.some((value, index) => value !== expectedInfrastructure[index])

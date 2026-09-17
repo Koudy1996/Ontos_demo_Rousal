@@ -38,7 +38,10 @@ export const checkLocalizedRefs = (tenantId: string, productRef: ProductRef, var
 
 export const localizedOutcome = (
   outcome: LocalizedFactOutcome,
-): Effect.Effect<{ readonly changed: boolean; readonly revision: number }, LocalizedFactsConflict | LocalizedFactsNotFound> => {
+): Effect.Effect<
+  { readonly changed: boolean; readonly revision: number },
+  LocalizedFactsConflict | LocalizedFactsNotFound
+> => {
   if (outcome.kind === 'CHANGED' || outcome.kind === 'REPLAYED') {
     return Effect.succeed({ changed: outcome.kind === 'CHANGED', revision: outcome.revision });
   }

@@ -22,7 +22,10 @@ export const CatalogDocumentResourceRefSchema = Schema.Struct({
 );
 export type CatalogDocumentResourceRef = typeof CatalogDocumentResourceRefSchema.Type;
 
-export const CatalogMediaAssignmentIdSchema = uuid.pipe(Schema.brand('CatalogMediaAssignmentId'), Schema.decodeTo(uuid));
+export const CatalogMediaAssignmentIdSchema = uuid.pipe(
+  Schema.brand('CatalogMediaAssignmentId'),
+  Schema.decodeTo(uuid),
+);
 export const CatalogMediaAssignmentRevisionSchema = Schema.Finite.check(
   Schema.isInt(),
   Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 }),
@@ -85,8 +88,8 @@ export type CatalogDocumentAvailability =
   | { readonly kind: 'CURRENT_UNVERIFIED'; readonly resourceRef: CatalogDocumentResourceRef };
 
 export type CatalogCurrentUse =
-  | { readonly assignment: CatalogMediaAssignment; readonly kind: 'AVAILABLE'; }
-  | { readonly assignment: CatalogMediaAssignment; readonly kind: 'OWNER_CHECK_REQUIRED'; }
+  | { readonly assignment: CatalogMediaAssignment; readonly kind: 'AVAILABLE' }
+  | { readonly assignment: CatalogMediaAssignment; readonly kind: 'OWNER_CHECK_REQUIRED' }
   | {
       readonly assignment: CatalogMediaAssignment;
       readonly kind: 'ABSENT' | 'FORBIDDEN' | 'UNAVAILABLE' | 'CURRENT_UNVERIFIED';

@@ -79,7 +79,9 @@ describe('Brand and Manufacturer Action HTTP contracts', () => {
       expect(conflict).toMatchObject({ code: 'manufacturer_conflict', status: 409 });
       expect(JSON.stringify(conflict)).not.toContain('private relation');
 
-      expect(map(new ManufacturerActionError({ code: 'manufacturer_not_found', reason: 'private target' }))).toMatchObject({
+      expect(
+        map(new ManufacturerActionError({ code: 'manufacturer_not_found', reason: 'private target' })),
+      ).toMatchObject({
         code: 'manufacturer_not_found',
         status: 404,
       });
