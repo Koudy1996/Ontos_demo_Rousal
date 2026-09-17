@@ -26,12 +26,18 @@ export const CATALOG_TABLE_INVENTORY = [
   'attribute_value_items',
   'attribute_value_revisions',
   'attribute_value_sets',
+  'brand_revisions',
+  'brands',
   'controlled_attribute_value_revisions',
   'controlled_attribute_values',
+  'manufacturer_relation_revisions',
+  'manufacturer_relations',
   'package_content_revisions',
   'package_definitions',
   'package_unit_divisibility',
   'package_unit_divisibility_revisions',
+  'product_brand_assignment_revisions',
+  'product_brand_assignments',
   'product_categories',
   'product_category_assignments',
   'product_category_events',
@@ -59,6 +65,70 @@ export const CATALOG_TABLE_INVENTORY = [
 export const catalogSchema = pgSchema(CATALOG_SCHEMA_NAME);
 
 const recordedAt = () => timestamp('recorded_at', { withTimezone: true }).defaultNow().notNull();
+
+export const brands = catalogSchema.table.withRLS(
+  'brands',
+  {
+    brandId: uuid('brand_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    name: text('name').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_brands_scope_id_uk').on(table.tenantId, table.brandId),
+    check(
+      'catalog_brands_name_ck',
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240`,
+    ),
+    check('catalog_brands_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
+    check('catalog_brands_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_brands_tenant', table.tenantId),
+  ],
+);
+
+export const brandRevisions = catalogSchema.table.withRLS(
+  'brand_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    brandId: uuid('brand_id').notNull(),
+    revision: integer('revision').notNull(),
+    name: text('name').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    changeKind: text('change_kind').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.brandId, table.revision], name: 'catalog_brand_revisions_pk' }),
+    unique('catalog_brand_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.brandId],
+      foreignColumns: [brands.tenantId, brands.brandId],
+      name: 'catalog_brand_revisions_brand_fk',
+    }).onDelete('restrict'),
+    check('catalog_brand_revisions_revision_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_brand_revisions_name_ck',
+      sql`${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240`,
+    ),
+    check('catalog_brand_revisions_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
+    check(
+      'catalog_brand_revisions_kind_ck',
+      sql`${table.changeKind} in ('CREATED', 'RENAMED', 'RETIRED', 'REACTIVATED')`,
+    ),
+    check(
+      'catalog_brand_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_brand_revisions_tenant', table.tenantId),
+  ],
+);
 
 /** Tenant-wide Unit identity is stable while purchase rules advance by revision. */
 export const productUnits = catalogSchema.table.withRLS(
@@ -164,6 +234,89 @@ export const products = catalogSchema.table.withRLS(
       sql`(${table.lifecycleState} <> 'RETIRED' and ${table.retiredEffectiveAt} is null and ${table.retiredReason} is null) or (${table.lifecycleState} = 'RETIRED' and ${table.retiredEffectiveAt} is not null and ${table.retiredReason} is not null and ${table.retiredReason} = btrim(${table.retiredReason}) and length(${table.retiredReason}) between 1 and 1000)`,
     ),
     ...tenantRlsPolicies('catalog_products_tenant', table.tenantId),
+  ],
+);
+
+export const productBrandAssignments = catalogSchema.table.withRLS(
+  'product_brand_assignments',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    claimKind: text('claim_kind').notNull(),
+    brandId: uuid('brand_id'),
+    evidenceRef: text('evidence_ref'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.productId], name: 'catalog_product_brand_assignments_pk' }),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_brand_assignments_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.brandId],
+      foreignColumns: [brands.tenantId, brands.brandId],
+      name: 'catalog_product_brand_assignments_brand_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_brand_assignments_revision_ck', sql`${table.currentRevision} > 0`),
+    check(
+      'catalog_product_brand_assignments_claim_ck',
+      sql`(${table.claimKind} = 'UNKNOWN' and ${table.brandId} is null and ${table.evidenceRef} is null) or (${table.claimKind} = 'CONFIRMED_UNBRANDED' and ${table.brandId} is null and ${table.evidenceRef} is not null) or (${table.claimKind} = 'BRANDED' and ${table.brandId} is not null and ${table.evidenceRef} is not null)`,
+    ),
+    check(
+      'catalog_product_brand_assignments_evidence_ck',
+      sql`${table.evidenceRef} is null or (${table.evidenceRef} = btrim(${table.evidenceRef}) and length(${table.evidenceRef}) between 1 and 1000)`,
+    ),
+    ...tenantRlsPolicies('catalog_product_brand_assignments_tenant', table.tenantId),
+  ],
+);
+
+export const productBrandAssignmentRevisions = catalogSchema.table.withRLS(
+  'product_brand_assignment_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    claimKind: text('claim_kind').notNull(),
+    brandId: uuid('brand_id'),
+    evidenceRef: text('evidence_ref'),
+    reason: text('reason').notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.revision],
+      name: 'catalog_product_brand_assignment_revisions_pk',
+    }),
+    unique('catalog_product_brand_assignment_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [productBrandAssignments.tenantId, productBrandAssignments.productId],
+      name: 'catalog_product_brand_assignment_revisions_assignment_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.brandId],
+      foreignColumns: [brands.tenantId, brands.brandId],
+      name: 'catalog_product_brand_assignment_revisions_brand_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_brand_assignment_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_product_brand_assignment_revisions_claim_ck',
+      sql`(${table.claimKind} = 'UNKNOWN' and ${table.brandId} is null and ${table.evidenceRef} is null) or (${table.claimKind} = 'CONFIRMED_UNBRANDED' and ${table.brandId} is null and ${table.evidenceRef} is not null) or (${table.claimKind} = 'BRANDED' and ${table.brandId} is not null and ${table.evidenceRef} is not null)`,
+    ),
+    check(
+      'catalog_product_brand_assignment_revisions_evidence_ck',
+      sql`${table.evidenceRef} is null or (${table.evidenceRef} = btrim(${table.evidenceRef}) and length(${table.evidenceRef}) between 1 and 1000)`,
+    ),
+    check(
+      'catalog_product_brand_assignment_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_brand_assignment_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -1555,7 +1708,126 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
   ],
 );
 
+export const manufacturerRelations = catalogSchema.table.withRLS(
+  'manufacturer_relations',
+  {
+    relationId: uuid('relation_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id'),
+    variantId: uuid('variant_id'),
+    targetKind: text('target_kind').notNull(),
+    targetId: uuid('target_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    disposition: text('disposition').notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_manufacturer_relations_scope_id_uk').on(table.tenantId, table.relationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_manufacturer_relations_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_manufacturer_relations_variant_fk',
+    }).onDelete('restrict'),
+    index('catalog_manufacturer_relations_product_idx').on(table.tenantId, table.productId),
+    index('catalog_manufacturer_relations_variant_idx').on(table.tenantId, table.variantId),
+    check(
+      'catalog_manufacturer_relations_subject_ck',
+      sql`(${table.productId} is null) <> (${table.variantId} is null)`,
+    ),
+    check('catalog_manufacturer_relations_target_ck', sql`${table.targetKind} in ('PARTY', 'LEGAL_ENTITY')`),
+    check('catalog_manufacturer_relations_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_manufacturer_relations_disposition_ck', sql`${table.disposition} in ('CONFIRMED', 'RETRACTED')`),
+    check(
+      'catalog_manufacturer_relations_period_ck',
+      sql`${table.effectiveFrom} is null or ${table.effectiveTo} is null or ${table.effectiveFrom} < ${table.effectiveTo}`,
+    ),
+    check(
+      'catalog_manufacturer_relations_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_manufacturer_relations_tenant', table.tenantId),
+  ],
+);
+
+export const manufacturerRelationRevisions = catalogSchema.table.withRLS(
+  'manufacturer_relation_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    relationId: uuid('relation_id').notNull(),
+    revision: integer('revision').notNull(),
+    productId: uuid('product_id'),
+    variantId: uuid('variant_id'),
+    targetKind: text('target_kind').notNull(),
+    targetId: uuid('target_id').notNull(),
+    disposition: text('disposition').notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.relationId, table.revision],
+      name: 'catalog_manufacturer_relation_revisions_pk',
+    }),
+    unique('catalog_manufacturer_relation_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.relationId],
+      foreignColumns: [manufacturerRelations.tenantId, manufacturerRelations.relationId],
+      name: 'catalog_manufacturer_relation_revisions_relation_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_manufacturer_relation_revisions_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_manufacturer_relation_revisions_variant_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_manufacturer_relation_revisions_subject_ck',
+      sql`(${table.productId} is null) <> (${table.variantId} is null)`,
+    ),
+    check('catalog_manufacturer_relation_revisions_target_ck', sql`${table.targetKind} in ('PARTY', 'LEGAL_ENTITY')`),
+    check('catalog_manufacturer_relation_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_manufacturer_relation_revisions_disposition_ck',
+      sql`${table.disposition} in ('CONFIRMED', 'RETRACTED')`,
+    ),
+    check(
+      'catalog_manufacturer_relation_revisions_period_ck',
+      sql`${table.effectiveFrom} is null or ${table.effectiveTo} is null or ${table.effectiveFrom} < ${table.effectiveTo}`,
+    ),
+    check(
+      'catalog_manufacturer_relation_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_manufacturer_relation_revisions_tenant', table.tenantId),
+  ],
+);
+
 const catalogDatabaseSchema = {
+  brandRevisions,
+  brands,
+  manufacturerRelationRevisions,
+  manufacturerRelations,
+  productBrandAssignmentRevisions,
+  productBrandAssignments,
   attributeDefinitionRevisions,
   attributeDefinitions,
   attributeValueItems,
@@ -1592,6 +1864,12 @@ const catalogDatabaseSchema = {
 } as const;
 
 export const CATALOG_TABLES = [
+  brandRevisions,
+  brands,
+  manufacturerRelationRevisions,
+  manufacturerRelations,
+  productBrandAssignmentRevisions,
+  productBrandAssignments,
   attributeDefinitionRevisions,
   attributeDefinitions,
   attributeValueItems,

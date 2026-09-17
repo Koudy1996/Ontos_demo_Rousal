@@ -13,12 +13,18 @@ import {
   attributeValueItems,
   attributeValueRevisions,
   attributeValueSets,
+  brandRevisions,
+  brands,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
+  manufacturerRelationRevisions,
+  manufacturerRelations,
   packageContentRevisions,
   packageDefinitions,
   packageUnitDivisibility,
   packageUnitDivisibilityRevisions,
+  productBrandAssignmentRevisions,
+  productBrandAssignments,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
@@ -43,7 +49,7 @@ import {
   products,
 } from '../../src/database/schema.ts';
 
-it('owns thirty-three tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns thirty-nine tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -59,12 +65,18 @@ it('owns thirty-three tenant-scoped Catalog tables with RLS and immutable histor
     'attribute_value_items',
     'attribute_value_revisions',
     'attribute_value_sets',
+    'brand_revisions',
+    'brands',
     'controlled_attribute_value_revisions',
     'controlled_attribute_values',
+    'manufacturer_relation_revisions',
+    'manufacturer_relations',
     'package_content_revisions',
     'package_definitions',
     'package_unit_divisibility',
     'package_unit_divisibility_revisions',
+    'product_brand_assignment_revisions',
+    'product_brand_assignments',
     'product_categories',
     'product_category_assignments',
     'product_category_events',
@@ -96,6 +108,33 @@ it('owns thirty-three tenant-scoped Catalog tables with RLS and immutable histor
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('keeps Brand, Product claim, and manufacturer facts tenant-qualified with append-only revisions', () => {
+  expect(getTableConfig(brands).uniqueConstraints.map((key) => key.name)).toContain('catalog_brands_scope_id_uk');
+  expect(getTableConfig(brands).uniqueConstraints.map((key) => key.name)).not.toContain('catalog_brands_name_uk');
+  expect(getTableConfig(brandRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_brand_revisions_brand_fk',
+  ]);
+  expect(getTableConfig(productBrandAssignments).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_brand_assignments_product_fk',
+    'catalog_product_brand_assignments_brand_fk',
+  ]);
+  expect(getTableConfig(productBrandAssignmentRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_brand_assignment_revisions_assignment_fk',
+    'catalog_product_brand_assignment_revisions_brand_fk',
+  ]);
+  expect(getTableConfig(manufacturerRelations).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_manufacturer_relations_product_fk',
+    'catalog_manufacturer_relations_variant_fk',
+  ]);
+  expect(getTableConfig(manufacturerRelationRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_manufacturer_relation_revisions_relation_fk',
+    'catalog_manufacturer_relation_revisions_product_fk',
+    'catalog_manufacturer_relation_revisions_variant_fk',
+  ]);
+  expect(getTableConfig(manufacturerRelations).columns.map((column) => column.name)).not.toContain('target_name');
+  expect(getTableConfig(productVariants).columns.map((column) => column.name)).not.toContain('brand_id');
 });
 
 it('constrains directed Product relationships and their immutable revision snapshots', () => {
@@ -352,5 +391,15 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_relationship_revisions_append_only');
   expect(combined).toContain('catalog_product_relationships_identity_immutable');
   expect(combined).toContain('catalog_product_relationships_exact_uk" UNIQUE NULLS NOT DISTINCT');
+  for (const trigger of [
+    'catalog_brand_revisions_append_only',
+    'catalog_product_brand_assignment_revisions_append_only',
+    'catalog_manufacturer_relation_revisions_append_only',
+    'catalog_brands_identity_immutable',
+    'catalog_product_brand_assignments_identity_immutable',
+    'catalog_manufacturer_relations_identity_immutable',
+  ]) {
+    expect(combined).toContain(trigger);
+  }
   expect(combined).toContain("'commerce.catalog.product-unit') NOT VALID");
 });

@@ -25,12 +25,15 @@ const pointersAreCurrent = (pointers: {
   attribute_definition_mismatch: number;
   attribute_value_mismatch: number;
   axis_mismatch: number;
+  brand_mismatch: number;
   category_mismatch: number;
   controlled_value_mismatch: number;
   counter_mismatch: number;
+  manufacturer_mismatch: number;
   package_mismatch: number;
   package_unit_mismatch: number;
   package_unit_reference_mismatch: number;
+  product_brand_mismatch: number;
   relationship_mismatch: number;
   type_mismatch: number;
   unit_rule_mismatch: number;
@@ -120,7 +123,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 35 ||
+    row.trigger_count !== 41 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -136,12 +139,15 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         attribute_definition_mismatch: number;
         attribute_value_mismatch: number;
         axis_mismatch: number;
+        brand_mismatch: number;
         category_mismatch: number;
         controlled_value_mismatch: number;
         counter_mismatch: number;
+        manufacturer_mismatch: number;
         package_mismatch: number;
         package_unit_mismatch: number;
         package_unit_reference_mismatch: number;
+        product_brand_mismatch: number;
         relationship_mismatch: number;
         type_mismatch: number;
         unit_rule_mismatch: number;
@@ -149,6 +155,26 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         variant_mismatch: number;
         variant_unit_mismatch: number;
       }>(`select
+      (select count(*)::integer from catalog.brands b where not exists
+        (select 1 from catalog.brand_revisions r where r.tenant_id=b.tenant_id and r.brand_id=b.brand_id
+          and r.revision=b.current_revision and r.name=b.name and r.lifecycle_state=b.lifecycle_state)
+        or b.current_revision <> (select max(r.revision) from catalog.brand_revisions r
+          where r.tenant_id=b.tenant_id and r.brand_id=b.brand_id)) brand_mismatch,
+      (select count(*)::integer from catalog.product_brand_assignments a where not exists
+        (select 1 from catalog.product_brand_assignment_revisions r where r.tenant_id=a.tenant_id
+          and r.product_id=a.product_id and r.revision=a.current_revision and r.claim_kind=a.claim_kind
+          and r.brand_id is not distinct from a.brand_id and r.evidence_ref is not distinct from a.evidence_ref)
+        or a.current_revision <> (select max(r.revision) from catalog.product_brand_assignment_revisions r
+          where r.tenant_id=a.tenant_id and r.product_id=a.product_id)) product_brand_mismatch,
+      (select count(*)::integer from catalog.manufacturer_relations m where not exists
+        (select 1 from catalog.manufacturer_relation_revisions r where r.tenant_id=m.tenant_id
+          and r.relation_id=m.relation_id and r.revision=m.current_revision
+          and r.product_id is not distinct from m.product_id and r.variant_id is not distinct from m.variant_id
+          and r.target_kind=m.target_kind and r.target_id=m.target_id and r.disposition=m.disposition
+          and r.effective_from is not distinct from m.effective_from and r.effective_to is not distinct from m.effective_to
+          and r.reason=m.reason and r.evidence_refs=m.evidence_refs)
+        or m.current_revision <> (select max(r.revision) from catalog.manufacturer_relation_revisions r
+          where r.tenant_id=m.tenant_id and r.relation_id=m.relation_id)) manufacturer_mismatch,
       (select count(*)::integer from catalog.product_type_assignments a
         where not exists (select 1 from catalog.product_type_assignment_events e
           where e.tenant_id=a.tenant_id and e.product_id=a.product_id
