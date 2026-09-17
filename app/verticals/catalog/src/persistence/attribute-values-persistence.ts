@@ -478,70 +478,59 @@ export const attributeValuesPersistenceForScope = (
     const revision = (current?.currentRevision ?? 0) + 1;
     const persist = Effect.fn('AttributeValuesPersistence.persist')(function* persist() {
       if (current === undefined) {
-        yield* transaction
-          .insert(attributeValueSets)
-          .values({
-            attributeDefinitionId: definitionId,
-            attributeValueSetId: setId,
-            currentRevision: revision,
-            currentState: state,
-            productId,
-            tenantId,
-            variantId: variantId ?? null,
-          })
-          .pipe(Effect.mapError(mapAttributeValuesWriteError));
+        yield* transaction.insert(attributeValueSets).values({
+          attributeDefinitionId: definitionId,
+          attributeValueSetId: setId,
+          currentRevision: revision,
+          currentState: state,
+          productId,
+          tenantId,
+          variantId: variantId ?? null,
+        });
       } else {
         yield* transaction
           .update(attributeValueSets)
           .set({ currentRevision: revision, currentState: state })
-          .where(and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.attributeValueSetId, setId)))
-          .pipe(Effect.mapError(mapAttributeValuesWriteError));
+          .where(and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.attributeValueSetId, setId)));
         yield* transaction
           .delete(attributeValueItems)
-          .where(and(eq(attributeValueItems.tenantId, tenantId), eq(attributeValueItems.attributeValueSetId, setId)))
-          .pipe(Effect.mapError(mapAttributeValuesWriteError));
+          .where(and(eq(attributeValueItems.tenantId, tenantId), eq(attributeValueItems.attributeValueSetId, setId)));
       }
       if (state === 'SET') {
-        yield* transaction
-          .insert(attributeValueItems)
-          .values(
-            values.map((value, ordinal) => ({
-              attributeDefinitionId: definitionId,
-              attributeValueSetId: setId,
-              controlledAttributeValueId: value.kind === 'CONTROLLED' ? value.valueRef.resourceId : null,
-              numericValue: value.kind === 'MEASUREMENT' ? String(value.amount) : null,
-              ordinal,
-              specialState: value.kind === 'SPECIAL' ? value.state : null,
-              tenantId,
-              textValue: value.kind === 'TEXT' ? value.text : null,
-              unit: value.kind === 'MEASUREMENT' ? value.unit : null,
-              valueKind: value.kind,
-            })),
-          )
-          .pipe(Effect.mapError(mapAttributeValuesWriteError));
+        yield* transaction.insert(attributeValueItems).values(
+          values.map((value, ordinal) => ({
+            attributeDefinitionId: definitionId,
+            attributeValueSetId: setId,
+            controlledAttributeValueId: value.kind === 'CONTROLLED' ? value.valueRef.resourceId : null,
+            numericValue: value.kind === 'MEASUREMENT' ? String(value.amount) : null,
+            ordinal,
+            specialState: value.kind === 'SPECIAL' ? value.state : null,
+            tenantId,
+            textValue: value.kind === 'TEXT' ? value.text : null,
+            unit: value.kind === 'MEASUREMENT' ? value.unit : null,
+            valueKind: value.kind,
+          })),
+        );
       }
-      yield* transaction
-        .insert(attributeValueRevisions)
-        .values({
-          actingPrincipalId: input.principalId,
-          actionInvocationId: input.actionInvocationId,
-          attributeValueSetId: setId,
-          changeKind: state,
-          evidenceRefs: [...(input.evidenceRefs ?? [])],
-          reason: input.reason,
-          revision,
-          tenantId,
-          valueSnapshot: {
-            attributeDefinitionRevision: definition.currentRevision,
-            productTypeId: assignment.productTypeId,
-            productTypeRevision: productType.currentRevision,
-            sourceProductValueRevision: variantId === undefined ? null : (input.expectedProductValueRevision ?? null),
-            values,
-          },
-        })
-        .pipe(Effect.mapError(mapAttributeValuesWriteError));
+      yield* transaction.insert(attributeValueRevisions).values({
+        actingPrincipalId: input.principalId,
+        actionInvocationId: input.actionInvocationId,
+        attributeValueSetId: setId,
+        changeKind: state,
+        evidenceRefs: [...(input.evidenceRefs ?? [])],
+        reason: input.reason,
+        revision,
+        tenantId,
+        valueSnapshot: {
+          attributeDefinitionRevision: definition.currentRevision,
+          productTypeId: assignment.productTypeId,
+          productTypeRevision: productType.currentRevision,
+          sourceProductValueRevision: variantId === undefined ? null : (input.expectedProductValueRevision ?? null),
+          values,
+        },
+      });
       return { attributeValueSetId: setId, revision, state };
-    });
+    }, Effect.mapError(mapAttributeValuesWriteError));
     return yield* persist();
   });
 
