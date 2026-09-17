@@ -52,6 +52,10 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_relationship_revisions',
   'product_relationships',
   'product_revisions',
+  'product_size_usage_items',
+  'product_size_usage_revision_items',
+  'product_size_usage_revisions',
+  'product_size_usage_sets',
   'product_type_assignment_events',
   'product_type_assignments',
   'product_type_revision_attributes',
@@ -64,6 +68,7 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_variant_revisions',
   'product_variants',
   'products',
+  'size_equivalence_assertions',
   'variant_localized_fact_revisions',
   'variant_localized_facts',
   'variant_unit_divisibility',
@@ -1378,6 +1383,11 @@ export const controlledAttributeValues = catalogSchema.table.withRLS(
   },
   (table) => [
     unique('catalog_controlled_values_scope_id_uk').on(table.tenantId, table.controlledAttributeValueId),
+    unique('catalog_controlled_values_size_kind_uk').on(
+      table.tenantId,
+      table.controlledAttributeValueId,
+      table.specialization,
+    ),
     unique('catalog_controlled_values_definition_id_uk').on(
       table.tenantId,
       table.attributeDefinitionId,
@@ -1408,6 +1418,202 @@ export const controlledAttributeValues = catalogSchema.table.withRLS(
       sql`${table.previewHex} is null or ${table.previewHex} ~ '^#[0-9A-Fa-f]{6}$'`,
     ),
     ...tenantRlsPolicies('catalog_controlled_values_tenant', table.tenantId),
+  ],
+);
+
+/** One Product owns its explicit Size order; shared Size identity stays in the controlled vocabulary. */
+export const productSizeUsageSets = catalogSchema.table.withRLS(
+  'product_size_usage_sets',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.productId], name: 'catalog_product_size_usage_sets_pk' }),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_size_usage_sets_product_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_size_usage_sets_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_product_size_usage_sets_tenant', table.tenantId),
+  ],
+);
+
+export const productSizeUsageItems = catalogSchema.table.withRLS(
+  'product_size_usage_items',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    position: integer('position').notNull(),
+    sizeValueId: uuid('size_value_id').notNull(),
+    sizeSpecialization: text('size_specialization').default('SIZE').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.position],
+      name: 'catalog_product_size_usage_items_pk',
+    }),
+    unique('catalog_product_size_usage_items_value_uk').on(table.tenantId, table.productId, table.sizeValueId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [productSizeUsageSets.tenantId, productSizeUsageSets.productId],
+      name: 'catalog_product_size_usage_items_set_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.sizeValueId, table.sizeSpecialization],
+      foreignColumns: [
+        controlledAttributeValues.tenantId,
+        controlledAttributeValues.controlledAttributeValueId,
+        controlledAttributeValues.specialization,
+      ],
+      name: 'catalog_product_size_usage_items_size_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_size_usage_items_position_ck', sql`${table.position} >= 0`),
+    check('catalog_product_size_usage_items_kind_ck', sql`${table.sizeSpecialization} = 'SIZE'`),
+    ...tenantRlsPolicies('catalog_product_size_usage_items_tenant', table.tenantId),
+  ],
+);
+
+export const productSizeUsageRevisions = catalogSchema.table.withRLS(
+  'product_size_usage_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.revision],
+      name: 'catalog_product_size_usage_revisions_pk',
+    }),
+    unique('catalog_product_size_usage_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [productSizeUsageSets.tenantId, productSizeUsageSets.productId],
+      name: 'catalog_product_size_usage_revisions_set_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_size_usage_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_product_size_usage_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_size_usage_revisions_tenant', table.tenantId),
+  ],
+);
+
+export const productSizeUsageRevisionItems = catalogSchema.table.withRLS(
+  'product_size_usage_revision_items',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    position: integer('position').notNull(),
+    sizeValueId: uuid('size_value_id').notNull(),
+    sizeSpecialization: text('size_specialization').default('SIZE').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.revision, table.position],
+      name: 'catalog_product_size_usage_revision_items_pk',
+    }),
+    unique('catalog_product_size_usage_revision_items_value_uk').on(
+      table.tenantId,
+      table.productId,
+      table.revision,
+      table.sizeValueId,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.revision],
+      foreignColumns: [
+        productSizeUsageRevisions.tenantId,
+        productSizeUsageRevisions.productId,
+        productSizeUsageRevisions.revision,
+      ],
+      name: 'catalog_product_size_usage_revision_items_revision_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.sizeValueId, table.sizeSpecialization],
+      foreignColumns: [
+        controlledAttributeValues.tenantId,
+        controlledAttributeValues.controlledAttributeValueId,
+        controlledAttributeValues.specialization,
+      ],
+      name: 'catalog_product_size_usage_revision_items_size_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_size_usage_revision_items_position_ck', sql`${table.position} >= 0`),
+    check('catalog_product_size_usage_revision_items_kind_ck', sql`${table.sizeSpecialization} = 'SIZE'`),
+    ...tenantRlsPolicies('catalog_product_size_usage_revision_items_tenant', table.tenantId),
+  ],
+);
+
+/** An assertion is immutable evidence for one scope and period, never a global conversion rule. */
+export const sizeEquivalenceAssertions = catalogSchema.table.withRLS(
+  'size_equivalence_assertions',
+  {
+    assertionId: uuid('assertion_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    leftSizeValueId: uuid('left_size_value_id').notNull(),
+    rightSizeValueId: uuid('right_size_value_id').notNull(),
+    leftSpecialization: text('left_specialization').default('SIZE').notNull(),
+    rightSpecialization: text('right_specialization').default('SIZE').notNull(),
+    scope: text('scope').notNull(),
+    evidenceRef: text('evidence_ref').notNull(),
+    validFrom: timestamp('valid_from', { withTimezone: true }),
+    validUntil: timestamp('valid_until', { withTimezone: true }),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    unique('catalog_size_equivalence_assertions_scope_id_uk').on(table.tenantId, table.assertionId),
+    unique('catalog_size_equivalence_assertions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.leftSizeValueId, table.leftSpecialization],
+      foreignColumns: [
+        controlledAttributeValues.tenantId,
+        controlledAttributeValues.controlledAttributeValueId,
+        controlledAttributeValues.specialization,
+      ],
+      name: 'catalog_size_equivalence_assertions_left_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.rightSizeValueId, table.rightSpecialization],
+      foreignColumns: [
+        controlledAttributeValues.tenantId,
+        controlledAttributeValues.controlledAttributeValueId,
+        controlledAttributeValues.specialization,
+      ],
+      name: 'catalog_size_equivalence_assertions_right_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_size_equivalence_assertions_kind_ck',
+      sql`${table.leftSpecialization} = 'SIZE' and ${table.rightSpecialization} = 'SIZE'`,
+    ),
+    check(
+      'catalog_size_equivalence_assertions_distinct_ck',
+      sql`${table.leftSizeValueId} <> ${table.rightSizeValueId}`,
+    ),
+    check(
+      'catalog_size_equivalence_assertions_scope_ck',
+      sql`${table.scope} = btrim(${table.scope}) and length(${table.scope}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_size_equivalence_assertions_evidence_ck',
+      sql`${table.evidenceRef} = btrim(${table.evidenceRef}) and length(${table.evidenceRef}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_size_equivalence_assertions_period_ck',
+      sql`${table.validUntil} is null or ${table.validFrom} is null or ${table.validUntil} > ${table.validFrom}`,
+    ),
+    ...tenantRlsPolicies('catalog_size_equivalence_assertions_tenant', table.tenantId),
   ],
 );
 
@@ -2225,6 +2431,10 @@ const catalogDatabaseSchema = {
   productRelationshipRevisions,
   productRelationships,
   productRevisions,
+  productSizeUsageItems,
+  productSizeUsageRevisionItems,
+  productSizeUsageRevisions,
+  productSizeUsageSets,
   productTypeAssignmentEvents,
   productTypeAssignments,
   productTypeRevisionAttributes,
@@ -2236,6 +2446,7 @@ const catalogDatabaseSchema = {
   productVariants,
   products,
   productUnits,
+  sizeEquivalenceAssertions,
   productUnitRuleRevisions,
   variantUnitDivisibility,
   variantUnitDivisibilityRevisions,
@@ -2275,6 +2486,10 @@ export const CATALOG_TABLES = [
   productRelationshipRevisions,
   productRelationships,
   productRevisions,
+  productSizeUsageItems,
+  productSizeUsageRevisionItems,
+  productSizeUsageRevisions,
+  productSizeUsageSets,
   productTypeAssignmentEvents,
   productTypeAssignments,
   productTypeRevisionAttributes,
@@ -2286,6 +2501,7 @@ export const CATALOG_TABLES = [
   productVariants,
   products,
   productUnits,
+  sizeEquivalenceAssertions,
   productUnitRuleRevisions,
   variantUnitDivisibility,
   variantUnitDivisibilityRevisions,

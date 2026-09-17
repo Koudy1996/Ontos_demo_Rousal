@@ -39,12 +39,17 @@ import {
   productRelationshipRevisions,
   productRelationships,
   productRevisions,
+  productSizeUsageItems,
+  productSizeUsageRevisionItems,
+  productSizeUsageRevisions,
+  productSizeUsageSets,
   productTypeAssignmentEvents,
   productTypeAssignments,
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
   productUnits,
+  sizeEquivalenceAssertions,
   productUnitRuleRevisions,
   variantUnitDivisibility,
   variantUnitDivisibilityRevisions,
@@ -57,7 +62,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns forty-seven tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns fifty-two tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -99,6 +104,10 @@ it('owns forty-seven tenant-scoped Catalog tables with RLS and immutable history
     'product_relationship_revisions',
     'product_relationships',
     'product_revisions',
+    'product_size_usage_items',
+    'product_size_usage_revision_items',
+    'product_size_usage_revisions',
+    'product_size_usage_sets',
     'product_type_assignment_events',
     'product_type_assignments',
     'product_type_revision_attributes',
@@ -111,6 +120,7 @@ it('owns forty-seven tenant-scoped Catalog tables with RLS and immutable history
     'product_variant_revisions',
     'product_variants',
     'products',
+    'size_equivalence_assertions',
     'variant_localized_fact_revisions',
     'variant_localized_facts',
     'variant_unit_divisibility',
@@ -124,6 +134,41 @@ it('owns forty-seven tenant-scoped Catalog tables with RLS and immutable history
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('persists Product-local Size order and only evidenced, scoped equivalence', () => {
+  const current = getTableConfig(productSizeUsageItems);
+  const history = getTableConfig(productSizeUsageRevisionItems);
+  const equivalence = getTableConfig(sizeEquivalenceAssertions);
+  expect(getTableConfig(productSizeUsageSets).foreignKeys.map((key) => key.getName())).toContain(
+    'catalog_product_size_usage_sets_product_fk',
+  );
+  expect(getTableConfig(productSizeUsageRevisions).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_size_usage_revisions_pk',
+  );
+  expect(current.primaryKeys.map((key) => key.getName())).toContain('catalog_product_size_usage_items_pk');
+  expect(current.uniqueConstraints.map((key) => key.name)).toContain('catalog_product_size_usage_items_value_uk');
+  expect(current.foreignKeys.map((key) => key.getName())).toContain('catalog_product_size_usage_items_size_fk');
+  expect(history.foreignKeys.map((key) => key.getName())).toContain(
+    'catalog_product_size_usage_revision_items_size_fk',
+  );
+  expect(getTableConfig(controlledAttributeValues).uniqueConstraints.map((key) => key.name)).toContain(
+    'catalog_controlled_values_size_kind_uk',
+  );
+  expect(equivalence.foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_size_equivalence_assertions_left_fk',
+    'catalog_size_equivalence_assertions_right_fk',
+  ]);
+  expect(equivalence.checks.map((key) => key.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_size_equivalence_assertions_kind_ck',
+      'catalog_size_equivalence_assertions_distinct_ck',
+      'catalog_size_equivalence_assertions_scope_ck',
+      'catalog_size_equivalence_assertions_evidence_ck',
+      'catalog_size_equivalence_assertions_period_ck',
+    ]),
+  );
+  expect(equivalence.columns.map((column) => column.name)).not.toContain('size_system_id');
 });
 
 it('keeps Brand, Product claim, and manufacturer facts tenant-qualified with append-only revisions', () => {

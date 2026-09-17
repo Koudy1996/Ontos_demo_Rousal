@@ -36,6 +36,7 @@ const pointersAreCurrent = (pointers: {
   package_unit_mismatch: number;
   package_unit_reference_mismatch: number;
   product_brand_mismatch: number;
+  product_size_usage_mismatch: number;
   product_locale_mismatch: number;
   relationship_mismatch: number;
   type_mismatch: number;
@@ -127,7 +128,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 49 ||
+    row.trigger_count !== 53 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -154,6 +155,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         package_unit_mismatch: number;
         package_unit_reference_mismatch: number;
         product_brand_mismatch: number;
+        product_size_usage_mismatch: number;
         product_locale_mismatch: number;
         relationship_mismatch: number;
         type_mismatch: number;
@@ -353,6 +355,22 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and r.position=a.position and r.state=a.state)
           or a.current_revision <> (select max(r.revision) from catalog.catalog_media_assignment_revisions r
             where r.tenant_id=a.tenant_id and r.assignment_id=a.assignment_id)) media_assignment_mismatch,
+      (select count(*)::integer from catalog.product_size_usage_sets s
+        where s.current_revision <> (select max(r.revision) from catalog.product_size_usage_revisions r
+          where r.tenant_id=s.tenant_id and r.product_id=s.product_id)
+          or exists (
+            (select i.position, i.size_value_id from catalog.product_size_usage_items i
+              where i.tenant_id=s.tenant_id and i.product_id=s.product_id
+             except
+             select ri.position, ri.size_value_id from catalog.product_size_usage_revision_items ri
+              where ri.tenant_id=s.tenant_id and ri.product_id=s.product_id and ri.revision=s.current_revision)
+            union all
+            (select ri.position, ri.size_value_id from catalog.product_size_usage_revision_items ri
+              where ri.tenant_id=s.tenant_id and ri.product_id=s.product_id and ri.revision=s.current_revision
+             except
+             select i.position, i.size_value_id from catalog.product_size_usage_items i
+              where i.tenant_id=s.tenant_id and i.product_id=s.product_id)
+          )) product_size_usage_mismatch,
       (select count(*)::integer from catalog.product_category_hierarchy_revisions h
         where h.hierarchy_revision <> coalesce((select max(e.hierarchy_revision)
           from catalog.product_category_events e where e.tenant_id=h.tenant_id
