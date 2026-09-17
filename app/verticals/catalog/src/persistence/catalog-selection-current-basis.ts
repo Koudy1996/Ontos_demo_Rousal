@@ -62,7 +62,11 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
         selected.revisionId !== undefined ||
         !validDependentRef(selected.resourceRef, scope.tenantId, 'commerce.catalog.configuration-definition')
       ) {
-        return { basis, reason: 'Selected Configuration reference is not owner-verifiable' };
+        return {
+          basis,
+          reason: 'Selected Configuration reference is not owner-verifiable',
+          status: 'INDETERMINATE' as const,
+        };
       }
       const current = yield* productConfigurationPersistenceForScope(transaction, scope)
         .readCurrent({
@@ -72,14 +76,18 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
         })
         .pipe(Effect.catchTag('ProductConfigurationPersistenceUnavailable', () => Effect.succeedNone));
       if (Option.isNone(current)) {
-        return { basis, reason: 'Configuration Current revision is unavailable or missing' };
+        return {
+          basis,
+          reason: 'Configuration Current revision is unavailable or missing',
+          status: 'INDETERMINATE' as const,
+        };
       }
       if (
         current.value.revision !== selected.revision ||
         current.value.definitionId !== selected.resourceRef.resourceId ||
         current.value.productId !== selection.productRef.resourceId
       ) {
-        return { basis, reason: 'Selected Configuration revision is not Current' };
+        return { basis, reason: 'Selected Configuration revision is not Current', status: 'INVALID' as const };
       }
       const revision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(current.value.revision).pipe(
         Effect.mapError(unavailable),
@@ -103,7 +111,7 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
         selected.revisionId !== undefined ||
         !validDependentRef(selected.resourceRef, scope.tenantId, 'commerce.catalog.set-composition')
       ) {
-        return { basis, reason: 'Selected Set reference is not owner-verifiable' };
+        return { basis, reason: 'Selected Set reference is not owner-verifiable', status: 'INDETERMINATE' as const };
       }
       const current = yield* setCompositionPersistenceForScope(transaction, scope)
         .readCurrent({
@@ -112,21 +120,30 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
         })
         .pipe(Effect.catchTag('SetCompositionPersistenceUnavailable', () => Effect.succeedNone));
       if (Option.isNone(current)) {
-        return { basis, reason: 'Set Composition Current revision is unavailable or missing' };
+        return {
+          basis,
+          reason: 'Set Composition Current revision is unavailable or missing',
+          status: 'INDETERMINATE' as const,
+        };
       }
       const { effectiveFrom, effectiveTo, revision } = current.value;
       if (
         !sameCatalogRevisionReference(revision.reference, selected) ||
+        current.value.lifecycleState !== 'ACTIVE' ||
         revision.productRef.resourceId !== selection.productRef.resourceId ||
         revision.variantRef.resourceId !== selection.variantRef.resourceId ||
         effectiveFrom > at ||
         (effectiveTo !== undefined && at >= effectiveTo)
       ) {
-        return { basis, reason: 'Selected Set Composition is not Current for this exact target' };
+        return {
+          basis,
+          reason: 'Selected Set Composition is not Current for this exact target',
+          status: 'INVALID' as const,
+        };
       }
       basis.push({ role: 'SET_COMPOSITION', source: revision.reference });
     }
-    return { basis, reason: null };
+    return { basis, reason: null, status: 'INDETERMINATE' as const };
   },
 );
 
@@ -226,7 +243,7 @@ export const catalogSelectionCurrentBasisForScope = (transaction: ScopedTransact
     const dependent = yield* readSelectedDependencies(transaction, scope, selection, DateTime.toDateUtc(now));
     basis.push(...dependent.basis);
     if (dependent.reason !== null) {
-      return result('INDETERMINATE', dependent.reason);
+      return result(dependent.status, dependent.reason);
     }
     return result('INDETERMINATE', 'Indirect Catalog facts and exact dependent revisions are not yet attested');
   }),
