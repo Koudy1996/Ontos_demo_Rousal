@@ -146,13 +146,17 @@ export const CatalogReadinessSchema = Schema.Struct({
 });
 export type CatalogReadiness = typeof CatalogReadinessSchema.Type;
 
-export const catalogReadiness = (product: Pick<Product, 'lifecycle' | 'name' | 'variants'>): CatalogReadiness => {
+/** Current owner-local localized names, not the legacy Product label, satisfy the text minimum. */
+export const catalogReadiness = (
+  product: Pick<Product, 'lifecycle' | 'variants'>,
+  localizedNames: readonly string[],
+): CatalogReadiness => {
   const reasons: string[] = [];
   if (product.lifecycle !== 'ACTIVE') {
     reasons.push('Product must be ACTIVE');
   }
-  if (product.name === undefined || product.name.length === 0) {
-    reasons.push('Product needs a current name');
+  if (!localizedNames.some((name) => name.trim().length > 0)) {
+    reasons.push('Product needs a current localized Catalog name');
   }
   if (!product.variants.some(({ lifecycle }) => lifecycle === 'ACTIVE')) {
     reasons.push('Product needs at least one ACTIVE Variant');
@@ -160,5 +164,7 @@ export const catalogReadiness = (product: Pick<Product, 'lifecycle' | 'name' | '
   return { catalogReady: reasons.length === 0, reasons };
 };
 
-export const productIsCatalogReady = (product: Pick<Product, 'lifecycle' | 'name' | 'variants'>): boolean =>
-  catalogReadiness(product).catalogReady;
+export const productIsCatalogReady = (
+  product: Pick<Product, 'lifecycle' | 'variants'>,
+  localizedNames: readonly string[],
+): boolean => catalogReadiness(product, localizedNames).catalogReady;

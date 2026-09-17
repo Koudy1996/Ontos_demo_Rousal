@@ -41,29 +41,50 @@ describe('Catalog Product domain', () => {
       variants: [{ lifecycle: 'ACTIVE', productRef, variantId, variantRef }],
     } as const;
 
-    expect(catalogReadiness(draft).catalogReady).toBe(false);
-    expect(catalogReadiness(active)).toEqual({ catalogReady: true, reasons: [] });
+    expect(catalogReadiness(draft, [])).toEqual({
+      catalogReady: false,
+      reasons: [
+        'Product must be ACTIVE',
+        'Product needs a current localized Catalog name',
+        'Product needs at least one ACTIVE Variant',
+      ],
+    });
+    expect(catalogReadiness(active, ['  Standard Product  '])).toEqual({ catalogReady: true, reasons: [] });
+    expect(catalogReadiness(active, [])).toEqual({
+      catalogReady: false,
+      reasons: ['Product needs a current localized Catalog name'],
+    });
+    expect(catalogReadiness({ ...active, name: undefined }, ['Police Alfa'])).toEqual({
+      catalogReady: true,
+      reasons: [],
+    });
     expect(Schema.decodeUnknownSync(ProductRefSchema)(productRef)).toEqual(productRef);
     expect(productRef.resourceId).toBe(productId);
   });
 
   it('requires an ACTIVE Variant rather than a work-in-progress or retired Variant', () => {
-    const readiness = catalogReadiness({
-      lifecycle: 'ACTIVE',
-      name: 'Standard Product',
-      variants: [{ lifecycle: 'RETIRED', productRef, variantId, variantRef }],
-    });
+    const readiness = catalogReadiness(
+      {
+        lifecycle: 'ACTIVE',
+        name: 'Standard Product',
+        variants: [{ lifecycle: 'RETIRED', productRef, variantId, variantRef }],
+      },
+      ['Standard Product'],
+    );
 
     expect(readiness).toEqual({
       catalogReady: false,
       reasons: ['Product needs at least one ACTIVE Variant'],
     });
     expect(
-      catalogReadiness({
-        lifecycle: 'ACTIVE',
-        name: 'Standard Product',
-        variants: [{ lifecycle: 'WORK_IN_PROGRESS', productRef, variantId, variantRef }],
-      }),
+      catalogReadiness(
+        {
+          lifecycle: 'ACTIVE',
+          name: 'Standard Product',
+          variants: [{ lifecycle: 'WORK_IN_PROGRESS', productRef, variantId, variantRef }],
+        },
+        ['Standard Product'],
+      ),
     ).toEqual({ catalogReady: false, reasons: ['Product needs at least one ACTIVE Variant'] });
     expect(() => Schema.decodeUnknownSync(ProductVariantSchema)({ lifecycle: 'INVALID', variantId })).toThrow();
   });
@@ -110,7 +131,7 @@ describe('Catalog Product domain', () => {
 
     expect(product.productRef).toEqual(productRef);
     expect(history.revisions[0]?.productRef).toEqual(productRef);
-    expect(Schema.decodeUnknownSync(CatalogReadinessSchema)(catalogReadiness(product))).toEqual({
+    expect(Schema.decodeUnknownSync(CatalogReadinessSchema)(catalogReadiness(product, ['Standard Product']))).toEqual({
       catalogReady: true,
       reasons: [],
     });

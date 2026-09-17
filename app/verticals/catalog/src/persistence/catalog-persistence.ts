@@ -23,6 +23,7 @@ import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revi
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
 import {
   productLifecycleEvents,
+  productLocalizedFacts,
   productRevisions,
   productVariantRevisions,
   productVariants,
@@ -237,6 +238,7 @@ const toProduct = (
   tenantId: string,
   row: typeof products.$inferSelect,
   variants: readonly (typeof productVariants.$inferSelect)[],
+  localizedNames: readonly string[],
 ): Product => {
   const lifecycle = toLifecycle(row.lifecycleState);
   const candidate = {
@@ -244,7 +246,7 @@ const toProduct = (
     ...(row.name === null ? {} : { name: row.name }),
     variants: variants.map(toVariant),
   } as const;
-  const readiness = catalogReadiness(candidate);
+  const readiness = catalogReadiness(candidate, localizedNames);
   return {
     catalogReady: readiness.catalogReady,
     createdAt: row.createdAt.toISOString(),
@@ -274,6 +276,16 @@ const getVariants = (transaction: ScopedTransaction, tenantId: string, productId
     .orderBy(asc(productVariants.createdAt))
     .pipe(Effect.mapError(unavailable));
 
+const getLocalizedNames = (transaction: ScopedTransaction, tenantId: string, productId: string) =>
+  transaction
+    .select({ name: productLocalizedFacts.name, state: productLocalizedFacts.state })
+    .from(productLocalizedFacts)
+    .where(and(eq(productLocalizedFacts.tenantId, tenantId), eq(productLocalizedFacts.productId, productId)))
+    .pipe(
+      Effect.mapError(unavailable),
+      Effect.map((rows) => rows.flatMap((row) => (row.state === 'SET' && row.name !== null ? [row.name] : []))),
+    );
+
 const loadProduct = Effect.fn('CatalogPersistence.loadProduct')(function* loadProduct(
   transaction: ScopedTransaction,
   tenantId: string,
@@ -283,7 +295,9 @@ const loadProduct = Effect.fn('CatalogPersistence.loadProduct')(function* loadPr
   if (row === undefined) {
     return Option.none<Product>();
   }
-  return Option.some(toProduct(tenantId, row, yield* getVariants(transaction, tenantId, productId)));
+  const variants = yield* getVariants(transaction, tenantId, productId);
+  const localizedNames = yield* getLocalizedNames(transaction, tenantId, productId);
+  return Option.some(toProduct(tenantId, row, variants, localizedNames));
 });
 
 const insertRevision = (
@@ -546,15 +560,11 @@ export const catalogPersistenceForScope = (
     }
     const candidate = {
       lifecycle,
-      ...(input.name === undefined
-        ? existing.name === undefined
-          ? {}
-          : { name: existing.name }
-        : { name: input.name }),
       variants: existing.variants,
     } as const;
     if (lifecycle === 'ACTIVE') {
-      const readiness = catalogReadiness(candidate);
+      const localizedNames = yield* getLocalizedNames(transaction, tenantId, input.productId);
+      const readiness = catalogReadiness(candidate, localizedNames);
       if (!readiness.catalogReady) {
         return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
       }
@@ -703,11 +713,14 @@ export const catalogPersistenceForScope = (
       if (existing.lifecycle !== 'RETIRED') {
         return { _tag: 'lifecycle_conflict' as const, product: existing };
       }
-      const readiness = catalogReadiness({
-        lifecycle: 'ACTIVE',
-        ...(existing.name === undefined ? {} : { name: existing.name }),
-        variants: existing.variants,
-      });
+      const localizedNames = yield* getLocalizedNames(transaction, tenantId, input.productId);
+      const readiness = catalogReadiness(
+        {
+          lifecycle: 'ACTIVE',
+          variants: existing.variants,
+        },
+        localizedNames,
+      );
       if (!readiness.catalogReady) {
         return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
       }

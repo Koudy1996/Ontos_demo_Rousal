@@ -1,8 +1,8 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { productVariants, products } from '../../src/database/schema.ts';
+import { productLocalizedFacts, productVariants, products } from '../../src/database/schema.ts';
 import { catalogPersistenceForScope } from '../../src/persistence/catalog-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 
@@ -22,12 +22,49 @@ const scope = {
 };
 
 describe('Product update Variant activation', () => {
+  it.effect('derives Current readiness from localized names instead of the legacy label', () =>
+    Effect.gen(function* checkCurrentName() {
+      let localizedName: string | null = null;
+      const transaction = {
+        select: () => ({
+          from: (table: typeof products | typeof productVariants | typeof productLocalizedFacts) => ({
+            where: () => ({
+              limit: () =>
+                Effect.succeed([
+                  {
+                    createdAt: now,
+                    currentRevision: 1,
+                    description: null,
+                    lifecycleState: 'ACTIVE',
+                    name: 'Legacy label',
+                    productId,
+                    updatedAt: now,
+                  },
+                ]),
+              orderBy: () =>
+                Effect.succeed([{ createdAt: now, lifecycleState: 'ACTIVE', productId, tenantId, variantId }]),
+              pipe: () => Effect.succeed(localizedName === null ? [] : [localizedName]),
+            }),
+          }),
+        }),
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const persistence = yield* catalogPersistenceForScope(transaction, scope);
+      const withoutTranslation = yield* persistence.getCurrent(productId);
+      expect(Option.getOrThrow(withoutTranslation).catalogReady).toBe(false);
+      localizedName = 'Police Alfa';
+      const withTranslation = yield* persistence.getCurrent(productId);
+      expect(Option.getOrThrow(withTranslation).catalogReady).toBe(true);
+    }),
+  );
+
   it.effect('fails closed before any write when draft Current basis is unverified', () =>
     Effect.gen(function* rejectUnverifiedActivation() {
       const transaction = {
         select: () => ({
-          from: (table: typeof products | typeof productVariants) => ({
+          from: (table: typeof products | typeof productVariants | typeof productLocalizedFacts) => ({
             where: () => ({
+              pipe: () => Effect.succeed([]),
               limit: () =>
                 Effect.succeed([
                   {
