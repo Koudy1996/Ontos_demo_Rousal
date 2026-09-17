@@ -175,9 +175,11 @@ export const catalogApiContract = {
  * identity, not a runtime role check. Bundles are provisioning aids only: adding
  * an operation here never grants it to an existing Principal. `scope` names the
  * Core authorization boundary; `businessTarget` names the Product domain target.
- * Catalog currently authorizes reads by tenant context permission and Actions
- * by tenant/action executor grants. `businessTarget: 'product'` does not imply
- * a per-Product SpiceDB grant. Owner-local tenant guards still apply.
+ * Catalog authorizes reads by explicit context permission and Actions by
+ * Action executor grants. `scope` is the tenant entrypoint boundary; a read
+ * may additionally declare a module permission target or resource check.
+ * `businessTarget: 'product'` does not imply a per-Product SpiceDB grant.
+ * Owner-local tenant guards still apply.
  * Importer and override operations remain deferred to #411B/#481 and are
  * deliberately absent from this inventory.
  */
@@ -187,12 +189,21 @@ const controlledAttributeValueBusinessTarget = 'controlled-attribute-value';
 const packageDefinitionBusinessTarget = 'package-definition';
 const productRelationshipBusinessTarget = 'product-relationship';
 const productUnitBusinessTarget = 'product-unit';
+const brandBusinessTarget = 'brand';
 
 export const catalogPublicOperationContracts = {
   'commerce.catalog.add-product-category-assignment': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.add-product-category-assignment',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.assign-catalog-media': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.assign-catalog-media',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -237,6 +248,33 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.product-relationship-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productRelationshipBusinessTarget,
+    permission: 'commerce.catalog.read.product-relationship',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.product-relationship-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productRelationshipBusinessTarget,
+    permission: 'commerce.catalog.read.product-relationship-history',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.change-product-manufacturer': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.change-product-manufacturer',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.change-product-relationship': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: productRelationshipBusinessTarget,
@@ -265,6 +303,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: attributeDefinitionBusinessTarget,
     permission: 'commerce.catalog.create-attribute-definition',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.create-brand': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: brandBusinessTarget,
+    permission: 'commerce.catalog.create-brand',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -349,6 +395,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.reactivate-brand': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: brandBusinessTarget,
+    permission: 'commerce.catalog.reactivate-brand',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.reactivate-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'product',
@@ -373,10 +427,34 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.remove-catalog-media': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.remove-catalog-media',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.remove-product-category-assignment': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.remove-product-category-assignment',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.remove-product-localized-facts': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.remove-product-localized-facts',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.remove-product-manufacturer': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.remove-product-manufacturer',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -397,10 +475,26 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.remove-variant-localized-facts': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.remove-variant-localized-facts',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.rename-attribute-definition': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: attributeDefinitionBusinessTarget,
     permission: 'commerce.catalog.rename-attribute-definition',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.rename-brand': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: brandBusinessTarget,
+    permission: 'commerce.catalog.rename-brand',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -425,6 +519,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: controlledAttributeValueBusinessTarget,
     permission: 'commerce.catalog.retire-controlled-attribute-value',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.retire-brand': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: brandBusinessTarget,
+    permission: 'commerce.catalog.retire-brand',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -493,10 +595,42 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.reorder-catalog-media': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.reorder-catalog-media',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.set-product-attribute-values': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.set-product-attribute-values',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.set-product-brand': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.set-product-brand',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.set-product-localized-facts': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.set-product-localized-facts',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.set-product-manufacturer': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.set-product-manufacturer',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -525,8 +659,16 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.set-variant-localized-facts': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.set-variant-localized-facts',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.update-product': {
-    authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
+    authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.update-product',
     permissionKind: 'action_execution',
@@ -538,16 +680,20 @@ export const catalogPublicOperationContracts = {
 export const catalogAuthorityBundles = {
   CATALOG_DEFINITION_MANAGER: [
     'commerce.catalog.create-attribute-definition',
+    'commerce.catalog.create-brand',
     'commerce.catalog.create-controlled-attribute-value',
     'commerce.catalog.create-package-definition',
     'commerce.catalog.create-product-category',
     'commerce.catalog.create-product-type',
     'commerce.catalog.create-product-unit',
     'commerce.catalog.move-product-category',
+    'commerce.catalog.reactivate-brand',
     'commerce.catalog.reactivate-controlled-attribute-value',
     'commerce.catalog.rename-attribute-definition',
+    'commerce.catalog.rename-brand',
     'commerce.catalog.rename-controlled-attribute-value',
     'commerce.catalog.rename-product-category',
+    'commerce.catalog.retire-brand',
     'commerce.catalog.retire-controlled-attribute-value',
     'commerce.catalog.retire-package-definition',
     'commerce.catalog.retire-product-category',
@@ -562,7 +708,6 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.reactivate-variant',
     'commerce.catalog.retire-product',
     'commerce.catalog.retire-variant',
-    'commerce.catalog.update-product',
   ],
   CATALOG_READER: [
     'commerce.catalog.read.create-product-recovery',
@@ -570,9 +715,13 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.product-category-history',
     'commerce.catalog.read.product-detail',
     'commerce.catalog.read.product-history',
+    'commerce.catalog.read.product-relationship',
+    'commerce.catalog.read.product-relationship-history',
   ],
   PRODUCT_EDITOR: [
     'commerce.catalog.add-product-category-assignment',
+    'commerce.catalog.assign-catalog-media',
+    'commerce.catalog.change-product-manufacturer',
     'commerce.catalog.change-product-relationship',
     'commerce.catalog.change-variant',
     'commerce.catalog.create-product',
@@ -580,12 +729,22 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.correct-product',
     'commerce.catalog.create-variant',
     'commerce.catalog.remove-product-attribute-values',
+    'commerce.catalog.remove-catalog-media',
     'commerce.catalog.remove-product-category-assignment',
+    'commerce.catalog.remove-product-localized-facts',
+    'commerce.catalog.remove-product-manufacturer',
     'commerce.catalog.remove-product-relationship',
     'commerce.catalog.remove-variant-attribute-override',
+    'commerce.catalog.remove-variant-localized-facts',
+    'commerce.catalog.reorder-catalog-media',
     'commerce.catalog.set-product-attribute-values',
+    'commerce.catalog.set-product-brand',
+    'commerce.catalog.set-product-localized-facts',
+    'commerce.catalog.set-product-manufacturer',
     'commerce.catalog.set-product-type',
     'commerce.catalog.set-variant-attribute-override',
+    'commerce.catalog.set-variant-localized-facts',
+    'commerce.catalog.update-product',
   ],
 } as const;
 

@@ -247,10 +247,14 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
     // Business targets are descriptive, not per-resource SpiceDB grants.
     expect([
       'attribute-definition',
+      'brand',
       'controlled-attribute-value',
+      'package-definition',
       'product',
       'product-category',
+      'product-relationship',
       'product-type',
+      'product-unit',
       'variant',
     ]).toContain(contract.businessTarget);
     expect(contract.scope).toBe('tenant');
@@ -261,24 +265,34 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   }
   expect(catalogAuthorityBundles.CATALOG_DEFINITION_MANAGER).toEqual([
     'commerce.catalog.create-attribute-definition',
+    'commerce.catalog.create-brand',
     'commerce.catalog.create-controlled-attribute-value',
+    'commerce.catalog.create-package-definition',
     'commerce.catalog.create-product-category',
     'commerce.catalog.create-product-type',
+    'commerce.catalog.create-product-unit',
     'commerce.catalog.move-product-category',
+    'commerce.catalog.reactivate-brand',
     'commerce.catalog.reactivate-controlled-attribute-value',
     'commerce.catalog.rename-attribute-definition',
+    'commerce.catalog.rename-brand',
     'commerce.catalog.rename-controlled-attribute-value',
     'commerce.catalog.rename-product-category',
+    'commerce.catalog.retire-brand',
     'commerce.catalog.retire-controlled-attribute-value',
+    'commerce.catalog.retire-package-definition',
     'commerce.catalog.retire-product-category',
+    'commerce.catalog.retire-product-unit',
+    'commerce.catalog.revise-package-definition',
     'commerce.catalog.revise-product-type',
+    'commerce.catalog.revise-product-unit',
+    'commerce.catalog.set-product-unit-target-divisibility',
   ]);
   expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.retire-variant');
   expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.reactivate-variant');
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.create-variant');
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.change-variant');
-  // #411B/#481 importer and overrides are deferred.
-  expect(contracts).toHaveLength(29);
+  // #411B/#481 importer and local-override Actions are deferred.
   const bundlePermissions = Object.values(catalogAuthorityBundles).flat();
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
   expect(bundlePermissions).toHaveLength(contracts.length);
