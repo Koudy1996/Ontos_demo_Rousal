@@ -225,24 +225,28 @@ const collectDomainErrors = (ast: SchemaAstLike): readonly DomainErrorIdentity[]
 interface DecodedActionRegistration {
   readonly action: UnknownRecord;
   readonly descriptor: UnknownRecord;
-  readonly domainErrorSchema: UnknownRecord;
+  readonly domainErrorSchema: { readonly ast: UnknownRecord };
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic import namespaces are untrusted here and are decoded field-by-field before the scaffold accepts the registration.
-const decodeActionRegistration = (module: unknown, value: string): Option.Option<DecodedActionRegistration> =>
+export const decodeActionRegistration = (module: unknown, value: string): Option.Option<DecodedActionRegistration> =>
   Option.gen(function* decodeActionRegistrationOption() {
     const moduleRecord = yield* decodeRecord(module);
     const action = yield* decodeRecord(moduleRecord[value]);
     const descriptor = yield* decodeRecord(action['descriptor']);
-    const domainErrorSchema = yield* decodeRecord(descriptor['domainErrorSchema']);
-    return { action, descriptor, domainErrorSchema };
+    const { domainErrorSchema } = descriptor;
+    if (!Schema.isSchema(domainErrorSchema)) {
+      return yield* Option.none();
+    }
+    const ast = yield* decodeRecord(domainErrorSchema.ast);
+    return { action, descriptor, domainErrorSchema: { ast } };
   });
 
 const isValidActionRegistration = (registration: DecodedActionRegistration): boolean =>
   isString(registration.descriptor['actionKey']) &&
   isString(registration.descriptor['owningModuleKey']) &&
   (registration.descriptor['idempotency'] === 'required' || registration.descriptor['idempotency'] === 'optional') &&
-  Schema.is(UnknownRecordSchema)(registration.domainErrorSchema['ast']);
+  Schema.is(UnknownRecordSchema)(registration.domainErrorSchema.ast);
 
 // oxlint-disable-next-line effect-native/no-async-script-program -- Dynamic module import is the script driver boundary and is immediately wrapped by loadAction's typed Effect.tryPromise channel.
 const inspectAction = async (actionPath: string, value: string): Promise<ActionModuleLike> => {
