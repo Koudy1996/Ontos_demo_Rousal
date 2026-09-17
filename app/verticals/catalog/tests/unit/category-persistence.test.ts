@@ -37,18 +37,44 @@ const revisionLockQuery = (calls: string[]) => ({
   }),
 });
 
-const categoryReadQuery = (
-  rows: {
-    categoryId: string;
-    currentRevision: number;
-    lifecycleState: string;
-    name: string;
-    parentCategoryId: string | null;
-    tenantId: string;
-  }[],
-) => ({
+interface CategoryRowStub {
+  categoryId: string;
+  currentRevision: number;
+  lifecycleState: string;
+  name: string;
+  parentCategoryId: string | null;
+  tenantId: string;
+}
+
+const categoryReadQuery = (rows: CategoryRowStub[]) => ({
   where: () => ({ limit: () => Effect.succeed([rows.shift()]) }),
 });
+
+const moveTransaction = (current: CategoryRowStub, snapshot: CategoryRowStub[], calls: string[]) => {
+  let categoryReads = 0;
+  return {
+    insert: (table: typeof productCategories | typeof productCategoryHierarchyRevisions) => {
+      expect(table).toBe(productCategoryHierarchyRevisions);
+      calls.push('revision-upsert');
+      return { values: () => ({ onConflictDoNothing: () => Effect.succeed([]) }) };
+    },
+    select: () => ({
+      from: (table: typeof productCategories | typeof productCategoryHierarchyRevisions) => {
+        if (table === productCategoryHierarchyRevisions) {
+          calls.push('revision-select');
+          return revisionLockQuery(calls);
+        }
+        expect(table).toBe(productCategories);
+        calls.push('category-read');
+        categoryReads += 1;
+        return categoryReads === 1 ? categoryReadQuery([current]) : { where: () => Effect.succeed(snapshot) };
+      },
+    }),
+    update: () => {
+      throw new Error('invalid move must not write');
+    },
+  };
+};
 
 const updatedCategoryQuery = <Row>(row: Row) => ({
   set: () => ({ where: () => ({ returning: () => Effect.succeed([row]) }) }),
@@ -191,53 +217,16 @@ describe('Category persistence transaction boundary', () => {
   it.effect('locks the tenant revision before reading a move and rejects a reciprocal cycle', () =>
     Effect.gen(function* reciprocalCycle() {
       const calls: string[] = [];
-      const categoryRows = [
-        {
-          categoryId: categoryA,
-          currentRevision: 1,
-          lifecycleState: 'ACTIVE',
-          name: 'A',
-          parentCategoryId: null,
-          tenantId,
-        },
-        {
-          categoryId: categoryB,
-          currentRevision: 1,
-          lifecycleState: 'ACTIVE',
-          name: 'B',
-          parentCategoryId: categoryA,
-          tenantId,
-        },
-        {
-          categoryId: categoryB,
-          currentRevision: 1,
-          lifecycleState: 'ACTIVE',
-          name: 'B',
-          parentCategoryId: categoryA,
-          tenantId,
-        },
-      ];
-      const transaction = {
-        insert: (table: typeof productCategories | typeof productCategoryHierarchyRevisions) => {
-          expect(table).toBe(productCategoryHierarchyRevisions);
-          calls.push('revision-upsert');
-          return { values: () => ({ onConflictDoNothing: () => Effect.succeed([]) }) };
-        },
-        select: () => ({
-          from: (table: typeof productCategories | typeof productCategoryHierarchyRevisions) => {
-            if (table === productCategoryHierarchyRevisions) {
-              calls.push('revision-select');
-              return revisionLockQuery(calls);
-            }
-            expect(table).toBe(productCategories);
-            calls.push('category-read');
-            return categoryReadQuery(categoryRows);
-          },
-        }),
-        update: () => {
-          throw new Error('cycle must not write');
-        },
+      const current = {
+        categoryId: categoryA,
+        currentRevision: 1,
+        lifecycleState: 'ACTIVE',
+        name: 'A',
+        parentCategoryId: null,
+        tenantId,
       };
+      const child = { ...current, categoryId: categoryB, name: 'B', parentCategoryId: categoryA };
+      const transaction = moveTransaction(current, [current, child], calls);
       // @ts-expect-error The mock implements only the query chain reached by a rejected cycle.
       const persistence = yield* categoryPersistenceForScope(transaction, scope);
       const outcome = yield* persistence.moveCategory({
@@ -252,14 +241,45 @@ describe('Category persistence transaction boundary', () => {
           Match.orElse(() => false),
         ),
       ).toBe(true);
-      expect(calls).toEqual([
-        'revision-upsert',
-        'revision-select',
-        'revision-lock',
-        'category-read',
-        'category-read',
-        'category-read',
-      ]);
+      expect(calls).toEqual(['revision-upsert', 'revision-select', 'revision-lock', 'category-read', 'category-read']);
+    }),
+  );
+
+  it.effect('rejects a root move when an unrelated cycle exists in the locked tenant snapshot', () =>
+    Effect.gen(function* unrelatedCycle() {
+      const calls: string[] = [];
+      const current = {
+        categoryId: categoryA,
+        currentRevision: 1,
+        lifecycleState: 'ACTIVE',
+        name: 'A',
+        parentCategoryId: categoryB,
+        tenantId,
+      };
+      const previousParent = { ...current, categoryId: categoryB, name: 'B', parentCategoryId: null };
+      const cycleC = {
+        ...current,
+        categoryId: '00000000-0000-4000-8000-000000000006',
+        name: 'C',
+        parentCategoryId: '00000000-0000-4000-8000-000000000007',
+      };
+      const cycleD = {
+        ...current,
+        categoryId: '00000000-0000-4000-8000-000000000007',
+        name: 'D',
+        parentCategoryId: cycleC.categoryId,
+      };
+      const transaction = moveTransaction(current, [current, previousParent, cycleC, cycleD], calls);
+      // @ts-expect-error The mock implements only the query chains reached by a rejected root move.
+      const persistence = yield* categoryPersistenceForScope(transaction, scope);
+      const outcome = yield* persistence.moveCategory({ ...input, categoryId: categoryA, expectedRevision: 1 });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('hierarchy_conflict', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+      expect(calls).toEqual(['revision-upsert', 'revision-select', 'revision-lock', 'category-read', 'category-read']);
     }),
   );
 });

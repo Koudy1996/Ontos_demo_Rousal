@@ -1,7 +1,8 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Match, Schema } from 'effect';
 
+import { CategoryValidSchema, validateCategoryMove } from '../../shared/domain/category-hierarchy.ts';
 import {
   productCategories,
   productCategoryAssignments,
@@ -138,6 +139,7 @@ const tenantMismatchReason = 'Tenant mismatch';
 const categoryNotFoundReason = 'Category not found';
 const revisionChangedReason = 'Revision changed';
 const categoryRetiredReason = 'Category retired';
+const inconsistentHierarchyReason = 'Hierarchy is inconsistent';
 
 const unavailable = (cause?: unknown): CategoryPersistenceUnavailable => {
   const failure = new CategoryPersistenceUnavailable({
@@ -264,30 +266,6 @@ export const categoryPersistenceForScope = (
     const parent = yield* find(parentId);
     return parent?.lifecycleState === 'ACTIVE';
   });
-  const checkAncestor: (
-    categoryId: string,
-    ancestorId: string | undefined,
-    seen?: ReadonlySet<string>,
-  ) => Effect.Effect<'valid' | 'cycle' | 'missing', CategoryPersistenceUnavailable> = Effect.fn(
-    'CategoryPersistence.checkAncestor',
-  )(function* checkAncestorStep(
-    categoryId: string,
-    ancestorId: string | undefined,
-    seen: ReadonlySet<string> = new Set(),
-  ) {
-    if (ancestorId === undefined) {
-      return 'valid' as const;
-    }
-    if (ancestorId === categoryId || seen.has(ancestorId)) {
-      return 'cycle' as const;
-    }
-    const ancestor = yield* find(ancestorId);
-    if (ancestor === undefined) {
-      return 'missing' as const;
-    }
-    return yield* checkAncestor(categoryId, ancestor.parentCategoryId ?? undefined, new Set([...seen, ancestorId]));
-  });
-
   const createCategory: CategoryPersistence['createCategory'] = Effect.fn('CategoryPersistence.createCategory')(
     function* createCategory(input) {
       if (input.tenantId !== tenantId) {
@@ -400,6 +378,41 @@ export const categoryPersistenceForScope = (
       if (current.lifecycleState !== 'ACTIVE') {
         return { _tag: 'lifecycle_conflict', reason: categoryRetiredReason } as const;
       }
+      const hierarchy = yield* query(
+        transaction.select().from(productCategories).where(eq(productCategories.tenantId, tenantId)),
+      );
+      const validation = validateCategoryMove(
+        hierarchy.map(record),
+        categoryRef(tenantId, input.categoryId),
+        input.parentCategoryId === undefined ? undefined : categoryRef(tenantId, input.parentCategoryId),
+      );
+      if (!Schema.is(CategoryValidSchema)(validation)) {
+        return Match.value(validation.reason).pipe(
+          Match.when('CATEGORY_NOT_FOUND', () => ({ _tag: 'not_found', reason: categoryNotFoundReason }) as const),
+          Match.when(
+            'CATEGORY_RETIRED',
+            () => ({ _tag: 'lifecycle_conflict', reason: categoryRetiredReason }) as const,
+          ),
+          Match.when('PARENT_RETIRED', () => ({ _tag: 'lifecycle_conflict', reason: 'Parent retired' }) as const),
+          Match.when('PARENT_NOT_FOUND', () => ({ _tag: 'reference_conflict', reason: 'Parent not found' }) as const),
+          Match.when('CROSS_TENANT_PARENT', () => ({ _tag: 'reference_conflict', reason: 'Foreign parent' }) as const),
+          Match.when('SELF_PARENT', () => ({ _tag: 'hierarchy_conflict', reason: 'Self-parent cycle' }) as const),
+          Match.when('CYCLE', () => ({ _tag: 'hierarchy_conflict', reason: 'Move would create a cycle' }) as const),
+          Match.when(
+            'INCONSISTENT_HIERARCHY',
+            () => ({ _tag: 'hierarchy_conflict', reason: inconsistentHierarchyReason }) as const,
+          ),
+          Match.when(
+            'DIRECT_CHILDREN_REMAIN',
+            () => ({ _tag: 'hierarchy_conflict', reason: inconsistentHierarchyReason }) as const,
+          ),
+          Match.when(
+            'DIRECT_ASSIGNMENTS_REMAIN',
+            () => ({ _tag: 'hierarchy_conflict', reason: inconsistentHierarchyReason }) as const,
+          ),
+          Match.exhaustive,
+        );
+      }
       if (current.parentCategoryId === (input.parentCategoryId ?? null)) {
         return {
           _tag: 'moved',
@@ -407,16 +420,6 @@ export const categoryPersistenceForScope = (
           changed: false,
           hierarchyRevision: revision.hierarchyRevision,
         } as const;
-      }
-      if (!(yield* validParent(input.parentCategoryId))) {
-        return { _tag: 'reference_conflict', reason: 'Parent is not active' } as const;
-      }
-      const ancestry = yield* checkAncestor(input.categoryId, input.parentCategoryId);
-      if (ancestry === 'cycle') {
-        return { _tag: 'hierarchy_conflict', reason: 'Move would create a cycle' } as const;
-      }
-      if (ancestry === 'missing') {
-        return { _tag: 'reference_conflict', reason: 'Ancestor not found' } as const;
       }
       const [updated] = yield* query(
         transaction
