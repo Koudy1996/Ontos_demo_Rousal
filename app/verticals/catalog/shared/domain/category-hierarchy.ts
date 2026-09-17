@@ -39,7 +39,7 @@ const sameRef = (left: CategoryIdentity, right: CategoryIdentity): boolean =>
 const findNode = (nodes: readonly CategoryNode[], ref: CategoryIdentity): CategoryNode | undefined =>
   nodes.find(({ categoryRef }) => sameRef(categoryRef, ref));
 
-const snapshotIsInconsistent = (nodes: readonly CategoryNode[], tenantId: string): boolean => {
+export const categorySnapshotIsInconsistent = (nodes: readonly CategoryNode[], tenantId: string): boolean => {
   const tenantNodes = nodes.filter(({ categoryRef }) => categoryRef.tenantId === tenantId);
   const ids = new Set<string>();
   for (const node of tenantNodes) {
@@ -84,7 +84,7 @@ export const validateCategoryMove = (
   if (category.lifecycle !== 'ACTIVE') {
     return failure('CATEGORY_RETIRED');
   }
-  if (snapshotIsInconsistent(nodes, categoryRef.tenantId)) {
+  if (categorySnapshotIsInconsistent(nodes, categoryRef.tenantId)) {
     return failure('INCONSISTENT_HIERARCHY');
   }
   if (parentRef === undefined) {

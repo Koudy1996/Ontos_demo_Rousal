@@ -1,3 +1,5 @@
+import { categorySnapshotIsInconsistent } from './category-hierarchy.ts';
+
 /** Product category facts are independent of navigation, pricing, and saleability. */
 export interface CategoryKey {
   readonly resourceId: string;
@@ -44,6 +46,17 @@ export type AssignmentResult =
 const keyOf = (ref: CategoryKey): string => `${ref.tenantId}:${ref.resourceId}`;
 const sameRef = (left: CategoryKey, right: CategoryKey): boolean =>
   left.tenantId === right.tenantId && left.resourceId === right.resourceId;
+
+const hierarchyIsCorrupt = (
+  hierarchy: readonly CategoryParent[],
+  parentByCategory: ReadonlyMap<string, CategoryParent>,
+  tenantId: string,
+): boolean =>
+  hierarchy.some(
+    ({ categoryRef, parentRef }) =>
+      categoryRef.tenantId !== tenantId ||
+      (parentRef !== undefined && (parentRef.tenantId !== tenantId || !parentByCategory.has(keyOf(parentRef)))),
+  ) || categorySnapshotIsInconsistent(hierarchy, tenantId);
 
 /** Adds one explicit link. Neither order nor a primary category is recorded. */
 export const addDirectCategory = (
@@ -117,12 +130,7 @@ export const deriveClassification = (
         categoryRef.tenantId !== productRef.tenantId ||
         parentByCategory.get(keyOf(categoryRef))?.lifecycle !== 'ACTIVE',
     ) ||
-    hierarchy.some(
-      ({ categoryRef, parentRef }) =>
-        categoryRef.tenantId !== productRef.tenantId ||
-        (parentRef !== undefined &&
-          (parentRef.tenantId !== productRef.tenantId || !parentByCategory.has(keyOf(parentRef)))),
-    )
+    hierarchyIsCorrupt(hierarchy, parentByCategory, productRef.tenantId)
   ) {
     return { status: 'UNAVAILABLE' };
   }

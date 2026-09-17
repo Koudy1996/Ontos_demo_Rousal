@@ -140,6 +140,20 @@ describe('Product category classification', () => {
     ).toEqual({ status: 'UNAVAILABLE' });
   });
 
+  it('fails closed when an unrelated branch cycles in the same authoritative tenant snapshot', () => {
+    const unrelatedA = ref('unrelated-a');
+    const unrelatedB = ref('unrelated-b');
+    const corruptHierarchy = [
+      ...hierarchy,
+      { categoryRef: unrelatedA, lifecycle: 'ACTIVE' as const, parentRef: unrelatedB },
+      { categoryRef: unrelatedB, lifecycle: 'ACTIVE' as const, parentRef: unrelatedA },
+    ];
+    expect(deriveClassification(productRef, [{ categoryRef: child, productRef }], corruptHierarchy, revision)).toEqual({
+      status: 'UNAVAILABLE',
+    });
+    expect(deriveClassification(productRef, [], corruptHierarchy, revision)).toEqual({ status: 'UNAVAILABLE' });
+  });
+
   it('fails closed on duplicate direct links, duplicate hierarchy nodes, and retired ancestry', () => {
     const assignment = { categoryRef: child, productRef };
     expect(deriveClassification(productRef, [assignment, assignment], hierarchy, revision)).toEqual({
