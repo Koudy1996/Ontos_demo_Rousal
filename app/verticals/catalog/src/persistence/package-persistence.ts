@@ -90,17 +90,17 @@ const result = Effect.fn('PackagePersistence.result')(function* result(
     resourceId: row.packageDefinitionId,
     resourceType: packageType,
     tenantId: row.tenantId,
-  }).pipe(Effect.mapError(unavailable));
+  });
   const contentRevision = yield* Schema.decodeEffect(PackageDefinitionSelectionRevisionSchema)({
     resourceRef: ref,
     revision: row.currentRevision,
-  }).pipe(Effect.mapError(unavailable));
+  });
   return {
     _tag: tag,
     contentRevision,
     definitionRef: ref,
   };
-});
+}, Effect.mapError(unavailable));
 
 const sameRef = (
   ref: { readonly moduleId: string; readonly resourceType: string; readonly tenantId: string },
