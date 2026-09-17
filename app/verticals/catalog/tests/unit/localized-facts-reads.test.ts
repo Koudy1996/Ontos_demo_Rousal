@@ -1,5 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Option, Schema } from 'effect';
+import { Effect, Exit, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
@@ -152,7 +152,7 @@ describe('localized facts private reads', () => {
       const result = yield* Effect.exit(
         reads.currentProduct({ ...productRef, tenantId: '00000000-0000-4000-8000-000000000099' }, 'cs-CZ'),
       );
-      expect(result._tag).toBe('Failure');
+      expect(Exit.isFailure(result)).toBe(true);
     }),
   );
 
@@ -165,7 +165,7 @@ describe('localized facts private reads', () => {
       // @ts-expect-error Focused mock implements only queried Drizzle chains.
       const reads = localizedFactsReadsForScope(mockTransaction(rows), scope);
       const result = yield* Effect.exit(reads.productRevision(productRef, 'cs-CZ', 1));
-      expect(result._tag).toBe('Failure');
+      expect(Exit.isFailure(result)).toBe(true);
     }),
   );
 });

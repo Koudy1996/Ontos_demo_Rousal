@@ -1,5 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Exit, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { productTypeAssignments, productTypeRevisions, productTypes, products } from '../../src/database/schema.ts';
@@ -114,7 +114,7 @@ describe('Product Type Current readiness source', () => {
       // @ts-expect-error Mock supplies only the selected Drizzle query chain.
       const source = productTypeReadinessSourceForScope(transaction({ revision: 3 }), scope);
       const result = yield* Effect.exit(source.load(productRef, at));
-      expect(result._tag).toBe('Failure');
+      expect(Exit.isFailure(result)).toBe(true);
     }),
   );
 
@@ -123,7 +123,7 @@ describe('Product Type Current readiness source', () => {
       // @ts-expect-error Mock supplies only the selected Drizzle query chain.
       const source = productTypeReadinessSourceForScope(transaction({ foreignRule: true }), scope);
       const result = yield* Effect.exit(source.load(productRef, at));
-      expect(result._tag).toBe('Failure');
+      expect(Exit.isFailure(result)).toBe(true);
     }),
   );
 });
