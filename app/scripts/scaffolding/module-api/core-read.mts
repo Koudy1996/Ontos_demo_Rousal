@@ -57,6 +57,23 @@ const patchSlot = (source: string, name: string, identity: string, contribution:
   return `${source.slice(0, endIndex)}${insertion}${source.slice(endIndex)}`;
 };
 
+const patchCoreRuntimeImport = (source: string, value: string): string => {
+  const imports = [...source.matchAll(/import \{(?<members>[^}]*)\} from '@app\/core-runtime';/gu)];
+  if (imports.length !== 1 || imports[0]?.groups?.['members'] === undefined) {
+    return raiseScaffoldFailure('Core read requires one canonical Shell Core runtime import');
+  }
+  const [found] = imports;
+  const members = found?.groups?.['members'];
+  if (members === undefined || found.index === undefined) {
+    return raiseScaffoldFailure('Core read cannot patch Shell Core runtime import');
+  }
+  if (new RegExp(`\\b${value}Read\\b`, 'u').test(members)) {
+    return source;
+  }
+  const replacement = `import {${members.trimEnd()}\n  ${value}Read,\n} from '@app/core-runtime';`;
+  return `${source.slice(0, found.index)}${replacement}${source.slice(found.index + found[0].length)}`;
+};
+
 const schemaDeclarations = (type: string) => `export const ${type}RequestSchema = Schema.Struct({
   id: Schema.String.check(Schema.isUUID()),
 });
@@ -171,6 +188,7 @@ const renderClientOperation = (type: string) => `export const execute${type} = (
 const readAndPatch = Effect.fn('CoreReadScaffold.patch')(function* readAndPatch(
   path: string,
   slots: readonly [string, string, string][],
+  coreImport?: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const current = yield* fs
@@ -181,6 +199,12 @@ const readAndPatch = Effect.fn('CoreReadScaffold.patch')(function* readAndPatch(
     const currentSource = next;
     next = yield* tryScaffold(`failed to patch Core read slot ${slot}`, () =>
       patchSlot(currentSource, slot, identity, entry),
+    );
+  }
+  if (coreImport !== undefined) {
+    const currentSource = next;
+    next = yield* tryScaffold('failed to patch canonical Core runtime import', () =>
+      patchCoreRuntimeImport(currentSource, coreImport),
     );
   }
   return updateMutation(path, current, next);
@@ -244,11 +268,15 @@ export const planCoreReadScaffold = Effect.fn('CoreReadScaffold.plan')(function*
       ],
       [markers.sharedGroups, name, renderApiGroup(name, type)],
     ]),
-    readAndPatch(serverRoot, [
-      [markers.serverImports, name, `import { ${value}Read } from '@app/core-runtime';`],
-      [markers.serverGroups, name, renderServerGroup(type, value)],
-      [markers.serverLayers, name, `coreRead${type}GroupLive,`],
-    ]),
+    readAndPatch(
+      serverRoot,
+      [
+        [markers.serverImports, name, `// ${value}Read uses the canonical @app/core-runtime import`],
+        [markers.serverGroups, name, renderServerGroup(type, value)],
+        [markers.serverLayers, name, `coreRead${type}GroupLive,`],
+      ],
+      value,
+    ),
     readAndPatch(clientRoot, [
       [
         markers.clientImports,
