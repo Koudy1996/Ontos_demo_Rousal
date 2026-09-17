@@ -34,10 +34,11 @@
     "db:check": "drizzle-kit check --config drizzle.config.ts",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
-    "db:test": "rstest run tests/unit/database-schema-contract.test.ts --config rstest.config.ts",
+    "db:test": "rstest run tests/unit/database-schema-contract.test.ts --config rstest.config.ts && pnpm test:integration",
     "db:verify": "node scripts/verify-db-schema.mts",
     "serve": "modern serve",
     "test:unit": "rstest --project unit",
+    "test:integration": "rstest --project integration",
     "typecheck": "node ../../scripts/ultramodern-typecheck.mts --project tsconfig.json"
   },
   "dependencies": {
