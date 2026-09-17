@@ -4,6 +4,8 @@ import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
 import { CreatePackageDefinitionPayloadSchema } from '../../shared/actions/create-package-definition.ts';
+import { PackageDefinitionSelectionRevisionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
+import { PackageDefinitionRefSchema } from '../../shared/resources/package-definition.ts';
 import { RevisePackageDefinitionPayloadSchema } from '../../shared/actions/revise-package-definition.ts';
 import { RetirePackageDefinitionPayloadSchema } from '../../shared/actions/retire-package-definition.ts';
 import {
@@ -65,6 +67,29 @@ const context = (
 });
 
 describe('Package Definition governed Action contracts', () => {
+  it.effect('passes trusted invocation identity to owner-local persistence', () =>
+    Effect.gen(function* trustedIdentity() {
+      const payload = Schema.decodeUnknownSync(CreatePackageDefinitionPayloadSchema)({
+        content,
+        definitionRef,
+        evidenceRefs,
+        reason,
+      });
+      const revision = Schema.decodeUnknownSync(PackageDefinitionSelectionRevisionSchema)(expectedCurrent);
+      const trustedRef = Schema.decodeUnknownSync(PackageDefinitionRefSchema)(definitionRef);
+      const run = context({
+        create: (input) =>
+          Effect.sync(() => {
+            expect(input.actionInvocationId).toBe('88888888-8888-4888-8888-888888888888');
+            expect(input.principalId).toBe(scope.principalId);
+            expect(input.payload.evidenceRefs).toEqual(evidenceRefs);
+            return { _tag: 'created', contentRevision: revision, definitionRef: trustedRef } as const;
+          }),
+      });
+      const result = yield* handleCreatePackageDefinition(payload, run);
+      expect(result.contentRevision.revision).toBe(1);
+    }),
+  );
   it.effect('keeps stale and invalid persistence outcomes distinct', () =>
     Effect.gen(function* typedOutcomes() {
       const stale = yield* resolvePackageMutation({ _tag: 'stale', actualRevision: 2 }).pipe(Effect.flip);
