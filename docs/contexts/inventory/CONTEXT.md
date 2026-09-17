@@ -2,6 +2,8 @@
 
 Inventory owns canonical stock meaning and Inventory-recognized stock obligations within explicit authority boundaries. This context extends the shared OntOS and Commerce language and owns Inventory-specific vocabulary; it does not prescribe storage, transport, locking, provider APIs, or other implementation mechanics.
 
+For Inventory-specific terms, this context together with Accepted Inventory ADRs is the specialization authority. If an older Commerce glossary shorthand conflicts with an Inventory definition here, use this Inventory definition and the Accepted ADR; do not preserve the older shorthand as a second valid meaning.
+
 ## Stock model
 
 **Stock Item** — Inventory Resource identifying one stock-bearing subject whose units are interchangeable for the same Inventory stock requirement. Product, Variant, SKU, display name, or external identifier is not Stock Item identity.
