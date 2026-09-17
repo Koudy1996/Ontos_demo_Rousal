@@ -8,13 +8,24 @@ import type { MicroVerticalOperationContext } from '@modern-js/bff-effect/microv
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
 
 // <generated-governed-http-api-imports>
+import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
 import { CreateProductActionApi } from './apis/create-product-action.ts';
+import { CreateProductCategoryActionApi } from './apis/create-product-category-action.ts';
 import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
+import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
+import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
+import { ProductCategoryClassificationApi } from './apis/product-category-classification.ts';
+import { ProductCategoryHistoryApi } from './apis/product-category-history.ts';
 import { ProductDetailApi } from './apis/product-detail.ts';
 import { ProductHistoryApi } from './apis/product-history.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
+import { RemoveProductCategoryAssignmentActionApi } from './apis/remove-product-category-assignment-action.ts';
+import { RenameProductCategoryActionApi } from './apis/rename-product-category-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
+import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
+import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
+import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
 // </generated-governed-http-api-imports>
 import { ProductActionInvocationIdSchema } from './domain/product.ts';
@@ -40,13 +51,24 @@ export const catalogFoundationApi = HttpApi.make('CatalogApiFoundation').add(
 export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
+  .addHttpApi(AddProductCategoryAssignmentActionApi)
   .addHttpApi(CorrectProductActionApi)
   .addHttpApi(CreateProductActionApi)
+  .addHttpApi(CreateProductCategoryActionApi)
   .addHttpApi(CreateProductRecoveryApi)
+  .addHttpApi(CreateProductTypeActionApi)
+  .addHttpApi(MoveProductCategoryActionApi)
+  .addHttpApi(ProductCategoryClassificationApi)
+  .addHttpApi(ProductCategoryHistoryApi)
   .addHttpApi(ProductDetailApi)
   .addHttpApi(ProductHistoryApi)
   .addHttpApi(ReactivateProductActionApi)
+  .addHttpApi(RemoveProductCategoryAssignmentActionApi)
+  .addHttpApi(RenameProductCategoryActionApi)
   .addHttpApi(RetireProductActionApi)
+  .addHttpApi(RetireProductCategoryActionApi)
+  .addHttpApi(ReviseProductTypeActionApi)
+  .addHttpApi(SetProductTypeActionApi)
   .addHttpApi(UpdateProductActionApi)
   // </generated-governed-http-api-additions>
   .pipe(identity);
@@ -74,14 +96,40 @@ export const catalogApiContract = {
  * Catalog currently authorizes reads by tenant context permission and Actions
  * by tenant/action executor grants. `businessTarget: 'product'` does not imply
  * a per-Product SpiceDB grant. Owner-local tenant guards still apply.
- * Definition Manager, importer, and override operations remain deferred to
- * #411B/#481 and are deliberately absent from this inventory.
+ * Importer and override operations remain deferred to #411B/#481 and are
+ * deliberately absent from this inventory.
  */
+const productCategoryBusinessTarget = 'product-category';
+
 export const catalogPublicOperationContracts = {
+  'commerce.catalog.add-product-category-assignment': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.add-product-category-assignment',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.create-product-recovery': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
     permission: 'commerce.catalog.read.create-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.product-category-classification': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.read.product-category-classification',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.product-category-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.read.product-category-history',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -118,6 +166,30 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.create-product-category': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.create-product-category',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.create-product-type': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: 'product-type',
+    permission: 'commerce.catalog.create-product-type',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.move-product-category': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.move-product-category',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.reactivate-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'product',
@@ -126,10 +198,50 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.remove-product-category-assignment': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.remove-product-category-assignment',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.rename-product-category': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.rename-product-category',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.retire-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'product',
     permission: 'commerce.catalog.retire-product',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.retire-product-category': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.retire-product-category',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.revise-product-type': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: 'product-type',
+    permission: 'commerce.catalog.revise-product-type',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.set-product-type': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.set-product-type',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -145,7 +257,14 @@ export const catalogPublicOperationContracts = {
 } as const;
 
 export const catalogAuthorityBundles = {
-  CATALOG_DEFINITION_MANAGER: [],
+  CATALOG_DEFINITION_MANAGER: [
+    'commerce.catalog.create-product-category',
+    'commerce.catalog.create-product-type',
+    'commerce.catalog.move-product-category',
+    'commerce.catalog.rename-product-category',
+    'commerce.catalog.retire-product-category',
+    'commerce.catalog.revise-product-type',
+  ],
   CATALOG_LIFECYCLE_MANAGER: [
     'commerce.catalog.reactivate-product',
     'commerce.catalog.retire-product',
@@ -153,10 +272,18 @@ export const catalogAuthorityBundles = {
   ],
   CATALOG_READER: [
     'commerce.catalog.read.create-product-recovery',
+    'commerce.catalog.read.product-category-classification',
+    'commerce.catalog.read.product-category-history',
     'commerce.catalog.read.product-detail',
     'commerce.catalog.read.product-history',
   ],
-  PRODUCT_EDITOR: ['commerce.catalog.create-product', 'commerce.catalog.correct-product'],
+  PRODUCT_EDITOR: [
+    'commerce.catalog.add-product-category-assignment',
+    'commerce.catalog.create-product',
+    'commerce.catalog.correct-product',
+    'commerce.catalog.remove-product-category-assignment',
+    'commerce.catalog.set-product-type',
+  ],
 } as const;
 
 const safeOutcomeText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200), Schema.isTrimmed());

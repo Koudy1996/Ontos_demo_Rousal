@@ -20,6 +20,8 @@ import { createProductCategoryAction } from './src/actions/create-product-catego
 import { CreateProductRecoveryApi } from './shared/apis/create-product-recovery.ts';
 import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
+import { ProductCategoryClassificationApi } from './shared/apis/product-category-classification.ts';
+import { ProductCategoryHistoryApi } from './shared/apis/product-category-history.ts';
 import { productCategoryResourceDescriptor } from './shared/resources/product-category.ts';
 import { ProductDetailApi } from './shared/apis/product-detail.ts';
 import { ProductHistoryApi } from './shared/apis/product-history.ts';
@@ -89,6 +91,8 @@ export const catalogManifest = defineOntosModuleManifest({
     api: {
       // <generated-module-manifest-apis>
       'create-product-recovery': CreateProductRecoveryApi,
+      'product-category-classification': ProductCategoryClassificationApi,
+      'product-category-history': ProductCategoryHistoryApi,
       'product-detail': ProductDetailApi,
       'product-history': ProductHistoryApi,
       // </generated-module-manifest-apis>

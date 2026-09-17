@@ -43,6 +43,8 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     api: {
       // <generated-module-registration-apis>
       'create-product-recovery': () => import('./src/api/create-product-recovery-client.ts'),
+      'product-category-classification': () => import('./src/api/product-category-classification-client.ts'),
+      'product-category-history': () => import('./src/api/product-category-history-client.ts'),
       'product-detail': () => import('./src/api/product-detail-client.ts'),
       'product-history': () => import('./src/api/product-history-client.ts'),
       // </generated-module-registration-apis>
