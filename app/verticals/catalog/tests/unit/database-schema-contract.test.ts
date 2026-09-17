@@ -150,6 +150,11 @@ it('keeps Brand, Product claim, and manufacturer facts tenant-qualified with app
     'catalog_manufacturer_relation_revisions_variant_fk',
   ]);
   expect(getTableConfig(manufacturerRelations).columns.map((column) => column.name)).not.toContain('target_name');
+  for (const table of [manufacturerRelations, manufacturerRelationRevisions]) {
+    const config = getTableConfig(table);
+    expect(config.columns.find((column) => column.name === 'target_id')?.getSQLType()).toBe('text');
+    expect(config.checks.map((constraint) => constraint.name)).toContain(`catalog_${config.name}_target_id_ck`);
+  }
   expect(getTableConfig(productVariants).columns.map((column) => column.name)).not.toContain('brand_id');
 });
 
@@ -442,6 +447,7 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_relationship_revisions_append_only');
   expect(combined).toContain('catalog_product_relationships_identity_immutable');
   expect(combined).toContain('catalog_product_relationships_exact_uk" UNIQUE NULLS NOT DISTINCT');
+  expect(combined).toContain('ALTER COLUMN "target_id" SET DATA TYPE text USING "target_id"::text');
   for (const trigger of [
     'catalog_product_localized_fact_revisions_append_only',
     'catalog_variant_localized_fact_revisions_append_only',

@@ -1918,7 +1918,7 @@ export const manufacturerRelations = catalogSchema.table.withRLS(
     productId: uuid('product_id'),
     variantId: uuid('variant_id'),
     targetKind: text('target_kind').notNull(),
-    targetId: uuid('target_id').notNull(),
+    targetId: text('target_id').notNull(),
     currentRevision: integer('current_revision').notNull(),
     disposition: text('disposition').notNull(),
     effectiveFrom: timestamp('effective_from', { withTimezone: true }),
@@ -1947,6 +1947,7 @@ export const manufacturerRelations = catalogSchema.table.withRLS(
       sql`(${table.productId} is null) <> (${table.variantId} is null)`,
     ),
     check('catalog_manufacturer_relations_target_ck', sql`${table.targetKind} in ('PARTY', 'LEGAL_ENTITY')`),
+    check('catalog_manufacturer_relations_target_id_ck', sql`length(${table.targetId}) between 1 and 300`),
     check('catalog_manufacturer_relations_revision_ck', sql`${table.currentRevision} > 0`),
     check('catalog_manufacturer_relations_disposition_ck', sql`${table.disposition} in ('CONFIRMED', 'RETRACTED')`),
     check(
@@ -1970,7 +1971,7 @@ export const manufacturerRelationRevisions = catalogSchema.table.withRLS(
     productId: uuid('product_id'),
     variantId: uuid('variant_id'),
     targetKind: text('target_kind').notNull(),
-    targetId: uuid('target_id').notNull(),
+    targetId: text('target_id').notNull(),
     disposition: text('disposition').notNull(),
     effectiveFrom: timestamp('effective_from', { withTimezone: true }),
     effectiveTo: timestamp('effective_to', { withTimezone: true }),
@@ -2006,6 +2007,7 @@ export const manufacturerRelationRevisions = catalogSchema.table.withRLS(
       sql`(${table.productId} is null) <> (${table.variantId} is null)`,
     ),
     check('catalog_manufacturer_relation_revisions_target_ck', sql`${table.targetKind} in ('PARTY', 'LEGAL_ENTITY')`),
+    check('catalog_manufacturer_relation_revisions_target_id_ck', sql`length(${table.targetId}) between 1 and 300`),
     check('catalog_manufacturer_relation_revisions_number_ck', sql`${table.revision} > 0`),
     check(
       'catalog_manufacturer_relation_revisions_disposition_ck',
