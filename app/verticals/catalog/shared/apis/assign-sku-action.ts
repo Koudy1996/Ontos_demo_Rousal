@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { AssignSkuPayloadSchema, AssignSkuResultSchema } from '../actions/assign-sku.ts';
 
-export { AssignSkuPayloadSchema, AssignSkuResultSchema } from '../actions/assign-sku.ts';
-export type { AssignSkuPayload, AssignSkuResult } from '../actions/assign-sku.ts';
+export { AssignSkuPayloadSchema } from '../actions/assign-sku.ts';
 
-export const AssignSkuActionHeadersSchema = Schema.Struct({
+const AssignSkuActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

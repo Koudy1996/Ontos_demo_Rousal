@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { CreateVariantPayloadSchema, CreateVariantResultSchema } from '../actions/create-variant.ts';
 
-export { CreateVariantPayloadSchema, CreateVariantResultSchema } from '../actions/create-variant.ts';
-export type { CreateVariantPayload, CreateVariantResult } from '../actions/create-variant.ts';
+export { CreateVariantPayloadSchema } from '../actions/create-variant.ts';
 
-export const CreateVariantActionHeadersSchema = Schema.Struct({
+const CreateVariantActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

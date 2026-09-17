@@ -9,16 +9,9 @@ import {
   SetProductLocalizedFactsResultSchema,
 } from '../actions/set-product-localized-facts.ts';
 
-export {
-  SetProductLocalizedFactsPayloadSchema,
-  SetProductLocalizedFactsResultSchema,
-} from '../actions/set-product-localized-facts.ts';
-export type {
-  SetProductLocalizedFactsPayload,
-  SetProductLocalizedFactsResult,
-} from '../actions/set-product-localized-facts.ts';
+export { SetProductLocalizedFactsPayloadSchema } from '../actions/set-product-localized-facts.ts';
 
-export const SetProductLocalizedFactsActionHeadersSchema = Schema.Struct({
+const SetProductLocalizedFactsActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

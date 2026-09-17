@@ -9,16 +9,9 @@ import {
   SetVariantLocalizedFactsResultSchema,
 } from '../actions/set-variant-localized-facts.ts';
 
-export {
-  SetVariantLocalizedFactsPayloadSchema,
-  SetVariantLocalizedFactsResultSchema,
-} from '../actions/set-variant-localized-facts.ts';
-export type {
-  SetVariantLocalizedFactsPayload,
-  SetVariantLocalizedFactsResult,
-} from '../actions/set-variant-localized-facts.ts';
+export { SetVariantLocalizedFactsPayloadSchema } from '../actions/set-variant-localized-facts.ts';
 
-export const SetVariantLocalizedFactsActionHeadersSchema = Schema.Struct({
+const SetVariantLocalizedFactsActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

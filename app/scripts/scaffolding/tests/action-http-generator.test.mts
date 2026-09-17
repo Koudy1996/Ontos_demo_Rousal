@@ -78,6 +78,10 @@ it('renders one exact typed Action endpoint and exhaustive domain mapping', () =
   expect(contract).not.toMatch(/actions\/:|catch-all|generic/u);
   expect(contract).toContain('ChangeRatePayloadSchema');
   expect(contract).toContain('ChangeRateResultSchema');
+  expect(contract).toContain("export { ChangeRatePayloadSchema } from '../actions/change-rate.ts';");
+  expect(contract).not.toContain('export type { ChangeRatePayload, ChangeRateResult }');
+  expect(contract).not.toContain('export const ChangeRateActionHeadersSchema');
+  expect(contract).not.toContain('export { ChangeRatePayloadSchema, ChangeRateResultSchema }');
   expect(problems).toContain('Match.tags({');
   expect(problems).toContain("ManualRateConflict: () => changeRateActionProblem.conflict('manual_rate_conflict')");
   expect(problems).toContain('Match.exhaustive');

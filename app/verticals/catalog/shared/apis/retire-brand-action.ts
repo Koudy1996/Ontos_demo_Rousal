@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { RetireBrandPayloadSchema, RetireBrandResultSchema } from '../actions/retire-brand.ts';
 
-export { RetireBrandPayloadSchema, RetireBrandResultSchema } from '../actions/retire-brand.ts';
-export type { RetireBrandPayload, RetireBrandResult } from '../actions/retire-brand.ts';
+export { RetireBrandPayloadSchema } from '../actions/retire-brand.ts';
 
-export const RetireBrandActionHeadersSchema = Schema.Struct({
+const RetireBrandActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

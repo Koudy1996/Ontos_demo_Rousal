@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { ReplaceProductSizesPayloadSchema, ReplaceProductSizesResultSchema } from '../actions/replace-product-sizes.ts';
 
-export { ReplaceProductSizesPayloadSchema, ReplaceProductSizesResultSchema } from '../actions/replace-product-sizes.ts';
-export type { ReplaceProductSizesPayload, ReplaceProductSizesResult } from '../actions/replace-product-sizes.ts';
+export { ReplaceProductSizesPayloadSchema } from '../actions/replace-product-sizes.ts';
 
-export const ReplaceProductSizesActionHeadersSchema = Schema.Struct({
+const ReplaceProductSizesActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

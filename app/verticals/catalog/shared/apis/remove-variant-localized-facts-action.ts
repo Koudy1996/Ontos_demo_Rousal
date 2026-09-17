@@ -9,16 +9,9 @@ import {
   RemoveVariantLocalizedFactsResultSchema,
 } from '../actions/remove-variant-localized-facts.ts';
 
-export {
-  RemoveVariantLocalizedFactsPayloadSchema,
-  RemoveVariantLocalizedFactsResultSchema,
-} from '../actions/remove-variant-localized-facts.ts';
-export type {
-  RemoveVariantLocalizedFactsPayload,
-  RemoveVariantLocalizedFactsResult,
-} from '../actions/remove-variant-localized-facts.ts';
+export { RemoveVariantLocalizedFactsPayloadSchema } from '../actions/remove-variant-localized-facts.ts';
 
-export const RemoveVariantLocalizedFactsActionHeadersSchema = Schema.Struct({
+const RemoveVariantLocalizedFactsActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

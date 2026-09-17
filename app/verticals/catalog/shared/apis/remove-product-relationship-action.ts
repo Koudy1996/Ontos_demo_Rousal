@@ -9,16 +9,9 @@ import {
   RemoveProductRelationshipResultSchema,
 } from '../actions/remove-product-relationship.ts';
 
-export {
-  RemoveProductRelationshipPayloadSchema,
-  RemoveProductRelationshipResultSchema,
-} from '../actions/remove-product-relationship.ts';
-export type {
-  RemoveProductRelationshipPayload,
-  RemoveProductRelationshipResult,
-} from '../actions/remove-product-relationship.ts';
+export { RemoveProductRelationshipPayloadSchema } from '../actions/remove-product-relationship.ts';
 
-export const RemoveProductRelationshipActionHeadersSchema = Schema.Struct({
+const RemoveProductRelationshipActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

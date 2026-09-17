@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { CorrectGtinPayloadSchema, CorrectGtinResultSchema } from '../actions/correct-gtin.ts';
 
-export { CorrectGtinPayloadSchema, CorrectGtinResultSchema } from '../actions/correct-gtin.ts';
-export type { CorrectGtinPayload, CorrectGtinResult } from '../actions/correct-gtin.ts';
+export { CorrectGtinPayloadSchema } from '../actions/correct-gtin.ts';
 
-export const CorrectGtinActionHeadersSchema = Schema.Struct({
+const CorrectGtinActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

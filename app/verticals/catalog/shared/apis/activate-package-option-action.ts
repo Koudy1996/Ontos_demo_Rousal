@@ -9,13 +9,9 @@ import {
   ActivatePackageOptionResultSchema,
 } from '../actions/activate-package-option.ts';
 
-export {
-  ActivatePackageOptionPayloadSchema,
-  ActivatePackageOptionResultSchema,
-} from '../actions/activate-package-option.ts';
-export type { ActivatePackageOptionPayload, ActivatePackageOptionResult } from '../actions/activate-package-option.ts';
+export { ActivatePackageOptionPayloadSchema } from '../actions/activate-package-option.ts';
 
-export const ActivatePackageOptionActionHeadersSchema = Schema.Struct({
+const ActivatePackageOptionActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

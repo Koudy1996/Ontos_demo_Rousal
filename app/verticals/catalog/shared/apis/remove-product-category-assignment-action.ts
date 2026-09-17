@@ -9,16 +9,9 @@ import {
   RemoveProductCategoryAssignmentResultSchema,
 } from '../actions/remove-product-category-assignment.ts';
 
-export {
-  RemoveProductCategoryAssignmentPayloadSchema,
-  RemoveProductCategoryAssignmentResultSchema,
-} from '../actions/remove-product-category-assignment.ts';
-export type {
-  RemoveProductCategoryAssignmentPayload,
-  RemoveProductCategoryAssignmentResult,
-} from '../actions/remove-product-category-assignment.ts';
+export { RemoveProductCategoryAssignmentPayloadSchema } from '../actions/remove-product-category-assignment.ts';
 
-export const RemoveProductCategoryAssignmentActionHeadersSchema = Schema.Struct({
+const RemoveProductCategoryAssignmentActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

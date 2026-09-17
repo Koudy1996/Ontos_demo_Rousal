@@ -9,16 +9,9 @@ import {
   AddProductCategoryAssignmentResultSchema,
 } from '../actions/add-product-category-assignment.ts';
 
-export {
-  AddProductCategoryAssignmentPayloadSchema,
-  AddProductCategoryAssignmentResultSchema,
-} from '../actions/add-product-category-assignment.ts';
-export type {
-  AddProductCategoryAssignmentPayload,
-  AddProductCategoryAssignmentResult,
-} from '../actions/add-product-category-assignment.ts';
+export { AddProductCategoryAssignmentPayloadSchema } from '../actions/add-product-category-assignment.ts';
 
-export const AddProductCategoryAssignmentActionHeadersSchema = Schema.Struct({
+const AddProductCategoryAssignmentActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

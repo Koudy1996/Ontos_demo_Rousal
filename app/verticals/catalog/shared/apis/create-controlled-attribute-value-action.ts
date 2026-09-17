@@ -9,16 +9,9 @@ import {
   CreateControlledAttributeValueResultSchema,
 } from '../actions/create-controlled-attribute-value.ts';
 
-export {
-  CreateControlledAttributeValuePayloadSchema,
-  CreateControlledAttributeValueResultSchema,
-} from '../actions/create-controlled-attribute-value.ts';
-export type {
-  CreateControlledAttributeValuePayload,
-  CreateControlledAttributeValueResult,
-} from '../actions/create-controlled-attribute-value.ts';
+export { CreateControlledAttributeValuePayloadSchema } from '../actions/create-controlled-attribute-value.ts';
 
-export const CreateControlledAttributeValueActionHeadersSchema = Schema.Struct({
+const CreateControlledAttributeValueActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

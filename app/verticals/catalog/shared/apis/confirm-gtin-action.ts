@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { ConfirmGtinPayloadSchema, ConfirmGtinResultSchema } from '../actions/confirm-gtin.ts';
 
-export { ConfirmGtinPayloadSchema, ConfirmGtinResultSchema } from '../actions/confirm-gtin.ts';
-export type { ConfirmGtinPayload, ConfirmGtinResult } from '../actions/confirm-gtin.ts';
+export { ConfirmGtinPayloadSchema } from '../actions/confirm-gtin.ts';
 
-export const ConfirmGtinActionHeadersSchema = Schema.Struct({
+const ConfirmGtinActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

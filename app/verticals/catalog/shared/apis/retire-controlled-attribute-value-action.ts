@@ -9,16 +9,9 @@ import {
   RetireControlledAttributeValueResultSchema,
 } from '../actions/retire-controlled-attribute-value.ts';
 
-export {
-  RetireControlledAttributeValuePayloadSchema,
-  RetireControlledAttributeValueResultSchema,
-} from '../actions/retire-controlled-attribute-value.ts';
-export type {
-  RetireControlledAttributeValuePayload,
-  RetireControlledAttributeValueResult,
-} from '../actions/retire-controlled-attribute-value.ts';
+export { RetireControlledAttributeValuePayloadSchema } from '../actions/retire-controlled-attribute-value.ts';
 
-export const RetireControlledAttributeValueActionHeadersSchema = Schema.Struct({
+const RetireControlledAttributeValueActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

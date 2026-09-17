@@ -9,16 +9,9 @@ import {
   CreateProductRelationshipResultSchema,
 } from '../actions/create-product-relationship.ts';
 
-export {
-  CreateProductRelationshipPayloadSchema,
-  CreateProductRelationshipResultSchema,
-} from '../actions/create-product-relationship.ts';
-export type {
-  CreateProductRelationshipPayload,
-  CreateProductRelationshipResult,
-} from '../actions/create-product-relationship.ts';
+export { CreateProductRelationshipPayloadSchema } from '../actions/create-product-relationship.ts';
 
-export const CreateProductRelationshipActionHeadersSchema = Schema.Struct({
+const CreateProductRelationshipActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

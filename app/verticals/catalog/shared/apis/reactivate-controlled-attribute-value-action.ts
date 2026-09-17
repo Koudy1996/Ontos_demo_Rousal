@@ -9,16 +9,9 @@ import {
   ReactivateControlledAttributeValueResultSchema,
 } from '../actions/reactivate-controlled-attribute-value.ts';
 
-export {
-  ReactivateControlledAttributeValuePayloadSchema,
-  ReactivateControlledAttributeValueResultSchema,
-} from '../actions/reactivate-controlled-attribute-value.ts';
-export type {
-  ReactivateControlledAttributeValuePayload,
-  ReactivateControlledAttributeValueResult,
-} from '../actions/reactivate-controlled-attribute-value.ts';
+export { ReactivateControlledAttributeValuePayloadSchema } from '../actions/reactivate-controlled-attribute-value.ts';
 
-export const ReactivateControlledAttributeValueActionHeadersSchema = Schema.Struct({
+const ReactivateControlledAttributeValueActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

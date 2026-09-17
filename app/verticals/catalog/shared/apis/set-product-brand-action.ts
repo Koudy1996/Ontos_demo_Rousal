@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { SetProductBrandPayloadSchema, SetProductBrandResultSchema } from '../actions/set-product-brand.ts';
 
-export { SetProductBrandPayloadSchema, SetProductBrandResultSchema } from '../actions/set-product-brand.ts';
-export type { SetProductBrandPayload, SetProductBrandResult } from '../actions/set-product-brand.ts';
+export { SetProductBrandPayloadSchema } from '../actions/set-product-brand.ts';
 
-export const SetProductBrandActionHeadersSchema = Schema.Struct({
+const SetProductBrandActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

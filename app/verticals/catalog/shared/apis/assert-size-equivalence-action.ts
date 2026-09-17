@@ -9,13 +9,9 @@ import {
   AssertSizeEquivalenceResultSchema,
 } from '../actions/assert-size-equivalence.ts';
 
-export {
-  AssertSizeEquivalencePayloadSchema,
-  AssertSizeEquivalenceResultSchema,
-} from '../actions/assert-size-equivalence.ts';
-export type { AssertSizeEquivalencePayload, AssertSizeEquivalenceResult } from '../actions/assert-size-equivalence.ts';
+export { AssertSizeEquivalencePayloadSchema } from '../actions/assert-size-equivalence.ts';
 
-export const AssertSizeEquivalenceActionHeadersSchema = Schema.Struct({
+const AssertSizeEquivalenceActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

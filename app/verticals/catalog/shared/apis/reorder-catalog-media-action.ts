@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { ReorderCatalogMediaPayloadSchema, ReorderCatalogMediaResultSchema } from '../actions/reorder-catalog-media.ts';
 
-export { ReorderCatalogMediaPayloadSchema, ReorderCatalogMediaResultSchema } from '../actions/reorder-catalog-media.ts';
-export type { ReorderCatalogMediaPayload, ReorderCatalogMediaResult } from '../actions/reorder-catalog-media.ts';
+export { ReorderCatalogMediaPayloadSchema } from '../actions/reorder-catalog-media.ts';
 
-export const ReorderCatalogMediaActionHeadersSchema = Schema.Struct({
+const ReorderCatalogMediaActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

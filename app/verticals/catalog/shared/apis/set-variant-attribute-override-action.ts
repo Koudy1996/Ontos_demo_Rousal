@@ -9,16 +9,9 @@ import {
   SetVariantAttributeOverrideResultSchema,
 } from '../actions/set-variant-attribute-override.ts';
 
-export {
-  SetVariantAttributeOverridePayloadSchema,
-  SetVariantAttributeOverrideResultSchema,
-} from '../actions/set-variant-attribute-override.ts';
-export type {
-  SetVariantAttributeOverridePayload,
-  SetVariantAttributeOverrideResult,
-} from '../actions/set-variant-attribute-override.ts';
+export { SetVariantAttributeOverridePayloadSchema } from '../actions/set-variant-attribute-override.ts';
 
-export const SetVariantAttributeOverrideActionHeadersSchema = Schema.Struct({
+const SetVariantAttributeOverrideActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

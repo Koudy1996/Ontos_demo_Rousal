@@ -9,13 +9,9 @@ import {
   RetireProductCategoryResultSchema,
 } from '../actions/retire-product-category.ts';
 
-export {
-  RetireProductCategoryPayloadSchema,
-  RetireProductCategoryResultSchema,
-} from '../actions/retire-product-category.ts';
-export type { RetireProductCategoryPayload, RetireProductCategoryResult } from '../actions/retire-product-category.ts';
+export { RetireProductCategoryPayloadSchema } from '../actions/retire-product-category.ts';
 
-export const RetireProductCategoryActionHeadersSchema = Schema.Struct({
+const RetireProductCategoryActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

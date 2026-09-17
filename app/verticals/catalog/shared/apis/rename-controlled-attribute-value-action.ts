@@ -9,16 +9,9 @@ import {
   RenameControlledAttributeValueResultSchema,
 } from '../actions/rename-controlled-attribute-value.ts';
 
-export {
-  RenameControlledAttributeValuePayloadSchema,
-  RenameControlledAttributeValueResultSchema,
-} from '../actions/rename-controlled-attribute-value.ts';
-export type {
-  RenameControlledAttributeValuePayload,
-  RenameControlledAttributeValueResult,
-} from '../actions/rename-controlled-attribute-value.ts';
+export { RenameControlledAttributeValuePayloadSchema } from '../actions/rename-controlled-attribute-value.ts';
 
-export const RenameControlledAttributeValueActionHeadersSchema = Schema.Struct({
+const RenameControlledAttributeValueActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

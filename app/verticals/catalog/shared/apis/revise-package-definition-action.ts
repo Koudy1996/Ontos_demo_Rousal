@@ -9,16 +9,9 @@ import {
   RevisePackageDefinitionResultSchema,
 } from '../actions/revise-package-definition.ts';
 
-export {
-  RevisePackageDefinitionPayloadSchema,
-  RevisePackageDefinitionResultSchema,
-} from '../actions/revise-package-definition.ts';
-export type {
-  RevisePackageDefinitionPayload,
-  RevisePackageDefinitionResult,
-} from '../actions/revise-package-definition.ts';
+export { RevisePackageDefinitionPayloadSchema } from '../actions/revise-package-definition.ts';
 
-export const RevisePackageDefinitionActionHeadersSchema = Schema.Struct({
+const RevisePackageDefinitionActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

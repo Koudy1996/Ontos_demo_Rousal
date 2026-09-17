@@ -9,13 +9,9 @@ import {
   CreateSetCompositionResultSchema,
 } from '../actions/create-set-composition.ts';
 
-export {
-  CreateSetCompositionPayloadSchema,
-  CreateSetCompositionResultSchema,
-} from '../actions/create-set-composition.ts';
-export type { CreateSetCompositionPayload, CreateSetCompositionResult } from '../actions/create-set-composition.ts';
+export { CreateSetCompositionPayloadSchema } from '../actions/create-set-composition.ts';
 
-export const CreateSetCompositionActionHeadersSchema = Schema.Struct({
+const CreateSetCompositionActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

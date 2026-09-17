@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { RenameSkuPayloadSchema, RenameSkuResultSchema } from '../actions/rename-sku.ts';
 
-export { RenameSkuPayloadSchema, RenameSkuResultSchema } from '../actions/rename-sku.ts';
-export type { RenameSkuPayload, RenameSkuResult } from '../actions/rename-sku.ts';
+export { RenameSkuPayloadSchema } from '../actions/rename-sku.ts';
 
-export const RenameSkuActionHeadersSchema = Schema.Struct({
+const RenameSkuActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

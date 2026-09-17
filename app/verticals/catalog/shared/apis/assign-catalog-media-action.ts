@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { AssignCatalogMediaPayloadSchema, AssignCatalogMediaResultSchema } from '../actions/assign-catalog-media.ts';
 
-export { AssignCatalogMediaPayloadSchema, AssignCatalogMediaResultSchema } from '../actions/assign-catalog-media.ts';
-export type { AssignCatalogMediaPayload, AssignCatalogMediaResult } from '../actions/assign-catalog-media.ts';
+export { AssignCatalogMediaPayloadSchema } from '../actions/assign-catalog-media.ts';
 
-export const AssignCatalogMediaActionHeadersSchema = Schema.Struct({
+const AssignCatalogMediaActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

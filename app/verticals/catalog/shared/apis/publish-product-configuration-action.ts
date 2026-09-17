@@ -9,16 +9,9 @@ import {
   PublishProductConfigurationResultSchema,
 } from '../actions/publish-product-configuration.ts';
 
-export {
-  PublishProductConfigurationPayloadSchema,
-  PublishProductConfigurationResultSchema,
-} from '../actions/publish-product-configuration.ts';
-export type {
-  PublishProductConfigurationPayload,
-  PublishProductConfigurationResult,
-} from '../actions/publish-product-configuration.ts';
+export { PublishProductConfigurationPayloadSchema } from '../actions/publish-product-configuration.ts';
 
-export const PublishProductConfigurationActionHeadersSchema = Schema.Struct({
+const PublishProductConfigurationActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

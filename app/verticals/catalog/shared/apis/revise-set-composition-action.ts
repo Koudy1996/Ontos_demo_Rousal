@@ -9,13 +9,9 @@ import {
   ReviseSetCompositionResultSchema,
 } from '../actions/revise-set-composition.ts';
 
-export {
-  ReviseSetCompositionPayloadSchema,
-  ReviseSetCompositionResultSchema,
-} from '../actions/revise-set-composition.ts';
-export type { ReviseSetCompositionPayload, ReviseSetCompositionResult } from '../actions/revise-set-composition.ts';
+export { ReviseSetCompositionPayloadSchema } from '../actions/revise-set-composition.ts';
 
-export const ReviseSetCompositionActionHeadersSchema = Schema.Struct({
+const ReviseSetCompositionActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

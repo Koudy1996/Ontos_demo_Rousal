@@ -9,16 +9,9 @@ import {
   SetProductUnitTargetDivisibilityResultSchema,
 } from '../actions/set-product-unit-target-divisibility.ts';
 
-export {
-  SetProductUnitTargetDivisibilityPayloadSchema,
-  SetProductUnitTargetDivisibilityResultSchema,
-} from '../actions/set-product-unit-target-divisibility.ts';
-export type {
-  SetProductUnitTargetDivisibilityPayload,
-  SetProductUnitTargetDivisibilityResult,
-} from '../actions/set-product-unit-target-divisibility.ts';
+export { SetProductUnitTargetDivisibilityPayloadSchema } from '../actions/set-product-unit-target-divisibility.ts';
 
-export const SetProductUnitTargetDivisibilityActionHeadersSchema = Schema.Struct({
+const SetProductUnitTargetDivisibilityActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

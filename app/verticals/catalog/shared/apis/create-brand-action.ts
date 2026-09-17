@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { CreateBrandPayloadSchema, CreateBrandResultSchema } from '../actions/create-brand.ts';
 
-export { CreateBrandPayloadSchema, CreateBrandResultSchema } from '../actions/create-brand.ts';
-export type { CreateBrandPayload, CreateBrandResult } from '../actions/create-brand.ts';
+export { CreateBrandPayloadSchema } from '../actions/create-brand.ts';
 
-export const CreateBrandActionHeadersSchema = Schema.Struct({
+const CreateBrandActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

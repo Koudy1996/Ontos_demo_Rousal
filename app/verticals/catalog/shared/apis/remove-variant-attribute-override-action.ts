@@ -9,16 +9,9 @@ import {
   RemoveVariantAttributeOverrideResultSchema,
 } from '../actions/remove-variant-attribute-override.ts';
 
-export {
-  RemoveVariantAttributeOverridePayloadSchema,
-  RemoveVariantAttributeOverrideResultSchema,
-} from '../actions/remove-variant-attribute-override.ts';
-export type {
-  RemoveVariantAttributeOverridePayload,
-  RemoveVariantAttributeOverrideResult,
-} from '../actions/remove-variant-attribute-override.ts';
+export { RemoveVariantAttributeOverridePayloadSchema } from '../actions/remove-variant-attribute-override.ts';
 
-export const RemoveVariantAttributeOverrideActionHeadersSchema = Schema.Struct({
+const RemoveVariantAttributeOverrideActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

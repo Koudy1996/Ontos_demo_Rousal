@@ -320,10 +320,9 @@ import {
   ${type}ResultSchema,
 } from '../actions/${action}.ts';
 
-export { ${type}PayloadSchema, ${type}ResultSchema } from '../actions/${action}.ts';
-export type { ${type}Payload, ${type}Result } from '../actions/${action}.ts';
+export { ${type}PayloadSchema } from '../actions/${action}.ts';
 
-export const ${type}ActionHeadersSchema = Schema.Struct({
+const ${type}ActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(
     Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
   ),

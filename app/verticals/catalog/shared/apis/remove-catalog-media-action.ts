@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { RemoveCatalogMediaPayloadSchema, RemoveCatalogMediaResultSchema } from '../actions/remove-catalog-media.ts';
 
-export { RemoveCatalogMediaPayloadSchema, RemoveCatalogMediaResultSchema } from '../actions/remove-catalog-media.ts';
-export type { RemoveCatalogMediaPayload, RemoveCatalogMediaResult } from '../actions/remove-catalog-media.ts';
+export { RemoveCatalogMediaPayloadSchema } from '../actions/remove-catalog-media.ts';
 
-export const RemoveCatalogMediaActionHeadersSchema = Schema.Struct({
+const RemoveCatalogMediaActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

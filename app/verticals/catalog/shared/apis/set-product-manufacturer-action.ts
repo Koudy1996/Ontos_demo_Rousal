@@ -9,16 +9,9 @@ import {
   SetProductManufacturerResultSchema,
 } from '../actions/set-product-manufacturer.ts';
 
-export {
-  SetProductManufacturerPayloadSchema,
-  SetProductManufacturerResultSchema,
-} from '../actions/set-product-manufacturer.ts';
-export type {
-  SetProductManufacturerPayload,
-  SetProductManufacturerResult,
-} from '../actions/set-product-manufacturer.ts';
+export { SetProductManufacturerPayloadSchema } from '../actions/set-product-manufacturer.ts';
 
-export const SetProductManufacturerActionHeadersSchema = Schema.Struct({
+const SetProductManufacturerActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

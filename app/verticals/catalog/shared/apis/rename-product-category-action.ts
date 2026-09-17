@@ -9,13 +9,9 @@ import {
   RenameProductCategoryResultSchema,
 } from '../actions/rename-product-category.ts';
 
-export {
-  RenameProductCategoryPayloadSchema,
-  RenameProductCategoryResultSchema,
-} from '../actions/rename-product-category.ts';
-export type { RenameProductCategoryPayload, RenameProductCategoryResult } from '../actions/rename-product-category.ts';
+export { RenameProductCategoryPayloadSchema } from '../actions/rename-product-category.ts';
 
-export const RenameProductCategoryActionHeadersSchema = Schema.Struct({
+const RenameProductCategoryActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

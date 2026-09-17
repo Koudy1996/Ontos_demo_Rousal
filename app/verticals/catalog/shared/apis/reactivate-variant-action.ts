@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { ReactivateVariantPayloadSchema, ReactivateVariantResultSchema } from '../actions/reactivate-variant.ts';
 
-export { ReactivateVariantPayloadSchema, ReactivateVariantResultSchema } from '../actions/reactivate-variant.ts';
-export type { ReactivateVariantPayload, ReactivateVariantResult } from '../actions/reactivate-variant.ts';
+export { ReactivateVariantPayloadSchema } from '../actions/reactivate-variant.ts';
 
-export const ReactivateVariantActionHeadersSchema = Schema.Struct({
+const ReactivateVariantActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

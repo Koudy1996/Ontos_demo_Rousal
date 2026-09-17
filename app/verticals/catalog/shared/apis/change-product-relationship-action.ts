@@ -9,16 +9,9 @@ import {
   ChangeProductRelationshipResultSchema,
 } from '../actions/change-product-relationship.ts';
 
-export {
-  ChangeProductRelationshipPayloadSchema,
-  ChangeProductRelationshipResultSchema,
-} from '../actions/change-product-relationship.ts';
-export type {
-  ChangeProductRelationshipPayload,
-  ChangeProductRelationshipResult,
-} from '../actions/change-product-relationship.ts';
+export { ChangeProductRelationshipPayloadSchema } from '../actions/change-product-relationship.ts';
 
-export const ChangeProductRelationshipActionHeadersSchema = Schema.Struct({
+const ChangeProductRelationshipActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

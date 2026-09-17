@@ -9,13 +9,9 @@ import {
   CreateProductCategoryResultSchema,
 } from '../actions/create-product-category.ts';
 
-export {
-  CreateProductCategoryPayloadSchema,
-  CreateProductCategoryResultSchema,
-} from '../actions/create-product-category.ts';
-export type { CreateProductCategoryPayload, CreateProductCategoryResult } from '../actions/create-product-category.ts';
+export { CreateProductCategoryPayloadSchema } from '../actions/create-product-category.ts';
 
-export const CreateProductCategoryActionHeadersSchema = Schema.Struct({
+const CreateProductCategoryActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

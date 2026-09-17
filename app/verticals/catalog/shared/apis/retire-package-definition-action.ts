@@ -9,16 +9,9 @@ import {
   RetirePackageDefinitionResultSchema,
 } from '../actions/retire-package-definition.ts';
 
-export {
-  RetirePackageDefinitionPayloadSchema,
-  RetirePackageDefinitionResultSchema,
-} from '../actions/retire-package-definition.ts';
-export type {
-  RetirePackageDefinitionPayload,
-  RetirePackageDefinitionResult,
-} from '../actions/retire-package-definition.ts';
+export { RetirePackageDefinitionPayloadSchema } from '../actions/retire-package-definition.ts';
 
-export const RetirePackageDefinitionActionHeadersSchema = Schema.Struct({
+const RetirePackageDefinitionActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

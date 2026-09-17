@@ -9,16 +9,9 @@ import {
   RenameAttributeDefinitionResultSchema,
 } from '../actions/rename-attribute-definition.ts';
 
-export {
-  RenameAttributeDefinitionPayloadSchema,
-  RenameAttributeDefinitionResultSchema,
-} from '../actions/rename-attribute-definition.ts';
-export type {
-  RenameAttributeDefinitionPayload,
-  RenameAttributeDefinitionResult,
-} from '../actions/rename-attribute-definition.ts';
+export { RenameAttributeDefinitionPayloadSchema } from '../actions/rename-attribute-definition.ts';
 
-export const RenameAttributeDefinitionActionHeadersSchema = Schema.Struct({
+const RenameAttributeDefinitionActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

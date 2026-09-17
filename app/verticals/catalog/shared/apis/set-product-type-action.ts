@@ -6,10 +6,9 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 import { HttpApiMiddleware } from 'effect/unstable/httpapi';
 import { SetProductTypePayloadSchema, SetProductTypeResultSchema } from '../actions/set-product-type.ts';
 
-export { SetProductTypePayloadSchema, SetProductTypeResultSchema } from '../actions/set-product-type.ts';
-export type { SetProductTypePayload, SetProductTypeResult } from '../actions/set-product-type.ts';
+export { SetProductTypePayloadSchema } from '../actions/set-product-type.ts';
 
-export const SetProductTypeActionHeadersSchema = Schema.Struct({
+const SetProductTypeActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 

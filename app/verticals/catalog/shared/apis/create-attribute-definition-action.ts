@@ -9,16 +9,9 @@ import {
   CreateAttributeDefinitionResultSchema,
 } from '../actions/create-attribute-definition.ts';
 
-export {
-  CreateAttributeDefinitionPayloadSchema,
-  CreateAttributeDefinitionResultSchema,
-} from '../actions/create-attribute-definition.ts';
-export type {
-  CreateAttributeDefinitionPayload,
-  CreateAttributeDefinitionResult,
-} from '../actions/create-attribute-definition.ts';
+export { CreateAttributeDefinitionPayloadSchema } from '../actions/create-attribute-definition.ts';
 
-export const CreateAttributeDefinitionActionHeadersSchema = Schema.Struct({
+const CreateAttributeDefinitionActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
 });
 
