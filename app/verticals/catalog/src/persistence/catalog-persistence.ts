@@ -21,7 +21,13 @@ import { CreateProductResultSchema } from '../../shared/actions/create-product.t
 import type { CreateProductResult } from '../../shared/actions/create-product.ts';
 import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
-import { productLifecycleEvents, productRevisions, productVariants, products } from '../database/schema.ts';
+import {
+  productLifecycleEvents,
+  productRevisions,
+  productVariantRevisions,
+  productVariants,
+  products,
+} from '../database/schema.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
@@ -166,6 +172,7 @@ export const mapCatalogWriteError = (error: unknown): CatalogPersistenceConflict
       ({ code, constraint }) =>
         code === uniqueViolationSqlState &&
         (constraint === 'catalog_product_revisions_invocation_uk' ||
+          constraint === 'catalog_product_variant_revisions_invocation_uk' ||
           constraint === 'catalog_product_lifecycle_invocation_uk'),
     ),
   )
@@ -468,6 +475,23 @@ export const catalogPersistenceForScope = (
         variantId,
       })
       .pipe(Effect.mapError((error) => mapCatalogIdentityWriteError(error, 'VARIANT_ID')));
+    yield* transaction
+      .insert(productVariantRevisions)
+      .values({
+        actionInvocationId: input.actionInvocationId,
+        actingPrincipalId: input.principalId,
+        changeKind: 'CREATED',
+        combinationAxisRevision: null,
+        combinationKey: null,
+        evidenceRefs: [],
+        lifecycleState: 'WORK_IN_PROGRESS',
+        productId,
+        reason: input.reason,
+        revision: 1,
+        tenantId,
+        variantId,
+      })
+      .pipe(Effect.mapError(mapCatalogWriteError));
     yield* insertRevision(transaction, {
       actionInvocationId: input.actionInvocationId,
       actingPrincipalId: input.principalId,
