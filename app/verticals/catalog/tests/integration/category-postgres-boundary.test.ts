@@ -1,33 +1,32 @@
 import { findPostgresFailure, TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
+import { randomUUID } from 'node:crypto';
 
 import {
   makeTestDatabaseFromPool,
   testDatabasePools,
 } from '../../../../packages/core-runtime/tests/support/database.ts';
-import { purgeFixtureRows } from '../../../../packages/core-runtime/tests/support/fixture-cleanup.ts';
 import {
   catalogRelations,
   productCategories,
   productCategoryAssignments,
-  productCategoryEvents,
-  productCategoryHierarchyRevisions,
   products,
 } from '../../src/database/schema.ts';
 import type { CatalogTransaction } from '../../src/database/types.ts';
 import { categoryPersistenceForScope } from '../../src/persistence/category-persistence.ts';
 
-const tenantA = 'c4050000-0000-4000-8000-000000000001';
-const tenantB = 'c4050000-0000-4000-8000-000000000002';
-const principalId = 'c4050000-0000-4000-8000-000000000003';
-const firstId = 'c4050000-0000-4000-8000-000000000004';
-const secondId = 'c4050000-0000-4000-8000-000000000005';
-const retiringId = 'c4050000-0000-4000-8000-000000000006';
-const productA = 'c4050000-0000-4000-8000-000000000007';
-const productB = 'c4050000-0000-4000-8000-000000000008';
-const fixtureTenants = [tenantA, tenantB];
+// Category rows are intentionally delete-protected. Allocate a fresh isolated Tenant namespace
+// for every run and leave immutable evidence in the disposable integration database.
+const tenantA = randomUUID();
+const tenantB = randomUUID();
+const principalId = randomUUID();
+const firstId = randomUUID();
+const secondId = randomUUID();
+const retiringId = randomUUID();
+const productA = randomUUID();
+const productB = randomUUID();
 
 const scopeFor = (tenantId: string) => ({
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
@@ -52,18 +51,6 @@ it.live('serializes category moves and retirement against assignments while enfo
       const { admin: adminPool, runtimePool } = yield* testDatabasePools;
       const admin = yield* makeTestDatabaseFromPool(adminPool, catalogRelations);
       const runtime = yield* makeTestDatabaseFromPool(runtimePool, catalogRelations);
-      const cleanup = () =>
-        purgeFixtureRows([
-          admin.delete(productCategoryEvents).where(inArray(productCategoryEvents.tenantId, fixtureTenants)),
-          admin.delete(productCategoryAssignments).where(inArray(productCategoryAssignments.tenantId, fixtureTenants)),
-          admin.delete(productCategories).where(inArray(productCategories.tenantId, fixtureTenants)),
-          admin
-            .delete(productCategoryHierarchyRevisions)
-            .where(inArray(productCategoryHierarchyRevisions.tenantId, fixtureTenants)),
-          admin.delete(products).where(inArray(products.tenantId, fixtureTenants)),
-        ]);
-      yield* Effect.acquireRelease(cleanup(), () => cleanup().pipe(Effect.orDie));
-
       const withTenant = <Value, Failure>(
         tenantId: string,
         operation: (transaction: CatalogTransaction) => Effect.Effect<Value, Failure>,
@@ -127,7 +114,7 @@ it.live('serializes category moves and retirement against assignments while enfo
             Effect.gen(function* moveFirst() {
               const service = yield* categoryService(transaction);
               return yield* service.moveCategory({
-                ...mutation(tenantA, 'c4050000-0000-4000-8000-000000000009'),
+                ...mutation(tenantA, randomUUID()),
                 categoryId: firstId,
                 expectedRevision: 1,
                 parentCategoryId: secondId,
@@ -138,7 +125,7 @@ it.live('serializes category moves and retirement against assignments while enfo
             Effect.gen(function* moveSecond() {
               const service = yield* categoryService(transaction);
               return yield* service.moveCategory({
-                ...mutation(tenantA, 'c4050000-0000-4000-8000-00000000000a'),
+                ...mutation(tenantA, randomUUID()),
                 categoryId: secondId,
                 expectedRevision: 1,
                 parentCategoryId: firstId,
@@ -160,7 +147,7 @@ it.live('serializes category moves and retirement against assignments while enfo
             Effect.gen(function* assignBeforeRetire() {
               const service = yield* categoryService(transaction);
               return yield* service.addAssignment({
-                ...mutation(tenantA, 'c4050000-0000-4000-8000-00000000000b'),
+                ...mutation(tenantA, randomUUID()),
                 categoryId: retiringId,
                 productId: productA,
               });
@@ -170,7 +157,7 @@ it.live('serializes category moves and retirement against assignments while enfo
             Effect.gen(function* retireBeforeAssign() {
               const service = yield* categoryService(transaction);
               return yield* service.retireCategory({
-                ...mutation(tenantA, 'c4050000-0000-4000-8000-00000000000c'),
+                ...mutation(tenantA, randomUUID()),
                 categoryId: retiringId,
                 expectedRevision: 1,
               });
@@ -203,7 +190,7 @@ it.live('serializes category moves and retirement against assignments while enfo
       const foreignInsertError = yield* Effect.flip(
         withTenant(tenantB, (transaction) =>
           transaction.insert(productCategoryAssignments).values({
-            assignedByActionInvocationId: 'c4050000-0000-4000-8000-00000000000d',
+            assignedByActionInvocationId: randomUUID(),
             assignedByPrincipalId: principalId,
             categoryId: retiringId,
             productId: productB,
