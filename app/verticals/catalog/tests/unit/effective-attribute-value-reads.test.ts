@@ -151,7 +151,7 @@ const serviceWith = (
         ? []
         : [
             {
-            attributeValueSetId: options.malformedRevision === true ? variantSetId : set.attributeValueSetId,
+              attributeValueSetId: options.malformedRevision === true ? variantSetId : set.attributeValueSetId,
               changeKind: set.currentState,
               revision: set.currentRevision,
               tenantId,
@@ -167,7 +167,7 @@ const serviceWith = (
         : [
             {
               attributeDefinitionId: definitionId,
-            attributeValueSetId: options.malformedItem === true ? variantSetId : set.attributeValueSetId,
+              attributeValueSetId: options.malformedItem === true ? variantSetId : set.attributeValueSetId,
               ordinal: 0,
               tenantId,
               textValue: value,

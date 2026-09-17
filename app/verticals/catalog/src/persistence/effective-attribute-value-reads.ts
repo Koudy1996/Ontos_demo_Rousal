@@ -58,6 +58,13 @@ const invalid = (reason: string): EffectiveAttributeValuesResult => ({
   reasons: [reason],
   status: 'INVALID_AUTHORITY',
 });
+const validInput = (input: EffectiveAttributeValueReadInput, tenantId: string): boolean =>
+  Schema.is(ProductRefSchema)(input.productRef) &&
+  Schema.is(VariantRefSchema)(input.variantRef) &&
+  Schema.is(AttributeDefinitionRefSchema)(input.attributeDefinitionRef) &&
+  input.productRef.tenantId === tenantId &&
+  input.variantRef.tenantId === tenantId &&
+  input.attributeDefinitionRef.tenantId === tenantId;
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   const error = new CatalogPersistenceUnavailable({
     code: 'catalog_persistence_unavailable',
@@ -161,14 +168,7 @@ export const effectiveAttributeValueReadsForScope = (
   Effect.succeed({
     resolveVariant: Effect.fn('EffectiveAttributeValueReads.resolveVariant')(function* resolveVariant(input) {
       const { tenantId } = scope;
-      if (
-        !Schema.is(ProductRefSchema)(input.productRef) ||
-        !Schema.is(VariantRefSchema)(input.variantRef) ||
-        !Schema.is(AttributeDefinitionRefSchema)(input.attributeDefinitionRef) ||
-        input.productRef.tenantId !== tenantId ||
-        input.variantRef.tenantId !== tenantId ||
-        input.attributeDefinitionRef.tenantId !== tenantId
-      ) {
+      if (!validInput(input, tenantId)) {
         return invalid('Malformed or foreign Catalog reference');
       }
       const productId = input.productRef.resourceId;
