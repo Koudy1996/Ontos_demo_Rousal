@@ -25,6 +25,16 @@ describe('Catalog commercial codes', () => {
     expect(current.code).toBe('AB-12');
   });
 
+  it('uses ECMAScript whitespace trimming and Unicode uppercase for every SKU key', () => {
+    expect(normalizeSku('\t\u00A0ab-12\u00A0\t')).toBe('AB-12');
+    expect(skuUniquenessKey('tenant-a', '\tab-12\t')).toBe(skuUniquenessKey('tenant-a', 'AB-12'));
+    expect(skuUniquenessKey('tenant-a', '\u00A0ab-12\u00A0')).toBe(skuUniquenessKey('tenant-a', 'AB-12'));
+    expect(skuUniquenessKey('tenant-a', 'straße')).toBe(skuUniquenessKey('tenant-a', 'STRASSE'));
+    expect(skuUniquenessKey('tenant-a', 'a\tb')).not.toBe(skuUniquenessKey('tenant-a', 'AB'));
+    expect(skuUniquenessKey('tenant-a', 'a\u00A0b')).not.toBe(skuUniquenessKey('tenant-a', 'A B'));
+    expect(assessSkuAssignment({ code: '\t\u00A0', target: variant }, []).status).toBe('INVALID');
+  });
+
   it('keeps Variant and Package Option targets separate across Current and historical codes', () => {
     expect(assessSkuAssignment({ code: ' ab-12 ', target: otherVariant }, [current]).status).toBe('CONFLICT');
     expect(assessSkuAssignment({ code: 'AB-12', target: option }, [current]).status).toBe('CONFLICT');

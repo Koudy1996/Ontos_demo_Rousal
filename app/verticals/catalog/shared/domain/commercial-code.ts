@@ -29,7 +29,12 @@ export type CodeDecision =
   | { readonly reason: string; readonly status: 'INVALID' }
   | { readonly reason: string; readonly status: 'CONFLICT' };
 
-/** Surrounding whitespace and case alone are ignored. Interior characters and zeroes survive. */
+/**
+ * Canonical SKU comparison uses ECMAScript trim and default Unicode uppercase.
+ * The database must persist this result under bytewise collation; PostgreSQL
+ * upper(btrim(code)) is not equivalent for whitespace or Unicode casing.
+ * Interior characters and leading zeroes remain significant.
+ */
 export const normalizeSku = (code: string): string => code.trim().toUpperCase();
 
 /** Stable, collision-safe tenant/namespace key; callers must enforce it atomically at persistence. */
