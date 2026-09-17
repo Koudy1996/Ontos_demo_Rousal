@@ -2,20 +2,34 @@ import { expect, it } from 'effect-rstest';
 
 import { catalogAuthorityBundles, catalogPublicOperationContracts } from '../../shared/api.ts';
 import { catalogManifest } from '../../vertical.manifest.ts';
+import { brandCurrentRead } from '../../src/api/brand-current.read.ts';
+import { brandHistoryRead } from '../../src/api/brand-history.read.ts';
+import { catalogMediaCurrentRead } from '../../src/api/catalog-media-current.read.ts';
 import { createProductRecoveryRead } from '../../src/api/create-product-recovery.read.ts';
+import { manufacturerRelationCurrentRead } from '../../src/api/manufacturer-relation-current.read.ts';
+import { manufacturerRelationHistoryRead } from '../../src/api/manufacturer-relation-history.read.ts';
 import { productCategoryClassificationRead } from '../../src/api/product-category-classification.read.ts';
 import { productCategoryHistoryRead } from '../../src/api/product-category-history.read.ts';
 import { productDetailRead } from '../../src/api/product-detail.read.ts';
 import { productHistoryRead } from '../../src/api/product-history.read.ts';
+import { productBrandCurrentRead } from '../../src/api/product-brand-current.read.ts';
+import { productBrandHistoryRead } from '../../src/api/product-brand-history.read.ts';
 import { productRelationshipCurrentRead } from '../../src/api/product-relationship-current.read.ts';
 import { productRelationshipHistoryRead } from '../../src/api/product-relationship-history.read.ts';
 
 const reads = [
+  brandCurrentRead,
+  brandHistoryRead,
+  catalogMediaCurrentRead,
   createProductRecoveryRead,
+  manufacturerRelationCurrentRead,
+  manufacturerRelationHistoryRead,
   productCategoryClassificationRead,
   productCategoryHistoryRead,
   productDetailRead,
   productHistoryRead,
+  productBrandCurrentRead,
+  productBrandHistoryRead,
   productRelationshipCurrentRead,
   productRelationshipHistoryRead,
 ] as const;
@@ -50,7 +64,20 @@ it('maps every published Action and governed read to one explicit atomic permiss
       scope: 'tenant',
     });
     expect(entrypoint.scope).toBe('tenant');
-    expect(read.descriptor.permissionTarget).toBe(readKey.includes('product-relationship') ? 'module' : 'tenant');
+    const relationshipOrIdentity =
+      readKey.includes('brand') ||
+      readKey.includes('manufacturer-relation') ||
+      readKey.includes('product-relationship');
+    const expectedTarget =
+      readKey === 'commerce.catalog.api.catalog-media-current'
+        ? 'resource'
+        : relationshipOrIdentity
+          ? 'module'
+          : 'tenant';
+    expect(read.descriptor.permissionTarget).toBe(expectedTarget);
+    if ('resourcePermission' in read.descriptor && read.descriptor.resourcePermission !== undefined) {
+      expect(contract).toMatchObject({ permissionTarget: expectedTarget, resourcePermission: 'read' });
+    }
   }
 
   expect(catalogPublicOperationContracts['commerce.catalog.api.product-relationship-current']).toMatchObject({
@@ -74,7 +101,10 @@ it('keeps read, ordinary edit, shared-definition, and high-impact lifecycle auth
   expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.set-product-brand');
   expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.set-product-manufacturer');
   expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.assign-catalog-media');
+  expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.replace-product-sizes');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-brand');
+  expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.assert-size-equivalence');
+  expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.activate-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-product-unit');
   expect(bundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.retire-product');

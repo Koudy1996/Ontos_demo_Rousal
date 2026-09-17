@@ -1,5 +1,5 @@
 import { expect, it } from 'effect-rstest';
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 import { ReadHandlerNotFound } from '@app/core-runtime';
 
 import {
@@ -11,6 +11,7 @@ import {
   CatalogOperationOutcomeSchema,
 } from '../../shared/api.ts';
 import { ProductDetailApi } from '../../shared/apis/product-detail.ts';
+import { ProductDetailRequestSchema, ProductDetailResponseSchema } from '../../shared/apis/product-detail.ts';
 import { ProductHistoryApi } from '../../shared/apis/product-history.ts';
 import { CategoryRevisionConflict } from '../../shared/actions/create-product-category.ts';
 import { mapAddProductCategoryAssignmentActionProblem } from '../../api/add-product-category-assignment-action-problems.ts';
@@ -223,6 +224,7 @@ it.effect('rejects a foreign Product before resolving tenant-local persistence',
     };
     const result = yield* readProductDetail(
       {
+        locale: 'cs-CZ',
         productRef: {
           moduleId: 'commerce.catalog',
           resourceId: '22222222-2222-4222-8222-222222222222',
@@ -231,11 +233,79 @@ it.effect('rejects a foreign Product before resolving tenant-local persistence',
         },
       },
       '11111111-1111-4111-8111-111111111111',
-      services,
+      { ...services, currentProduct: () => Effect.die('foreign localized facts were read') },
     ).pipe(Effect.flip);
     expect(Schema.is(ReadHandlerNotFound)(result)).toBe(true);
     expect(currentReads).toBe(0);
   }),
+);
+
+it.effect(
+  'returns the requested Catalog translation explicitly and never exposes the legacy label as a translation',
+  () =>
+    Effect.gen(function* readLocalizedDetail() {
+      const productRef = {
+        moduleId: 'commerce.catalog',
+        resourceId: '22222222-2222-4222-8222-222222222222',
+        resourceType: 'commerce.catalog.product',
+        tenantId: '11111111-1111-4111-8111-111111111111',
+      } as const;
+      const variantId = '33333333-3333-4333-8333-333333333333';
+      const product = Schema.decodeUnknownSync(ProductDetailResponseSchema.fields.product)({
+        catalogReady: true,
+        createdAt: '2026-09-17T10:00:00.000Z',
+        description: 'Legacy description',
+        lifecycle: 'ACTIVE',
+        name: 'Legacy label',
+        productRef,
+        revision: 1,
+        updatedAt: '2026-09-17T10:00:00.000Z',
+        variants: [
+          {
+            lifecycle: 'ACTIVE',
+            productRef,
+            variantId,
+            variantRef: {
+              moduleId: 'commerce.catalog',
+              resourceId: variantId,
+              resourceType: 'commerce.catalog.variant',
+              tenantId: productRef.tenantId,
+            },
+          },
+        ],
+      });
+      const base = {
+        getCurrent: () => Effect.succeed(Option.some(product)),
+      } as unknown as CatalogPersistence;
+      const present = yield* readProductDetail({ locale: 'cs-CZ', productRef }, productRef.tenantId, {
+        ...base,
+        currentProduct: () =>
+          Effect.succeed({
+            kind: 'PRESENT' as const,
+            locale: 'cs-CZ',
+            name: 'Police Alfa',
+            description: 'Věcný popis',
+            revision: 1,
+          }),
+      });
+      expect(present.localized).toEqual({
+        kind: 'PRESENT',
+        locale: 'cs-CZ',
+        name: 'Police Alfa',
+        description: 'Věcný popis',
+      });
+      expect(present.product.name).toBeUndefined();
+      expect(present.product.description).toBeUndefined();
+      const missing = yield* readProductDetail({ locale: 'de-DE', productRef }, productRef.tenantId, {
+        ...base,
+        currentProduct: () => Effect.succeed({ kind: 'MISSING_TRANSLATION' as const, locale: 'de-DE', revision: 0 }),
+      });
+      expect(missing.localized).toEqual({ kind: 'MISSING_TRANSLATION', requestedLocale: 'de-DE' });
+      expect(Schema.is(ProductDetailRequestSchema)({ locale: 'de-DE', productRef })).toBe(true);
+      expect(Schema.is(ProductDetailRequestSchema)({ locale: 'de-de', productRef })).toBe(false);
+      expect(Schema.is(ProductDetailResponseSchema)(present)).toBe(true);
+      expect(Schema.is(ProductDetailResponseSchema)(missing)).toBe(true);
+    }),
 );
 
 it('publishes only explicitly implemented atomic permissions with disjoint authority bundles', () => {
@@ -248,13 +318,16 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
     expect([
       'attribute-definition',
       'brand',
+      'catalog-media',
       'controlled-attribute-value',
+      'manufacturer-relation',
       'package-definition',
       'product',
       'product-category',
       'product-relationship',
       'product-type',
       'product-unit',
+      'size-equivalence',
       'variant',
     ]).toContain(contract.businessTarget);
     expect(contract.scope).toBe('tenant');
@@ -264,6 +337,8 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
     expect(catalogAuthorityBundles[contract.authorityBundle]).toContain(contract.permission);
   }
   expect(catalogAuthorityBundles.CATALOG_DEFINITION_MANAGER).toEqual([
+    'commerce.catalog.activate-package-definition',
+    'commerce.catalog.assert-size-equivalence',
     'commerce.catalog.create-attribute-definition',
     'commerce.catalog.create-brand',
     'commerce.catalog.create-controlled-attribute-value',
