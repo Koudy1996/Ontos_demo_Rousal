@@ -885,19 +885,35 @@ Binding+Revision resolver participant inside one constituent. Guest is not a Pur
 Assortment result never creates Permission, Price, Availability, publication, or Order acceptance,
 and Product-level `VISIBILITY` is not proof that any Variant or Package Option is `PURCHASE` eligible.
 
-**Pricing** — Domain determining the commercial price of one exact purchase candidate in an explicit
-Commerce Purchasing Context. One Pricing Decision evaluates `1..N stable Pricing Lines`; each Pricing
-Line has an identity supplied by the exact candidate before Pricing calculation and binds one exact
-Catalog Selection, resulting Quantity and Unit. Pricing owns prices, Pricing-owned discounts and fees,
-quantity tiers, quotations and Price Group interpretation. Pricing calculation does not create, merge
-or split Pricing Lines; a purpose-specific aggregation may group stable Pricing Lines without changing
-their identities. Set/Package prices are not silently derived from component sums or loose-piece prices.
+**Pricing** — Domain determining the pre-Tax commercial price of one exact purchase candidate in an
+explicit Commerce Purchasing Context. One Pricing Decision evaluates `1..N stable Pricing Lines`;
+each Pricing Line has an identity supplied by the exact candidate before Pricing calculation and
+binds one exact Catalog Selection, resulting Quantity and Unit. Pricing owns canonical tax-exclusive
+Price facts, Pricing-owned discounts and fees, quantity tiers, quotations, Price Group interpretation,
+calculation and pre-Tax commercial totals. Pricing calculation does not create, merge or split Pricing
+Lines; a purpose-specific aggregation may group stable Pricing Lines without changing their identities.
+Tax is a downstream owner: Pricing Result is complete without Tax Decision and Pricing never derives
+Tax rates, Tax amounts, exemptions, jurisdiction or gross-to-net decomposition. Set/Package prices are
+not silently derived from component sums or loose-piece prices.
 
-**Pricing Decision** — Pricing-owned Current commercial decision for one exact purchase candidate
-with `1..N stable Pricing Lines` in one explicit currency, trusted Commerce Purchasing Context and
-trusted operation time. A candidate with one Pricing Line uses the same authoritative model as a
-multi-line candidate; there is no second line-only Pricing Decision semantics. Pricing evaluation
-preserves the stable candidate line structure.
+**Price** — Pricing-owned tax-exclusive commercial fact stating one Monetary Amount in an explicit
+currency and pricing basis for one declared Pricing target, Pricing Commercial Scope and Effective
+Period with authoritative provenance. Canonical Price is always pre-Tax. A gross/tax-inclusive source
+assertion is source evidence, not a canonical Price; it requires owner-authoritative normalization to a
+tax-exclusive commercial amount before canonical Pricing use. Without such normalization it remains
+unresolved and cannot affect Current Pricing. Pricing never reverse-calculates Tax.
+
+**Pricing Decision** — Pricing-owned Current pre-Tax commercial decision for one exact purchase
+candidate with `1..N stable Pricing Lines` in one explicit currency, trusted Commerce Purchasing
+Context and trusted operation time. A candidate with one Pricing Line uses the same authoritative
+model as a multi-line candidate; there is no second line-only Pricing Decision semantics. Pricing
+evaluation preserves the stable candidate line structure and is complete without a Tax Decision.
+
+**Pricing Result** — Complete successful pre-Tax payload of a `PRICE_RESOLVED` Pricing Decision for
+one exact whole candidate. It preserves stable Pricing-Line bindings, Pricing-owned monetary values
+and breakdowns, canonical pre-Tax totals, currency, material source revisions and Currentness evidence.
+Tax Result is a separate downstream owner output; combining Pricing Result with Tax for a gross or
+customer-facing view does not create a new Pricing-owned total.
 
 **Pricing Line** — Stable per-selection Pricing part of one exact purchase candidate. Its identity
 and the candidate's Pricing-Line cardinality are supplied before Pricing calculation; it binds one
