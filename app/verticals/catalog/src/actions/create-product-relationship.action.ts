@@ -2,7 +2,7 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug create-product-relationship
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Match, Schema } from 'effect';
+import { Effect, Match } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import {
@@ -11,11 +11,8 @@ import {
 } from '../../shared/actions/product-relationship-mutations.ts';
 import type { CreateProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 import type { ProductRelationshipPersistence } from '../persistence/product-relationship-persistence.ts';
-import {
-  ProductRelationshipEffectivePeriodSchema,
-  ProductRelationshipEndpointSchema,
-  ProductRelationshipTypeSchema,
-} from '../../shared/domain/product-relationship.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-relationship-changed-v1.ts';
+import { createCreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './create-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 import {
   checkRelationshipTenant,
   ProductAuditEvidenceSchema,
@@ -31,16 +28,7 @@ export type { CreateProductRelationshipPayload } from '../../shared/actions/prod
 export const CreateProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
 export type CreateProductRelationshipResult = typeof CreateProductRelationshipResultSchema.Type;
 
-export const ProductRelationshipChangedEventSchema = Schema.Struct({
-  changeKind: Schema.Literals(['CREATED', 'CORRECTED', 'ENDED']),
-  effectivePeriod: ProductRelationshipEffectivePeriodSchema,
-  relationshipId: Schema.String,
-  revision: Schema.Int,
-  source: ProductRelationshipEndpointSchema,
-  target: ProductRelationshipEndpointSchema,
-  tenantId: Schema.String,
-  type: ProductRelationshipTypeSchema,
-});
+export const ProductRelationshipChangedEventSchema = OutboxPayloadSchema;
 const domainEvents = {
   'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
 } as const;
@@ -76,23 +64,28 @@ export const handleCreateProductRelationship = Effect.fn('CreateProductRelations
     });
     yield* recordRelationshipAccess(context, result.relationship.source);
     yield* recordRelationshipAccess(context, result.relationship.target);
-    yield* context.addDomainEvent({
+    const eventPayload = {
+      changeKind: 'CREATED' as const,
+      effectivePeriod: { ...result.relationship.effectivePeriod },
+      relationshipId: result.relationshipId,
+      revision: result.revision,
+      source: { ...result.relationship.source },
+      target: { ...result.relationship.target },
+      tenantId: context.scope.tenantId,
+      type: result.relationship.type,
+    };
+    const event = yield* context.addDomainEvent({
       eventType: 'commerce.catalog.product-relationship-changed.v1',
-      payloadJson: {
-        changeKind: 'CREATED',
-        effectivePeriod: { ...result.relationship.effectivePeriod },
-        relationshipId: result.relationshipId,
-        revision: result.revision,
-        source: { ...result.relationship.source },
-        target: { ...result.relationship.target },
-        tenantId: context.scope.tenantId,
-        type: result.relationship.type,
-      },
+      payloadJson: eventPayload,
       producerModuleKey: 'commerce.catalog',
       subjectModuleKey: 'commerce.catalog',
       subjectResourceId: result.relationshipId,
       subjectResourceType: 'commerce.catalog.product-relationship',
     });
+    yield* context.addOutboxMessage(
+      event,
+      createCreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage(eventPayload),
+    );
     return result;
   },
 );
@@ -128,4 +121,9 @@ export const createProductRelationshipAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createCreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './create-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export { CreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayloadSchema } from './create-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export { CreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxProducerModuleKey } from './create-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export { CreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxTopic } from './create-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export type { CreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayload } from './create-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

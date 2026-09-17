@@ -11,6 +11,7 @@ import {
 import type { RemoveProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 import type { ProductRelationshipPersistence } from '../persistence/product-relationship-persistence.ts';
 import { ProductRelationshipChangedEventSchema } from './create-product-relationship.action.ts';
+import { createRemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 import {
   ProductAuditEvidenceSchema,
   ProductRelationshipActionErrorSchema,
@@ -57,23 +58,28 @@ export const handleRemoveProductRelationship = Effect.fn('RemoveProductRelations
     yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
     yield* recordRelationshipAccess(context, result.relationship.source);
     yield* recordRelationshipAccess(context, result.relationship.target);
-    yield* context.addDomainEvent({
+    const eventPayload = {
+      changeKind: 'ENDED' as const,
+      effectivePeriod: { ...result.relationship.effectivePeriod },
+      relationshipId: result.relationshipId,
+      revision: result.revision,
+      source: { ...result.relationship.source },
+      target: { ...result.relationship.target },
+      tenantId: context.scope.tenantId,
+      type: result.relationship.type,
+    };
+    const event = yield* context.addDomainEvent({
       eventType: 'commerce.catalog.product-relationship-changed.v1',
-      payloadJson: {
-        changeKind: 'ENDED',
-        effectivePeriod: { ...result.relationship.effectivePeriod },
-        relationshipId: result.relationshipId,
-        revision: result.revision,
-        source: { ...result.relationship.source },
-        target: { ...result.relationship.target },
-        tenantId: context.scope.tenantId,
-        type: result.relationship.type,
-      },
+      payloadJson: eventPayload,
       producerModuleKey: 'commerce.catalog',
       subjectModuleKey: 'commerce.catalog',
       subjectResourceId: result.relationshipId,
       subjectResourceType: 'commerce.catalog.product-relationship',
     });
+    yield* context.addOutboxMessage(
+      event,
+      createRemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage(eventPayload),
+    );
     return result;
   },
 );
@@ -109,4 +115,9 @@ export const removeProductRelationshipAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createRemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayloadSchema } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxProducerModuleKey } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxTopic } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
+export type { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayload } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

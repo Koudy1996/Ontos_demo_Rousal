@@ -8,6 +8,7 @@ import {
   CreateProductRelationshipPayloadSchema,
   RemoveProductRelationshipPayloadSchema,
 } from '../../shared/actions/product-relationship-mutations.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-relationship-changed-v1.ts';
 import {
   changeProductRelationshipAction,
   handleChangeProductRelationship,
@@ -59,6 +60,7 @@ const context = <Events extends DomainEventContractMap>(
   domainEvents: Events,
 ) => {
   const events: Array<{ eventType: string; payloadJson: unknown; subjectResourceId: string }> = [];
+  const outbox: Array<{ event: unknown; message: unknown }> = [];
   const reads: string[] = [];
   const services: ProductRelationshipPersistence = {
     change: unexpected,
@@ -78,7 +80,10 @@ const context = <Events extends DomainEventContractMap>(
         });
         return Object.create(null);
       }),
-    addOutboxMessage: () => Effect.void,
+    addOutboxMessage: (event, message) =>
+      Effect.sync(() => {
+        outbox.push({ event, message });
+      }),
     recordAuditEvidence: () => Effect.void,
     recordDataAccess: (access) =>
       Effect.sync(() => {
@@ -87,7 +92,7 @@ const context = <Events extends DomainEventContractMap>(
     scope,
     services,
   };
-  return { events, reads, value };
+  return { events, outbox, reads, value };
 };
 const createContext = (overrides: Partial<ProductRelationshipPersistence>) =>
   context(overrides, createProductRelationshipAction.descriptor.domainEvents);
@@ -97,6 +102,26 @@ const removeContext = (overrides: Partial<ProductRelationshipPersistence>) =>
   context(overrides, removeProductRelationshipAction.descriptor.domainEvents);
 
 describe('Product relationship Action contracts and handlers', () => {
+  it('requires Tenant-consistent, public relationship change evidence in the outbox contract', () => {
+    const payload = {
+      changeKind: 'CREATED',
+      effectivePeriod: {},
+      relationshipId,
+      revision: 1,
+      source,
+      target,
+      tenantId,
+      type: 'ACCESSORY_FOR',
+    };
+    expect(Schema.decodeUnknownSync(OutboxPayloadSchema)(payload)).toEqual(payload);
+    expect(() =>
+      Schema.decodeUnknownSync(OutboxPayloadSchema)({
+        ...payload,
+        tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      }),
+    ).toThrow();
+  });
+
   it('requires explicit type, endpoints, evidence, and optimistic revision', () => {
     expect(
       Schema.decodeUnknownSync(CreateProductRelationshipPayloadSchema)({ relationship, relationshipId }).relationship
@@ -148,6 +173,15 @@ describe('Product relationship Action contracts and handlers', () => {
       ]);
       expect(run.events[0]?.payloadJson).not.toHaveProperty('reason');
       expect(run.events[0]?.payloadJson).not.toHaveProperty('evidenceRefs');
+      expect(run.outbox).toMatchObject([
+        {
+          message: {
+            payloadJson: run.events[0]?.payloadJson,
+            producerModuleKey: 'commerce.catalog',
+            topic: 'commerce.catalog.product-relationship-changed.v1',
+          },
+        },
+      ]);
     }),
   );
 
@@ -163,6 +197,7 @@ describe('Product relationship Action contracts and handlers', () => {
       ).pipe(Effect.flip);
       expect(error.code).toBe('product_relationship_not_found');
       expect(run.events).toEqual([]);
+      expect(run.outbox).toEqual([]);
     }),
   );
 
@@ -203,6 +238,8 @@ describe('Product relationship Action contracts and handlers', () => {
       expect(removeError).toMatchObject({ code: 'product_relationship_conflict', conflict: 'REVISION' });
       expect(changeRun.events).toEqual([]);
       expect(removeRun.events).toEqual([]);
+      expect(changeRun.outbox).toEqual([]);
+      expect(removeRun.outbox).toEqual([]);
     }),
   );
 
@@ -222,6 +259,7 @@ describe('Product relationship Action contracts and handlers', () => {
       expect(run.events).toMatchObject([
         { payloadJson: { changeKind: 'CORRECTED', revision: 2, target: corrected.target } },
       ]);
+      expect(run.outbox[0]?.message).toMatchObject({ payloadJson: run.events[0]?.payloadJson });
     }),
   );
 
@@ -251,6 +289,7 @@ describe('Product relationship Action contracts and handlers', () => {
       expect(run.events).toMatchObject([
         { payloadJson: { changeKind: 'ENDED', relationshipId, revision: 2, tenantId } },
       ]);
+      expect(run.outbox[0]?.message).toMatchObject({ payloadJson: run.events[0]?.payloadJson });
     }),
   );
 
@@ -262,6 +301,7 @@ describe('Product relationship Action contracts and handlers', () => {
       );
       expect(error).toMatchObject({ code: 'product_relationship_conflict', conflict: 'DUPLICATE' });
       expect(run.events).toEqual([]);
+      expect(run.outbox).toEqual([]);
     }),
   );
 });
