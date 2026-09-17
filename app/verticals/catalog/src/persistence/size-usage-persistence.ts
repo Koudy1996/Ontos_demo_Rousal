@@ -271,8 +271,7 @@ export const sizeUsagePersistenceForScope = (
       .select({ revision: productSizeUsageSets.currentRevision })
       .from(productSizeUsageSets)
       .where(and(eq(productSizeUsageSets.tenantId, tenantId), eq(productSizeUsageSets.productId, productId)))
-      .limit(1)
-      .pipe(Effect.mapError(unavailable));
+      .limit(1);
     if (set === undefined) {
       return Option.none();
     }
@@ -280,9 +279,8 @@ export const sizeUsagePersistenceForScope = (
       .select({ id: productSizeUsageItems.sizeValueId })
       .from(productSizeUsageItems)
       .where(and(eq(productSizeUsageItems.tenantId, tenantId), eq(productSizeUsageItems.productId, productId)))
-      .orderBy(asc(productSizeUsageItems.position))
-      .pipe(Effect.mapError(unavailable));
+      .orderBy(asc(productSizeUsageItems.position));
     return Option.some({ orderedSizeIds: items.map((item) => item.id), revision: set.revision });
-  });
+  }, Effect.mapError(unavailable));
   return { assertEquivalence, read, replace };
 };
