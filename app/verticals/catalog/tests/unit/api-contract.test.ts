@@ -191,7 +191,13 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   for (const [key, contract] of contracts) {
     expect(contract.version).toBe('1');
     // Business targets are descriptive, not per-resource SpiceDB grants.
-    expect(['product', 'product-category', 'product-type']).toContain(contract.businessTarget);
+    expect([
+      'attribute-definition',
+      'controlled-attribute-value',
+      'product',
+      'product-category',
+      'product-type',
+    ]).toContain(contract.businessTarget);
     expect(contract.scope).toBe('tenant');
     if (contract.permissionKind === 'action_execution') {
       expect(contract.permission).toBe(key);
@@ -199,15 +205,21 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
     expect(catalogAuthorityBundles[contract.authorityBundle]).toContain(contract.permission);
   }
   expect(catalogAuthorityBundles.CATALOG_DEFINITION_MANAGER).toEqual([
+    'commerce.catalog.create-attribute-definition',
+    'commerce.catalog.create-controlled-attribute-value',
     'commerce.catalog.create-product-category',
     'commerce.catalog.create-product-type',
     'commerce.catalog.move-product-category',
+    'commerce.catalog.reactivate-controlled-attribute-value',
+    'commerce.catalog.rename-attribute-definition',
+    'commerce.catalog.rename-controlled-attribute-value',
     'commerce.catalog.rename-product-category',
+    'commerce.catalog.retire-controlled-attribute-value',
     'commerce.catalog.retire-product-category',
     'commerce.catalog.revise-product-type',
   ]);
   // #411B/#481 importer and overrides are deferred.
-  expect(contracts).toHaveLength(19);
+  expect(contracts).toHaveLength(25);
   const bundlePermissions = Object.values(catalogAuthorityBundles).flat();
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
   expect(bundlePermissions).toHaveLength(contracts.length);

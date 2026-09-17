@@ -15,13 +15,19 @@ import type { CatalogReadiness, OperationContext } from '../../shared/api.ts';
 // <generated-action-http-client-exports>
 export * from './add-product-category-assignment-action-client.ts';
 export * from './correct-product-action-client.ts';
+export * from './create-attribute-definition-action-client.ts';
+export * from './create-controlled-attribute-value-action-client.ts';
 export * from './create-product-action-client.ts';
 export * from './create-product-category-action-client.ts';
 export * from './create-product-type-action-client.ts';
 export * from './move-product-category-action-client.ts';
+export * from './reactivate-controlled-attribute-value-action-client.ts';
 export * from './reactivate-product-action-client.ts';
 export * from './remove-product-category-assignment-action-client.ts';
+export * from './rename-attribute-definition-action-client.ts';
+export * from './rename-controlled-attribute-value-action-client.ts';
 export * from './rename-product-category-action-client.ts';
+export * from './retire-controlled-attribute-value-action-client.ts';
 export * from './retire-product-action-client.ts';
 export * from './retire-product-category-action-client.ts';
 export * from './revise-product-type-action-client.ts';
@@ -32,6 +38,16 @@ export { executeProductDetail, executeProductDetailWithAuthorization } from './p
 export type { ProductDetailClientOptions } from './product-detail-client.ts';
 export { executeProductHistory, executeProductHistoryWithAuthorization } from './product-history-client.ts';
 export type { ProductHistoryClientOptions } from './product-history-client.ts';
+export {
+  executeProductCategoryClassification,
+  executeProductCategoryClassificationWithAuthorization,
+} from './product-category-classification-client.ts';
+export type { ProductCategoryClassificationClientOptions } from './product-category-classification-client.ts';
+export {
+  executeProductCategoryHistory,
+  executeProductCategoryHistoryWithAuthorization,
+} from './product-category-history-client.ts';
+export type { ProductCategoryHistoryClientOptions } from './product-category-history-client.ts';
 
 type CatalogApiGroups = typeof catalogApi extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Groups : never;
 

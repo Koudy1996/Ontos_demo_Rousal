@@ -10,6 +10,8 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 // <generated-governed-http-api-imports>
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
+import { CreateAttributeDefinitionActionApi } from './apis/create-attribute-definition-action.ts';
+import { CreateControlledAttributeValueActionApi } from './apis/create-controlled-attribute-value-action.ts';
 import { CreateProductActionApi } from './apis/create-product-action.ts';
 import { CreateProductCategoryActionApi } from './apis/create-product-category-action.ts';
 import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
@@ -19,9 +21,13 @@ import { ProductCategoryClassificationApi } from './apis/product-category-classi
 import { ProductCategoryHistoryApi } from './apis/product-category-history.ts';
 import { ProductDetailApi } from './apis/product-detail.ts';
 import { ProductHistoryApi } from './apis/product-history.ts';
+import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
 import { RemoveProductCategoryAssignmentActionApi } from './apis/remove-product-category-assignment-action.ts';
+import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-definition-action.ts';
+import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
 import { RenameProductCategoryActionApi } from './apis/rename-product-category-action.ts';
+import { RetireControlledAttributeValueActionApi } from './apis/retire-controlled-attribute-value-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
@@ -53,6 +59,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   // <generated-governed-http-api-additions>
   .addHttpApi(AddProductCategoryAssignmentActionApi)
   .addHttpApi(CorrectProductActionApi)
+  .addHttpApi(CreateAttributeDefinitionActionApi)
+  .addHttpApi(CreateControlledAttributeValueActionApi)
   .addHttpApi(CreateProductActionApi)
   .addHttpApi(CreateProductCategoryActionApi)
   .addHttpApi(CreateProductRecoveryApi)
@@ -62,9 +70,13 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductCategoryHistoryApi)
   .addHttpApi(ProductDetailApi)
   .addHttpApi(ProductHistoryApi)
+  .addHttpApi(ReactivateControlledAttributeValueActionApi)
   .addHttpApi(ReactivateProductActionApi)
   .addHttpApi(RemoveProductCategoryAssignmentActionApi)
+  .addHttpApi(RenameAttributeDefinitionActionApi)
+  .addHttpApi(RenameControlledAttributeValueActionApi)
   .addHttpApi(RenameProductCategoryActionApi)
+  .addHttpApi(RetireControlledAttributeValueActionApi)
   .addHttpApi(RetireProductActionApi)
   .addHttpApi(RetireProductCategoryActionApi)
   .addHttpApi(ReviseProductTypeActionApi)
@@ -100,6 +112,8 @@ export const catalogApiContract = {
  * deliberately absent from this inventory.
  */
 const productCategoryBusinessTarget = 'product-category';
+const attributeDefinitionBusinessTarget = 'attribute-definition';
+const controlledAttributeValueBusinessTarget = 'controlled-attribute-value';
 
 export const catalogPublicOperationContracts = {
   'commerce.catalog.add-product-category-assignment': {
@@ -158,6 +172,22 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.create-attribute-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: attributeDefinitionBusinessTarget,
+    permission: 'commerce.catalog.create-attribute-definition',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.create-controlled-attribute-value': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: controlledAttributeValueBusinessTarget,
+    permission: 'commerce.catalog.create-controlled-attribute-value',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.create-product': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
@@ -190,6 +220,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.reactivate-controlled-attribute-value': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: controlledAttributeValueBusinessTarget,
+    permission: 'commerce.catalog.reactivate-controlled-attribute-value',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.reactivate-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'product',
@@ -206,10 +244,34 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.rename-attribute-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: attributeDefinitionBusinessTarget,
+    permission: 'commerce.catalog.rename-attribute-definition',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.rename-controlled-attribute-value': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: controlledAttributeValueBusinessTarget,
+    permission: 'commerce.catalog.rename-controlled-attribute-value',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.rename-product-category': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: productCategoryBusinessTarget,
     permission: 'commerce.catalog.rename-product-category',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.retire-controlled-attribute-value': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: controlledAttributeValueBusinessTarget,
+    permission: 'commerce.catalog.retire-controlled-attribute-value',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -258,10 +320,16 @@ export const catalogPublicOperationContracts = {
 
 export const catalogAuthorityBundles = {
   CATALOG_DEFINITION_MANAGER: [
+    'commerce.catalog.create-attribute-definition',
+    'commerce.catalog.create-controlled-attribute-value',
     'commerce.catalog.create-product-category',
     'commerce.catalog.create-product-type',
     'commerce.catalog.move-product-category',
+    'commerce.catalog.reactivate-controlled-attribute-value',
+    'commerce.catalog.rename-attribute-definition',
+    'commerce.catalog.rename-controlled-attribute-value',
     'commerce.catalog.rename-product-category',
+    'commerce.catalog.retire-controlled-attribute-value',
     'commerce.catalog.retire-product-category',
     'commerce.catalog.revise-product-type',
   ],
