@@ -114,7 +114,7 @@ describe('Product Unit governed Actions', () => {
       expect(action.descriptor.legalEntityScope).toBe('forbidden');
       expect(action.descriptor.entrypoint.authorization).toEqual({
         kind: 'action_execution',
-        provisioning: 'tenant_membership_default',
+        provisioning: 'explicit',
       });
     }
   });

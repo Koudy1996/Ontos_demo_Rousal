@@ -37,7 +37,7 @@ export const changeProductManufacturerAction = defineAction(
     domainEvents: {},
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
-      authorization: { kind: 'action_execution', provisioning: 'tenant_membership_default' },
+      authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.change-product-manufacturer',
       moduleKey: 'commerce.catalog',
       role: 'action',

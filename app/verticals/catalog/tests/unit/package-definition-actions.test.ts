@@ -109,7 +109,7 @@ describe('Package Definition governed Action contracts', () => {
     ]) {
       expect(action.descriptor.entrypoint.authorization).toEqual({
         kind: 'action_execution',
-        provisioning: 'tenant_membership_default',
+        provisioning: 'explicit',
       });
       expect(action.descriptor.idempotency).toBe('required');
       expect(action.descriptor.legalEntityScope).toBe('forbidden');

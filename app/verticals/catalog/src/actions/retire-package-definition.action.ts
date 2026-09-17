@@ -59,7 +59,7 @@ export const retirePackageDefinitionAction = defineAction(
     domainEvents: {},
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
-      authorization: { kind: 'action_execution', provisioning: 'tenant_membership_default' },
+      authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.retire-package-definition',
       moduleKey: 'commerce.catalog',
       role: 'action',

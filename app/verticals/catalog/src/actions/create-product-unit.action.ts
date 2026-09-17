@@ -56,7 +56,7 @@ export const createProductUnitAction = defineAction(
     domainEvents: {},
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
-      authorization: { kind: 'action_execution', provisioning: 'tenant_membership_default' },
+      authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.create-product-unit',
       moduleKey: 'commerce.catalog',
       role: 'action',
