@@ -11,18 +11,27 @@ import {
 } from '@app/core-runtime';
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
+import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
 import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.ts';
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
+import { createProductCategoryAction } from './src/actions/create-product-category.action.ts';
 import { CreateProductRecoveryApi } from './shared/apis/create-product-recovery.ts';
+import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
+import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
 import { productCategoryResourceDescriptor } from './shared/resources/product-category.ts';
 import { ProductDetailApi } from './shared/apis/product-detail.ts';
 import { ProductHistoryApi } from './shared/apis/product-history.ts';
 import { productResourceDescriptor } from './shared/resources/product.ts';
 import { productTypeResourceDescriptor } from './shared/resources/product-type.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
+import { removeProductCategoryAssignmentAction } from './src/actions/remove-product-category-assignment.action.ts';
+import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
+import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
+import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
+import { setProductTypeAction } from './src/actions/set-product-type.action.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
 import { variantResourceDescriptor } from './shared/resources/variant.ts';
 // </generated-module-manifest-imports>
@@ -61,10 +70,19 @@ export const catalogManifest = defineOntosModuleManifest({
   publicSurface: {
     actions: [
       // <generated-module-manifest-actions>
+      addProductCategoryAssignmentAction,
       correctProductAction,
       createProductAction,
+      createProductCategoryAction,
+      createProductTypeAction,
+      moveProductCategoryAction,
       reactivateProductAction,
+      removeProductCategoryAssignmentAction,
+      renameProductCategoryAction,
       retireProductAction,
+      retireProductCategoryAction,
+      reviseProductTypeAction,
+      setProductTypeAction,
       updateProductAction,
       // </generated-module-manifest-actions>
     ],

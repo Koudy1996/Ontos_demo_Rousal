@@ -4,20 +4,38 @@
 import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
 import { catalogManifest } from './vertical.manifest.ts';
 // <generated-module-registration-imports>
+import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
+import { createProductCategoryAction } from './src/actions/create-product-category.action.ts';
+import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
+import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
+import { removeProductCategoryAssignmentAction } from './src/actions/remove-product-category-assignment.action.ts';
+import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
+import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
+import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
+import { setProductTypeAction } from './src/actions/set-product-type.action.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
 // </generated-module-registration-imports>
 
 export const catalogRegistration = defineVerticalRuntimeRegistration({
   actions: [
     // <generated-module-registration-actions>
+    addProductCategoryAssignmentAction,
     correctProductAction,
     createProductAction,
+    createProductCategoryAction,
+    createProductTypeAction,
+    moveProductCategoryAction,
     reactivateProductAction,
+    removeProductCategoryAssignmentAction,
+    renameProductCategoryAction,
     retireProductAction,
+    retireProductCategoryAction,
+    reviseProductTypeAction,
+    setProductTypeAction,
     updateProductAction,
     // </generated-module-registration-actions>
   ],
