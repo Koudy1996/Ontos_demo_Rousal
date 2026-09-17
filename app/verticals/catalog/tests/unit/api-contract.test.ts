@@ -88,9 +88,9 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   expect(new Set(permissions).size).toBe(contracts.length);
   for (const [key, contract] of contracts) {
     expect(contract.version).toBe('1');
-    // Product is a business target, not a per-Product SpiceDB authorization resource.
-    expect(contract.authorizationScope).toBe('tenant');
-    expect(contract.scope).toBe(key === 'commerce.catalog.create-product' ? 'tenant' : 'product');
+    // Product is the business target, not a per-Product SpiceDB authorization resource.
+    expect(contract.businessTarget).toBe('product');
+    expect(contract.scope).toBe('tenant');
     if (contract.permissionKind === 'action_execution') {
       expect(contract.permission).toBe(key);
     }

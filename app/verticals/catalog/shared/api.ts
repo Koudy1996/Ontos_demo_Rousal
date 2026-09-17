@@ -68,41 +68,41 @@ export const catalogApiContract = {
  * Versioned Catalog operation inventory. Each key is an atomic Core authorization
  * identity, not a runtime role check. Bundles are provisioning aids only: adding
  * an operation here never grants it to an existing Principal. `scope` names the
- * business target, while `authorizationScope` names the Core permission target.
+ * Core authorization boundary; `businessTarget` names the Product domain target.
  * Catalog currently authorizes reads by tenant context permission and Actions
- * by tenant/action executor grants; `scope: 'product'` does not imply a
- * per-Product SpiceDB grant. Owner-local tenant guards still apply.
+ * by tenant/action executor grants. `businessTarget: 'product'` does not imply
+ * a per-Product SpiceDB grant. Owner-local tenant guards still apply.
  * Definition Manager, importer, and override operations remain deferred to
  * #411B/#481 and are deliberately absent from this inventory.
  */
 export const catalogPublicOperationContracts = {
   'commerce.catalog.api.product-detail': {
     authorityBundle: 'CATALOG_READER',
-    authorizationScope: 'tenant',
+    businessTarget: 'product',
     permission: 'commerce.catalog.read.product-detail',
     permissionKind: 'context_permission',
-    scope: 'product',
+    scope: 'tenant',
     version: '1',
   },
   'commerce.catalog.api.product-history': {
     authorityBundle: 'CATALOG_READER',
-    authorizationScope: 'tenant',
+    businessTarget: 'product',
     permission: 'commerce.catalog.read.product-history',
     permissionKind: 'context_permission',
-    scope: 'product',
+    scope: 'tenant',
     version: '1',
   },
   'commerce.catalog.correct-product': {
     authorityBundle: 'PRODUCT_EDITOR',
-    authorizationScope: 'tenant',
+    businessTarget: 'product',
     permission: 'commerce.catalog.correct-product',
     permissionKind: 'action_execution',
-    scope: 'product',
+    scope: 'tenant',
     version: '1',
   },
   'commerce.catalog.create-product': {
     authorityBundle: 'PRODUCT_EDITOR',
-    authorizationScope: 'tenant',
+    businessTarget: 'product',
     permission: 'commerce.catalog.create-product',
     permissionKind: 'action_execution',
     scope: 'tenant',
@@ -110,26 +110,26 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.reactivate-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
-    authorizationScope: 'tenant',
+    businessTarget: 'product',
     permission: 'commerce.catalog.reactivate-product',
     permissionKind: 'action_execution',
-    scope: 'product',
+    scope: 'tenant',
     version: '1',
   },
   'commerce.catalog.retire-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
-    authorizationScope: 'tenant',
+    businessTarget: 'product',
     permission: 'commerce.catalog.retire-product',
     permissionKind: 'action_execution',
-    scope: 'product',
+    scope: 'tenant',
     version: '1',
   },
   'commerce.catalog.update-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
-    authorizationScope: 'tenant',
+    businessTarget: 'product',
     permission: 'commerce.catalog.update-product',
     permissionKind: 'action_execution',
-    scope: 'product',
+    scope: 'tenant',
     version: '1',
   },
 } as const;
