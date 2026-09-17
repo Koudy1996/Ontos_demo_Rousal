@@ -7,11 +7,88 @@ import type { SkuTarget } from '../../shared/domain/commercial-code.ts';
 import {
   commercialSkuAssignmentRevisions,
   commercialSkuReservations,
+  packageContentRevisions,
+  packageDefinitions,
+  packageOptionRoleRevisions,
   productVariants,
+  productUnits,
   products,
 } from '../database/schema.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
+interface ResolvedTarget {
+  readonly packageDefinitionId: string | null;
+  readonly productId: string;
+  readonly variantId: string;
+}
+
+export interface SkuCurrentOptionSnapshot {
+  readonly content: Pick<
+    typeof packageContentRevisions.$inferSelect,
+    'effectiveAt' | 'lifecycleState' | 'productId' | 'unitResourceType' | 'variantId'
+  >;
+  readonly contentRevision: number;
+  readonly definition: Pick<
+    typeof packageDefinitions.$inferSelect,
+    'currentOptionRevision' | 'currentRevision' | 'lifecycleState' | 'optionState' | 'productId' | 'variantId'
+  >;
+  readonly now: Date;
+  readonly productLifecycle: string;
+  readonly role: Pick<
+    typeof packageOptionRoleRevisions.$inferSelect,
+    | 'contentRevision'
+    | 'effectiveAt'
+    | 'independentlyRequested'
+    | 'looseUnitsSubstitutable'
+    | 'productId'
+    | 'revision'
+    | 'state'
+    | 'variantId'
+  >;
+  readonly unitLifecycle: string;
+  readonly variantLifecycle: string;
+}
+
+/* oxlint-disable eslint/complexity -- Exact Current proof requires each independent revision, lifecycle, and business-role invariant. expires: 2027-03-31. */
+export const currentPackageOptionSnapshotMatches = (snapshot: SkuCurrentOptionSnapshot): boolean => {
+  const { content, definition, now, role } = snapshot;
+  return (
+    definition.lifecycleState === 'ACTIVE' &&
+    definition.optionState === 'ACTIVE' &&
+    definition.currentRevision > 0 &&
+    definition.currentOptionRevision > 0 &&
+    content.lifecycleState === 'ACTIVE' &&
+    snapshot.contentRevision === definition.currentRevision &&
+    content.productId === definition.productId &&
+    content.variantId === definition.variantId &&
+    content.unitResourceType === 'commerce.catalog.product-unit' &&
+    role.state === 'ACTIVE' &&
+    role.revision === definition.currentOptionRevision &&
+    role.contentRevision === definition.currentRevision &&
+    role.productId === definition.productId &&
+    role.variantId === definition.variantId &&
+    role.independentlyRequested &&
+    !role.looseUnitsSubstitutable &&
+    snapshot.productLifecycle === 'ACTIVE' &&
+    snapshot.variantLifecycle === 'ACTIVE' &&
+    snapshot.unitLifecycle === 'ACTIVE' &&
+    content.effectiveAt.getTime() <= now.getTime() &&
+    role.effectiveAt.getTime() <= now.getTime()
+  );
+};
+/* oxlint-enable eslint/complexity */
+
+/** This owner attests the pinned Option role/content remains a valid Current selection basis. */
+export interface SkuPackageOptionBasis {
+  readonly verify: (input: {
+    readonly contentRevision: number;
+    readonly optionRevision: number;
+    readonly packageDefinitionId: string;
+    readonly productId: string;
+    readonly tenantId: string;
+    readonly variantId: string;
+  }) => Effect.Effect<boolean, SkuPersistenceUnavailable>;
+}
 
 export class SkuPersistenceUnavailable extends Schema.TaggedError<SkuPersistenceUnavailable>()(
   'SkuPersistenceUnavailable',
@@ -81,10 +158,16 @@ const sameEvidence = (row: typeof commercialSkuAssignmentRevisions.$inferSelect,
   row.evidenceRefs.every((ref, index) => ref === input.evidenceRefs[index]);
 
 const sameTarget = (row: typeof commercialSkuReservations.$inferSelect, target: SkuTarget) =>
-  target.kind === 'VARIANT' && row.variantId === target.variantId && row.packageDefinitionId === null;
+  target.kind === 'VARIANT'
+    ? row.variantId === target.variantId && row.packageDefinitionId === null
+    : row.packageDefinitionId === target.packageDefinitionId;
 
 /** Core owns the transaction and permissions. This owner service cannot open or commit one. */
-export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: OperationalScope) => {
+export const skuPersistenceForScope = (
+  transaction: ScopedTransaction,
+  scope: OperationalScope,
+  packageOptionBasis?: SkuPackageOptionBasis,
+) => {
   const { tenantId } = scope;
   const reservationWhere = (normalizedCode: string) =>
     and(eq(commercialSkuReservations.tenantId, tenantId), eq(commercialSkuReservations.normalizedCode, normalizedCode));
@@ -113,10 +196,114 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       )
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-  const resolveVariant = Effect.fn('SkuPersistence.resolveVariant')(function* resolveVariant(target: SkuTarget) {
+  const resolveTarget = Effect.fn('SkuPersistence.resolveTarget')(function* resolveTarget(target: SkuTarget) {
     if (target.kind === 'PACKAGE_OPTION') {
-      // A selectable option requires a Current role/content proof, not merely a Definition FK.
-      return yield* unavailable();
+      const [definition] = yield* transaction
+        .select()
+        .from(packageDefinitions)
+        .where(
+          and(
+            eq(packageDefinitions.tenantId, tenantId),
+            eq(packageDefinitions.packageDefinitionId, target.packageDefinitionId),
+          ),
+        )
+        .for('update')
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (definition === undefined) {
+        return null;
+      }
+      if (packageOptionBasis === undefined) {
+        return yield* unavailable();
+      }
+      const [[content], [role], [variant], [product]] = yield* Effect.all(
+        [
+          transaction
+            .select()
+            .from(packageContentRevisions)
+            .where(
+              and(
+                eq(packageContentRevisions.tenantId, tenantId),
+                eq(packageContentRevisions.packageDefinitionId, definition.packageDefinitionId),
+                eq(packageContentRevisions.revision, definition.currentRevision),
+              ),
+            )
+            .for('update')
+            .limit(1),
+          transaction
+            .select()
+            .from(packageOptionRoleRevisions)
+            .where(
+              and(
+                eq(packageOptionRoleRevisions.tenantId, tenantId),
+                eq(packageOptionRoleRevisions.packageDefinitionId, definition.packageDefinitionId),
+                eq(packageOptionRoleRevisions.revision, definition.currentOptionRevision),
+              ),
+            )
+            .for('update')
+            .limit(1),
+          transaction
+            .select()
+            .from(productVariants)
+            .where(
+              and(
+                eq(productVariants.tenantId, tenantId),
+                eq(productVariants.productId, definition.productId),
+                eq(productVariants.variantId, definition.variantId),
+              ),
+            )
+            .for('update')
+            .limit(1),
+          transaction
+            .select()
+            .from(products)
+            .where(and(eq(products.tenantId, tenantId), eq(products.productId, definition.productId)))
+            .for('update')
+            .limit(1),
+        ] as const,
+        { concurrency: 1 },
+      ).pipe(Effect.mapError(unavailable));
+      if (content === undefined || role === undefined || variant === undefined || product === undefined) {
+        return yield* unavailable();
+      }
+      const [unit] = yield* transaction
+        .select()
+        .from(productUnits)
+        .where(and(eq(productUnits.tenantId, tenantId), eq(productUnits.unitId, content.unitResourceId)))
+        .for('update')
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (unit === undefined) {
+        return yield* unavailable();
+      }
+      const now = DateTime.toDateUtc(yield* DateTime.now);
+      if (
+        !currentPackageOptionSnapshotMatches({
+          content,
+          contentRevision: content.revision,
+          definition,
+          now,
+          productLifecycle: product.lifecycleState,
+          role,
+          unitLifecycle: unit.lifecycleState,
+          variantLifecycle: variant.lifecycleState,
+        }) ||
+        !(yield* packageOptionBasis.verify({
+          contentRevision: definition.currentRevision,
+          optionRevision: definition.currentOptionRevision,
+          packageDefinitionId: definition.packageDefinitionId,
+          productId: definition.productId,
+          tenantId,
+          variantId: definition.variantId,
+        }))
+      ) {
+        return yield* unavailable();
+      }
+      return {
+        packageDefinitionId: definition.packageDefinitionId,
+        productId: definition.productId,
+        variantId: definition.variantId,
+      } satisfies ResolvedTarget;
     }
     const [variant] = yield* transaction
       .select()
@@ -137,11 +324,15 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     if (product === undefined || product.lifecycleState !== 'ACTIVE' || variant.lifecycleState !== 'ACTIVE') {
       return yield* unavailable();
     }
-    return variant;
+    return {
+      packageDefinitionId: null,
+      productId: variant.productId,
+      variantId: variant.variantId,
+    } satisfies ResolvedTarget;
   });
   const appendRevision = (
     input: SkuChangeInput,
-    productId: string,
+    target: ResolvedTarget,
     revision: number,
     changeKind: string,
     now: Date,
@@ -156,21 +347,21 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       effectiveAt: now,
       evidenceRefs: [...input.evidenceRefs],
       normalizedCode: normalizeSku(code),
-      packageDefinitionId: null,
-      productId,
+      packageDefinitionId: target.packageDefinitionId,
+      productId: target.productId,
       reason: input.reason,
       revision,
       state,
       tenantId,
-      variantId: input.target.kind === 'VARIANT' ? input.target.variantId : '',
+      variantId: target.variantId,
     });
 
   const assign = Effect.fn('SkuPersistence.assign')(function* assign(input: SkuChangeInput) {
     if (!validSkuChangeInput(input, tenantId) || input.expectedRevision !== 0) {
       return { _tag: 'invalid', reason: 'Invalid SKU assignment or initial revision' } as const;
     }
-    const variant = yield* resolveVariant(input.target);
-    if (variant === null) {
+    const target = yield* resolveTarget(input.target);
+    if (target === null) {
       return { _tag: 'not_found' } as const;
     }
     const [priorInvocation] = yield* readAnyInvocation(input.actionInvocationId);
@@ -178,7 +369,8 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       return priorInvocation.changeKind === 'ASSIGN' &&
         priorInvocation.normalizedCode === normalizeSku(input.code) &&
         priorInvocation.displayCode === input.code &&
-        priorInvocation.variantId === variant.variantId &&
+        priorInvocation.variantId === target.variantId &&
+        priorInvocation.packageDefinitionId === target.packageDefinitionId &&
         priorInvocation.actingPrincipalId === input.principalId &&
         sameEvidence(priorInvocation, input)
         ? ({ _tag: 'applied', revision: priorInvocation.revision } as const)
@@ -200,12 +392,12 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
         currentRevision: 1,
         displayCode: input.code,
         normalizedCode: normalizeSku(input.code),
-        packageDefinitionId: null,
-        productId: variant.productId,
+        packageDefinitionId: target.packageDefinitionId,
+        productId: target.productId,
         state: 'CURRENT',
         tenantId,
         updatedAt: now,
-        variantId: variant.variantId,
+        variantId: target.variantId,
       })
       .onConflictDoNothing()
       .returning()
@@ -213,7 +405,7 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     if (inserted === undefined) {
       return { _tag: 'conflict' } as const;
     }
-    yield* appendRevision(input, variant.productId, 1, 'ASSIGN', now).pipe(Effect.mapError(unavailable));
+    yield* appendRevision(input, target, 1, 'ASSIGN', now).pipe(Effect.mapError(unavailable));
     return { _tag: 'applied', revision: 1 } as const;
   });
 
@@ -225,18 +417,16 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     ) {
       return { _tag: 'invalid', reason: 'Invalid documented SKU correction' } as const;
     }
-    if (input.target.kind === 'PACKAGE_OPTION' || input.previousTarget.kind === 'PACKAGE_OPTION') {
-      return yield* unavailable();
-    }
-    const variant = yield* resolveVariant(input.target);
-    if (variant === null) {
+    const target = yield* resolveTarget(input.target);
+    if (target === null) {
       return { _tag: 'not_found' } as const;
     }
     const [priorInvocation] = yield* readAnyInvocation(input.actionInvocationId);
     if (priorInvocation !== undefined) {
       return priorInvocation.changeKind === 'CORRECT' &&
         priorInvocation.normalizedCode === normalizeSku(input.code) &&
-        priorInvocation.variantId === variant.variantId &&
+        priorInvocation.variantId === target.variantId &&
+        priorInvocation.packageDefinitionId === target.packageDefinitionId &&
         priorInvocation.actingPrincipalId === input.principalId &&
         sameEvidence(priorInvocation, input)
         ? ({ _tag: 'applied', revision: priorInvocation.revision } as const)
@@ -267,8 +457,12 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       .where(
         and(
           eq(commercialSkuReservations.tenantId, tenantId),
-          eq(commercialSkuReservations.variantId, variant.variantId),
-          isNull(commercialSkuReservations.packageDefinitionId),
+          ...(target.packageDefinitionId === null
+            ? [
+                eq(commercialSkuReservations.variantId, target.variantId),
+                isNull(commercialSkuReservations.packageDefinitionId),
+              ]
+            : [eq(commercialSkuReservations.packageDefinitionId, target.packageDefinitionId)]),
           eq(commercialSkuReservations.state, 'CURRENT'),
         ),
       )
@@ -283,9 +477,10 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       .set({
         currentRevision: existing.currentRevision + 1,
         displayCode: input.code,
-        productId: variant.productId,
+        packageDefinitionId: target.packageDefinitionId,
+        productId: target.productId,
         updatedAt: now,
-        variantId: variant.variantId,
+        variantId: target.variantId,
       })
       .where(
         and(
@@ -298,9 +493,7 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     if (updated === undefined) {
       return { _tag: 'stale', actualRevision: existing.currentRevision } as const;
     }
-    yield* appendRevision(input, variant.productId, updated.currentRevision, 'CORRECT', now).pipe(
-      Effect.mapError(unavailable),
-    );
+    yield* appendRevision(input, target, updated.currentRevision, 'CORRECT', now).pipe(Effect.mapError(unavailable));
     return { _tag: 'applied', revision: updated.currentRevision } as const;
   });
 
@@ -316,8 +509,8 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     ) {
       return { _tag: 'invalid', reason: 'Invalid SKU rename or unchanged comparison code' } as const;
     }
-    const variant = yield* resolveVariant(input.target);
-    if (variant === null) {
+    const target = yield* resolveTarget(input.target);
+    if (target === null) {
       return { _tag: 'not_found' } as const;
     }
     const [anyInvocation] = yield* readAnyInvocation(input.actionInvocationId);
@@ -333,8 +526,10 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
         oldRevision?.changeKind === 'RENAME' &&
         newRevision.displayCode === input.code &&
         oldRevision.normalizedCode === oldNormalized &&
-        newRevision.variantId === variant.variantId &&
-        oldRevision.variantId === variant.variantId &&
+        newRevision.variantId === target.variantId &&
+        oldRevision.variantId === target.variantId &&
+        newRevision.packageDefinitionId === target.packageDefinitionId &&
+        oldRevision.packageDefinitionId === target.packageDefinitionId &&
         newRevision.actingPrincipalId === input.principalId &&
         sameEvidence(newRevision, input) &&
         sameEvidence(oldRevision, input)
@@ -366,12 +561,12 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
         currentRevision: 1,
         displayCode: input.code,
         normalizedCode: newNormalized,
-        packageDefinitionId: null,
-        productId: variant.productId,
+        packageDefinitionId: target.packageDefinitionId,
+        productId: target.productId,
         state: 'HISTORICAL',
         tenantId,
         updatedAt: now,
-        variantId: variant.variantId,
+        variantId: target.variantId,
       })
       .onConflictDoNothing()
       .returning()
@@ -401,14 +596,14 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     }
     yield* appendRevision(
       input,
-      variant.productId,
+      target,
       oldHistorical.currentRevision,
       'RENAME',
       now,
       old.displayCode,
       'HISTORICAL',
     ).pipe(Effect.mapError(unavailable));
-    yield* appendRevision(input, variant.productId, 1, 'RENAME', now).pipe(Effect.mapError(unavailable));
+    yield* appendRevision(input, target, 1, 'RENAME', now).pipe(Effect.mapError(unavailable));
     return { _tag: 'applied', revision: 1 } as const;
   });
   /* oxlint-enable eslint/complexity */
