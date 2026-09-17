@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Effect, Option, Schema } from 'effect';
-import { ActionAlreadyCommitted, ActionRuntime, ReadHandlerUnavailable } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
+import { ActionRuntime, ReadHandlerNotFound, ReadHandlerUnavailable } from '@app/core-runtime';
 import type { ActionRuntimeService } from '@app/core-runtime';
 
 import { CreateProductResultSchema } from '../../shared/actions/create-product.ts';
@@ -10,9 +10,6 @@ import type { CatalogPersistence } from '../../src/persistence/catalog-persisten
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const principalId = '22222222-2222-4222-8222-222222222222';
 const invocationId = '33333333-3333-4333-8333-333333333333';
-const brandedInvocationId = Schema.decodeSync(
-  Schema.String.check(Schema.isUUID()).pipe(Schema.brand('ActionInvocationId')),
-)(invocationId);
 const productId = '44444444-4444-4444-8444-444444444444';
 const variantId = '55555555-5555-4555-8555-555555555555';
 const productRef = {
@@ -54,36 +51,33 @@ const scope = {
   principalId,
   tenantId,
 };
-const services = (lookup: CatalogPersistence['getCreatedByInvocation']): CatalogPersistence => ({
+const runtime: ActionRuntimeService = {
+  resolveActionCommit: () => Effect.die('recovery service owns the Core check'),
+  runAction: () => Effect.die('unused'),
+};
+const services = (recover: CatalogPersistence['recoverCreateProduct']): CatalogPersistence => ({
   correct: () => Effect.die('unused'),
   create: () => Effect.die('unused'),
-  getCreatedByInvocation: lookup,
+  getCreatedByInvocation: () => Effect.die('unused'),
   getCurrent: () => Effect.die('unused'),
   getHistory: () => Effect.die('unused'),
   reactivate: () => Effect.die('unused'),
+  recoverCreateProduct: recover,
   retire: () => Effect.die('unused'),
   update: () => Effect.die('unused'),
 });
 
 describe('create Product recovery', () => {
-  it.effect('returns the original result only after Core confirms this principal committed the invocation', () =>
+  it.effect('returns the immutable committed snapshot', () =>
     Effect.gen(function* recoverCommittedCreateCase() {
-      const runtime: ActionRuntimeService = {
-        resolveActionCommit: () =>
-          Effect.fail(
-            new ActionAlreadyCommitted({ code: 'action_already_committed', invocationId, reason: 'committed' }),
-          ),
-        runAction: () => Effect.die('unused'),
-      };
       const recovered = yield* recoverCreateProduct(
         { invocationId },
         {
           readKey: 'commerce.catalog.api.create-product-recovery',
           scope,
-          services: services((id, principal) => {
+          services: services((id) => {
             expect(id).toBe(invocationId);
-            expect(principal).toBe(principalId);
-            return Effect.succeed(Option.some(result));
+            return Effect.succeed({ result, status: 'committed' });
           }),
         },
       ).pipe(Effect.provideService(ActionRuntime, runtime));
@@ -91,22 +85,23 @@ describe('create Product recovery', () => {
     }),
   );
 
-  it.effect('does not read Catalog while the Core commit is still open', () =>
-    Effect.gen(function* rejectOpenCreateCase() {
-      const runtime: ActionRuntimeService = {
-        resolveActionCommit: () =>
-          Effect.succeed({ _tag: 'ActionCommitOpen' as const, invocationId: brandedInvocationId }),
-        runAction: () => Effect.die('unused'),
-      };
-      const failure = yield* recoverCreateProduct(
-        { invocationId },
-        {
-          readKey: 'commerce.catalog.api.create-product-recovery',
-          scope,
-          services: services(() => Effect.die('must not read before commit')),
-        },
-      ).pipe(Effect.provideService(ActionRuntime, runtime), Effect.flip);
-      expect(Schema.is(ReadHandlerUnavailable)(failure)).toBe(true);
-    }),
-  );
+  for (const status of ['absent', 'rejected', 'open', 'indeterminate', 'unavailable'] as const) {
+    it.effect(`maps ${status} without returning a mutable Product`, () =>
+      Effect.gen(function* recoverNoncommittedCreateCase() {
+        const failure = yield* recoverCreateProduct(
+          { invocationId },
+          {
+            readKey: 'commerce.catalog.api.create-product-recovery',
+            scope,
+            services: services(() => Effect.succeed({ status })),
+          },
+        ).pipe(Effect.provideService(ActionRuntime, runtime), Effect.flip);
+        expect(
+          Schema.is(status === 'absent' || status === 'rejected' ? ReadHandlerNotFound : ReadHandlerUnavailable)(
+            failure,
+          ),
+        ).toBe(true);
+      }),
+    );
+  }
 });

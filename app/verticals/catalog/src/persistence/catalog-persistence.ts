@@ -1,10 +1,10 @@
-import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
+import type { ActionRuntime, OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { findPostgresFailure } from '@app/core-runtime';
 import { DateTime, Effect, Option, Schema } from 'effect';
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq } from 'drizzle-orm';
 
-/* oxlint-disable anti-slop/no-conditional-empty-object-spread, effect-native/no-sequential-independent-yields, eslint/no-negated-condition, eslint/no-nested-ternary, eslint/prefer-destructuring, perfectionist/sort-object-types, perfectionist/sort-objects, typescript/consistent-type-specifier-style -- Drizzle rows and optional SQL columns are decoded at this tenant-scoped persistence boundary; generated insert key order and transactional read ordering are intentional. expires: 2027-03-31. */
+/* oxlint-disable anti-slop/no-conditional-empty-object-spread, effect-native/no-sequential-independent-yields, eslint/no-negated-condition, eslint/prefer-destructuring, perfectionist/sort-object-types, perfectionist/sort-objects, typescript/consistent-type-specifier-style -- Drizzle rows and optional SQL columns are decoded at this tenant-scoped persistence boundary; generated insert key order and transactional read ordering are intentional. expires: 2027-03-31. */
 import {
   catalogReadiness,
   ProductSchema,
@@ -20,6 +20,8 @@ import type { ProductRef } from '../../shared/resources/product.ts';
 import { CreateProductResultSchema } from '../../shared/actions/create-product.ts';
 import type { CreateProductResult } from '../../shared/actions/create-product.ts';
 import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
+import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
+import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
 import {
   productLifecycleEvents,
@@ -359,16 +361,16 @@ const insertLifecycleEvent = (
     .pipe(Effect.mapError(mapCatalogWriteError));
 
 export interface CatalogPersistence {
-  readonly getCreatedByInvocation: (
-    invocationId: string,
-    principalId: string,
-  ) => Effect.Effect<Option.Option<CreateProductResult>, CatalogPersistenceUnavailable>;
   readonly correct: (
     input: CorrectProductPersistenceInput,
   ) => Effect.Effect<CorrectProductPersistenceOutcome, CatalogPersistenceConflict | CatalogPersistenceUnavailable>;
   readonly create: (
     input: CreateProductPersistenceInput,
   ) => Effect.Effect<CreateProductPersistenceOutcome, CatalogPersistenceConflict | CatalogPersistenceUnavailable>;
+  readonly getCreatedByInvocation: (
+    invocationId: string,
+    principalId: string,
+  ) => Effect.Effect<Option.Option<CreateProductResult>, CatalogPersistenceUnavailable>;
   readonly getCurrent: (productId: string) => Effect.Effect<Option.Option<Product>, CatalogPersistenceUnavailable>;
   readonly getHistory: (
     productId: string,
@@ -376,6 +378,9 @@ export interface CatalogPersistence {
   readonly reactivate: (
     input: ReactivateProductPersistenceInput,
   ) => Effect.Effect<ReactivateProductPersistenceOutcome, CatalogPersistenceConflict | CatalogPersistenceUnavailable>;
+  readonly recoverCreateProduct: (
+    invocationId: string,
+  ) => Effect.Effect<CatalogActionRecovery<CreateProductResult>, never, ActionRuntime>;
   readonly retire: (
     input: RetireProductPersistenceInput,
   ) => Effect.Effect<RetireProductPersistenceOutcome, CatalogPersistenceConflict | CatalogPersistenceUnavailable>;
@@ -389,6 +394,17 @@ export const catalogPersistenceForScope = (
   scope: OperationalScope,
 ): Effect.Effect<CatalogPersistence> => {
   const tenantId = scope.tenantId;
+
+  const recoverCreateProduct: CatalogPersistence['recoverCreateProduct'] = (invocationId) =>
+    recoverCatalogActionResult(
+      transaction,
+      scope,
+      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-product', schemaVersion: 1 },
+      {
+        decode: Schema.decodeUnknownEffect(CreateProductResultSchema),
+        encode: Schema.encodeEffect(CreateProductResultSchema),
+      },
+    );
 
   const getCreatedByInvocation: CatalogPersistence['getCreatedByInvocation'] = Effect.fn(
     'CatalogPersistence.getCreatedByInvocation',
@@ -405,7 +421,9 @@ export const catalogPersistenceForScope = (
       )
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-    if (created === undefined) return Option.none<CreateProductResult>();
+    if (created === undefined) {
+      return Option.none<CreateProductResult>();
+    }
     const [revision] = yield* transaction
       .select()
       .from(productRevisions)
@@ -925,6 +943,7 @@ export const catalogPersistenceForScope = (
       getCreatedByInvocation,
       getHistory,
       reactivate,
+      recoverCreateProduct,
       retire,
       update,
     }),
