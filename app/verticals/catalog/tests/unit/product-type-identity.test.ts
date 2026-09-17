@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
-import { ProductTypeAssignmentSchema, selectCurrentProductType } from '../../shared/domain/product-type-identity.ts';
+import {
+  ProductTypeAssignmentConflict,
+  ProductTypeAssignmentSchema,
+  selectCurrentProductType,
+} from '../../shared/domain/product-type-identity.ts';
 import { ProductTypeRefSchema } from '../../shared/resources/product-type.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -27,50 +31,54 @@ describe('Catalog Product Type identity', () => {
     ).toThrow();
   });
 
-  it('allows two distinct Products to select the same type without merging their identities', () => {
-    const secondProductRef = {
-      ...productRef,
-      resourceId: '44444444-4444-4444-8444-444444444444',
-    } as const;
-    const first = Effect.runSync(
-      selectCurrentProductType(Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef }).productRef, [
-        Schema.decodeUnknownSync(ProductTypeRefSchema)(productTypeRef),
-      ]),
-    );
-    const second = Effect.runSync(
-      selectCurrentProductType(
+  it.effect('allows two distinct Products to select the same type without merging their identities', () =>
+    Effect.gen(function* sameTypeDistinctProducts() {
+      const secondProductRef = {
+        ...productRef,
+        resourceId: '44444444-4444-4444-8444-444444444444',
+      } as const;
+      const first = yield* selectCurrentProductType(
+        Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef }).productRef,
+        [Schema.decodeUnknownSync(ProductTypeRefSchema)(productTypeRef)],
+      );
+      const second = yield* selectCurrentProductType(
         Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef: secondProductRef }).productRef,
         [Schema.decodeUnknownSync(ProductTypeRefSchema)(productTypeRef)],
-      ),
-    );
+      );
 
-    expect(first.currentProductTypeRef).toEqual(second.currentProductTypeRef);
-    expect(first.productRef.resourceId).not.toBe(second.productRef.resourceId);
-  });
+      expect(first.currentProductTypeRef).toEqual(second.currentProductTypeRef);
+      expect(first.productRef.resourceId).not.toBe(second.productRef.resourceId);
+    }),
+  );
 
-  it('rejects two simultaneous current types even when they have the same identity', () => {
-    const decodedProductRef = Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef }).productRef;
-    const decodedTypeRef = Schema.decodeUnknownSync(ProductTypeRefSchema)(productTypeRef);
-    const error = Effect.runSync(
-      selectCurrentProductType(decodedProductRef, [decodedTypeRef, decodedTypeRef]).pipe(Effect.flip),
-    );
+  it.effect('rejects two simultaneous current types even when they have the same identity', () =>
+    Effect.gen(function* multipleCurrentTypes() {
+      const decodedProductRef = Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef }).productRef;
+      const decodedTypeRef = Schema.decodeUnknownSync(ProductTypeRefSchema)(productTypeRef);
+      const error = yield* selectCurrentProductType(decodedProductRef, [decodedTypeRef, decodedTypeRef]).pipe(
+        Effect.flip,
+      );
 
-    expect(error).toMatchObject({ _tag: 'ProductTypeAssignmentConflict', reason: 'MULTIPLE_CURRENT_TYPES' });
-  });
+      expect(Schema.is(ProductTypeAssignmentConflict)(error)).toBe(true);
+      expect(error.reason).toBe('MULTIPLE_CURRENT_TYPES');
+    }),
+  );
 
-  it('allows an untyped draft without claiming any type, and rejects cross-tenant assignment', () => {
-    const decodedProductRef = Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef }).productRef;
-    expect(Effect.runSync(selectCurrentProductType(decodedProductRef, []))).toEqual({ productRef: decodedProductRef });
+  it.effect('allows an untyped draft without claiming any type, and rejects cross-tenant assignment', () =>
+    Effect.gen(function* untypedAndCrossTenant() {
+      const decodedProductRef = Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef }).productRef;
+      expect(yield* selectCurrentProductType(decodedProductRef, [])).toEqual({ productRef: decodedProductRef });
 
-    const otherTenantType = Schema.decodeUnknownSync(ProductTypeRefSchema)({
-      ...productTypeRef,
-      tenantId: '99999999-9999-4999-8999-999999999999',
-    });
-    expect(
-      Effect.runSync(selectCurrentProductType(decodedProductRef, [otherTenantType]).pipe(Effect.flip)),
-    ).toMatchObject({ _tag: 'ProductTypeAssignmentConflict', reason: 'CROSS_TENANT_TYPE' });
-    expect(() =>
-      Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef, currentProductTypeRef: otherTenantType }),
-    ).toThrow();
-  });
+      const otherTenantType = Schema.decodeUnknownSync(ProductTypeRefSchema)({
+        ...productTypeRef,
+        tenantId: '99999999-9999-4999-8999-999999999999',
+      });
+      const error = yield* selectCurrentProductType(decodedProductRef, [otherTenantType]).pipe(Effect.flip);
+      expect(Schema.is(ProductTypeAssignmentConflict)(error)).toBe(true);
+      expect(error.reason).toBe('CROSS_TENANT_TYPE');
+      expect(() =>
+        Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ currentProductTypeRef: otherTenantType, productRef }),
+      ).toThrow();
+    }),
+  );
 });
