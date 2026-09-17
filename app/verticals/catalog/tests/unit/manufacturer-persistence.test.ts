@@ -73,7 +73,7 @@ const changePayload = Schema.decodeUnknownSync(ChangeProductManufacturerPayloadS
 const query = <A>(rows: readonly A[]) => {
   const builder = {
     for: () => builder,
-    limit: () => builder,
+    limit: () => Effect.succeed(rows),
     orderBy: () => builder,
     pipe: () => Effect.succeed(rows),
     where: () => builder,
@@ -158,6 +158,96 @@ describe('Manufacturer persistence owner verification', () => {
         { table: manufacturerRelations, targetId: 'canonical-maker-id' },
         { table: manufacturerRelationRevisions, targetId: 'canonical-maker-id' },
       ]);
+    }),
+  );
+
+  it.effect('stores an active managed Legal Entity only with injected owner proof', () =>
+    Effect.gen(function* testManagedLegalEntityPersistence() {
+      const writes: { table: TestTable; targetId: string | undefined; targetKind: string | undefined }[] = [];
+      const legalEntityTarget = setPayload.target;
+      if (legalEntityTarget.kind !== 'LEGAL_ENTITY') {
+        throw new Error('Expected Legal Entity fixture');
+      }
+      const row = {
+        currentRevision: 1,
+        disposition: 'CONFIRMED',
+        effectiveFrom: null,
+        effectiveTo: null,
+        evidenceRefs: [...setPayload.evidenceRefs],
+        productId: subject.resourceId,
+        reason: setPayload.reason,
+        relationId,
+        targetId: legalEntityTarget.legalEntityRef.resourceId,
+        targetKind: 'LEGAL_ENTITY',
+        tenantId,
+        variantId: null,
+      };
+      const transaction = {
+        insert: (table: TestTable) => ({
+          values: (value: { targetId?: string; targetKind?: string }) => {
+            writes.push({ table, targetId: value.targetId, targetKind: value.targetKind });
+            return { pipe: () => Effect.succeed([]), returning: () => query([row]) };
+          },
+        }),
+        select: () => ({ from: (table: TestTable) => query(table === products ? [{}] : []) }),
+      };
+      const resolver = {
+        resolve: () =>
+          Effect.succeed({
+            canonicalTarget: legalEntityTarget,
+            kind: 'LEGAL_ENTITY' as const,
+            lifecycleStatus: 'active' as const,
+            requestedTarget: legalEntityTarget,
+            state: 'CURRENT' as const,
+          }),
+      };
+      // @ts-expect-error Minimal transaction double proves the scoped write shape.
+      const service = manufacturerPersistenceForScope(transaction, scope, { targetResolver: resolver });
+      const outcome = yield* service.set({ ...evidence, payload: setPayload });
+      expect(outcome).toMatchObject({ relationId, revision: 1 });
+      expect(writes).toEqual([
+        {
+          table: manufacturerRelations,
+          targetId: legalEntityTarget.legalEntityRef.resourceId,
+          targetKind: 'LEGAL_ENTITY',
+        },
+        {
+          table: manufacturerRelationRevisions,
+          targetId: legalEntityTarget.legalEntityRef.resourceId,
+          targetKind: 'LEGAL_ENTITY',
+        },
+      ]);
+    }),
+  );
+
+  it.effect('rejects suspended managed Legal Entity before database access', () =>
+    Effect.gen(function* testSuspendedManagedLegalEntity() {
+      const { target: legalEntityTarget } = setPayload;
+      if (legalEntityTarget.kind !== 'LEGAL_ENTITY') {
+        throw new Error('Expected Legal Entity fixture');
+      }
+      const transaction = {
+        insert: () => {
+          throw new Error('must not write');
+        },
+        select: () => {
+          throw new Error('must not query');
+        },
+      };
+      const resolver = {
+        resolve: () =>
+          Effect.succeed({
+            canonicalTarget: legalEntityTarget,
+            kind: 'LEGAL_ENTITY' as const,
+            lifecycleStatus: 'suspended' as const,
+            requestedTarget: legalEntityTarget,
+            state: 'SUSPENDED' as const,
+          }),
+      };
+      // @ts-expect-error Incomplete transaction proves a rejected target never reaches storage.
+      const service = manufacturerPersistenceForScope(transaction, scope, { targetResolver: resolver });
+      const outcome = yield* service.set({ ...evidence, payload: setPayload });
+      expect(Schema.is(Schema.TaggedStruct('invalid_change', {}))(outcome)).toBe(true);
     }),
   );
 

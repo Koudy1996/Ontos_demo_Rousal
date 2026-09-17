@@ -15,6 +15,7 @@ import type {
 } from '../../shared/domain/manufacturer-relation.ts';
 import { manufacturerRelationRevisions, manufacturerRelations, productVariants, products } from '../database/schema.ts';
 import { manufacturerTargetResolver } from './manufacturer-target-resolver.ts';
+import type { ResolvedManufacturerTarget } from './manufacturer-target-resolver.ts';
 import type { ManufacturerTargetForbidden } from './manufacturer-target-forbidden.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -113,6 +114,19 @@ const targetOf = (row: RevisionRow): ManufacturerTarget =>
           tenantId: row.tenantId,
         },
       };
+const canonicalAssignment = (owner: ResolvedManufacturerTarget, tenantId: string) => {
+  if (owner.kind === 'PARTY') {
+    return owner.state === 'ARCHIVED' || owner.canonicalTarget.partyRef.tenantId !== tenantId
+      ? Option.none<{ targetId: string; targetKind: 'PARTY' | 'LEGAL_ENTITY' }>()
+      : Option.some({ targetId: owner.canonicalTarget.partyRef.resourceId, targetKind: 'PARTY' as const });
+  }
+  return owner.state !== 'CURRENT' ||
+    owner.lifecycleStatus !== 'active' ||
+    owner.canonicalTarget.legalEntityRef.tenantId !== tenantId ||
+    owner.canonicalTarget.legalEntityRef.resourceId !== owner.requestedTarget.legalEntityRef.resourceId
+    ? Option.none<{ targetId: string; targetKind: 'PARTY' | 'LEGAL_ENTITY' }>()
+    : Option.some({ targetId: owner.canonicalTarget.legalEntityRef.resourceId, targetKind: 'LEGAL_ENTITY' as const });
+};
 
 /** All queries use Core's already tenant-scoped transaction; target existence comes only from its owner. */
 export const manufacturerPersistenceForScope = (
@@ -222,8 +236,8 @@ export const manufacturerPersistenceForScope = (
     if (Schema.is(ManufacturerMutationOutcomeSchema)(resolution)) {
       return resolution;
     }
-    const owner = resolution;
-    if (owner.state === 'ARCHIVED' || owner.canonicalTarget.partyRef.tenantId !== tenantId) {
+    const canonical = canonicalAssignment(resolution, tenantId);
+    if (Option.isNone(canonical)) {
       return { _tag: 'invalid_change' };
     }
     const lockedProductId = yield* lock(payload.subject);
@@ -244,8 +258,8 @@ export const manufacturerPersistenceForScope = (
         evidenceRefs: [...payload.evidenceRefs],
         reason: payload.reason,
         relationId: payload.relationId,
-        targetId: owner.canonicalTarget.partyRef.resourceId,
-        targetKind: 'PARTY',
+        targetId: canonical.value.targetId,
+        targetKind: canonical.value.targetKind,
         tenantId,
       })
       .returning()
@@ -266,8 +280,8 @@ export const manufacturerPersistenceForScope = (
       if (Schema.is(ManufacturerMutationOutcomeSchema)(resolution)) {
         return resolution;
       }
-      const owner = resolution;
-      if (owner.state === 'ARCHIVED' || owner.canonicalTarget.partyRef.tenantId !== tenantId) {
+      const canonical = canonicalAssignment(resolution, tenantId);
+      if (Option.isNone(canonical)) {
         return { _tag: 'invalid_change' };
       }
       const lockedProductId = yield* lock(payload.subject);
@@ -295,8 +309,8 @@ export const manufacturerPersistenceForScope = (
           effectiveTo: asDate(payload.effectivePeriod.effectiveTo),
           evidenceRefs: [...payload.evidenceRefs],
           reason: payload.reason,
-          targetId: owner.canonicalTarget.partyRef.resourceId,
-          targetKind: 'PARTY',
+          targetId: canonical.value.targetId,
+          targetKind: canonical.value.targetKind,
           updatedAt: DateTime.toDateUtc(yield* DateTime.now),
         })
         .where(
