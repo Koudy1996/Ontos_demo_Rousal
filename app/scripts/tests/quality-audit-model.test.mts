@@ -312,6 +312,17 @@ it.live(
 );
 
 it.live(
+  'vendored public entry points remain in the effective Knip workspace model',
+  Effect.fn(function* testVendoredWorkspace() {
+    const base = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(KnipConfigSchema))(
+      readFileSync(path.join(appRoot, 'quality-audit/knip.json'), 'utf-8'),
+    );
+    const model = yield* buildKnipModel(appRoot, base).pipe(Effect.provide(NodeServices.layer));
+    expect(model.config.workspaces['vendor/effect-rstest']?.entry).toEqual(['src/index.ts', 'src/utils.ts']);
+  }),
+);
+
+it.live(
   'runner calibrates only the proven resolver record and retains the direct import',
   Effect.fn(function* testEffect6() {
     const root = yield* fixture();
