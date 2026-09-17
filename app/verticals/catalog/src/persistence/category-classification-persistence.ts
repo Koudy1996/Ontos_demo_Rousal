@@ -31,7 +31,7 @@ export interface CategoryClassificationPersistence {
   ) => Effect.Effect<Option.Option<CurrentClassificationResult>, CategoryPersistenceUnavailable>;
 }
 
-export type CurrentClassificationResult =
+type CurrentClassificationResult =
   | (Extract<ClassificationResult, { readonly status: 'AVAILABLE' }> & {
       readonly categoryNames: readonly {
         readonly categoryRef: { readonly resourceId: string; readonly tenantId: string };

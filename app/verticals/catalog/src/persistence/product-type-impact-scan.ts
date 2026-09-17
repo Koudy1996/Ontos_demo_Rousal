@@ -23,14 +23,14 @@ export class ProductTypeImpactScanIncomplete extends Schema.TaggedError<ProductT
   { code: Schema.Literal('product_type_impact_scan_incomplete'), reason: Schema.String },
 ) {}
 
-export interface OpenSelectionBasis {
+interface OpenSelectionBasis {
   /** Issued by #479's owner-side Current selection reader, never by a browser payload. */
   readonly complete: true;
   readonly refs: readonly { readonly productId: string; readonly selectionId: string; readonly variantId: string }[];
   readonly revisionToken: string;
 }
 
-export interface ValueSetValidityBasis {
+interface ValueSetValidityBasis {
   /** Complete #402 owner-side assessment from this transaction, not a request assertion. */
   readonly complete: true;
   readonly entries: readonly {
@@ -45,7 +45,7 @@ export interface ValueSetValidityBasis {
   readonly tenantId: string;
 }
 
-export interface ProductTypeImpactEvidence {
+interface ProductTypeImpactEvidence {
   readonly assignmentRevision: number;
   readonly axisRevisions: readonly { readonly attributeDefinitionId: string; readonly revision: number }[];
   readonly productId: string;

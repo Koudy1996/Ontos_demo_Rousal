@@ -23,7 +23,7 @@ export class VariantAxisBasisUnavailable extends Schema.TaggedError<VariantAxisB
   { code: Schema.Literal('variant_axis_basis_unavailable'), reason: Schema.String },
 ) {}
 
-export interface CurrentVariantAxis {
+interface CurrentVariantAxis {
   readonly allowedControlledValueIds: readonly string[];
   readonly attributeDefinitionId: string;
   readonly controlledValueKind: string | null;
@@ -32,7 +32,7 @@ export interface CurrentVariantAxis {
   readonly valueKind: string;
 }
 
-export interface CurrentVariantAxes {
+interface CurrentVariantAxes {
   readonly axes: readonly CurrentVariantAxis[];
   readonly axisRevision: number;
   readonly productId: string;

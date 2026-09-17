@@ -23,7 +23,7 @@ const CreatedProductTypeSchema = Schema.Struct({
   revision: CatalogRevisionNumberSchema,
 });
 
-export interface CreateProductTypePersistenceInput {
+interface CreateProductTypePersistenceInput {
   readonly actionInvocationId: string;
   readonly effectiveAt: Date;
   readonly name: string;

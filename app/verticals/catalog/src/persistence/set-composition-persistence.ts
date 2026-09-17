@@ -73,9 +73,9 @@ const PublishSetCompositionOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('stale', { actualRevision: Schema.Int }),
 ]);
-export type PublishSetCompositionOutcome = typeof PublishSetCompositionOutcomeSchema.Type;
+type PublishSetCompositionOutcome = typeof PublishSetCompositionOutcomeSchema.Type;
 
-export interface StoredSetCompositionRevision {
+interface StoredSetCompositionRevision {
   readonly effectiveFrom: Date;
   readonly effectiveTo?: Date;
   readonly lifecycleState: 'DRAFT' | 'ACTIVE' | 'RETIRED';

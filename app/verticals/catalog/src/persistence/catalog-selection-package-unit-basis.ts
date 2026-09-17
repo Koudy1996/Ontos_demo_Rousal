@@ -28,7 +28,7 @@ interface Failure {
   readonly status: 'INVALID' | 'INDETERMINATE';
 }
 
-export interface PackageContentStep {
+interface PackageContentStep {
   readonly amount: string;
   readonly configurationKey: string | null;
   readonly lowerCount: string | null;
@@ -38,7 +38,7 @@ export interface PackageContentStep {
 }
 
 /** Product facts only. This never represents purchase-line quantity or an acceptance guarantee. */
-export type CatalogSelectionPackageUnitBasis =
+type CatalogSelectionPackageUnitBasis =
   | {
       readonly contentPath: readonly PackageContentStep[];
       readonly optionRevision?: number;

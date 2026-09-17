@@ -18,7 +18,7 @@ interface EffectivePeriodSnapshot {
 const RevisionMetadataSchema = Schema.Struct({ recordedAt: Schema.DateTimeUtc });
 type RevisionMetadata = typeof RevisionMetadataSchema.Type;
 
-export interface ProductRelationshipRevisionRead {
+interface ProductRelationshipRevisionRead {
   readonly actingPrincipalId: string;
   readonly actionInvocationId: string;
   readonly changeKind: 'CREATED' | 'CORRECTED' | 'ENDED';
@@ -30,7 +30,7 @@ export interface ProductRelationshipRevisionRead {
   readonly revision: number;
 }
 
-export interface ProductRelationshipRead extends ProductRelationshipRevisionRead {
+interface ProductRelationshipRead extends ProductRelationshipRevisionRead {
   readonly current: boolean;
 }
 

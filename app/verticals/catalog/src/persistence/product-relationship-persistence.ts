@@ -23,9 +23,9 @@ interface EffectivePeriodSnapshot {
   effectiveFrom?: string;
   effectiveTo?: string;
 }
-export type CreateProductRelationshipPersistenceInput = CreateProductRelationshipPayload & Evidence;
-export type ChangeProductRelationshipPersistenceInput = ChangeProductRelationshipPayload & Evidence;
-export type RemoveProductRelationshipPersistenceInput = RemoveProductRelationshipPayload & Evidence;
+type CreateProductRelationshipPersistenceInput = CreateProductRelationshipPayload & Evidence;
+type ChangeProductRelationshipPersistenceInput = ChangeProductRelationshipPayload & Evidence;
+type RemoveProductRelationshipPersistenceInput = RemoveProductRelationshipPayload & Evidence;
 const FailureSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('duplicate', {}),

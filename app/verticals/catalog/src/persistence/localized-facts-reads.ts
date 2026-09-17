@@ -20,7 +20,7 @@ type RevisionRow =
   | typeof productLocalizedFactRevisions.$inferSelect
   | typeof variantLocalizedFactRevisions.$inferSelect;
 
-export type LocalizedFactRead =
+type LocalizedFactRead =
   | { readonly kind: 'MISSING_TRANSLATION'; readonly locale: string; readonly revision: number }
   | {
       readonly description?: string;

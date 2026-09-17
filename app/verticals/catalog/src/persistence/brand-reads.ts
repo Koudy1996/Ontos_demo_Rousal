@@ -19,7 +19,7 @@ type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, n
 type BrandRevisionRow = typeof brandRevisions.$inferSelect;
 type AssignmentRevisionRow = typeof productBrandAssignmentRevisions.$inferSelect;
 
-export interface BrandRevisionRead {
+interface BrandRevisionRead {
   readonly actingPrincipalId: string;
   readonly actionInvocationId: string;
   readonly brandRef: BrandRef;
@@ -32,16 +32,16 @@ export interface BrandRevisionRead {
   readonly revision: number;
 }
 
-export interface BrandCurrentRead extends BrandRevisionRead {
+interface BrandCurrentRead extends BrandRevisionRead {
   readonly assignable: boolean;
 }
 
-export type ProductBrandClaim =
+type ProductBrandClaim =
   | { readonly brandRef: BrandRef; readonly kind: 'brand' }
   | { readonly kind: 'unknown' }
   | { readonly kind: 'confirmed_unbranded' };
 
-export interface ProductBrandRevisionRead {
+interface ProductBrandRevisionRead {
   readonly actingPrincipalId: string;
   readonly actionInvocationId: string;
   readonly assignment: ProductBrandClaim;
@@ -52,7 +52,7 @@ export interface ProductBrandRevisionRead {
   readonly revision: number;
 }
 
-export interface ProductBrandCurrentRead {
+interface ProductBrandCurrentRead {
   readonly assignment: ProductBrandClaim;
   readonly productRef: ProductRef;
   readonly revision: number;

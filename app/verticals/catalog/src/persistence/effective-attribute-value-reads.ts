@@ -36,7 +36,7 @@ import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
-export interface EffectiveAttributeValueReadInput {
+interface EffectiveAttributeValueReadInput {
   readonly attributeDefinitionRef: AttributeDefinitionRef;
   readonly productRef: ProductRef;
   readonly variantRef: VariantRef;

@@ -26,7 +26,7 @@ export class PackageOptionPersistenceUnavailable extends Schema.TaggedError<Pack
   { code: Schema.Literal('package_option_persistence_unavailable'), reason: Schema.String },
 ) {}
 
-export interface PackageOptionRoleFinding {
+interface PackageOptionRoleFinding {
   readonly evidenceRefs: readonly string[];
   readonly independentlyRequested: boolean;
   readonly looseUnitsSubstitutable: boolean;
@@ -54,7 +54,7 @@ export interface PackageOptionSelectionImpact {
   }) => Effect.Effect<boolean, PackageOptionPersistenceUnavailable>;
 }
 
-export interface PackageOptionTransitionInput {
+interface PackageOptionTransitionInput {
   readonly actionInvocationId: string;
   readonly expectedContentRevision: number;
   readonly expectedOptionRevision: number;
@@ -71,7 +71,7 @@ const PackageOptionTransitionOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('stale', { actualContentRevision: Schema.Int, actualOptionRevision: Schema.Int }),
 ]);
-export type PackageOptionTransitionOutcome = typeof PackageOptionTransitionOutcomeSchema.Type;
+type PackageOptionTransitionOutcome = typeof PackageOptionTransitionOutcomeSchema.Type;
 
 export interface PackageOptionPersistence {
   readonly activate: (

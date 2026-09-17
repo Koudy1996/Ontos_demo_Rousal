@@ -89,11 +89,11 @@ interface VariantChangeInput extends ChangeInput {
 interface RemoveVariantInput extends VariantChangeInput {
   readonly expectedProductValueRevision: number | null;
 }
-export type SetProductValuesInput = SetInput;
-export type RemoveProductValuesInput = ChangeInput;
-export type SetVariantOverrideInput = SetInput & VariantChangeInput;
-export type RemoveVariantOverrideInput = RemoveVariantInput;
-export interface AttributeValuesChangeResult {
+type SetProductValuesInput = SetInput;
+type RemoveProductValuesInput = ChangeInput;
+type SetVariantOverrideInput = SetInput & VariantChangeInput;
+type RemoveVariantOverrideInput = RemoveVariantInput;
+interface AttributeValuesChangeResult {
   readonly attributeValueSetId: string;
   readonly revision: number;
   readonly state: 'SET' | 'REMOVED';

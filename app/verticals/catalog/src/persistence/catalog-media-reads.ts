@@ -14,7 +14,7 @@ type Target = ProductRef | VariantRef;
 type SetRow = typeof catalogMediaAssignmentSets.$inferSelect;
 type AssignmentRow = typeof catalogMediaAssignments.$inferSelect;
 
-export interface CatalogMediaReadResult extends CatalogMediaSet {
+interface CatalogMediaReadResult extends CatalogMediaSet {
   /** Revision of the selected owner set, or zero when no set exists. */
   readonly setRevision: number;
 }

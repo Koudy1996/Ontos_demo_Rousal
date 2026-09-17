@@ -32,16 +32,16 @@ interface Mutation extends Evidence {
   readonly expectedSetRevision: number;
   readonly subjectRef: SubjectRef;
 }
-export interface AssignCatalogMediaPersistenceInput extends Mutation {
+interface AssignCatalogMediaPersistenceInput extends Mutation {
   readonly order: number;
   readonly purpose: string;
   readonly resourceKind: 'MEDIA' | 'DOCUMENT';
   readonly resourceRef: CatalogDocumentResourceRef;
 }
-export interface ReorderCatalogMediaPersistenceInput extends Mutation {
+interface ReorderCatalogMediaPersistenceInput extends Mutation {
   readonly order: number;
 }
-export type RemoveCatalogMediaPersistenceInput = Mutation;
+type RemoveCatalogMediaPersistenceInput = Mutation;
 const FailureSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('invalid_change', {}),

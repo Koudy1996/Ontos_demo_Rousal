@@ -39,7 +39,7 @@ export interface ConfigurationSelectionImpact {
   }) => Effect.Effect<boolean, ProductConfigurationPersistenceUnavailable>;
 }
 
-export interface ConfigurationChoiceInput {
+interface ConfigurationChoiceInput {
   readonly choiceKey: string;
   readonly kind: 'SINGLE_CHOICE' | 'MEASURED_VALUE';
   readonly label: string;
@@ -110,7 +110,7 @@ const PublishProductConfigurationOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('stale', { actualRevision: Schema.Int }),
   Schema.TaggedStruct('incompatible', { reason: Schema.String }),
 ]);
-export type PublishProductConfigurationOutcome = typeof PublishProductConfigurationOutcomeSchema.Type;
+type PublishProductConfigurationOutcome = typeof PublishProductConfigurationOutcomeSchema.Type;
 
 export interface CurrentConfigurationRevision {
   readonly choices: readonly ConfigurationChoiceInput[];

@@ -19,7 +19,7 @@ export class GtinPersistenceUnavailable extends Schema.TaggedError<GtinPersisten
   { code: Schema.Literal('gtin_persistence_unavailable'), reason: Schema.String },
 ) {}
 
-export interface GtinChangeEvidence {
+interface GtinChangeEvidence {
   readonly actionInvocationId: string;
   readonly attributionEvidenceRef: string;
   readonly code: string;
@@ -30,11 +30,11 @@ export interface GtinChangeEvidence {
   readonly reason: string;
 }
 
-export interface ConfirmGtinInput extends GtinChangeEvidence {
+interface ConfirmGtinInput extends GtinChangeEvidence {
   readonly target: GtinTarget;
 }
 
-export interface CorrectGtinInput extends GtinChangeEvidence {
+interface CorrectGtinInput extends GtinChangeEvidence {
   /** The exact currently recorded attribution, not an inferred Product match. */
   readonly previousTarget: GtinTarget;
   /** The evidence reference recorded on the current revision being superseded. */
@@ -42,7 +42,7 @@ export interface CorrectGtinInput extends GtinChangeEvidence {
   readonly target: GtinTarget;
 }
 
-export type GtinLifecycleInput = GtinChangeEvidence;
+type GtinLifecycleInput = GtinChangeEvidence;
 
 const GtinPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('confirmed', { revision: Schema.Int }),

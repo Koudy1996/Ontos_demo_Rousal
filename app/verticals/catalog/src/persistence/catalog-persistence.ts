@@ -36,7 +36,7 @@ type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, n
 
 const ProductIdSchema = Schema.String.check(Schema.isUUID()).pipe(Schema.brand('CatalogProductId'));
 
-export interface CreateProductPersistenceInput {
+interface CreateProductPersistenceInput {
   readonly actionInvocationId: string;
   readonly description: string | undefined;
   readonly name: string | undefined;
@@ -46,7 +46,7 @@ export interface CreateProductPersistenceInput {
   readonly variantId: string | undefined;
 }
 
-export interface UpdateProductPersistenceInput {
+interface UpdateProductPersistenceInput {
   readonly actionInvocationId: string;
   readonly activateVariantId: string | undefined;
   readonly description?: string;
@@ -59,7 +59,7 @@ export interface UpdateProductPersistenceInput {
   readonly tenantId: string;
 }
 
-export interface RetireProductPersistenceInput {
+interface RetireProductPersistenceInput {
   readonly actionInvocationId: string;
   readonly effectiveAt: Date;
   readonly expectedRevision: number;
@@ -69,7 +69,7 @@ export interface RetireProductPersistenceInput {
   readonly tenantId: string;
 }
 
-export interface ReactivateProductPersistenceInput {
+interface ReactivateProductPersistenceInput {
   readonly actionInvocationId: string;
   readonly expectedRevision: number;
   readonly principalId: string;
@@ -78,7 +78,7 @@ export interface ReactivateProductPersistenceInput {
   readonly tenantId: string;
 }
 
-export interface CorrectProductPersistenceInput {
+interface CorrectProductPersistenceInput {
   readonly actionInvocationId: string;
   readonly description: string | undefined;
   readonly evidenceRefs: readonly string[];
@@ -97,7 +97,7 @@ const CreateProductCreatedSchema = Schema.TaggedStruct('created', {
 });
 const CreateProductConflictSchema = Schema.TaggedStruct('conflict', {});
 const CreateProductPersistenceOutcomeSchema = Schema.Union([CreateProductCreatedSchema, CreateProductConflictSchema]);
-export type CreateProductPersistenceOutcome = typeof CreateProductPersistenceOutcomeSchema.Type;
+type CreateProductPersistenceOutcome = typeof CreateProductPersistenceOutcomeSchema.Type;
 
 const UpdateProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('updated', {
@@ -113,7 +113,7 @@ const UpdateProductPersistenceOutcomeSchema = Schema.Union([
     reasons: Schema.Array(Schema.String),
   }),
 ]);
-export type UpdateProductPersistenceOutcome = typeof UpdateProductPersistenceOutcomeSchema.Type;
+type UpdateProductPersistenceOutcome = typeof UpdateProductPersistenceOutcomeSchema.Type;
 
 const RetireProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('retired', { product: ProductSchema }),
@@ -121,7 +121,7 @@ const RetireProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('revision_conflict', { actualRevision: Schema.Finite }),
   Schema.TaggedStruct('already_retired', { product: ProductSchema }),
 ]);
-export type RetireProductPersistenceOutcome = typeof RetireProductPersistenceOutcomeSchema.Type;
+type RetireProductPersistenceOutcome = typeof RetireProductPersistenceOutcomeSchema.Type;
 
 const ReactivateProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('reactivated', { product: ProductSchema }),
@@ -133,7 +133,7 @@ const ReactivateProductPersistenceOutcomeSchema = Schema.Union([
     reasons: Schema.Array(Schema.String),
   }),
 ]);
-export type ReactivateProductPersistenceOutcome = typeof ReactivateProductPersistenceOutcomeSchema.Type;
+type ReactivateProductPersistenceOutcome = typeof ReactivateProductPersistenceOutcomeSchema.Type;
 
 const CorrectProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('corrected', {
@@ -145,7 +145,7 @@ const CorrectProductPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('retired', { product: ProductSchema }),
   Schema.TaggedStruct('variant_conflict', {}),
 ]);
-export type CorrectProductPersistenceOutcome = typeof CorrectProductPersistenceOutcomeSchema.Type;
+type CorrectProductPersistenceOutcome = typeof CorrectProductPersistenceOutcomeSchema.Type;
 
 const unavailable = (cause?: unknown): CatalogPersistenceUnavailable => {
   const failure = new CatalogPersistenceUnavailable({

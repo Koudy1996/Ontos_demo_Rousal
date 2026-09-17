@@ -17,7 +17,7 @@ type Target = ProductRef | VariantRef;
 type SetRow = typeof catalogMediaAssignmentSets.$inferSelect;
 type AssignmentRow = typeof catalogMediaAssignments.$inferSelect;
 
-export interface CatalogDocumentReadResult {
+interface CatalogDocumentReadResult {
   readonly assignments: readonly CatalogCurrentUse[];
   /** Exact Catalog assignment-set revision; no Documents Centre version is implied. */
   readonly setRevision: number;

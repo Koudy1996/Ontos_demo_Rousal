@@ -32,7 +32,7 @@ interface EffectivePeriodSnapshot {
 type MutationInput<Payload> = MutationEvidence & { readonly payload: Payload };
 type TargetResolver = typeof manufacturerTargetResolver;
 
-export const ManufacturerMutationOutcomeSchema = Schema.Union([
+const ManufacturerMutationOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('applied', {
     relationId: Schema.String.check(Schema.isUUID()).pipe(Schema.brand('CatalogManufacturerRelationId')),
     revision: Schema.Int,
@@ -42,7 +42,7 @@ export const ManufacturerMutationOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('identity_conflict', {}),
   Schema.TaggedStruct('invalid_change', {}),
 ]);
-export type ManufacturerMutationOutcome = typeof ManufacturerMutationOutcomeSchema.Type;
+type ManufacturerMutationOutcome = typeof ManufacturerMutationOutcomeSchema.Type;
 
 export class ManufacturerPersistenceUnavailable extends Schema.TaggedError<ManufacturerPersistenceUnavailable>()(
   'ManufacturerPersistenceUnavailable',

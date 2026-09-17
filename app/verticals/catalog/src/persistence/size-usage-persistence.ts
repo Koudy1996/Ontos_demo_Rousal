@@ -45,7 +45,7 @@ export class SizePersistenceConflict extends Schema.TaggedError<SizePersistenceC
 const conflict = (kind: SizePersistenceConflict['conflict'], reason: string) =>
   new SizePersistenceConflict({ code: 'size_persistence_conflict', conflict: kind, reason });
 
-export interface ReplaceProductSizesInput {
+interface ReplaceProductSizesInput {
   readonly actionInvocationId: string;
   readonly evidenceRefs: readonly string[];
   /** Zero denotes that no usage list has yet been recorded. */
@@ -54,7 +54,7 @@ export interface ReplaceProductSizesInput {
   readonly principalId: string;
   readonly reason: string;
 }
-export interface AssertSizeEquivalenceInput {
+interface AssertSizeEquivalenceInput {
   readonly actionInvocationId: string;
   readonly assertion: SizeEquivalenceAssertion;
   readonly principalId: string;

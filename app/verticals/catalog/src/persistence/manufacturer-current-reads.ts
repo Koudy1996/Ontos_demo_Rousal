@@ -18,7 +18,7 @@ type RelationRow = typeof manufacturerRelations.$inferSelect;
 type RevisionRow = typeof manufacturerRelationRevisions.$inferSelect;
 type TargetResolver = typeof manufacturerTargetResolver;
 
-export interface ManufacturerCurrentClaim {
+interface ManufacturerCurrentClaim {
   readonly actingPrincipalId: string;
   readonly actionInvocationId: string;
   readonly effectiveFrom: string | undefined;
@@ -34,7 +34,7 @@ export interface ManufacturerCurrentClaim {
   readonly target: ManufacturerTarget;
 }
 
-export type ManufacturerCurrentResult =
+type ManufacturerCurrentResult =
   | { readonly kind: 'ABSENT' }
   | { readonly claim: ManufacturerCurrentClaim; readonly kind: 'CURRENT' };
 

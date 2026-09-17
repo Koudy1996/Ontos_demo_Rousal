@@ -116,7 +116,7 @@ export interface SkuRenameInput extends SkuChangeInput {
   readonly oldCode: string;
 }
 
-export const SkuChangeOutcomeSchema = Schema.Union([
+const SkuChangeOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('applied', { revision: Schema.Int }),
   Schema.TaggedStruct('conflict', {}),
   Schema.TaggedStruct('invalid', { reason: Schema.String }),
@@ -134,7 +134,7 @@ type SkuRevision = Pick<
   'normalizedCode' | 'packageDefinitionId' | 'revision' | 'state' | 'tenantId' | 'variantId'
 >;
 
-export const SkuLookupOutcomeSchema = Schema.Union([
+const SkuLookupOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('found', {
     displayCode: Schema.String,
     revision: Schema.Int,

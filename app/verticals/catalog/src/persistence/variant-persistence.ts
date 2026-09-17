@@ -26,20 +26,20 @@ interface ChangeEvidence {
   readonly reason: string;
 }
 
-export interface CreateVariantPersistenceInput extends ChangeEvidence {
+interface CreateVariantPersistenceInput extends ChangeEvidence {
   readonly expectedProductRevision: number;
   readonly productRef: ProductRef;
   readonly variantRef: VariantRef;
 }
 
-export interface ChangeVariantPersistenceInput extends ChangeEvidence {
+interface ChangeVariantPersistenceInput extends ChangeEvidence {
   readonly classification: 'SAME_MEANING' | 'EVIDENCED_CORRECTION' | 'EVIDENCED_PARENT_CORRECTION';
   readonly expectedRevision: number;
   readonly targetProductRef?: ProductRef | undefined;
   readonly variantRef: VariantRef;
 }
 
-export interface VariantLifecyclePersistenceInput extends ChangeEvidence {
+interface VariantLifecyclePersistenceInput extends ChangeEvidence {
   readonly expectedRevision: number;
   readonly variantRef: VariantRef;
 }

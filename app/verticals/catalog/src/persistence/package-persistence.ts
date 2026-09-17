@@ -40,13 +40,13 @@ interface Evidence {
   readonly actionInvocationId: string;
   readonly principalId: string;
 }
-export interface CreatePackageInput extends Evidence {
+interface CreatePackageInput extends Evidence {
   readonly payload: CreatePackageDefinitionPayload;
 }
-export interface RevisePackageInput extends Evidence {
+interface RevisePackageInput extends Evidence {
   readonly payload: RevisePackageDefinitionPayload;
 }
-export interface RetirePackageInput extends Evidence {
+interface RetirePackageInput extends Evidence {
   readonly payload: RetirePackageDefinitionPayload;
 }
 

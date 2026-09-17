@@ -30,7 +30,7 @@ export interface CurrentConfigurationAssessmentInput {
   readonly values: readonly CurrentConfigurationValue[];
 }
 
-export interface CurrentConfigurationRuleEvidence {
+interface CurrentConfigurationRuleEvidence {
   readonly evidenceRefs: readonly string[];
   readonly revision: number;
   readonly ruleId: string;

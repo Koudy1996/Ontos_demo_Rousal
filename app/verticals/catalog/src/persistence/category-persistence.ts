@@ -21,7 +21,7 @@ export class CategoryPersistenceUnavailable extends Schema.TaggedError<CategoryP
   { code: Schema.Literal('category_persistence_unavailable'), reason: Schema.String },
 ) {}
 
-export interface CategoryRecord {
+interface CategoryRecord {
   readonly categoryRef: ProductCategoryRef;
   readonly lifecycle: 'ACTIVE' | 'RETIRED';
   readonly name: string;
@@ -48,18 +48,18 @@ export interface RenameCategoryInput extends MutationBase {
   readonly name: string;
 }
 
-export interface MoveCategoryInput extends MutationBase {
+interface MoveCategoryInput extends MutationBase {
   readonly categoryId: string;
   readonly expectedRevision: number;
   readonly parentCategoryId?: string;
 }
 
-export interface RetireCategoryInput extends MutationBase {
+interface RetireCategoryInput extends MutationBase {
   readonly categoryId: string;
   readonly expectedRevision: number;
 }
 
-export interface CategoryAssignmentInput extends MutationBase {
+interface CategoryAssignmentInput extends MutationBase {
   readonly categoryId: string;
   readonly productId: string;
 }
