@@ -114,6 +114,37 @@ describe('Product Configuration publication input', () => {
     ).toContain('unique');
   });
 
+  it('compares decimal bounds exactly beyond JavaScript safe integers', () => {
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [
+          {
+            choiceKey: 'length',
+            evidenceRefs: ['product-engineering:42'],
+            maximum: '9007199254740992',
+            maximumInclusive: true,
+            minimum: '9007199254740993',
+            minimumInclusive: true,
+          },
+        ],
+      }),
+    ).toContain('bounds or step');
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [
+          {
+            choiceKey: 'length',
+            evidenceRefs: ['product-engineering:42'],
+            step: '0.00000000000000000000000001',
+            stepBase: '0',
+          },
+        ],
+      }),
+    ).toBeNull();
+  });
+
   it('rejects unsupported compatibility operands and missing evidence', () => {
     expect(
       inspectProductConfigurationPublishInput({
@@ -183,6 +214,9 @@ describe('Product Configuration private publication', () => {
       const withProof = productConfigurationPersistenceForScope(fixture(writes), scope, {
         verify: () => Effect.succeed(true),
       });
+      const forged = yield* withProof.publish({ ...input, principalId: scope.tenantId });
+      expect('reason' in forged ? forged.reason : null).toContain('trusted operation scope');
+      expect(writes).toEqual([]);
       const outcome = yield* withProof.publish(input);
       expect('revision' in outcome ? outcome.revision : null).toBe(1);
       expect(writes.map((write) => (Array.isArray(write) ? write[0] : null))).toEqual([

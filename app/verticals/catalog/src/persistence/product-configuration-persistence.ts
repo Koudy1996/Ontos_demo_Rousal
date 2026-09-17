@@ -30,6 +30,10 @@ export interface ConfigurationSelectionImpact {
     readonly effectiveFrom: Date;
     readonly previousRevision: number;
     readonly productId: string;
+    readonly proposed: Pick<
+      PublishProductConfigurationInput,
+      'choices' | 'optionAllowances' | 'measuredRules' | 'compatibilityRules'
+    >;
     readonly proposedRevision: number;
     readonly tenantId: string;
   }) => Effect.Effect<boolean, ProductConfigurationPersistenceUnavailable>;
@@ -51,6 +55,7 @@ export interface ConfigurationTargetInput {
 }
 
 export interface ConfigurationOptionAllowanceInput extends ConfigurationTargetInput {
+  /** Every matching Product, Variant, and Package decision is conjunctive; true never overrides a false. */
   readonly allowed: boolean;
   readonly choiceKey: string;
   readonly evidenceRefs: readonly string[];
@@ -58,6 +63,7 @@ export interface ConfigurationOptionAllowanceInput extends ConfigurationTargetIn
 }
 
 export interface ConfigurationMeasuredRuleInput extends ConfigurationTargetInput {
+  /** Every matching range and step is conjunctive; target rules may narrow but never replace Product rules. */
   readonly choiceKey: string;
   readonly evidenceRefs: readonly string[];
   readonly maximum?: string;
@@ -69,6 +75,7 @@ export interface ConfigurationMeasuredRuleInput extends ConfigurationTargetInput
 }
 
 export interface ConfigurationCompatibilityRuleInput extends ConfigurationTargetInput {
+  /** All matching compatibility rules apply; no row order or target precedence exists. */
   readonly choiceKey: string;
   readonly evidenceRefs: readonly string[];
   readonly kind: 'FORBIDDEN_PAIR' | 'CONDITIONAL_MAXIMUM';
@@ -115,6 +122,7 @@ export interface CurrentConfigurationRevision {
   readonly optionAllowances: readonly ConfigurationOptionAllowanceInput[];
   readonly productId: string;
   readonly revision: number;
+  readonly ruleCombination: 'CONJUNCTION_ONLY';
 }
 
 export interface ProductConfigurationPersistence {
@@ -143,7 +151,25 @@ const unavailable = (cause?: unknown): ProductConfigurationPersistenceUnavailabl
 const text = (value: string, max = 1000): boolean => value.length > 0 && value.length <= max && value === value.trim();
 const evidence = (values: readonly string[]): boolean => values.length > 0 && values.every((value) => text(value, 300));
 const decimal = (value: string | undefined): boolean =>
-  value === undefined || /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value);
+  value === undefined || (value.length <= 1000 && /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value));
+const decimalParts = (value: string) => {
+  const negative = value.startsWith('-');
+  const [whole = '0', fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  return { amount: BigInt(`${whole}${fraction}`) * (negative ? -1n : 1n), scale: fraction.length };
+};
+const compareDecimal = (left: string, right: string): number => {
+  const first = decimalParts(left);
+  const second = decimalParts(right);
+  const leftScaled = first.amount * 10n ** BigInt(second.scale);
+  const rightScaled = second.amount * 10n ** BigInt(first.scale);
+  if (leftScaled < rightScaled) {
+    return -1;
+  }
+  if (leftScaled > rightScaled) {
+    return 1;
+  }
+  return 0;
+};
 const epoch = (value: Date): number => DateTime.toEpochMillis(DateTime.makeUnsafe(value));
 const targetKey = (value: ConfigurationTargetInput): string =>
   `${value.variantId ?? ''}|${value.packageDefinitionId ?? ''}`;
@@ -233,8 +259,8 @@ const inspectMeasured = (
       (rule.minimum === undefined) !== (rule.minimumInclusive === undefined) ||
       (rule.maximum === undefined) !== (rule.maximumInclusive === undefined) ||
       (rule.step === undefined) !== (rule.stepBase === undefined) ||
-      (rule.step !== undefined && Number(rule.step) <= 0) ||
-      (rule.minimum !== undefined && rule.maximum !== undefined && Number(rule.minimum) > Number(rule.maximum))
+      (rule.step !== undefined && compareDecimal(rule.step, '0') <= 0) ||
+      (rule.minimum !== undefined && rule.maximum !== undefined && compareDecimal(rule.minimum, rule.maximum) > 0)
     ) {
       return 'Measured rule bounds or step are invalid';
     }
@@ -307,6 +333,10 @@ export const inspectProductConfigurationPublishInput = (input: PublishProductCon
   const choices = new Map(input.choices.map((choice) => [choice.choiceKey, choice]));
   return inspectAllowances(input, choices) ?? inspectMeasured(input, choices) ?? inspectCompatibility(input, choices);
 };
+const inspectActingPrincipal = (input: PublishProductConfigurationInput, trustedPrincipalId: string): string | null =>
+  input.principalId === trustedPrincipalId ? null : 'Acting Principal does not match trusted operation scope';
+const activeProduct = (product: typeof products.$inferSelect | undefined): boolean =>
+  product !== undefined && product.lifecycleState === 'ACTIVE';
 
 const persistChoice = Effect.fn('ProductConfigurationPersistence.persistChoice')(function* persistChoice(
   transaction: ScopedTransaction,
@@ -451,7 +481,8 @@ export const productConfigurationPersistenceForScope = (
   let readCurrent: ProductConfigurationPersistence['readCurrent'] = (_input) => Effect.fail(unavailable());
   const publish: ProductConfigurationPersistence['publish'] = Effect.fn('ProductConfigurationPersistence.publish')(
     function* publish(input) {
-      const invalid = inspectProductConfigurationPublishInput(input);
+      const invalid =
+        inspectProductConfigurationPublishInput(input) ?? inspectActingPrincipal(input, scope.principalId);
       if (invalid !== null) {
         return { _tag: 'invalid', reason: invalid };
       }
@@ -494,7 +525,7 @@ export const productConfigurationPersistenceForScope = (
         .for('update')
         .limit(1)
         .pipe(Effect.mapError(unavailable));
-      if (product === undefined || product.lifecycleState !== 'ACTIVE') {
+      if (!activeProduct(product)) {
         return { _tag: 'invalid', reason: 'Product is not Current and active' };
       }
       const [definition] = yield* transaction
@@ -544,6 +575,12 @@ export const productConfigurationPersistenceForScope = (
         effectiveFrom: input.effectiveFrom,
         previousRevision: input.expectedRevision,
         productId: input.productId,
+        proposed: {
+          choices: input.choices,
+          compatibilityRules: input.compatibilityRules,
+          measuredRules: input.measuredRules,
+          optionAllowances: input.optionAllowances,
+        },
         proposedRevision: revision,
         tenantId,
       });
@@ -575,7 +612,7 @@ export const productConfigurationPersistenceForScope = (
       yield* transaction
         .insert(productConfigurationDefinitionRevisions)
         .values({
-          actingPrincipalId: input.principalId,
+          actingPrincipalId: scope.principalId,
           actionInvocationId: input.actionInvocationId,
           definitionId: input.definitionId,
           effectiveFrom: input.effectiveFrom,
@@ -591,7 +628,7 @@ export const productConfigurationPersistenceForScope = (
       yield* transaction
         .insert(productConfigurationRevisionActivations)
         .values({
-          actingPrincipalId: input.principalId,
+          actingPrincipalId: scope.principalId,
           actionInvocationId: input.actionInvocationId,
           definitionId: input.definitionId,
           effectiveAt: input.effectiveFrom,
@@ -914,6 +951,7 @@ export const productConfigurationPersistenceForScope = (
       optionAllowances,
       productId: input.productId,
       revision: activation.revision,
+      ruleCombination: 'CONJUNCTION_ONLY',
     };
     if (nextActivation !== undefined) {
       Object.assign(current, { effectiveTo: nextActivation.effectiveAt });
