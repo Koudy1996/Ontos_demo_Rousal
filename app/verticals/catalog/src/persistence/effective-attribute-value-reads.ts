@@ -77,6 +77,36 @@ const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
 type DefinitionRow = typeof attributeDefinitions.$inferSelect;
 type ValueItemRow = typeof attributeValueItems.$inferSelect;
 type ValueSetRow = typeof attributeValueSets.$inferSelect;
+type ValueRevisionRow = typeof attributeValueRevisions.$inferSelect;
+
+const malformedSetSnapshot = (
+  set: ValueSetRow,
+  records: readonly ValueRevisionRow[],
+  items: readonly ValueItemRow[],
+  tenantId: string,
+  productId: string,
+  definitionId: string,
+  variantId: string,
+): boolean =>
+  records.length !== 1 ||
+  records[0]?.tenantId !== tenantId ||
+  records[0].attributeValueSetId !== set.attributeValueSetId ||
+  records[0].revision !== set.currentRevision ||
+  set.tenantId !== tenantId ||
+  set.productId !== productId ||
+  set.attributeDefinitionId !== definitionId ||
+  (set.variantId !== null && set.variantId !== variantId) ||
+  !Number.isInteger(set.currentRevision) ||
+  set.currentRevision < 1 ||
+  records[0].changeKind !== set.currentState ||
+  (set.currentState === 'REMOVED' && items.length !== 0) ||
+  items.some(
+    (item, index) =>
+      item.tenantId !== tenantId ||
+      item.attributeValueSetId !== set.attributeValueSetId ||
+      item.ordinal !== index ||
+      item.attributeDefinitionId !== definitionId,
+  );
 
 const decodeDefinition = (
   row: DefinitionRow,
@@ -352,27 +382,7 @@ export const effectiveAttributeValueReadsForScope = (
           ],
           { concurrency: 2 },
         );
-        if (
-          records.length !== 1 ||
-          records[0]?.tenantId !== tenantId ||
-          records[0].attributeValueSetId !== set.attributeValueSetId ||
-          records[0].revision !== set.currentRevision ||
-          set.tenantId !== tenantId ||
-          set.productId !== productId ||
-          set.attributeDefinitionId !== definitionId ||
-          (set.variantId !== null && set.variantId !== variantId) ||
-          !Number.isInteger(set.currentRevision) ||
-          set.currentRevision < 1 ||
-          records[0].changeKind !== set.currentState ||
-          (set.currentState === 'REMOVED' && items.length !== 0) ||
-          items.some(
-            (item, index) =>
-              item.tenantId !== tenantId ||
-              item.attributeValueSetId !== set.attributeValueSetId ||
-              item.ordinal !== index ||
-              item.attributeDefinitionId !== definitionId,
-          )
-        ) {
+        if (malformedSetSnapshot(set, records, items, tenantId, productId, definitionId, variantId)) {
           return { snapshot: null, valid: false };
         }
         const decoded = yield* Effect.forEach(

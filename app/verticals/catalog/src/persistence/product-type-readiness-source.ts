@@ -11,6 +11,7 @@ import type {
   ProductTypeCurrentRulesRevision,
 } from '../../shared/domain/product-type-rules.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
+import type { ProductTypeRef } from '../../shared/resources/product-type.ts';
 import {
   productTypeAssignments,
   productTypeRevisionAttributes,
@@ -39,6 +40,8 @@ export type ProductTypeReadinessSource =
 
 const invalid = (reason: string) =>
   new ProductTypeReadinessSourceInvalid({ code: 'product_type_readiness_source_invalid', reason });
+const malformedRulesReason = 'Current Product Type rules are malformed';
+const catalogModuleId = 'commerce.catalog';
 
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   const failure = new CatalogPersistenceUnavailable({
@@ -49,16 +52,26 @@ const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   return failure;
 };
 
+const validProductReference = (productRef: ProductRef, tenantId: string): boolean =>
+  productRef.tenantId === tenantId &&
+  productRef.moduleId === catalogModuleId &&
+  productRef.resourceType === 'commerce.catalog.product';
+
+const validAssignment = (
+  assignment: typeof productTypeAssignments.$inferSelect,
+  productRef: ProductRef,
+  tenantId: string,
+): boolean =>
+  assignment.tenantId === tenantId &&
+  assignment.productId === productRef.resourceId &&
+  Number.isInteger(assignment.assignmentRevision) &&
+  assignment.assignmentRevision >= 1;
+
 /** Private source for #424; this proves rules provenance, not attribute or overall Catalog readiness. */
 export const productTypeReadinessSourceForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
   load: Effect.fn('ProductTypeReadinessSource.load')(function* load(productRef: ProductRef, evaluatedAt: DateTime.Utc) {
     const { tenantId } = scope;
-    if (
-      productRef.tenantId !== tenantId ||
-      productRef.moduleId !== 'commerce.catalog' ||
-      productRef.resourceType !== 'commerce.catalog.product' ||
-      !DateTime.isDateTime(evaluatedAt)
-    ) {
+    if (!validProductReference(productRef, tenantId) || !DateTime.isDateTime(evaluatedAt)) {
       return yield* invalid('Invalid Product or evaluation instant');
     }
     const [product] = yield* transaction
@@ -83,12 +96,7 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
     if (assignment === undefined) {
       return { productRef, status: 'UNTYPED' } as const;
     }
-    if (
-      assignment.tenantId !== tenantId ||
-      assignment.productId !== productRef.resourceId ||
-      !Number.isInteger(assignment.assignmentRevision) ||
-      assignment.assignmentRevision < 1
-    ) {
+    if (!validAssignment(assignment, productRef, tenantId)) {
       return yield* invalid('Product Type assignment is malformed');
     }
     const [type] = yield* transaction
@@ -141,10 +149,10 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
           rule.revision !== type.currentRevision,
       )
     ) {
-      return yield* invalid('Current Product Type rules are malformed');
+      return yield* invalid(malformedRulesReason);
     }
-    const productTypeRef = {
-      moduleId: 'commerce.catalog' as const,
+    const productTypeRef: ProductTypeRef = {
+      moduleId: catalogModuleId,
       resourceId: type.productTypeId,
       resourceType: 'commerce.catalog.product-type' as const,
       tenantId,
@@ -156,7 +164,7 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
       revisionId: revision.productTypeRevisionId,
       rules: rules.map((rule) => ({
         attributeDefinitionRef: {
-          moduleId: 'commerce.catalog',
+          moduleId: catalogModuleId,
           resourceId: rule.attributeDefinitionId,
           resourceType: 'commerce.catalog.attribute-definition',
           tenantId,
@@ -166,7 +174,7 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
       })),
     });
     if (Option.isNone(decodedRules)) {
-      return yield* invalid('Current Product Type rules are malformed');
+      return yield* invalid(malformedRulesReason);
     }
     const rulesRevision = decodedRules.value;
     const decodedBasis = Schema.decodeOption(ProductTypeCurrentBasisSchema)({

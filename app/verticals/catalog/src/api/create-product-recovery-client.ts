@@ -21,16 +21,15 @@ type CreateProductRecoveryOperationInvocation = readonly [
 ];
 
 const createProductRecoveryClient = (
-  credential: Redacted.Redacted,
-  requestCorrelation: string,
+  authorization: { readonly credential: Redacted.Redacted; readonly requestCorrelation: string },
   options: CreateProductRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
       api: CreateProductRecoveryApi,
-      credential,
+      credential: authorization.credential,
       defaultApiPrefix: '/catalog-api',
-      requestCorrelation,
+      requestCorrelation: authorization.requestCorrelation,
     },
     options,
   );
@@ -39,7 +38,7 @@ export const executeCreateProductRecoveryWithAuthorization = (
   payload: CreateProductRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateProductRecoveryAuthorizedInvocation
 ) =>
-  createProductRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
+  createProductRecoveryClient({ credential: Redacted.make(credential), requestCorrelation }, options).pipe(
     Effect.flatMap((client) => client.createProductRecovery.execute({ headers: {}, params: {}, payload, query: {} })),
   );
 

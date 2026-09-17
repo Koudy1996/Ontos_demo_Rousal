@@ -1,7 +1,7 @@
-import { LocalizedFactsChangeResultSchema } from './localized-facts.ts';
-
-export { SetProductLocalizedFactsPayloadSchema } from './localized-facts.ts';
-export const SetProductLocalizedFactsResultSchema = LocalizedFactsChangeResultSchema;
+export {
+  SetProductLocalizedFactsPayloadSchema,
+  LocalizedFactsChangeResultSchema as SetProductLocalizedFactsResultSchema,
+} from './localized-facts.ts';
 export type {
   SetProductLocalizedFactsPayload,
   LocalizedFactsChangeResult as SetProductLocalizedFactsResult,

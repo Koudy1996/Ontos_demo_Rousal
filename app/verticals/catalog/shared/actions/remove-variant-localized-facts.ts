@@ -1,7 +1,7 @@
-import { LocalizedFactsChangeResultSchema } from './localized-facts.ts';
-
-export { RemoveVariantLocalizedFactsPayloadSchema } from './localized-facts.ts';
-export const RemoveVariantLocalizedFactsResultSchema = LocalizedFactsChangeResultSchema;
+export {
+  RemoveVariantLocalizedFactsPayloadSchema,
+  LocalizedFactsChangeResultSchema as RemoveVariantLocalizedFactsResultSchema,
+} from './localized-facts.ts';
 export type {
   RemoveVariantLocalizedFactsPayload,
   LocalizedFactsChangeResult as RemoveVariantLocalizedFactsResult,

@@ -60,6 +60,24 @@ const basisUnavailable = () =>
     reason: 'Current Product axes or allowed values cannot be verified',
   });
 
+const malformedAxisSnapshot = (
+  event: typeof productVariantAxisEvents.$inferSelect | undefined,
+  rows: readonly (typeof productVariantAxes.$inferSelect)[],
+  tenantId: string,
+  productId: string,
+): boolean =>
+  (event !== undefined && (event.tenantId !== tenantId || event.productId !== productId)) ||
+  rows.some((row) => row.tenantId !== tenantId || row.productId !== productId) ||
+  (event === undefined && rows.length !== 0) ||
+  (event !== undefined &&
+    (rows.length !== event.attributeDefinitionIds.length ||
+      rows.some(
+        (row, index) =>
+          row.axisRevision !== event.axisRevision ||
+          row.ordinal !== index ||
+          row.attributeDefinitionId !== event.attributeDefinitionIds[index],
+      )));
+
 /** Constructed only inside Core's already-scoped read or Action transaction. */
 export const variantAxisPersistenceForScope = (
   transaction: ScopedTransaction,
@@ -182,19 +200,7 @@ export const variantAxisPersistenceForScope = (
         .where(and(eq(productVariantAxes.tenantId, tenantId), eq(productVariantAxes.productId, productId)))
         .orderBy(asc(productVariantAxes.ordinal))
         .pipe(Effect.mapError(unavailable));
-      if (
-        (event !== undefined && (event.tenantId !== tenantId || event.productId !== productId)) ||
-        rows.some((row) => row.tenantId !== tenantId || row.productId !== productId) ||
-        (event === undefined && rows.length !== 0) ||
-        (event !== undefined &&
-          (rows.length !== event.attributeDefinitionIds.length ||
-            rows.some(
-              (row, index) =>
-                row.axisRevision !== event.axisRevision ||
-                row.ordinal !== index ||
-                row.attributeDefinitionId !== event.attributeDefinitionIds[index],
-            )))
-      ) {
+      if (malformedAxisSnapshot(event, rows, tenantId, productId)) {
         return yield* basisUnavailable();
       }
 
@@ -235,9 +241,6 @@ export const variantAxisPersistenceForScope = (
         return yield* basisUnavailable();
       }
 
-      if (assignment === undefined && rows.length !== 0) {
-        return yield* basisUnavailable();
-      }
       const axes = yield* Effect.forEach(
         rows,
         (row) => readAxis(row, assignment?.productTypeId ?? '', productTypeRevision ?? 0),

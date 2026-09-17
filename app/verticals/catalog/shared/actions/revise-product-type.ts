@@ -6,7 +6,7 @@ import { ProductRefSchema } from '../resources/product.ts';
 import { ProductTypeRefSchema } from '../resources/product-type.ts';
 
 /** The owner-side impact scan issues a SHA-256 digest of its complete v2 basis. */
-const ImpactBasisTokenSchema = Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/), Schema.isTrimmed());
+const ImpactBasisTokenSchema = Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/u), Schema.isTrimmed());
 
 /** A preview is intent; the owner must reread and lock this exact basis. */
 export const ReviseProductTypePayloadSchema = Schema.Struct({
