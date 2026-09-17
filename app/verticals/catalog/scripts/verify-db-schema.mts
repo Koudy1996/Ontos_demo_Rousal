@@ -27,6 +27,8 @@ const pointersAreCurrent = (pointers: {
   axis_mismatch: number;
   brand_mismatch: number;
   category_mismatch: number;
+  commercial_gtin_mismatch: number;
+  commercial_sku_mismatch: number;
   configuration_activation_mismatch: number;
   configuration_definition_mismatch: number;
   controlled_value_mismatch: number;
@@ -131,7 +133,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 62 ||
+    row.trigger_count !== 64 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -149,6 +151,8 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         axis_mismatch: number;
         brand_mismatch: number;
         category_mismatch: number;
+        commercial_gtin_mismatch: number;
+        commercial_sku_mismatch: number;
         configuration_activation_mismatch: number;
         configuration_definition_mismatch: number;
         controlled_value_mismatch: number;
@@ -171,6 +175,21 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         variant_mismatch: number;
         variant_unit_mismatch: number;
       }>(`select
+      (select count(*)::integer from catalog.commercial_sku_reservations s where not exists
+        (select 1 from catalog.commercial_sku_assignment_revisions r
+          where r.tenant_id=s.tenant_id and r.normalized_code=s.normalized_code
+            and r.revision=s.current_revision and r.display_code=s.display_code
+            and r.product_id=s.product_id and r.variant_id=s.variant_id
+            and r.package_definition_id is not distinct from s.package_definition_id and r.state=s.state)
+        or s.current_revision <> (select max(r.revision) from catalog.commercial_sku_assignment_revisions r
+          where r.tenant_id=s.tenant_id and r.normalized_code=s.normalized_code)) commercial_sku_mismatch,
+      (select count(*)::integer from catalog.commercial_gtin_assignments g where not exists
+        (select 1 from catalog.commercial_gtin_assignment_revisions r
+          where r.tenant_id=g.tenant_id and r.gtin=g.gtin and r.revision=g.current_revision
+            and r.product_id=g.product_id and r.variant_id=g.variant_id
+            and r.package_definition_id is not distinct from g.package_definition_id and r.state=g.state)
+        or g.current_revision <> (select max(r.revision) from catalog.commercial_gtin_assignment_revisions r
+          where r.tenant_id=g.tenant_id and r.gtin=g.gtin)) commercial_gtin_mismatch,
       (select count(*)::integer from catalog.brands b where not exists
         (select 1 from catalog.brand_revisions r where r.tenant_id=b.tenant_id and r.brand_id=b.brand_id
           and r.revision=b.current_revision and r.name=b.name and r.lifecycle_state=b.lifecycle_state)

@@ -15,6 +15,10 @@ import {
   attributeValueSets,
   brandRevisions,
   brands,
+  commercialGtinAssignmentRevisions,
+  commercialGtinAssignments,
+  commercialSkuAssignmentRevisions,
+  commercialSkuReservations,
   catalogMediaAssignmentRevisions,
   catalogMediaAssignmentSetRevisions,
   catalogMediaAssignmentSets,
@@ -71,7 +75,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns sixty-one tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns sixty-five tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -93,6 +97,10 @@ it('owns sixty-one tenant-scoped Catalog tables with RLS and immutable history',
     'catalog_media_assignment_set_revisions',
     'catalog_media_assignment_sets',
     'catalog_media_assignments',
+    'commercial_gtin_assignment_revisions',
+    'commercial_gtin_assignments',
+    'commercial_sku_assignment_revisions',
+    'commercial_sku_reservations',
     'controlled_attribute_value_revisions',
     'controlled_attribute_values',
     'manufacturer_relation_revisions',
@@ -152,6 +160,29 @@ it('owns sixty-one tenant-scoped Catalog tables with RLS and immutable history',
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('reserves SKU across exact target kinds and keeps assignment provenance separate from GTIN', () => {
+  const sku = getTableConfig(commercialSkuReservations);
+  expect(sku.primaryKeys.map((key) => key.getName())).toContain('catalog_sku_reservations_pk');
+  expect(sku.indexes.map((item) => item.config.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_sku_reservations_current_variant_uk',
+      'catalog_sku_reservations_current_package_uk',
+    ]),
+  );
+  expect(sku.foreignKeys.map((key) => key.getName())).toEqual(
+    expect.arrayContaining(['catalog_sku_reservations_variant_fk', 'catalog_sku_reservations_package_fk']),
+  );
+  expect(getTableConfig(commercialSkuAssignmentRevisions).foreignKeys.map((key) => key.getName())).toContain(
+    'catalog_sku_assignment_revisions_reservation_fk',
+  );
+  expect(getTableConfig(commercialGtinAssignments).checks.map((item) => item.name)).toContain(
+    'catalog_gtin_assignments_digits_ck',
+  );
+  expect(getTableConfig(commercialGtinAssignmentRevisions).columns.map((column) => column.name)).toContain(
+    'attribution_evidence_ref',
+  );
 });
 
 it('keeps Product Configuration definitions and exact rules revision-scoped', () => {
@@ -522,6 +553,8 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
     expect(combined).toContain(`ALTER TABLE "catalog"."${table}" FORCE ROW LEVEL SECURITY`);
   }
   expect(combined).toContain('catalog_product_revisions_append_only');
+  expect(combined).toContain('catalog_sku_assignment_revisions_append_only');
+  expect(combined).toContain('catalog_gtin_assignment_revisions_append_only');
   expect(combined).toContain('catalog_configuration_definition_revisions_append_only');
   expect(combined).toContain('catalog_configuration_choices_append_only');
   expect(combined).toContain('catalog_configuration_option_allowances_append_only');

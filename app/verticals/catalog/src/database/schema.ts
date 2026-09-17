@@ -32,6 +32,10 @@ export const CATALOG_TABLE_INVENTORY = [
   'catalog_media_assignment_set_revisions',
   'catalog_media_assignment_sets',
   'catalog_media_assignments',
+  'commercial_gtin_assignment_revisions',
+  'commercial_gtin_assignments',
+  'commercial_sku_assignment_revisions',
+  'commercial_sku_reservations',
   'controlled_attribute_value_revisions',
   'controlled_attribute_values',
   'manufacturer_relation_revisions',
@@ -1121,6 +1125,201 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
 );
 
 /** An independently versioned, immutable decision about the Definition's selectable role. */
+/** Tenant-wide reservation survives retirement; corrections retain every earlier attribution. */
+export const commercialSkuReservations = catalogSchema.table.withRLS(
+  'commercial_sku_reservations',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    normalizedCode: text('normalized_code').notNull(),
+    displayCode: text('display_code').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id'),
+    state: text('state').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.normalizedCode], name: 'catalog_sku_reservations_pk' }),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_sku_reservations_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_sku_reservations_package_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('catalog_sku_reservations_current_variant_uk')
+      .on(table.tenantId, table.variantId)
+      .where(sql`${table.state} = 'CURRENT' and ${table.packageDefinitionId} is null`),
+    uniqueIndex('catalog_sku_reservations_current_package_uk')
+      .on(table.tenantId, table.packageDefinitionId)
+      .where(sql`${table.state} = 'CURRENT' and ${table.packageDefinitionId} is not null`),
+    check(
+      'catalog_sku_reservations_code_ck',
+      sql`${table.normalizedCode} = upper(btrim(${table.displayCode})) and length(${table.normalizedCode}) between 1 and 240`,
+    ),
+    check('catalog_sku_reservations_state_ck', sql`${table.state} in ('CURRENT', 'HISTORICAL', 'UNRESOLVED')`),
+    check('catalog_sku_reservations_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_sku_reservations_tenant', table.tenantId),
+  ],
+);
+
+export const commercialSkuAssignmentRevisions = catalogSchema.table.withRLS(
+  'commercial_sku_assignment_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    normalizedCode: text('normalized_code').notNull(),
+    revision: integer('revision').notNull(),
+    displayCode: text('display_code').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id'),
+    state: text('state').notNull(),
+    changeKind: text('change_kind').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.normalizedCode, table.revision],
+      name: 'catalog_sku_assignment_revisions_pk',
+    }),
+    unique('catalog_sku_assignment_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.normalizedCode],
+      foreignColumns: [commercialSkuReservations.tenantId, commercialSkuReservations.normalizedCode],
+      name: 'catalog_sku_assignment_revisions_reservation_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_sku_assignment_revisions_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_sku_assignment_revisions_package_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_sku_assignment_revisions_code_ck',
+      sql`${table.normalizedCode} = upper(btrim(${table.displayCode}))`,
+    ),
+    check('catalog_sku_assignment_revisions_revision_ck', sql`${table.revision} > 0`),
+    check('catalog_sku_assignment_revisions_state_ck', sql`${table.state} in ('CURRENT', 'HISTORICAL', 'UNRESOLVED')`),
+    check(
+      'catalog_sku_assignment_revisions_kind_ck',
+      sql`${table.changeKind} in ('ASSIGN', 'RENAME', 'RETIRE', 'CORRECT', 'MARK_UNRESOLVED')`,
+    ),
+    check('catalog_sku_assignment_revisions_reason_ck', sql`length(btrim(${table.reason})) between 1 and 1000`),
+    ...tenantRlsPolicies('catalog_sku_assignment_revisions_tenant', table.tenantId),
+  ],
+);
+
+/** GTIN is a separate exact-digit namespace; a packaging level need not be selectable. */
+export const commercialGtinAssignments = catalogSchema.table.withRLS(
+  'commercial_gtin_assignments',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    gtin: text('gtin').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id'),
+    state: text('state').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.gtin], name: 'catalog_gtin_assignments_pk' }),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_gtin_assignments_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_gtin_assignments_package_fk',
+    }).onDelete('restrict'),
+    check('catalog_gtin_assignments_digits_ck', sql`${table.gtin} ~ '^[0-9]{8}([0-9]{4,6})?$'`),
+    check('catalog_gtin_assignments_state_ck', sql`${table.state} in ('CONFIRMED', 'RETIRED', 'UNRESOLVED')`),
+    check('catalog_gtin_assignments_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_gtin_assignments_tenant', table.tenantId),
+  ],
+);
+
+export const commercialGtinAssignmentRevisions = catalogSchema.table.withRLS(
+  'commercial_gtin_assignment_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    gtin: text('gtin').notNull(),
+    revision: integer('revision').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id'),
+    state: text('state').notNull(),
+    attributionEvidenceRef: text('attribution_evidence_ref').notNull(),
+    reason: text('reason').notNull(),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.gtin, table.revision], name: 'catalog_gtin_assignment_revisions_pk' }),
+    unique('catalog_gtin_assignment_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.gtin],
+      foreignColumns: [commercialGtinAssignments.tenantId, commercialGtinAssignments.gtin],
+      name: 'catalog_gtin_assignment_revisions_assignment_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_gtin_assignment_revisions_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_gtin_assignment_revisions_package_fk',
+    }).onDelete('restrict'),
+    check('catalog_gtin_assignment_revisions_revision_ck', sql`${table.revision} > 0`),
+    check('catalog_gtin_assignment_revisions_state_ck', sql`${table.state} in ('CONFIRMED', 'RETIRED', 'UNRESOLVED')`),
+    check(
+      'catalog_gtin_assignment_revisions_evidence_ck',
+      sql`length(btrim(${table.attributionEvidenceRef})) between 1 and 1000`,
+    ),
+    check('catalog_gtin_assignment_revisions_reason_ck', sql`length(btrim(${table.reason})) between 1 and 1000`),
+    ...tenantRlsPolicies('catalog_gtin_assignment_revisions_tenant', table.tenantId),
+  ],
+);
+
 export const packageOptionRoleRevisions = catalogSchema.table.withRLS(
   'package_option_role_revisions',
   {
@@ -2946,6 +3145,10 @@ export const productConfigurationCompatibilityRules = catalogSchema.table.withRL
 );
 
 const catalogDatabaseSchema = {
+  commercialGtinAssignmentRevisions,
+  commercialGtinAssignments,
+  commercialSkuAssignmentRevisions,
+  commercialSkuReservations,
   productConfigurationDefinitions,
   productConfigurationDefinitionRevisions,
   productConfigurationChoices,
@@ -3010,6 +3213,10 @@ const catalogDatabaseSchema = {
 } as const;
 
 export const CATALOG_TABLES = [
+  commercialGtinAssignmentRevisions,
+  commercialGtinAssignments,
+  commercialSkuAssignmentRevisions,
+  commercialSkuReservations,
   productConfigurationDefinitions,
   productConfigurationDefinitionRevisions,
   productConfigurationChoices,
