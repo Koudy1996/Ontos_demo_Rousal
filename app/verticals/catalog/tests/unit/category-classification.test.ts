@@ -62,6 +62,26 @@ describe('Product category classification', () => {
     expect(matchesCategory(result, child, 'DIRECT')).toBe(false);
   });
 
+  it('retains an ancestor supported by another direct assignment', () => {
+    const sibling = ref('floor-shelves');
+    const expandedHierarchy = [...hierarchy, { categoryRef: sibling, parentRef: parent }];
+    const assignments = [
+      { categoryRef: child, productRef },
+      { categoryRef: sibling, productRef },
+      { categoryRef: child, productRef: ref('other-product') },
+    ];
+    const before = deriveClassification(productRef, assignments, expandedHierarchy, revision);
+    if (before.status !== 'AVAILABLE') throw new Error('Expected complete classification snapshot');
+    expect(before.ancestors).toEqual([{ ancestorRef: parent, viaDirectCategories: [child, sibling] }]);
+    const removed = removeDirectCategory(assignments, productRef, child);
+    if (!('assignments' in removed)) throw new Error('Expected same-Tenant removal');
+    const after = deriveClassification(productRef, removed.assignments, expandedHierarchy, revision);
+    if (after.status !== 'AVAILABLE') throw new Error('Expected complete classification snapshot');
+    expect(after.directCategories).toEqual([sibling]);
+    expect(after.ancestors).toEqual([{ ancestorRef: parent, viaDirectCategories: [sibling] }]);
+    expect(removed.assignments).toContainEqual({ categoryRef: child, productRef: ref('other-product') });
+  });
+
   it('recomputes ancestors after a move while retaining the same direct assignment', () => {
     const assignments = [{ categoryRef: child, productRef }];
     const moved = deriveClassification(
