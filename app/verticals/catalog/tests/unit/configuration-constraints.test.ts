@@ -47,6 +47,21 @@ describe('configuration constraints', () => {
     expect(evaluateMeasuredConstraint(value, length)).toMatchObject({ code: 'INCOMPATIBLE_UNIT', status: 'INVALID' });
   });
 
+  it('does not choose a conflicting evidenced conversion by input order', () => {
+    const value = { amount: '1200', unit: 'mm' };
+    const correct = { denominator: '10', evidenceId: 'unit-rev-7', from: 'mm', numerator: '1', to: 'cm' };
+    const conflicting = { denominator: '5', evidenceId: 'unit-rev-8', from: 'mm', numerator: '1', to: 'cm' };
+    for (const conversions of [
+      [correct, conflicting],
+      [conflicting, correct],
+    ]) {
+      expect(evaluateMeasuredConstraint(value, length, conversions)).toMatchObject({
+        code: 'AMBIGUOUS_UNIT_CONVERSION',
+        status: 'INDETERMINATE',
+      });
+    }
+  });
+
   it('distinguishes confirmed absence from unknown or malformed deciding rules', () => {
     expect(evaluateMeasuredConstraint({ amount: '8', unit: 'cm' }, null).status).toBe('INDETERMINATE');
     expect(

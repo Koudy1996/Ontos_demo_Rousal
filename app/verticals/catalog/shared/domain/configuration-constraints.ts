@@ -137,6 +137,9 @@ const checkMeasuredLimits = (
   checkBound(value, rule.maximum, 'MAXIMUM', ids) ??
   checkStep(value, rule.step, ids);
 
+const malformedMeasuredRule = (rule: MeasuredConstraint): boolean =>
+  rule.ruleId.length === 0 || !Number.isSafeInteger(rule.revision) || rule.revision <= 0 || rule.unit.length === 0;
+
 /** A known violation is decisive even when other limits are unknown. */
 export const evaluateMeasuredConstraint = (
   value: ConfigurationMeasurement,
@@ -151,16 +154,14 @@ export const evaluateMeasuredConstraint = (
   if (amount === null || value.unit.length === 0) {
     return { code: 'MALFORMED_MEASUREMENT', ruleIds: ids, status: 'INVALID' };
   }
-  if (
-    rule.ruleId.length === 0 ||
-    !Number.isSafeInteger(rule.revision) ||
-    rule.revision <= 0 ||
-    rule.unit.length === 0
-  ) {
+  if (malformedMeasuredRule(rule)) {
     return { code: 'MALFORMED_MEASURED_RULE', ruleIds: ids, status: 'INDETERMINATE' };
   }
-  const conversion =
-    value.unit === rule.unit ? null : conversions.find((item) => item.from === value.unit && item.to === rule.unit);
+  const matches = conversions.filter((item) => item.from === value.unit && item.to === rule.unit);
+  if (value.unit !== rule.unit && matches.length > 1) {
+    return { code: 'AMBIGUOUS_UNIT_CONVERSION', ruleIds: ids, status: 'INDETERMINATE' };
+  }
+  const conversion = value.unit === rule.unit ? null : matches[0];
   if (value.unit !== rule.unit && conversion === undefined) {
     return { code: 'INCOMPATIBLE_UNIT', ruleIds: ids, status: 'INVALID' };
   }
