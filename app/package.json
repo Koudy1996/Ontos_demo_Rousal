@@ -26,6 +26,7 @@
     "mf:types": "node ./scripts/assert-mf-types.mts",
     "performance:readiness": "node ./scripts/ultramodern-performance-readiness.mts",
     "zerops:materialize": "node ./scripts/materialize-zerops-runtime.mjs",
+    "zerops:providers": "node ./scripts/generate-zerops-provider-deployment.mts",
     "contract:check": "node ./scripts/validate-ultramodern-workspace.mts",
     "typecheck": "node ./scripts/ultramodern-typecheck.mts --build tsconfig.json",
     "check": "pnpm typecheck:lint-rules && pnpm test:lint-rules && pnpm action:test:unit && pnpm database-access:check && pnpm module-entrypoints:check && pnpm check:module-contracts && pnpm quality:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm skills:check && pnpm i18n:boundaries && pnpm api:check && pnpm api:check:ontos && pnpm contract:check && pnpm performance:readiness",
