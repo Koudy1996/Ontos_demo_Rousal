@@ -24,8 +24,8 @@ export class VariantAxisBasisUnavailable extends Schema.TaggedError<VariantAxisB
 ) {}
 
 export interface CurrentVariantAxis {
-  readonly attributeDefinitionId: string;
   readonly allowedControlledValueIds: readonly string[];
+  readonly attributeDefinitionId: string;
   readonly controlledValueKind: string | null;
   readonly multiplicity: string;
   readonly ordinal: number;
@@ -33,8 +33,8 @@ export interface CurrentVariantAxis {
 }
 
 export interface CurrentVariantAxes {
-  readonly axisRevision: number;
   readonly axes: readonly CurrentVariantAxis[];
+  readonly axisRevision: number;
   readonly productId: string;
   readonly productTypeRevision: number | null;
 }
@@ -66,6 +66,82 @@ export const variantAxisPersistenceForScope = (
   scope: OperationalScope,
 ): VariantAxisPersistence => {
   const { tenantId } = scope;
+
+  const readAxis = Effect.fn('VariantAxisPersistence.readAxis')(function* readAxis(
+    row: typeof productVariantAxes.$inferSelect,
+    productTypeId: string,
+    productTypeRevision: number,
+  ) {
+    const [definition] = yield* transaction
+      .select()
+      .from(attributeDefinitions)
+      .where(
+        and(
+          eq(attributeDefinitions.tenantId, tenantId),
+          eq(attributeDefinitions.attributeDefinitionId, row.attributeDefinitionId),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (definition === undefined || !new Set(definition.applicableLevels).has('VARIANT')) {
+      return yield* basisUnavailable();
+    }
+    const [definitionRevision] = yield* transaction
+      .select({
+        applicableLevels: attributeDefinitionRevisions.applicableLevels,
+        controlledValueKind: attributeDefinitionRevisions.controlledValueKind,
+        multiplicity: attributeDefinitionRevisions.multiplicity,
+        valueKind: attributeDefinitionRevisions.valueKind,
+      })
+      .from(attributeDefinitionRevisions)
+      .where(
+        and(
+          eq(attributeDefinitionRevisions.tenantId, tenantId),
+          eq(attributeDefinitionRevisions.attributeDefinitionId, row.attributeDefinitionId),
+          eq(attributeDefinitionRevisions.revision, definition.currentRevision),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (
+      definitionRevision === undefined ||
+      !new Set(definitionRevision.applicableLevels).has('VARIANT') ||
+      definitionRevision.valueKind !== definition.valueKind ||
+      definitionRevision.controlledValueKind !== definition.controlledValueKind ||
+      definitionRevision.multiplicity !== definition.multiplicity
+    ) {
+      return yield* basisUnavailable();
+    }
+    const [rule] = yield* transaction
+      .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
+      .from(productTypeRevisionAttributes)
+      .where(
+        and(
+          eq(productTypeRevisionAttributes.tenantId, tenantId),
+          eq(productTypeRevisionAttributes.productTypeId, productTypeId),
+          eq(productTypeRevisionAttributes.revision, productTypeRevision),
+          eq(productTypeRevisionAttributes.attributeDefinitionId, row.attributeDefinitionId),
+          eq(productTypeRevisionAttributes.level, 'VARIANT'),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (rule === undefined) {
+      return yield* basisUnavailable();
+    }
+    // Shared vocabulary is not Product-specific allowed-set or owner Current proof.
+    if (definition.valueKind === 'CONTROLLED') {
+      return yield* basisUnavailable();
+    }
+    return {
+      allowedControlledValueIds: [],
+      attributeDefinitionId: row.attributeDefinitionId,
+      controlledValueKind: definition.controlledValueKind,
+      multiplicity: definition.multiplicity,
+      ordinal: row.ordinal,
+      valueKind: definition.valueKind,
+    } satisfies CurrentVariantAxis;
+  });
 
   const readCurrent: VariantAxisPersistence['readCurrent'] = Effect.fn('VariantAxisPersistence.readCurrent')(
     function* readCurrent(productRef) {
@@ -152,80 +228,15 @@ export const variantAxisPersistenceForScope = (
         return yield* basisUnavailable();
       }
 
-      const axes: CurrentVariantAxis[] = [];
-      for (const row of rows) {
-        const [definition] = yield* transaction
-          .select()
-          .from(attributeDefinitions)
-          .where(
-            and(
-              eq(attributeDefinitions.tenantId, tenantId),
-              eq(attributeDefinitions.attributeDefinitionId, row.attributeDefinitionId),
-            ),
-          )
-          .limit(1)
-          .pipe(Effect.mapError(unavailable));
-        if (definition === undefined || !definition.applicableLevels.includes('VARIANT') || assignment === undefined) {
-          return yield* basisUnavailable();
-        }
-        const [definitionRevision] = yield* transaction
-          .select({
-            applicableLevels: attributeDefinitionRevisions.applicableLevels,
-            controlledValueKind: attributeDefinitionRevisions.controlledValueKind,
-            multiplicity: attributeDefinitionRevisions.multiplicity,
-            valueKind: attributeDefinitionRevisions.valueKind,
-          })
-          .from(attributeDefinitionRevisions)
-          .where(
-            and(
-              eq(attributeDefinitionRevisions.tenantId, tenantId),
-              eq(attributeDefinitionRevisions.attributeDefinitionId, row.attributeDefinitionId),
-              eq(attributeDefinitionRevisions.revision, definition.currentRevision),
-            ),
-          )
-          .limit(1)
-          .pipe(Effect.mapError(unavailable));
-        if (
-          definitionRevision === undefined ||
-          !definitionRevision.applicableLevels.includes('VARIANT') ||
-          definitionRevision.valueKind !== definition.valueKind ||
-          definitionRevision.controlledValueKind !== definition.controlledValueKind ||
-          definitionRevision.multiplicity !== definition.multiplicity
-        ) {
-          return yield* basisUnavailable();
-        }
-        const [rule] = yield* transaction
-          .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
-          .from(productTypeRevisionAttributes)
-          .where(
-            and(
-              eq(productTypeRevisionAttributes.tenantId, tenantId),
-              eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
-              eq(productTypeRevisionAttributes.revision, productTypeRevision ?? 0),
-              eq(productTypeRevisionAttributes.attributeDefinitionId, row.attributeDefinitionId),
-              eq(productTypeRevisionAttributes.level, 'VARIANT'),
-            ),
-          )
-          .limit(1)
-          .pipe(Effect.mapError(unavailable));
-        if (rule === undefined) {
-          return yield* basisUnavailable();
-        }
-        // Vocabulary membership is not a Product-specific allowed-set proof. The
-        // owner Current evidence for controlled axes is not yet persisted here.
-        if (definition.valueKind === 'CONTROLLED') {
-          return yield* basisUnavailable();
-        }
-        axes.push({
-          attributeDefinitionId: row.attributeDefinitionId,
-          allowedControlledValueIds: [],
-          controlledValueKind: definition.controlledValueKind,
-          multiplicity: definition.multiplicity,
-          ordinal: row.ordinal,
-          valueKind: definition.valueKind,
-        });
+      if (assignment === undefined && rows.length !== 0) {
+        return yield* basisUnavailable();
       }
-      return { axisRevision: event?.axisRevision ?? 0, axes, productId, productTypeRevision };
+      const axes = yield* Effect.forEach(
+        rows,
+        (row) => readAxis(row, assignment?.productTypeId ?? '', productTypeRevision ?? 0),
+        { concurrency: 1 },
+      );
+      return { axes, axisRevision: event?.axisRevision ?? 0, productId, productTypeRevision };
     },
   );
 
