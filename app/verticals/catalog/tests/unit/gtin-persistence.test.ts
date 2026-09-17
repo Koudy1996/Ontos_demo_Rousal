@@ -48,12 +48,13 @@ interface FixtureOptions {
   existing?: Row;
   packageState?: string;
   prior?: Row;
+  revisionRows?: readonly (readonly Row[])[];
   variantState?: string;
 }
 type GtinWrite = typeof commercialGtinAssignments.$inferInsert | typeof commercialGtinAssignmentRevisions.$inferInsert;
-const rowsFor = (table: Table, options: FixtureOptions): readonly Row[] => {
+const rowsFor = (table: Table, options: FixtureOptions, revisionRead: number): readonly Row[] => {
   if (table === commercialGtinAssignmentRevisions) {
-    return options.prior ? [options.prior] : [];
+    return options.revisionRows?.[revisionRead] ?? (options.prior ? [options.prior] : []);
   }
   if (table === commercialGtinAssignments) {
     return options.existing ? [options.existing] : [];
@@ -74,22 +75,39 @@ const returning = (writes: object[], table: Table, value: GtinWrite) => ({
     return Effect.succeed([{ currentRevision: 2 }]);
   },
 });
-const fixture = (writes: object[], options: FixtureOptions = {}) => ({
-  insert: (table: Table) => ({
-    values: (value: GtinWrite) => {
-      writes.push([table, value]);
-      return Effect.succeed([]);
-    },
-  }),
-  select: () => ({ from: (table: Table) => ({ where: () => selected(rowsFor(table, options)) }) }),
-  update: (table: Table) => ({ set: (value: GtinWrite) => ({ where: () => returning(writes, table, value) }) }),
-});
+const fixture = (writes: object[], options: FixtureOptions = {}) => {
+  let revisionRead = 0;
+  const nextRows = (table: Table) => {
+    const rows = rowsFor(table, options, revisionRead);
+    if (table === commercialGtinAssignmentRevisions) {
+      revisionRead += 1;
+    }
+    return rows;
+  };
+  return {
+    insert: (table: Table) => ({
+      values: (value: GtinWrite) => {
+        writes.push([table, value]);
+        return Effect.succeed([]);
+      },
+    }),
+    select: () => ({
+      from: (table: Table) => ({
+        where: () => selected(nextRows(table)),
+      }),
+    }),
+    update: (table: Table) => ({ set: (value: GtinWrite) => ({ where: () => returning(writes, table, value) }) }),
+  };
+};
 const outcomeKind = (outcome: GtinPersistenceOutcome): string =>
   Match.value(outcome).pipe(
     Match.tag('confirmed', () => 'confirmed'),
+    Match.tag('corrected', () => 'corrected'),
     Match.tag('invalid', () => 'invalid'),
     Match.tag('not_found', () => 'not_found'),
+    Match.tag('retired', () => 'retired'),
     Match.tag('stale', () => 'stale'),
+    Match.tag('unresolved', () => 'unresolved'),
     Match.exhaustive,
   );
 
@@ -182,6 +200,124 @@ describe('GTIN exact-target persistence', () => {
       // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
       const service = gtinPersistenceForScope(fixture(writes, { existing }), scope);
       expect(outcomeKind(yield* service.confirm({ ...input, expectedRevision: 1 }))).toBe('invalid');
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('keeps confirmation a first assignment, even when the retained target is identical', () =>
+    Effect.gen(function* rejectsSecondConfirmation() {
+      const writes: object[] = [];
+      const existing = { currentRevision: 1, packageDefinitionId: null, productId, state: 'CONFIRMED', variantId };
+      // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+      const service = gtinPersistenceForScope(fixture(writes, { existing }), scope);
+      expect(outcomeKind(yield* service.confirm({ ...input, expectedRevision: 1 }))).toBe('invalid');
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('corrects a documented attribution while retaining the previous revision', () =>
+    Effect.gen(function* correctsAttribution() {
+      const writes: object[] = [];
+      const existing = { currentRevision: 1, packageDefinitionId: null, productId, state: 'CONFIRMED', variantId };
+      const head = { ...existing, attributionEvidenceRef: input.attributionEvidenceRef, revision: 1 };
+      // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+      const service = gtinPersistenceForScope(fixture(writes, { existing, revisionRows: [[], [head]] }), scope);
+      const result = yield* service.correct({
+        ...input,
+        attributionEvidenceRef: 'provider-record:corrected-package',
+        expectedRevision: 1,
+        previousTarget: input.target,
+        reason: 'Documented provider attribution error',
+        supersededEvidenceRef: input.attributionEvidenceRef,
+        target: { kind: 'PACKAGE_LEVEL', packageDefinitionId, tenantId },
+      });
+      expect(outcomeKind(result)).toBe('corrected');
+      expect(writes).toEqual([
+        [
+          commercialGtinAssignments,
+          expect.objectContaining({ currentRevision: 2, packageDefinitionId, state: 'CONFIRMED' }),
+        ],
+        [
+          commercialGtinAssignmentRevisions,
+          expect.objectContaining({
+            attributionEvidenceRef: 'provider-record:corrected-package',
+            packageDefinitionId,
+            revision: 2,
+          }),
+        ],
+      ]);
+    }),
+  );
+
+  it.effect('rejects correction without matching prior evidence or exact previous target', () =>
+    Effect.gen(function* rejectsUnprovenCorrection() {
+      const writes: object[] = [];
+      const existing = { currentRevision: 1, packageDefinitionId: null, productId, state: 'CONFIRMED', variantId };
+      const head = { ...existing, attributionEvidenceRef: input.attributionEvidenceRef, revision: 1 };
+      const correction = {
+        ...input,
+        attributionEvidenceRef: 'provider-record:corrected-package',
+        expectedRevision: 1,
+        previousTarget: input.target,
+        supersededEvidenceRef: 'wrong-evidence',
+        target: { kind: 'PACKAGE_LEVEL' as const, packageDefinitionId, tenantId },
+      };
+      const service = gtinPersistenceForScope(
+        // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+        fixture(writes, { existing, revisionRows: [[], [head], [], [head]] }),
+        scope,
+      );
+      expect(outcomeKind(yield* service.correct(correction))).toBe('invalid');
+      expect(
+        outcomeKind(
+          yield* service.correct({
+            ...correction,
+            previousTarget: { kind: 'PACKAGE_LEVEL', packageDefinitionId, tenantId },
+            supersededEvidenceRef: input.attributionEvidenceRef,
+          }),
+        ),
+      ).toBe('invalid');
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('marks a disputed GTIN unresolved and then retires without changing its target', () =>
+    Effect.gen(function* changesLifecycle() {
+      const writes: object[] = [];
+      const existing = { currentRevision: 1, packageDefinitionId: null, productId, state: 'CONFIRMED', variantId };
+      // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+      const service = gtinPersistenceForScope(fixture(writes, { existing }), scope);
+      const lifecycle = { ...input, attributionEvidenceRef: 'case:disputed-gtin', expectedRevision: 1 };
+      expect(outcomeKind(yield* service.markUnresolved(lifecycle))).toBe('unresolved');
+      expect(
+        outcomeKind(
+          yield* service.retire({ ...lifecycle, actionInvocationId: '88888888-8888-4888-8888-888888888888' }),
+        ),
+      ).toBe('retired');
+      expect(writes).toEqual([
+        [commercialGtinAssignments, expect.objectContaining({ packageDefinitionId: null, state: 'UNRESOLVED' })],
+        [commercialGtinAssignmentRevisions, expect.objectContaining({ revision: 2, state: 'UNRESOLVED' })],
+        [commercialGtinAssignments, expect.objectContaining({ packageDefinitionId: null, state: 'RETIRED' })],
+        [commercialGtinAssignmentRevisions, expect.objectContaining({ revision: 2, state: 'RETIRED' })],
+      ]);
+    }),
+  );
+
+  it.effect('never corrects a retired GTIN into a new attribution', () =>
+    Effect.gen(function* rejectsRetiredCorrection() {
+      const writes: object[] = [];
+      const existing = { currentRevision: 2, packageDefinitionId: null, productId, state: 'RETIRED', variantId };
+      // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+      const service = gtinPersistenceForScope(fixture(writes, { existing }), scope);
+      const result = yield* service.correct({
+        ...input,
+        attributionEvidenceRef: 'provider-record:corrected-package',
+        expectedRevision: 2,
+        previousTarget: input.target,
+        supersededEvidenceRef: input.attributionEvidenceRef,
+        target: { kind: 'PACKAGE_LEVEL', packageDefinitionId, tenantId },
+      });
+      expect(outcomeKind(result)).toBe('invalid');
       expect(writes).toEqual([]);
     }),
   );
