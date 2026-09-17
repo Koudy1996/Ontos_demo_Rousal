@@ -161,4 +161,63 @@ describe('Catalog Selection Current basis', () => {
       expect(setResult.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT']);
     }),
   );
+
+  it.effect('rejects a caller-invented Configuration or Set revision ID before emitting owner basis', () =>
+    Effect.gen(function* forgedRevisionId() {
+      const transaction = {
+        select: () => ({
+          from: (table: typeof products | typeof productVariants) => {
+            if (table === products) {
+              return selected([{ lifecycleState: 'ACTIVE', revision: 4 }]);
+            }
+            if (table === productVariants) {
+              return selected([{ lifecycleState: 'ACTIVE', productId, revision: 7 }]);
+            }
+            throw new Error('forged revision ID must not reach dependent read');
+          },
+        }),
+      };
+      // @ts-expect-error Only the exercised Drizzle read chains are mocked.
+      const reader = catalogSelectionCurrentBasisForScope(transaction, scope);
+      const forgedId = '99999999-9999-4999-8999-999999999999';
+      const refs = [
+        {
+          configuration: {
+            choices: [],
+            definition: {
+              resourceRef: {
+                moduleId: 'commerce.catalog',
+                resourceId: '77777777-7777-4777-8777-777777777777',
+                resourceType: 'commerce.catalog.configuration-definition',
+                tenantId,
+              },
+              revision: 1,
+              revisionId: forgedId,
+            },
+            productRef: selection.productRef,
+            variantRef: selection.variantRef,
+          },
+        },
+        {
+          setComposition: {
+            resourceRef: {
+              moduleId: 'commerce.catalog',
+              resourceId: '88888888-8888-4888-8888-888888888888',
+              resourceType: 'commerce.catalog.set-composition',
+              tenantId,
+            },
+            revision: 1,
+            revisionId: forgedId,
+          },
+        },
+      ];
+      for (const extra of refs) {
+        const forged = Schema.decodeUnknownSync(CatalogSelectionSchema)({ ...selection, ...extra });
+        const result = yield* reader.read({ purpose: 'PURCHASE_ACCEPTANCE', selection: forged });
+        expect(result.status).toBe('INDETERMINATE');
+        expect(result.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT']);
+        expect(result.basis.some(({ source }) => source.revisionId === forgedId)).toBe(false);
+      }
+    }),
+  );
 });

@@ -2,7 +2,10 @@ import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { DateTime, Effect, Option, Schema } from 'effect';
 
-import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revision-reference.ts';
+import {
+  CatalogRevisionNumberSchema,
+  sameCatalogRevisionReference,
+} from '../../shared/domain/catalog-revision-reference.ts';
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
 import { productVariants, products } from '../database/schema.ts';
@@ -11,6 +14,7 @@ import { productConfigurationPersistenceForScope } from './product-configuration
 import { setCompositionPersistenceForScope } from './set-composition-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
+const catalogModuleId = 'commerce.catalog';
 
 /** A snapshot of facts, never an owner guarantee that a purchase remains Current. */
 export type CatalogSelectionCurrentBasis = Extract<
@@ -30,12 +34,18 @@ const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
 const validRequest = (selection: CatalogSelection, purpose: string, tenantId: string): boolean =>
   selection.productRef.tenantId === tenantId &&
   selection.variantRef.tenantId === tenantId &&
-  selection.productRef.moduleId === 'commerce.catalog' &&
-  selection.variantRef.moduleId === 'commerce.catalog' &&
+  selection.productRef.moduleId === catalogModuleId &&
+  selection.variantRef.moduleId === catalogModuleId &&
   selection.productRef.resourceType === 'commerce.catalog.product' &&
   selection.variantRef.resourceType === 'commerce.catalog.variant' &&
   purpose.length > 0 &&
   purpose === purpose.trim();
+
+const validDependentRef = (
+  ref: { readonly moduleId: string; readonly resourceType: string; readonly tenantId: string },
+  tenantId: string,
+  resourceType: string,
+): boolean => ref.moduleId === catalogModuleId && ref.resourceType === resourceType && ref.tenantId === tenantId;
 
 /** Only exact effective revisions may enter the basis; component and choice validity is still separate. */
 const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSelectedDependencies')(
@@ -48,6 +58,12 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
     const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
     if (selection.configuration !== undefined) {
       const selected = selection.configuration.definition;
+      if (
+        selected.revisionId !== undefined ||
+        !validDependentRef(selected.resourceRef, scope.tenantId, 'commerce.catalog.configuration-definition')
+      ) {
+        return { basis, reason: 'Selected Configuration reference is not owner-verifiable' };
+      }
       const current = yield* productConfigurationPersistenceForScope(transaction, scope)
         .readCurrent({
           at,
@@ -58,13 +74,37 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
       if (Option.isNone(current)) {
         return { basis, reason: 'Configuration Current revision is unavailable or missing' };
       }
-      if (current.value.revision !== selected.revision) {
+      if (
+        current.value.revision !== selected.revision ||
+        current.value.definitionId !== selected.resourceRef.resourceId ||
+        current.value.productId !== selection.productRef.resourceId
+      ) {
         return { basis, reason: 'Selected Configuration revision is not Current' };
       }
-      basis.push({ role: 'CONFIGURATION_DEFINITION', source: selected });
+      const revision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(current.value.revision).pipe(
+        Effect.mapError(unavailable),
+      );
+      basis.push({
+        role: 'CONFIGURATION_DEFINITION',
+        source: {
+          resourceRef: {
+            moduleId: catalogModuleId,
+            resourceId: current.value.definitionId,
+            resourceType: 'commerce.catalog.configuration-definition',
+            tenantId: scope.tenantId,
+          },
+          revision,
+        },
+      });
     }
     if (selection.setComposition !== undefined) {
       const selected = selection.setComposition;
+      if (
+        selected.revisionId !== undefined ||
+        !validDependentRef(selected.resourceRef, scope.tenantId, 'commerce.catalog.set-composition')
+      ) {
+        return { basis, reason: 'Selected Set reference is not owner-verifiable' };
+      }
       const current = yield* setCompositionPersistenceForScope(transaction, scope)
         .readCurrent({
           at,
@@ -76,7 +116,7 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
       }
       const { effectiveFrom, effectiveTo, revision } = current.value;
       if (
-        revision.reference.revision !== selected.revision ||
+        !sameCatalogRevisionReference(revision.reference, selected) ||
         revision.productRef.resourceId !== selection.productRef.resourceId ||
         revision.variantRef.resourceId !== selection.variantRef.resourceId ||
         effectiveFrom > at ||
@@ -84,7 +124,7 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
       ) {
         return { basis, reason: 'Selected Set Composition is not Current for this exact target' };
       }
-      basis.push({ role: 'SET_COMPOSITION', source: selected });
+      basis.push({ role: 'SET_COMPOSITION', source: revision.reference });
     }
     return { basis, reason: null };
   },
