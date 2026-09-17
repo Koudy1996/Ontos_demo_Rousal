@@ -23,6 +23,7 @@ import {
   catalogMediaAssignmentSetRevisions,
   catalogMediaAssignmentSets,
   catalogMediaAssignments,
+  catalogResultSnapshots,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
   productConfigurationChoiceOptions,
@@ -78,7 +79,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns sixty-eight tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns sixty-nine tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -100,6 +101,7 @@ it('owns sixty-eight tenant-scoped Catalog tables with RLS and immutable history
     'catalog_media_assignment_set_revisions',
     'catalog_media_assignment_sets',
     'catalog_media_assignments',
+    'catalog_result_snapshots',
     'commercial_gtin_assignment_revisions',
     'commercial_gtin_assignments',
     'commercial_sku_assignment_revisions',
@@ -166,6 +168,33 @@ it('owns sixty-eight tenant-scoped Catalog tables with RLS and immutable history
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('retains one bounded original result per tenant and Action invocation', () => {
+  const snapshot = getTableConfig(catalogResultSnapshots);
+  expect(snapshot.primaryKeys.map((key) => key.getName())).toContain('catalog_result_snapshots_pk');
+  expect(snapshot.columns.map((column) => column.name)).toEqual([
+    'tenant_id',
+    'action_invocation_id',
+    'acting_principal_id',
+    'action_key',
+    'schema_version',
+    'encoded_result',
+    'recorded_at',
+  ]);
+  expect(snapshot.checks.map((rule) => rule.name)).toEqual([
+    'catalog_result_snapshots_action_key_ck',
+    'catalog_result_snapshots_schema_version_ck',
+    'catalog_result_snapshots_result_size_ck',
+  ]);
+  const migration = readFileSync(
+    new URL('../../drizzle/20260917102416_lonely_flatman/migration.sql', import.meta.url),
+    'utf-8',
+  );
+  expect(migration).toContain('PRIMARY KEY("tenant_id","action_invocation_id")');
+  expect(migration).toContain('FORCE ROW LEVEL SECURITY');
+  expect(migration).toContain('catalog_result_snapshots_append_only');
+  expect(migration).toContain('reject_ledger_mutation');
 });
 
 it('reserves SKU across exact target kinds and keeps assignment provenance separate from GTIN', () => {
@@ -596,6 +625,7 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
     expect(combined).toContain(`ALTER TABLE "catalog"."${table}" FORCE ROW LEVEL SECURITY`);
   }
   expect(combined).toContain('catalog_product_revisions_append_only');
+  expect(combined).toContain('catalog_result_snapshots_append_only');
   expect(combined).toContain('catalog_sku_assignment_revisions_append_only');
   expect(combined).toContain('catalog_gtin_assignment_revisions_append_only');
   expect(combined).toContain('catalog_configuration_definition_revisions_append_only');

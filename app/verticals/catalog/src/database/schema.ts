@@ -32,6 +32,7 @@ export const CATALOG_TABLE_INVENTORY = [
   'catalog_media_assignment_set_revisions',
   'catalog_media_assignment_sets',
   'catalog_media_assignments',
+  'catalog_result_snapshots',
   'commercial_gtin_assignment_revisions',
   'commercial_gtin_assignments',
   'commercial_sku_assignment_revisions',
@@ -94,6 +95,33 @@ export const CATALOG_TABLE_INVENTORY = [
 export const catalogSchema = pgSchema(CATALOG_SCHEMA_NAME);
 
 const recordedAt = () => timestamp('recorded_at', { withTimezone: true }).defaultNow().notNull();
+
+/** The committed Action result is retained by its original invocation, never reconstructed from Current state. */
+export const catalogResultSnapshots = catalogSchema.table.withRLS(
+  'catalog_result_snapshots',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    actionKey: text('action_key').notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    encodedResult: jsonb('encoded_result').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.actionInvocationId], name: 'catalog_result_snapshots_pk' }),
+    check(
+      'catalog_result_snapshots_action_key_ck',
+      sql`${table.actionKey} = btrim(${table.actionKey}) and length(${table.actionKey}) between 1 and 200`,
+    ),
+    check('catalog_result_snapshots_schema_version_ck', sql`${table.schemaVersion} > 0`),
+    check(
+      'catalog_result_snapshots_result_size_ck',
+      sql`octet_length(${table.encodedResult}::text) between 2 and 65536`,
+    ),
+    ...tenantRlsPolicies('catalog_result_snapshots_tenant', table.tenantId),
+  ],
+);
 
 export const brands = catalogSchema.table.withRLS(
   'brands',
@@ -3339,6 +3367,7 @@ export const productConfigurationCompatibilityRules = catalogSchema.table.withRL
 );
 
 const catalogDatabaseSchema = {
+  catalogResultSnapshots,
   commercialGtinAssignmentRevisions,
   commercialGtinAssignments,
   commercialSkuAssignmentRevisions,
@@ -3410,6 +3439,7 @@ const catalogDatabaseSchema = {
 } as const;
 
 export const CATALOG_TABLES = [
+  catalogResultSnapshots,
   commercialGtinAssignmentRevisions,
   commercialGtinAssignments,
   commercialSkuAssignmentRevisions,

@@ -114,6 +114,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         foreign_key_count: number;
         journal_count: number;
         policy_count: number;
+        result_snapshot_guard_count: number;
         trigger_count: number;
         validated_combination_count: number;
       }>(`select
@@ -121,6 +122,10 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
       (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='drizzle' and c.relname='__drizzle_migrations_catalog') journal_count,
       (select count(*)::integer from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog') policy_count,
       (select count(*)::integer from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and not t.tgisinternal) trigger_count,
+      (select count(*)::integer from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname='catalog' and c.relname='catalog_result_snapshots'
+          and t.tgname='catalog_result_snapshots_append_only' and t.tgenabled='O'
+          and (t.tgtype & 16) = 16 and (t.tgtype & 8) = 8) result_snapshot_guard_count,
       (select count(*)::integer from pg_constraint k join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and k.contype='f') foreign_key_count,
       (select count(*)::integer from pg_constraint k join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and c.relname='product_variants' and k.conname='catalog_product_variants_combination_ck' and k.convalidated) validated_combination_count`),
   });
@@ -130,13 +135,19 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     (count, table) => count + getTableConfig(table).foreignKeys.length,
     0,
   );
+  const expectedInfrastructure = [CATALOG_TABLES.length, 1, expectedPolicyCount, 1, 71, 1, expectedForeignKeyCount];
+  const actualInfrastructure = row === undefined ? undefined : [
+    row.forced_rls,
+    row.journal_count,
+    row.policy_count,
+    row.result_snapshot_guard_count,
+    row.trigger_count,
+    row.validated_combination_count,
+    row.foreign_key_count,
+  ];
   if (
-    row?.forced_rls !== CATALOG_TABLES.length ||
-    row.journal_count !== 1 ||
-    row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 70 ||
-    row.validated_combination_count !== 1 ||
-    row.foreign_key_count !== expectedForeignKeyCount
+    actualInfrastructure === undefined ||
+    actualInfrastructure.some((value, index) => value !== expectedInfrastructure[index])
   ) {
     yield* new CatalogSchemaVerificationError({
       reason: 'Catalog RLS, journal, trigger, or foreign-key inventory differs from its migration',
