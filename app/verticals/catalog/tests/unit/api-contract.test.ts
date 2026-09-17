@@ -222,6 +222,7 @@ it.effect('rejects a foreign Product before resolving tenant-local persistence',
       },
       getHistory: () => Effect.die('unused'),
       reactivate: () => Effect.die('unused'),
+      recoverCreateProduct: () => Effect.die('unused'),
       retire: () => Effect.die('unused'),
       update: () => Effect.die('unused'),
     };
@@ -284,6 +285,7 @@ it.effect(
         getCurrent: () => Effect.succeed(Option.some(product)),
         getHistory: () => Effect.die('unused'),
         reactivate: () => Effect.die('unused'),
+        recoverCreateProduct: () => Effect.die('unused'),
         retire: () => Effect.die('unused'),
         update: () => Effect.die('unused'),
       };
@@ -348,6 +350,7 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
       'product-relationship',
       'product-type',
       'product-unit',
+      'set-composition',
       'size-equivalence',
       'variant',
     ]).toContain(contract.businessTarget);
@@ -359,6 +362,7 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   }
   expect(catalogAuthorityBundles.CATALOG_DEFINITION_MANAGER).toEqual([
     'commerce.catalog.activate-package-definition',
+    'commerce.catalog.activate-package-option',
     'commerce.catalog.assert-size-equivalence',
     'commerce.catalog.create-attribute-definition',
     'commerce.catalog.create-brand',
@@ -377,6 +381,7 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
     'commerce.catalog.retire-brand',
     'commerce.catalog.retire-controlled-attribute-value',
     'commerce.catalog.retire-package-definition',
+    'commerce.catalog.retire-package-option',
     'commerce.catalog.retire-product-category',
     'commerce.catalog.retire-product-unit',
     'commerce.catalog.revise-package-definition',
@@ -388,6 +393,8 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.reactivate-variant');
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.create-variant');
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.change-variant');
+  expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.create-set-composition');
+  expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.revise-set-composition');
   // #411B/#481 importer and local-override Actions are deferred.
   const bundlePermissions = Object.values(catalogAuthorityBundles).flat();
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
