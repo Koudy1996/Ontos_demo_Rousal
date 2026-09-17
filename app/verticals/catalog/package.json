@@ -11,6 +11,7 @@
     "./domain/product-change-classification": "./shared/domain/product-change-classification.ts",
     "./domain/product-forms": "./shared/domain/product-form-separation.ts",
     "./resources/attribute-definition": "./shared/resources/attribute-definition.ts",
+    "./resources/brand": "./shared/resources/brand.ts",
     "./resources/catalog-root": "./shared/resources/catalog-root.ts",
     "./resources/controlled-attribute-value": "./shared/resources/controlled-attribute-value.ts",
     "./resources/package-definition": "./shared/resources/package-definition.ts",

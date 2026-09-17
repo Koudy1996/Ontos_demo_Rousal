@@ -5,24 +5,50 @@ import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
 import { catalogManifest } from './vertical.manifest.ts';
 // <generated-module-registration-imports>
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
+import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
+import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
+import { changeVariantAction } from './src/actions/change-variant.action.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { createAttributeDefinitionAction } from './src/actions/create-attribute-definition.action.ts';
+import { createBrandAction } from './src/actions/create-brand.action.ts';
 import { createControlledAttributeValueAction } from './src/actions/create-controlled-attribute-value.action.ts';
+import { createPackageDefinitionAction } from './src/actions/create-package-definition.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
 import { createProductCategoryAction } from './src/actions/create-product-category.action.ts';
+import { createProductRelationshipAction } from './src/actions/create-product-relationship.action.ts';
 import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
+import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
+import { createVariantAction } from './src/actions/create-variant.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
+import { reactivateBrandAction } from './src/actions/reactivate-brand.action.ts';
 import { reactivateControlledAttributeValueAction } from './src/actions/reactivate-controlled-attribute-value.action.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
+import { reactivateVariantAction } from './src/actions/reactivate-variant.action.ts';
+import { removeProductAttributeValuesAction } from './src/actions/remove-product-attribute-values.action.ts';
 import { removeProductCategoryAssignmentAction } from './src/actions/remove-product-category-assignment.action.ts';
+import { removeProductManufacturerAction } from './src/actions/remove-product-manufacturer.action.ts';
+import { removeProductRelationshipAction } from './src/actions/remove-product-relationship.action.ts';
+import { removeVariantAttributeOverrideAction } from './src/actions/remove-variant-attribute-override.action.ts';
 import { renameAttributeDefinitionAction } from './src/actions/rename-attribute-definition.action.ts';
+import { renameBrandAction } from './src/actions/rename-brand.action.ts';
 import { renameControlledAttributeValueAction } from './src/actions/rename-controlled-attribute-value.action.ts';
 import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
+import { retireBrandAction } from './src/actions/retire-brand.action.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
+import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
+import { retireProductUnitAction } from './src/actions/retire-product-unit.action.ts';
+import { retireVariantAction } from './src/actions/retire-variant.action.ts';
+import { revisePackageDefinitionAction } from './src/actions/revise-package-definition.action.ts';
 import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
+import { reviseProductUnitAction } from './src/actions/revise-product-unit.action.ts';
+import { setProductAttributeValuesAction } from './src/actions/set-product-attribute-values.action.ts';
+import { setProductBrandAction } from './src/actions/set-product-brand.action.ts';
+import { setProductManufacturerAction } from './src/actions/set-product-manufacturer.action.ts';
 import { setProductTypeAction } from './src/actions/set-product-type.action.ts';
+import { setProductUnitTargetDivisibilityAction } from './src/actions/set-product-unit-target-divisibility.action.ts';
+import { setVariantAttributeOverrideAction } from './src/actions/set-variant-attribute-override.action.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
 // </generated-module-registration-imports>
 
@@ -30,24 +56,50 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
   actions: [
     // <generated-module-registration-actions>
     addProductCategoryAssignmentAction,
+    changeProductManufacturerAction,
+    changeProductRelationshipAction,
+    changeVariantAction,
     correctProductAction,
     createAttributeDefinitionAction,
+    createBrandAction,
     createControlledAttributeValueAction,
+    createPackageDefinitionAction,
     createProductAction,
     createProductCategoryAction,
+    createProductRelationshipAction,
     createProductTypeAction,
+    createProductUnitAction,
+    createVariantAction,
     moveProductCategoryAction,
+    reactivateBrandAction,
     reactivateControlledAttributeValueAction,
     reactivateProductAction,
+    reactivateVariantAction,
+    removeProductAttributeValuesAction,
     removeProductCategoryAssignmentAction,
+    removeProductManufacturerAction,
+    removeProductRelationshipAction,
+    removeVariantAttributeOverrideAction,
     renameAttributeDefinitionAction,
+    renameBrandAction,
     renameControlledAttributeValueAction,
     renameProductCategoryAction,
+    retireBrandAction,
     retireControlledAttributeValueAction,
+    retirePackageDefinitionAction,
     retireProductAction,
     retireProductCategoryAction,
+    retireProductUnitAction,
+    retireVariantAction,
+    revisePackageDefinitionAction,
     reviseProductTypeAction,
+    reviseProductUnitAction,
+    setProductAttributeValuesAction,
+    setProductBrandAction,
+    setProductManufacturerAction,
     setProductTypeAction,
+    setProductUnitTargetDivisibilityAction,
+    setVariantAttributeOverrideAction,
     updateProductAction,
     // </generated-module-registration-actions>
   ],
