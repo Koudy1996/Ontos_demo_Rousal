@@ -14,6 +14,7 @@ import type { CatalogReadiness, OperationContext } from '../../shared/api.ts';
 
 // <generated-action-http-client-exports>
 export * from './add-product-category-assignment-action-client.ts';
+export * from './change-product-relationship-action-client.ts';
 export * from './change-variant-action-client.ts';
 export * from './correct-product-action-client.ts';
 export * from './create-attribute-definition-action-client.ts';
@@ -21,6 +22,7 @@ export * from './create-controlled-attribute-value-action-client.ts';
 export * from './create-package-definition-action-client.ts';
 export * from './create-product-action-client.ts';
 export * from './create-product-category-action-client.ts';
+export * from './create-product-relationship-action-client.ts';
 export * from './create-product-type-action-client.ts';
 export * from './create-product-unit-action-client.ts';
 export * from './create-variant-action-client.ts';
@@ -30,6 +32,7 @@ export * from './reactivate-product-action-client.ts';
 export * from './reactivate-variant-action-client.ts';
 export * from './remove-product-attribute-values-action-client.ts';
 export * from './remove-product-category-assignment-action-client.ts';
+export * from './remove-product-relationship-action-client.ts';
 export * from './remove-variant-attribute-override-action-client.ts';
 export * from './rename-attribute-definition-action-client.ts';
 export * from './rename-controlled-attribute-value-action-client.ts';

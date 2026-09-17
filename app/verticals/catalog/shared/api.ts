@@ -9,6 +9,7 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 
 // <generated-governed-http-api-imports>
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
+import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
 import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
 import { CreateAttributeDefinitionActionApi } from './apis/create-attribute-definition-action.ts';
@@ -17,6 +18,7 @@ import { CreatePackageDefinitionActionApi } from './apis/create-package-definiti
 import { CreateProductActionApi } from './apis/create-product-action.ts';
 import { CreateProductCategoryActionApi } from './apis/create-product-category-action.ts';
 import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
+import { CreateProductRelationshipActionApi } from './apis/create-product-relationship-action.ts';
 import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
@@ -30,6 +32,7 @@ import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts'
 import { ReactivateVariantActionApi } from './apis/reactivate-variant-action.ts';
 import { RemoveProductAttributeValuesActionApi } from './apis/remove-product-attribute-values-action.ts';
 import { RemoveProductCategoryAssignmentActionApi } from './apis/remove-product-category-assignment-action.ts';
+import { RemoveProductRelationshipActionApi } from './apis/remove-product-relationship-action.ts';
 import { RemoveVariantAttributeOverrideActionApi } from './apis/remove-variant-attribute-override-action.ts';
 import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-definition-action.ts';
 import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
@@ -73,6 +76,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(AddProductCategoryAssignmentActionApi)
+  .addHttpApi(ChangeProductRelationshipActionApi)
   .addHttpApi(ChangeVariantActionApi)
   .addHttpApi(CorrectProductActionApi)
   .addHttpApi(CreateAttributeDefinitionActionApi)
@@ -81,6 +85,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductActionApi)
   .addHttpApi(CreateProductCategoryActionApi)
   .addHttpApi(CreateProductRecoveryApi)
+  .addHttpApi(CreateProductRelationshipActionApi)
   .addHttpApi(CreateProductTypeActionApi)
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateVariantActionApi)
@@ -94,6 +99,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReactivateVariantActionApi)
   .addHttpApi(RemoveProductAttributeValuesActionApi)
   .addHttpApi(RemoveProductCategoryAssignmentActionApi)
+  .addHttpApi(RemoveProductRelationshipActionApi)
   .addHttpApi(RemoveVariantAttributeOverrideActionApi)
   .addHttpApi(RenameAttributeDefinitionActionApi)
   .addHttpApi(RenameControlledAttributeValueActionApi)
@@ -145,6 +151,7 @@ const productCategoryBusinessTarget = 'product-category';
 const attributeDefinitionBusinessTarget = 'attribute-definition';
 const controlledAttributeValueBusinessTarget = 'controlled-attribute-value';
 const packageDefinitionBusinessTarget = 'package-definition';
+const productRelationshipBusinessTarget = 'product-relationship';
 const productUnitBusinessTarget = 'product-unit';
 
 export const catalogPublicOperationContracts = {
@@ -193,6 +200,14 @@ export const catalogPublicOperationContracts = {
     businessTarget: 'product',
     permission: 'commerce.catalog.read.product-history',
     permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.change-product-relationship': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: productRelationshipBusinessTarget,
+    permission: 'commerce.catalog.change-product-relationship',
+    permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
   },
@@ -248,6 +263,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: productCategoryBusinessTarget,
     permission: 'commerce.catalog.create-product-category',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.create-product-relationship': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: productRelationshipBusinessTarget,
+    permission: 'commerce.catalog.create-product-relationship',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -320,6 +343,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.remove-product-category-assignment',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.remove-product-relationship': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: productRelationshipBusinessTarget,
+    permission: 'commerce.catalog.remove-product-relationship',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -508,12 +539,15 @@ export const catalogAuthorityBundles = {
   ],
   PRODUCT_EDITOR: [
     'commerce.catalog.add-product-category-assignment',
+    'commerce.catalog.change-product-relationship',
     'commerce.catalog.change-variant',
     'commerce.catalog.create-product',
+    'commerce.catalog.create-product-relationship',
     'commerce.catalog.correct-product',
     'commerce.catalog.create-variant',
     'commerce.catalog.remove-product-attribute-values',
     'commerce.catalog.remove-product-category-assignment',
+    'commerce.catalog.remove-product-relationship',
     'commerce.catalog.remove-variant-attribute-override',
     'commerce.catalog.set-product-attribute-values',
     'commerce.catalog.set-product-type',

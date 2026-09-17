@@ -26,6 +26,7 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 
 // <generated-governed-http-handler-imports>
 import { addProductCategoryAssignmentActionApiLive } from './add-product-category-assignment-action-server.ts';
+import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
 import { changeVariantActionApiLive } from './change-variant-action-server.ts';
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
 import { createAttributeDefinitionActionApiLive } from './create-attribute-definition-action-server.ts';
@@ -34,6 +35,7 @@ import { createPackageDefinitionActionApiLive } from './create-package-definitio
 import { createProductActionApiLive } from './create-product-action-server.ts';
 import { createProductCategoryActionApiLive } from './create-product-category-action-server.ts';
 import { createProductRecoveryReadApiLive } from './create-product-recovery-read-server.ts';
+import { createProductRelationshipActionApiLive } from './create-product-relationship-action-server.ts';
 import { createProductTypeActionApiLive } from './create-product-type-action-server.ts';
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
@@ -47,6 +49,7 @@ import { reactivateProductActionApiLive } from './reactivate-product-action-serv
 import { reactivateVariantActionApiLive } from './reactivate-variant-action-server.ts';
 import { removeProductAttributeValuesActionApiLive } from './remove-product-attribute-values-action-server.ts';
 import { removeProductCategoryAssignmentActionApiLive } from './remove-product-category-assignment-action-server.ts';
+import { removeProductRelationshipActionApiLive } from './remove-product-relationship-action-server.ts';
 import { removeVariantAttributeOverrideActionApiLive } from './remove-variant-attribute-override-action-server.ts';
 import { renameAttributeDefinitionActionApiLive } from './rename-attribute-definition-action-server.ts';
 import { renameControlledAttributeValueActionApiLive } from './rename-controlled-attribute-value-action-server.ts';
@@ -160,6 +163,7 @@ export const makeCatalogApiRuntime = (
     catalogReadinessLayer,
     // <generated-governed-http-handler-layers>
     addProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -171,6 +175,7 @@ export const makeCatalogApiRuntime = (
       GovernedReadLayer.provide(governedReadRuntimeLive),
       Layer.provide(governedActionRuntimeLive),
     ),
+    createProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -184,6 +189,7 @@ export const makeCatalogApiRuntime = (
     reactivateVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    removeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeVariantAttributeOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     renameAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     renameControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
