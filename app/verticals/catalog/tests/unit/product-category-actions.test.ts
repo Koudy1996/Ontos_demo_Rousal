@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'effect-rstest';
+import type { ActionHandlerContext, DomainEventContractMap } from '@app/core-runtime';
+import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
+import { describe, expect, it } from 'effect-rstest';
 
 import {
   AddProductCategoryAssignmentPayloadSchema,
@@ -28,6 +30,12 @@ import {
   handleRetireProductCategory,
   retireProductCategoryAction,
 } from '../../src/actions/retire-product-category.action.ts';
+import type {
+  CategoryPersistence,
+  CreateCategoryInput,
+  RenameCategoryInput,
+} from '../../src/persistence/category-persistence.ts';
+import { CategoryRevisionConflict } from '../../shared/actions/create-product-category.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const otherTenantId = '99999999-9999-4999-8999-999999999999';
@@ -44,29 +52,67 @@ const productRef = {
   tenantId,
 } as const;
 const category = { categoryRef, lifecycle: 'ACTIVE', name: 'Wall shelves', revision: 1 } as const;
-
-const context = (services: object) => {
-  const events: unknown[] = [];
-  const reads: unknown[] = [];
-  return {
-    events,
-    reads,
-    value: {
-      actionInvocationId: 'invocation-1',
-      addDomainEvent: (event: unknown) =>
-        Effect.sync(() => {
-          events.push(event);
-        }),
-      recordAuditEvidence: () => Effect.void,
-      recordDataAccess: (access: unknown) =>
-        Effect.sync(() => {
-          reads.push(access);
-        }),
-      scope: { principalId: 'principal-1', tenantId },
-      services,
-    },
-  };
+const scope = {
+  ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+    authContextRef: 'job:category-actions:run:1',
+    authMethod: 'system',
+    principalId: '55555555-5555-4555-8555-555555555555',
+    tenantId,
+  }),
+  correlationId: 'category-actions-test',
 };
+
+const unexpected = () => Effect.die('Unexpected persistence call');
+const defaultServices: CategoryPersistence = {
+  addAssignment: unexpected,
+  createCategory: unexpected,
+  moveCategory: unexpected,
+  removeAssignment: unexpected,
+  renameCategory: unexpected,
+  retireCategory: unexpected,
+};
+
+const context = <Events extends DomainEventContractMap>(
+  overrides: Partial<CategoryPersistence>,
+  domainEvents: Events,
+) => {
+  const declaredEventTypes = new Set(Object.keys(domainEvents));
+  const events: string[] = [];
+  const reads: string[] = [];
+  const value: ActionHandlerContext<Events, CategoryPersistence> = {
+    actionInvocationId: '66666666-6666-4666-8666-666666666666',
+    addDomainEvent: (event) =>
+      Effect.sync(() => {
+        if (!declaredEventTypes.has(event.eventType)) {
+          throw new Error('Undeclared test event');
+        }
+        events.push(event.eventType);
+        return Object.create(null);
+      }),
+    addOutboxMessage: () => Effect.void,
+    recordAuditEvidence: () => Effect.void,
+    recordDataAccess: (access) =>
+      Effect.sync(() => {
+        reads.push(access.targetResourceId ?? 'unspecified');
+      }),
+    scope,
+    services: { ...defaultServices, ...overrides },
+  };
+  return { events, reads, value };
+};
+
+const createContext = (overrides: Partial<CategoryPersistence>) =>
+  context(overrides, createProductCategoryAction.descriptor.domainEvents);
+const renameContext = (overrides: Partial<CategoryPersistence>) =>
+  context(overrides, renameProductCategoryAction.descriptor.domainEvents);
+const moveContext = (overrides: Partial<CategoryPersistence>) =>
+  context(overrides, moveProductCategoryAction.descriptor.domainEvents);
+const retireContext = (overrides: Partial<CategoryPersistence>) =>
+  context(overrides, retireProductCategoryAction.descriptor.domainEvents);
+const addContext = (overrides: Partial<CategoryPersistence>) =>
+  context(overrides, addProductCategoryAssignmentAction.descriptor.domainEvents);
+const removeContext = (overrides: Partial<CategoryPersistence>) =>
+  context(overrides, removeProductCategoryAssignmentAction.descriptor.domainEvents);
 
 describe('Catalog Product Category Actions', () => {
   it('keeps six exact tenant Actions idempotent and legal-entity independent', () => {
@@ -96,152 +142,179 @@ describe('Catalog Product Category Actions', () => {
     ).toThrow();
   });
 
-  it('creates a category in trusted tenant scope and emits one committed fact', async () => {
-    let recorded: unknown;
-    const run = context({
-      createCategory: (input: unknown) =>
-        Effect.sync(() => {
-          recorded = input;
-          return { _tag: 'created', category, changed: true, hierarchyRevision: 1 };
-        }),
-    });
-    const result = await Effect.runPromise(
-      handleCreateProductCategory({ name: 'Wall shelves', reason: 'New classification' }, run.value as never),
-    );
-    expect(result.category.categoryRef).toEqual(categoryRef);
-    expect(recorded).toMatchObject({ tenantId, principalId: 'principal-1', name: 'Wall shelves' });
-    expect(run.events).toHaveLength(1);
-    expect(run.reads).toHaveLength(1);
-  });
+  it.effect('creates in trusted Tenant and emits one fact', () =>
+    Effect.gen(function* categoryActionTest() {
+      let recorded: CreateCategoryInput | undefined;
+      const run = createContext({
+        createCategory: (input) =>
+          Effect.sync(() => {
+            recorded = input;
+            return { _tag: 'created', category, changed: true, hierarchyRevision: 1 };
+          }),
+      });
+      const result = yield* handleCreateProductCategory(
+        { name: 'Wall shelves', reason: 'New classification' },
+        run.value,
+      );
+      expect(result.category.categoryRef).toEqual(categoryRef);
+      expect(recorded).toMatchObject({ name: 'Wall shelves', principalId: scope.principalId, tenantId });
+      expect(run.events).toHaveLength(1);
+      expect(run.reads).toHaveLength(1);
+    }),
+  );
 
-  it('rejects a cross-tenant move before persistence', async () => {
-    let called = false;
-    const run = context({
-      moveCategory: () => {
-        called = true;
-        return Effect.succeed({ _tag: 'moved', category, changed: true, hierarchyRevision: 2 });
-      },
-    });
-    const result = await Effect.runPromiseExit(
-      handleMoveProductCategory(
+  it.effect('rejects a cross-tenant move before persistence', () =>
+    Effect.gen(function* categoryActionTest() {
+      let called = false;
+      const run = moveContext({
+        moveCategory: () =>
+          Effect.sync(() => {
+            called = true;
+            return { _tag: 'moved', category, changed: true, hierarchyRevision: 2 };
+          }),
+      });
+      const error = yield* handleMoveProductCategory(
         { categoryRef: { ...categoryRef, tenantId: otherTenantId }, expectedRevision: 1, reason: 'Move' },
-        run.value as never,
-      ),
-    );
-    expect(result._tag).toBe('Failure');
-    expect(called).toBe(false);
-  });
+        run.value,
+      ).pipe(Effect.flip);
+      expect(error.code).toBe('category_not_found');
+      expect(called).toBe(false);
+    }),
+  );
 
-  it('treats a duplicate assignment as unchanged with no event', async () => {
-    const run = context({
-      addAssignment: () => Effect.succeed({ _tag: 'unchanged', assignmentRevision: 1, categoryRef, productRef }),
-    });
-    const result = await Effect.runPromise(
-      handleAddProductCategoryAssignment({ categoryRef, productRef, reason: 'Classify' }, run.value as never),
-    );
-    expect(result.changed).toBe(false);
-    expect(run.events).toHaveLength(0);
-    expect(run.reads).toHaveLength(2);
-  });
+  it.effect('treats a duplicate assignment as unchanged with no event', () =>
+    Effect.gen(function* categoryActionTest() {
+      const run = addContext({
+        addAssignment: () => Effect.succeed({ _tag: 'unchanged', assignmentRevision: 1, categoryRef, productRef }),
+      });
+      const result = yield* handleAddProductCategoryAssignment(
+        { categoryRef, productRef, reason: 'Classify' },
+        run.value,
+      );
+      expect(result.changed).toBe(false);
+      expect(run.events).toHaveLength(0);
+      expect(run.reads).toHaveLength(2);
+    }),
+  );
 
-  it('renames in place without replacing identity or assignments, and emits only on change', async () => {
-    let recorded: unknown;
-    const renamed = { ...category, name: 'Shelves for walls', revision: 2 };
-    const run = context({
-      renameCategory: (input: unknown) =>
-        Effect.sync(() => {
-          recorded = input;
-          return { _tag: 'renamed', category: renamed, changed: true, hierarchyRevision: 2 };
-        }),
-    });
-    const result = await Effect.runPromise(
-      handleRenameProductCategory(
+  it.effect('renames in place and emits only on change', () =>
+    Effect.gen(function* categoryActionTest() {
+      let recorded: RenameCategoryInput | undefined;
+      const renamed = { ...category, name: 'Shelves for walls', revision: 2 };
+      const run = renameContext({
+        renameCategory: (input) =>
+          Effect.sync(() => {
+            recorded = input;
+            return { _tag: 'renamed', category: renamed, changed: true, hierarchyRevision: 2 };
+          }),
+      });
+      const result = yield* handleRenameProductCategory(
         { categoryRef, expectedRevision: 1, name: 'Shelves for walls', reason: 'Same meaning' },
-        run.value as never,
-      ),
-    );
-    expect(result.category.categoryRef).toEqual(categoryRef);
-    expect(result.category.name).toBe('Shelves for walls');
-    expect(recorded).toMatchObject({ categoryId: categoryRef.resourceId, expectedRevision: 1, tenantId });
-    expect(run.events).toHaveLength(1);
+        run.value,
+      );
+      expect(result.category.categoryRef).toEqual(categoryRef);
+      expect(recorded).toMatchObject({ categoryId: categoryRef.resourceId, expectedRevision: 1, tenantId });
+      expect(run.events).toHaveLength(1);
+      const noChange = renameContext({
+        renameCategory: () =>
+          Effect.succeed({ _tag: 'renamed', category: renamed, changed: false, hierarchyRevision: 2 }),
+      });
+      expect(
+        (yield* handleRenameProductCategory(
+          { categoryRef, expectedRevision: 2, name: 'Shelves for walls', reason: 'Same meaning' },
+          noChange.value,
+        )).changed,
+      ).toBe(false);
+      expect(noChange.events).toHaveLength(0);
+    }),
+  );
 
-    const noChange = context({
-      renameCategory: () =>
-        Effect.succeed({ _tag: 'renamed', category: renamed, changed: false, hierarchyRevision: 2 }),
-    });
-    const repeated = await Effect.runPromise(
-      handleRenameProductCategory(
-        { categoryRef, expectedRevision: 2, name: 'Shelves for walls', reason: 'Same meaning' },
-        noChange.value as never,
-      ),
-    );
-    expect(repeated.changed).toBe(false);
-    expect(noChange.events).toHaveLength(0);
-  });
+  it.effect('preserves expected and actual revisions in a stale rename error', () =>
+    Effect.gen(function* categoryActionTest() {
+      const run = renameContext({
+        renameCategory: () => Effect.succeed({ _tag: 'revision_conflict', actualRevision: 3, reason: 'stale' }),
+      });
+      const error = yield* handleRenameProductCategory(
+        { categoryRef, expectedRevision: 1, name: 'Shelves', reason: 'Rename' },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(Schema.is(CategoryRevisionConflict)(error)).toBe(true);
+      expect(error).toMatchObject({ actualRevision: 3, categoryRef, expectedRevision: 1 });
+      expect(run.events).toHaveLength(0);
+    }),
+  );
 
-  it('rejects a move that would cycle the authoritative hierarchy without recording a success event', async () => {
-    const run = context({
-      moveCategory: () => Effect.succeed({ _tag: 'hierarchy_conflict', reason: 'Descendant cannot become parent' }),
-    });
-    const result = await Effect.runPromiseExit(
-      handleMoveProductCategory(
+  it.effect('rejects a cycle and dependency-blocked retirement without success events', () =>
+    Effect.gen(function* categoryActionTest() {
+      const moved = moveContext({
+        moveCategory: () => Effect.succeed({ _tag: 'hierarchy_conflict', reason: 'Cycle' }),
+      });
+      const moveError = yield* handleMoveProductCategory(
         {
           categoryRef,
           expectedRevision: 1,
           parentRef: { ...categoryRef, resourceId: '44444444-4444-4444-8444-444444444444' },
           reason: 'Move',
         },
-        run.value as never,
-      ),
-    );
-    expect(result._tag).toBe('Failure');
-    expect(run.events).toHaveLength(0);
-    expect(run.reads).toHaveLength(0);
-  });
+        moved.value,
+      ).pipe(Effect.flip);
+      expect(moveError.code).toBe('category_conflict');
+      expect(moved.events).toHaveLength(0);
+      for (const reason of ['DIRECT_CHILDREN_REMAIN', 'DIRECT_ASSIGNMENTS_REMAIN']) {
+        const blocked = retireContext({ retireCategory: () => Effect.succeed({ _tag: 'reference_conflict', reason }) });
+        const error = yield* handleRetireProductCategory(
+          { categoryRef, expectedRevision: 1, reason: 'Retire' },
+          blocked.value,
+        ).pipe(Effect.flip);
+        expect(error.code).toBe('category_reference_conflict');
+        expect(blocked.events).toHaveLength(0);
+      }
+    }),
+  );
 
-  it('blocks retirement while direct children or assignments remain, then emits once when resolved', async () => {
-    for (const reason of ['DIRECT_CHILDREN_REMAIN', 'DIRECT_ASSIGNMENTS_REMAIN']) {
-      const blocked = context({ retireCategory: () => Effect.succeed({ _tag: 'reference_conflict', reason }) });
-      const outcome = await Effect.runPromiseExit(
-        handleRetireProductCategory({ categoryRef, expectedRevision: 1, reason: 'Retire' }, blocked.value as never),
+  it.effect('retires only after resolution, retaining category identity', () =>
+    Effect.gen(function* categoryActionTest() {
+      const run = retireContext({
+        retireCategory: () =>
+          Effect.succeed({
+            _tag: 'retired',
+            category: { ...category, lifecycle: 'RETIRED', revision: 2 },
+            changed: true,
+            hierarchyRevision: 2,
+          }),
+      });
+      const result = yield* handleRetireProductCategory(
+        { categoryRef, expectedRevision: 1, reason: 'Retire' },
+        run.value,
       );
-      expect(outcome._tag).toBe('Failure');
-      expect(blocked.events).toHaveLength(0);
-    }
-    const retired = context({
-      retireCategory: () =>
-        Effect.succeed({
-          _tag: 'retired',
-          category: { ...category, lifecycle: 'RETIRED', revision: 2 },
-          changed: true,
-          hierarchyRevision: 2,
-        }),
-    });
-    const outcome = await Effect.runPromise(
-      handleRetireProductCategory({ categoryRef, expectedRevision: 1, reason: 'Retire' }, retired.value as never),
-    );
-    expect(outcome.category.lifecycle).toBe('RETIRED');
-    expect(outcome.category.categoryRef).toEqual(categoryRef);
-    expect(retired.events).toHaveLength(1);
-  });
+      expect(result.category.categoryRef).toEqual(categoryRef);
+      expect(result.category.lifecycle).toBe('RETIRED');
+      expect(run.events).toHaveLength(1);
+    }),
+  );
 
-  it('removes the last direct assignment without inventing a replacement category', async () => {
-    const run = context({
-      removeAssignment: () => Effect.succeed({ _tag: 'removed', assignmentRevision: 2, categoryRef, productRef }),
-    });
-    const result = await Effect.runPromise(
-      handleRemoveProductCategoryAssignment({ categoryRef, productRef, reason: 'Unclassify' }, run.value as never),
-    );
-    expect(result).toMatchObject({ categoryRef, productRef, changed: true, assignmentRevision: 2 });
-    expect(result).not.toHaveProperty('replacementCategoryRef');
-    expect(run.events).toHaveLength(1);
-    const repeated = context({
-      removeAssignment: () => Effect.succeed({ _tag: 'unchanged', assignmentRevision: 2, categoryRef, productRef }),
-    });
-    const unchanged = await Effect.runPromise(
-      handleRemoveProductCategoryAssignment({ categoryRef, productRef, reason: 'Unclassify' }, repeated.value as never),
-    );
-    expect(unchanged.changed).toBe(false);
-    expect(repeated.events).toHaveLength(0);
-  });
+  it.effect('removes the last assignment without replacement and emits only on change', () =>
+    Effect.gen(function* categoryActionTest() {
+      const run = removeContext({
+        removeAssignment: () => Effect.succeed({ _tag: 'removed', assignmentRevision: 2, categoryRef, productRef }),
+      });
+      const result = yield* handleRemoveProductCategoryAssignment(
+        { categoryRef, productRef, reason: 'Unclassify' },
+        run.value,
+      );
+      expect(result.changed).toBe(true);
+      expect(result).not.toHaveProperty('replacementCategoryRef');
+      expect(run.events).toHaveLength(1);
+      const repeated = removeContext({
+        removeAssignment: () => Effect.succeed({ _tag: 'unchanged', assignmentRevision: 2, categoryRef, productRef }),
+      });
+      expect(
+        (yield* handleRemoveProductCategoryAssignment(
+          { categoryRef, productRef, reason: 'Unclassify' },
+          repeated.value,
+        )).changed,
+      ).toBe(false);
+      expect(repeated.events).toHaveLength(0);
+    }),
+  );
 });
