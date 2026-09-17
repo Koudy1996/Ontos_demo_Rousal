@@ -460,7 +460,7 @@ const exportedRuntimeFactory = (source: string): SourceRange | undefined => {
   if (exported === undefined || !/^[A-Za-z][A-Za-z0-9]*$/u.test(exported)) {
     return undefined;
   }
-  const runtimeInitializer = assignedExpression(source, new RegExp(`const ${escapeRegExp(exported)}\\s*=\\s*`, 'u'));
+  const runtimeInitializer = constInitializer(source, exported);
   const factory = /^(?<factory>make[A-Za-z][A-Za-z0-9]*ApiRuntime)\(/u.exec(runtimeInitializer ?? '')?.groups?.factory;
   const factoryExpression =
     factory === undefined
@@ -539,7 +539,7 @@ const slotIsMountedByAssembler = (
   if (handlers === undefined || !/^[A-Za-z][A-Za-z0-9]*$/u.test(handlers)) {
     return false;
   }
-  const resolved = assignedExpression(runtimeSource, new RegExp(`const ${escapeRegExp(handlers)}\\s*=\\s*`, 'u'));
+  const resolved = constInitializer(runtimeSource, handlers);
   return (
     resolved !== undefined && isWholeCallExpression(resolved, new RegExp(`^${escapeRegExp(layerName)}\\.pipe\\(`, 'u'))
   );

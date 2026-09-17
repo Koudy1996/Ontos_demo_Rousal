@@ -6016,6 +6016,18 @@ it.live(
       readFile(path.join(appRoot, 'verticals/party-registry/api/index.ts'), 'utf-8'),
     );
     expect(hasValidGovernedHttpCompositionRoot(shared, handler)).toBe(true);
+    const typedHandler = handler.replace(
+      'const apiRuntime = makePartyRegistryApiRuntime(',
+      'const apiRuntime: EffectBffDefinition<typeof partyRegistryApi> & EffectBffRuntime<typeof partyRegistryApi> = makePartyRegistryApiRuntime(',
+    );
+    expect(typedHandler).not.toBe(handler);
+    expect(hasValidGovernedHttpCompositionRoot(shared, typedHandler)).toBe(true);
+    expect(
+      hasValidGovernedHttpCompositionRoot(
+        shared,
+        typedHandler.replace('export default apiRuntime;', 'export default unrelatedRuntime;'),
+      ),
+    ).toBe(false);
     expect(
       hasValidGovernedHttpCompositionRoot(
         shared,
