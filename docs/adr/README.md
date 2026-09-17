@@ -28,6 +28,7 @@ relevant to the task. An accepted ADR remains current unless a later ADR explici
 | [0021](0021-attempt-bound-proofs-outside-order-acceptance-bundle.md) | Attempt-bound proofs stay outside the Order Acceptance Bundle | Accepted                       |
 | [0022](0022-optional-provider-neutral-email-delivery.md)    | Optional provider-neutral email delivery capability       | Accepted                          |
 | [0023](0023-inventory-reservation-authority-and-commitment-fence.md) | Inventory reservation authority and commitment fence | Accepted |
+| [0024](0024-inventory-demand-before-stock-allocation.md)   | Inventory demand is defined before Stock Position allocation | Accepted                       |
 
 ## Status meanings
 
