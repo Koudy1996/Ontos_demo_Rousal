@@ -66,10 +66,31 @@ export const readProductCategoryClassification = Effect.fn('ProductCategoryClass
     if (classification.status === 'UNAVAILABLE') {
       return yield* unavailable();
     }
+    const expected = new Set([
+      ...classification.directCategories.map(({ resourceId }) => resourceId),
+      ...classification.ancestors.map(({ ancestorRef }) => ancestorRef.resourceId),
+    ]);
+    if (
+      classification.categoryNames.length !== expected.size ||
+      classification.categoryNames.some(
+        ({ categoryRef: ref, name }) =>
+          ref.tenantId !== trustedTenantId ||
+          !expected.delete(ref.resourceId) ||
+          name.trim() !== name ||
+          name.length === 0,
+      ) ||
+      expected.size !== 0
+    ) {
+      return yield* unavailable();
+    }
     return {
       ancestors: classification.ancestors.map(({ ancestorRef, viaDirectCategories }) => ({
         ancestorRef: categoryRef(trustedTenantId, ancestorRef.resourceId),
         viaDirectCategories: viaDirectCategories.map(({ resourceId }) => categoryRef(trustedTenantId, resourceId)),
+      })),
+      categoryNames: classification.categoryNames.map(({ categoryRef: ref, name }) => ({
+        categoryRef: categoryRef(trustedTenantId, ref.resourceId),
+        name,
       })),
       directCategories: classification.directCategories.map(({ resourceId }) =>
         categoryRef(trustedTenantId, resourceId),

@@ -103,12 +103,22 @@ it('keeps empty classification distinct from unavailable with paired revision ev
   expect(
     Schema.decodeUnknownSync(ProductCategoryClassificationResponseSchema)({
       ancestors: [],
+      categoryNames: [],
       directCategories: [],
       productRef,
       revision: { assignments: 0, hierarchy: 0 },
       status: 'AVAILABLE',
     }),
   ).toMatchObject({ directCategories: [], status: 'AVAILABLE' });
+  expect(() =>
+    Schema.decodeUnknownSync(ProductCategoryClassificationResponseSchema)({
+      ancestors: [],
+      directCategories: [],
+      productRef,
+      revision: { assignments: 0, hierarchy: 0 },
+      status: 'AVAILABLE',
+    }),
+  ).toThrow();
   expect(() =>
     Schema.decodeUnknownSync(ProductCategoryClassificationResponseSchema)({ status: 'UNAVAILABLE' }),
   ).toThrow();

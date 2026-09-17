@@ -14,6 +14,12 @@ export const ProductCategoryClassificationResponseSchema = Schema.Struct({
       viaDirectCategories: Schema.Array(ProductCategoryRefSchema),
     }),
   ),
+  categoryNames: Schema.Array(
+    Schema.Struct({
+      categoryRef: ProductCategoryRefSchema,
+      name: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed(), Schema.isMaxLength(240)),
+    }),
+  ),
   directCategories: Schema.Array(ProductCategoryRefSchema),
   productRef: ProductRefSchema,
   revision: Schema.Struct({

@@ -30,6 +30,10 @@ describe('governed Category classification read', () => {
                   viaDirectCategories: [{ resourceId: categoryId, tenantId }],
                 },
               ],
+              categoryNames: [
+                { categoryRef: { resourceId: categoryId, tenantId }, name: 'Wall shelves' },
+                { categoryRef: { resourceId: parentId, tenantId }, name: 'Shelves' },
+              ],
               directCategories: [{ resourceId: categoryId, tenantId }],
               revision: { assignments: 2, hierarchy: 5 },
               status: 'AVAILABLE',
@@ -47,6 +51,10 @@ describe('governed Category classification read', () => {
         },
       ]);
       expect(result.ancestors[0]?.viaDirectCategories).toEqual(result.directCategories);
+      expect(result.categoryNames).toEqual([
+        { categoryRef: result.directCategories[0], name: 'Wall shelves' },
+        { categoryRef: result.ancestors[0]?.ancestorRef, name: 'Shelves' },
+      ]);
       expect(result.revision).toEqual({ assignments: 2, hierarchy: 5 });
       expect('primaryCategory' in result).toBe(false);
     }),
@@ -84,6 +92,7 @@ describe('governed Category classification read', () => {
           Effect.succeed(
             Option.some({
               ancestors: [],
+              categoryNames: [],
               directCategories: [],
               revision: { assignments: 0, hierarchy: 0 },
               status: 'AVAILABLE',
@@ -92,6 +101,37 @@ describe('governed Category classification read', () => {
       };
       const knownEmpty = yield* readProductCategoryClassification(input, tenantId, empty);
       expect(knownEmpty.directCategories).toEqual([]);
+      expect(knownEmpty.categoryNames).toEqual([]);
+    }),
+  );
+
+  it.effect('fails closed on missing, extra, duplicate, or foreign Current names', () =>
+    Effect.gen(function* rejectInconsistentNamesCase() {
+      const direct = { resourceId: categoryId, tenantId };
+      for (const categoryNames of [
+        [],
+        [
+          { categoryRef: direct, name: 'Wall shelves' },
+          { categoryRef: direct, name: 'Duplicate' },
+        ],
+        [{ categoryRef: { resourceId: parentId, tenantId }, name: 'Extra' }],
+        [{ categoryRef: { ...direct, tenantId: '00000000-0000-4000-8000-000000000099' }, name: 'Foreign' }],
+      ]) {
+        const services: CategoryClassificationPersistence = {
+          getClassification: () =>
+            Effect.succeed(
+              Option.some({
+                ancestors: [],
+                categoryNames,
+                directCategories: [direct],
+                revision: { assignments: 2, hierarchy: 5 },
+                status: 'AVAILABLE',
+              }),
+            ),
+        };
+        const error = yield* readProductCategoryClassification(input, tenantId, services).pipe(Effect.flip);
+        expect(error.code).toBe('read_handler_unavailable');
+      }
     }),
   );
 });

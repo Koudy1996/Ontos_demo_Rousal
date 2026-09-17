@@ -28,8 +28,17 @@ const unavailable = (cause?: unknown): CategoryPersistenceUnavailable => {
 export interface CategoryClassificationPersistence {
   readonly getClassification: (
     productId: string,
-  ) => Effect.Effect<Option.Option<ClassificationResult>, CategoryPersistenceUnavailable>;
+  ) => Effect.Effect<Option.Option<CurrentClassificationResult>, CategoryPersistenceUnavailable>;
 }
+
+export type CurrentClassificationResult =
+  | (Extract<ClassificationResult, { readonly status: 'AVAILABLE' }> & {
+      readonly categoryNames: readonly {
+        readonly categoryRef: { readonly resourceId: string; readonly tenantId: string };
+        readonly name: string;
+      }[];
+    })
+  | { readonly status: 'UNAVAILABLE' };
 
 /** Read a revision-paired classification inside Core's scoped read transaction. */
 export const categoryClassificationPersistenceForScope = (
@@ -47,7 +56,7 @@ export const categoryClassificationPersistenceForScope = (
       .limit(1)
       .pipe(Effect.mapError(unavailable));
     if (product === undefined) {
-      return Option.none<ClassificationResult>();
+      return Option.none<CurrentClassificationResult>();
     }
     // Every Category write locks this row FOR UPDATE first. A shared lock freezes the pair
     // while the following classification rows are read; an absent row is rechecked below.
@@ -104,7 +113,23 @@ export const categoryClassificationPersistenceForScope = (
     if (classification.status === 'UNAVAILABLE') {
       return yield* unavailable();
     }
-    return Option.some(classification);
+    const currentById = new Map(
+      categories.map(({ categoryId, lifecycleState, name }) => [categoryId, { lifecycleState, name }]),
+    );
+    const referenced = [
+      ...classification.directCategories,
+      ...classification.ancestors.map(({ ancestorRef }) => ancestorRef),
+    ];
+    const uniqueRefs = new Map(referenced.map((categoryRef) => [categoryRef.resourceId, categoryRef]));
+    const categoryNames = [];
+    for (const categoryRef of uniqueRefs.values()) {
+      const current = currentById.get(categoryRef.resourceId);
+      if (current?.lifecycleState !== 'ACTIVE' || current.name.trim() !== current.name || current.name.length === 0) {
+        return yield* unavailable();
+      }
+      categoryNames.push({ categoryRef, name: current.name });
+    }
+    return Option.some({ ...classification, categoryNames });
   });
   return Effect.succeed(Object.freeze({ getClassification }));
 };
