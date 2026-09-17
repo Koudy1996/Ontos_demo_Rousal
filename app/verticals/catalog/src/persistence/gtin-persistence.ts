@@ -107,7 +107,6 @@ export const gtinPersistenceForScope = (transaction: ScopedTransaction, scope: O
             )
             .for('update')
             .limit(1)
-            .pipe(Effect.mapError(unavailable))
         : [undefined];
     const variantId = target.kind === 'VARIANT' ? target.variantId : pack?.variantId;
     if (variantId === undefined || (pack !== undefined && pack.lifecycleState !== 'ACTIVE')) {
@@ -118,8 +117,7 @@ export const gtinPersistenceForScope = (transaction: ScopedTransaction, scope: O
       .from(productVariants)
       .where(and(eq(productVariants.tenantId, tenantId), eq(productVariants.variantId, variantId)))
       .for('update')
-      .limit(2)
-      .pipe(Effect.mapError(unavailable));
+      .limit(2);
     const [variant] = variants;
     if (
       variants.length !== 1 ||
@@ -133,13 +131,12 @@ export const gtinPersistenceForScope = (transaction: ScopedTransaction, scope: O
       .from(products)
       .where(and(eq(products.tenantId, tenantId), eq(products.productId, variant.productId)))
       .for('update')
-      .limit(1)
-      .pipe(Effect.mapError(unavailable));
+      .limit(1);
     if (variant.lifecycleState !== 'ACTIVE' || product?.lifecycleState !== 'ACTIVE') {
       return null;
     }
     return { packageDefinitionId: pack?.packageDefinitionId ?? null, productId: variant.productId, variantId };
-  });
+  }, Effect.mapError(unavailable));
 
   const persist = Effect.fn('GtinPersistence.persist')(function* persist(
     input: ConfirmGtinInput,
