@@ -20,14 +20,7 @@ import {
 import type { AttributePersistence, CreateAttributeDefinitionInput } from '../persistence/attribute-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 
-export {
-  CreateAttributeDefinitionPayloadSchema,
-  CreateAttributeDefinitionResultSchema,
-} from '../../shared/actions/attribute-governance.ts';
-export type {
-  CreateAttributeDefinitionPayload,
-  CreateAttributeDefinitionResult,
-} from '../../shared/actions/attribute-governance.ts';
+export type { CreateAttributeDefinitionPayload } from '../../shared/actions/attribute-governance.ts';
 
 const domainEvents = {} as const;
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;

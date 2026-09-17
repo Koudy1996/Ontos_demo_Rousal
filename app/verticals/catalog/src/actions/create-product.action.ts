@@ -19,7 +19,6 @@ import {
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 
-export { CreateProductPayloadSchema } from '../../shared/actions/create-product.ts';
 export type { CreateProductPayload } from '../../shared/actions/create-product.ts';
 
 const MODULE_KEY = 'commerce.catalog' as const;

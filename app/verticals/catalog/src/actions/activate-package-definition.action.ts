@@ -27,7 +27,6 @@ import type {
 } from '../persistence/package-activation-persistence.ts';
 import { packageContentBasisForTransaction } from './package-definition-action-support.ts';
 
-export { ActivatePackageDefinitionPayloadSchema } from '../../shared/actions/activate-package-definition.ts';
 export type { ActivatePackageDefinitionPayload } from '../../shared/actions/activate-package-definition.ts';
 
 const domainError = (

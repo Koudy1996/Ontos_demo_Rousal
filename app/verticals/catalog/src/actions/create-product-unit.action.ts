@@ -22,7 +22,6 @@ import {
   resolveProductUnitMutation,
 } from './product-unit-action-support.ts';
 
-export { CreateProductUnitPayloadSchema } from '../../shared/actions/create-product-unit.ts';
 export type { CreateProductUnitPayload } from '../../shared/actions/create-product-unit.ts';
 
 export const handleCreateProductUnit = Effect.fn('CreateProductUnitAction.handle')(

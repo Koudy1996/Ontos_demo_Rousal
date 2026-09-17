@@ -20,7 +20,6 @@ import {
   resolveBrandMutation,
 } from './brand-action-support.ts';
 
-export { ReactivateBrandPayloadSchema } from '../../shared/actions/brand-mutations.ts';
 export type { ReactivateBrandPayload } from '../../shared/actions/brand-mutations.ts';
 
 export const handleReactivateBrand = Effect.fn('ReactivateBrandAction.handle')(function* handleReactivateBrand(

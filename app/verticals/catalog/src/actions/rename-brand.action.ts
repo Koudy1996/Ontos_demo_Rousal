@@ -20,7 +20,6 @@ import {
   resolveBrandMutation,
 } from './brand-action-support.ts';
 
-export { RenameBrandPayloadSchema } from '../../shared/actions/brand-mutations.ts';
 export type { RenameBrandPayload } from '../../shared/actions/brand-mutations.ts';
 
 export const handleRenameBrand = Effect.fn('RenameBrandAction.handle')(function* handleRenameBrand(

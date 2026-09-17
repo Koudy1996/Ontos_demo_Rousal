@@ -22,7 +22,6 @@ import {
   resolvePackageMutation,
 } from './package-definition-action-support.ts';
 
-export { RetirePackageDefinitionPayloadSchema } from '../../shared/actions/retire-package-definition.ts';
 export type { RetirePackageDefinitionPayload } from '../../shared/actions/retire-package-definition.ts';
 
 export const handleRetirePackageDefinition = Effect.fn('RetirePackageDefinitionAction.handle')(

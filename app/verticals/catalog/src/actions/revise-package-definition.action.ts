@@ -22,7 +22,6 @@ import {
   resolvePackageMutation,
 } from './package-definition-action-support.ts';
 
-export { RevisePackageDefinitionPayloadSchema } from '../../shared/actions/revise-package-definition.ts';
 export type { RevisePackageDefinitionPayload } from '../../shared/actions/revise-package-definition.ts';
 
 export const handleRevisePackageDefinition = Effect.fn('RevisePackageDefinitionAction.handle')(

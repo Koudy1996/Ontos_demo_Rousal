@@ -20,7 +20,6 @@ import {
   resolveBrandMutation,
 } from './brand-action-support.ts';
 
-export { SetProductBrandPayloadSchema } from '../../shared/actions/brand-mutations.ts';
 export type { SetProductBrandPayload } from '../../shared/actions/brand-mutations.ts';
 
 export const handleSetProductBrand = Effect.fn('SetProductBrandAction.handle')(function* handleSetProductBrand(

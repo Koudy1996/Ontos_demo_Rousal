@@ -22,7 +22,6 @@ import {
   resolveProductUnitMutation,
 } from './product-unit-action-support.ts';
 
-export { ReviseProductUnitPayloadSchema } from '../../shared/actions/revise-product-unit.ts';
 export type { ReviseProductUnitPayload } from '../../shared/actions/revise-product-unit.ts';
 
 export const handleReviseProductUnit = Effect.fn('ReviseProductUnitAction.handle')(function* handleReviseProductUnit(

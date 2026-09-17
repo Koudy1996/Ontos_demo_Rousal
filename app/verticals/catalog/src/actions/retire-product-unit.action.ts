@@ -22,7 +22,6 @@ import {
   resolveProductUnitMutation,
 } from './product-unit-action-support.ts';
 
-export { RetireProductUnitPayloadSchema } from '../../shared/actions/retire-product-unit.ts';
 export type { RetireProductUnitPayload } from '../../shared/actions/retire-product-unit.ts';
 
 export const handleRetireProductUnit = Effect.fn('RetireProductUnitAction.handle')(

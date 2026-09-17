@@ -22,7 +22,6 @@ import {
   resolvePackageMutation,
 } from './package-definition-action-support.ts';
 
-export { CreatePackageDefinitionPayloadSchema } from '../../shared/actions/create-package-definition.ts';
 export type { CreatePackageDefinitionPayload } from '../../shared/actions/create-package-definition.ts';
 
 export const handleCreatePackageDefinition = Effect.fn('CreatePackageDefinitionAction.handle')(

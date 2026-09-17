@@ -20,7 +20,6 @@ import {
   resolveBrandMutation,
 } from './brand-action-support.ts';
 
-export { RetireBrandPayloadSchema } from '../../shared/actions/brand-mutations.ts';
 export type { RetireBrandPayload } from '../../shared/actions/brand-mutations.ts';
 
 export const handleRetireBrand = Effect.fn('RetireBrandAction.handle')(function* handleRetireBrand(

@@ -22,7 +22,6 @@ import {
   resolveProductUnitMutation,
 } from './product-unit-action-support.ts';
 
-export { SetProductUnitTargetDivisibilityPayloadSchema } from '../../shared/actions/set-product-unit-target-divisibility.ts';
 export type { SetProductUnitTargetDivisibilityPayload } from '../../shared/actions/set-product-unit-target-divisibility.ts';
 
 export const handleSetProductUnitTargetDivisibility = Effect.fn('SetProductUnitTargetDivisibilityAction.handle')(
