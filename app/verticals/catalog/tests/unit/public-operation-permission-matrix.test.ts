@@ -37,22 +37,20 @@ const reads = [
 it('maps every published Action and governed read to one explicit atomic permission and bundle', () => {
   const actionKeys = catalogManifest.publicSurface.actions.map((action) => action.descriptor.actionKey);
   const readKeys = reads.map((read) => read.descriptor.readKey);
-  expect(readKeys.sort()).toEqual(
-    Object.keys(catalogManifest.publicSurface.api)
-      .map((name) => `commerce.catalog.api.${name}`)
-      .sort(),
+  expect(new Set(readKeys)).toEqual(
+    new Set(Object.keys(catalogManifest.publicSurface.api).map((name) => `commerce.catalog.api.${name}`)),
   );
   const published = [...actionKeys, ...readKeys];
   expect(new Set(published).size).toBe(published.length);
-  expect(Object.keys(catalogPublicOperationContracts).sort()).toEqual([...published].sort());
+  expect(new Set(Object.keys(catalogPublicOperationContracts))).toEqual(new Set(published));
 
   for (const actionKey of actionKeys) {
-    const contract = catalogPublicOperationContracts[actionKey as keyof typeof catalogPublicOperationContracts];
+    const contract = Object.entries(catalogPublicOperationContracts).find(([key]) => key === actionKey)?.[1];
     expect(contract).toMatchObject({ permission: actionKey, permissionKind: 'action_execution', scope: 'tenant' });
   }
   for (const read of reads) {
     const { entrypoint, readKey } = read.descriptor;
-    const contract = catalogPublicOperationContracts[readKey as keyof typeof catalogPublicOperationContracts];
+    const contract = Object.entries(catalogPublicOperationContracts).find(([key]) => key === readKey)?.[1];
     expect(entrypoint.authorization.kind).toBe('context_permission');
     if (entrypoint.authorization.kind !== 'context_permission') {
       continue;
@@ -68,12 +66,12 @@ it('maps every published Action and governed read to one explicit atomic permiss
       readKey.includes('brand') ||
       readKey.includes('manufacturer-relation') ||
       readKey.includes('product-relationship');
-    const expectedTarget =
-      readKey === 'commerce.catalog.api.catalog-media-current'
-        ? 'resource'
-        : relationshipOrIdentity
-          ? 'module'
-          : 'tenant';
+    let expectedTarget = 'tenant';
+    if (readKey === 'commerce.catalog.api.catalog-media-current') {
+      expectedTarget = 'resource';
+    } else if (relationshipOrIdentity) {
+      expectedTarget = 'module';
+    }
     expect(read.descriptor.permissionTarget).toBe(expectedTarget);
     if ('resourcePermission' in read.descriptor && read.descriptor.resourcePermission !== undefined) {
       expect(contract).toMatchObject({ permissionTarget: expectedTarget, resourcePermission: 'read' });
@@ -89,7 +87,7 @@ it('maps every published Action and governed read to one explicit atomic permiss
   const contractPermissions = Object.values(catalogPublicOperationContracts).map(({ permission }) => permission);
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
   expect(new Set(contractPermissions).size).toBe(contractPermissions.length);
-  expect([...bundlePermissions].sort()).toEqual([...contractPermissions].sort());
+  expect(new Set(bundlePermissions)).toEqual(new Set(contractPermissions));
   for (const contract of Object.values(catalogPublicOperationContracts)) {
     expect(catalogAuthorityBundles[contract.authorityBundle]).toContain(contract.permission);
   }

@@ -11,11 +11,11 @@ const tenantId = '11111111-1111-4111-8111-111111111111';
 const foreignTenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 const grantedPermissions = (...bundles: (keyof typeof catalogAuthorityBundles)[]) =>
-  new Set(bundles.flatMap((bundle) => catalogAuthorityBundles[bundle]));
+  new Set<string>(bundles.flatMap((bundle) => catalogAuthorityBundles[bundle]));
 
 describe('Catalog permission boundaries (#477)', () => {
   it('does not infer Catalog authority from membership, purchasing, importer, or Storefront identity', () => {
-    const catalogPermissions = new Set(
+    const catalogPermissions = new Set<string>(
       Object.values(catalogPublicOperationContracts).map(({ permission }) => permission),
     );
     for (const unrelatedGrant of [
@@ -29,7 +29,7 @@ describe('Catalog permission boundaries (#477)', () => {
     ]) {
       expect(catalogPermissions.has(unrelatedGrant)).toBe(false);
       expect(
-        Object.values(catalogAuthorityBundles).some((permissions) => permissions.includes(unrelatedGrant as never)),
+        Object.values(catalogAuthorityBundles).some((permissions) => new Set<string>(permissions).has(unrelatedGrant)),
       ).toBe(false);
     }
     expect(catalogPermissions.has('commerce.catalog.activate-local-override')).toBe(false);
@@ -55,7 +55,8 @@ describe('Catalog permission boundaries (#477)', () => {
     for (const [leftName, leftPermissions] of Object.entries(catalogAuthorityBundles)) {
       for (const [rightName, rightPermissions] of Object.entries(catalogAuthorityBundles)) {
         if (leftName !== rightName) {
-          expect(leftPermissions.filter((permission) => rightPermissions.includes(permission as never))).toEqual([]);
+          const rightPermissionSet = new Set<string>(rightPermissions);
+          expect(leftPermissions.filter((permission) => rightPermissionSet.has(permission))).toEqual([]);
         }
       }
     }
@@ -131,7 +132,7 @@ describe('Catalog permission boundaries (#477)', () => {
       };
       const error = yield* handleRetireVariant(
         {
-          expectedRevision: 1,
+          expectedVariantRevision: 1,
           reason: 'retire',
           variantRef: {
             moduleId: 'commerce.catalog',
