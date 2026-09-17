@@ -19,6 +19,7 @@ import { attributeDefinitionResourceDescriptor } from './shared/resources/attrib
 import { BrandCurrentApi } from './shared/apis/brand-current.ts';
 import { BrandHistoryApi } from './shared/apis/brand-history.ts';
 import { brandResourceDescriptor } from './shared/resources/brand.ts';
+import { CatalogMediaCurrentApi } from './shared/apis/catalog-media-current.ts';
 import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.ts';
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
@@ -189,6 +190,7 @@ export const catalogManifest = defineOntosModuleManifest({
       // <generated-module-manifest-apis>
       'brand-current': BrandCurrentApi,
       'brand-history': BrandHistoryApi,
+      'catalog-media-current': CatalogMediaCurrentApi,
       'create-product-recovery': CreateProductRecoveryApi,
       'manufacturer-relation-current': ManufacturerRelationCurrentApi,
       'manufacturer-relation-history': ManufacturerRelationHistoryApi,

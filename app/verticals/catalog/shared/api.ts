@@ -13,6 +13,7 @@ import { AddProductCategoryAssignmentActionApi } from './apis/add-product-catego
 import { AssignCatalogMediaActionApi } from './apis/assign-catalog-media-action.ts';
 import { BrandCurrentApi } from './apis/brand-current.ts';
 import { BrandHistoryApi } from './apis/brand-history.ts';
+import { CatalogMediaCurrentApi } from './apis/catalog-media-current.ts';
 import { ChangeProductManufacturerActionApi } from './apis/change-product-manufacturer-action.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
 import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
@@ -104,6 +105,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(AssignCatalogMediaActionApi)
   .addHttpApi(BrandCurrentApi)
   .addHttpApi(BrandHistoryApi)
+  .addHttpApi(CatalogMediaCurrentApi)
   .addHttpApi(ChangeProductManufacturerActionApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
   .addHttpApi(ChangeVariantActionApi)

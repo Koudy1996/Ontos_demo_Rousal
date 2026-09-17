@@ -30,6 +30,7 @@ import { addProductCategoryAssignmentActionApiLive } from './add-product-categor
 import { assignCatalogMediaActionApiLive } from './assign-catalog-media-action-server.ts';
 import { brandCurrentReadApiLive } from './brand-current-read-server.ts';
 import { brandHistoryReadApiLive } from './brand-history-read-server.ts';
+import { catalogMediaCurrentReadApiLive } from './catalog-media-current-read-server.ts';
 import { changeProductManufacturerActionApiLive } from './change-product-manufacturer-action-server.ts';
 import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
 import { changeVariantActionApiLive } from './change-variant-action-server.ts';
@@ -192,6 +193,7 @@ export const makeCatalogApiRuntime = (
     assignCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     brandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     brandHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    catalogMediaCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
