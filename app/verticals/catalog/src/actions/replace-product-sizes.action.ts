@@ -4,22 +4,24 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { SizeUsageListSchema } from '../../shared/domain/attribute-vocabulary.ts';
-import { ProductAuditEvidenceSchema, ProductReasonSchema } from '../../shared/domain/product.ts';
+import {
+  ReplaceProductSizesPayloadSchema,
+  ReplaceProductSizesResultSchema,
+} from '../../shared/actions/replace-product-sizes.ts';
+import type { ReplaceProductSizesPayload } from '../../shared/actions/replace-product-sizes.ts';
+import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import { SizePersistenceConflict, sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { SizeUsagePersistence } from '../persistence/size-usage-persistence.ts';
 
-export const ReplaceProductSizesPayloadSchema = Schema.Struct({
-  evidenceRefs: Schema.Array(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed())),
-  expectedRevision: Schema.Finite.check(Schema.isInt(), Schema.isBetween({ minimum: 0, maximum: 2_147_483_646 })),
-  list: SizeUsageListSchema,
-  reason: ProductReasonSchema,
-});
-export type ReplaceProductSizesPayload = Schema.Schema.Type<typeof ReplaceProductSizesPayloadSchema>;
-
-export const ReplaceProductSizesResultSchema = Schema.Struct({ revision: Schema.Number.check(Schema.isInt()) });
-export type ReplaceProductSizesResult = Schema.Schema.Type<typeof ReplaceProductSizesResultSchema>;
+export {
+  ReplaceProductSizesPayloadSchema,
+  ReplaceProductSizesResultSchema,
+} from '../../shared/actions/replace-product-sizes.ts';
+export type {
+  ReplaceProductSizesPayload,
+  ReplaceProductSizesResult,
+} from '../../shared/actions/replace-product-sizes.ts';
 
 export const handleReplaceProductSizes = Effect.fn('ReplaceProductSizesAction.handle')(
   function* handleReplaceProductSizes(

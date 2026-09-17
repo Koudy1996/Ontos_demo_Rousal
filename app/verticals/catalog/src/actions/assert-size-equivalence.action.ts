@@ -4,20 +4,24 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { SizeEquivalenceAssertionSchema } from '../../shared/domain/attribute-vocabulary.ts';
-import { ProductAuditEvidenceSchema, ProductReasonSchema } from '../../shared/domain/product.ts';
+import {
+  AssertSizeEquivalencePayloadSchema,
+  AssertSizeEquivalenceResultSchema,
+} from '../../shared/actions/assert-size-equivalence.ts';
+import type { AssertSizeEquivalencePayload } from '../../shared/actions/assert-size-equivalence.ts';
+import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import { SizePersistenceConflict, sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { SizeUsagePersistence } from '../persistence/size-usage-persistence.ts';
 
-export const AssertSizeEquivalencePayloadSchema = Schema.Struct({
-  assertion: SizeEquivalenceAssertionSchema,
-  reason: ProductReasonSchema,
-});
-export type AssertSizeEquivalencePayload = Schema.Schema.Type<typeof AssertSizeEquivalencePayloadSchema>;
-
-export const AssertSizeEquivalenceResultSchema = Schema.Struct({ assertionId: Schema.String.check(Schema.isUUID()) });
-export type AssertSizeEquivalenceResult = Schema.Schema.Type<typeof AssertSizeEquivalenceResultSchema>;
+export {
+  AssertSizeEquivalencePayloadSchema,
+  AssertSizeEquivalenceResultSchema,
+} from '../../shared/actions/assert-size-equivalence.ts';
+export type {
+  AssertSizeEquivalencePayload,
+  AssertSizeEquivalenceResult,
+} from '../../shared/actions/assert-size-equivalence.ts';
 
 export const handleAssertSizeEquivalence = Effect.fn('AssertSizeEquivalenceAction.handle')(
   function* handleAssertSizeEquivalence(

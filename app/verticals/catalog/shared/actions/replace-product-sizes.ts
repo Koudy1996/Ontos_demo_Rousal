@@ -1,8 +1,15 @@
-export {
-  ReplaceProductSizesPayloadSchema,
-  ReplaceProductSizesResultSchema,
-} from '../../src/actions/replace-product-sizes.action.ts';
-export type {
-  ReplaceProductSizesPayload,
-  ReplaceProductSizesResult,
-} from '../../src/actions/replace-product-sizes.action.ts';
+import { Schema } from 'effect';
+
+import { SizeUsageListSchema } from '../domain/attribute-vocabulary.ts';
+import { ProductReasonSchema } from '../domain/product.ts';
+
+export const ReplaceProductSizesPayloadSchema = Schema.Struct({
+  evidenceRefs: Schema.Array(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed())),
+  expectedRevision: Schema.Finite.check(Schema.isInt(), Schema.isBetween({ minimum: 0, maximum: 2_147_483_646 })),
+  list: SizeUsageListSchema,
+  reason: ProductReasonSchema,
+});
+export type ReplaceProductSizesPayload = typeof ReplaceProductSizesPayloadSchema.Type;
+
+export const ReplaceProductSizesResultSchema = Schema.Struct({ revision: Schema.Number.check(Schema.isInt()) });
+export type ReplaceProductSizesResult = typeof ReplaceProductSizesResultSchema.Type;

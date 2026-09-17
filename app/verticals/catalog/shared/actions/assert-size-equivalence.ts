@@ -1,8 +1,13 @@
-export {
-  AssertSizeEquivalencePayloadSchema,
-  AssertSizeEquivalenceResultSchema,
-} from '../../src/actions/assert-size-equivalence.action.ts';
-export type {
-  AssertSizeEquivalencePayload,
-  AssertSizeEquivalenceResult,
-} from '../../src/actions/assert-size-equivalence.action.ts';
+import { Schema } from 'effect';
+
+import { SizeEquivalenceAssertionSchema } from '../domain/attribute-vocabulary.ts';
+import { ProductReasonSchema } from '../domain/product.ts';
+
+export const AssertSizeEquivalencePayloadSchema = Schema.Struct({
+  assertion: SizeEquivalenceAssertionSchema,
+  reason: ProductReasonSchema,
+});
+export type AssertSizeEquivalencePayload = typeof AssertSizeEquivalencePayloadSchema.Type;
+
+export const AssertSizeEquivalenceResultSchema = Schema.Struct({ assertionId: Schema.String.check(Schema.isUUID()) });
+export type AssertSizeEquivalenceResult = typeof AssertSizeEquivalenceResultSchema.Type;
