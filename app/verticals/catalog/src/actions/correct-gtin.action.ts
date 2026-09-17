@@ -31,14 +31,7 @@ const handleCorrectGtin = Effect.fn('CorrectGtinAction.handle')(function* handle
   return yield* completeGtinChange(outcome, payload, context);
 });
 
-export const correctGtinAction: ActionRegistration<
-  typeof CorrectGtinPayloadSchema,
-  typeof CorrectGtinResultSchema,
-  typeof GtinActionErrorSchema,
-  Readonly<Record<string, never>>,
-  'commerce.catalog',
-  GtinServices
-> = defineAction(
+export const correctGtinAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
@@ -66,7 +59,14 @@ export const correctGtinAction: ActionRegistration<
   },
   handleCorrectGtin,
   gtinServicesForScope,
-);
+) as ActionRegistration<
+  typeof CorrectGtinPayloadSchema,
+  typeof CorrectGtinResultSchema,
+  typeof GtinActionErrorSchema,
+  Readonly<Record<string, never>>,
+  'commerce.catalog',
+  GtinServices
+>;
 
 // <generated-outbox-message-exports>
 // </generated-outbox-message-exports>
