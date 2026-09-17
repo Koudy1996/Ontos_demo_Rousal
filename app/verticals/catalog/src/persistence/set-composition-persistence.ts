@@ -113,6 +113,11 @@ const sameRef = (
   type: string,
 ) => ref.moduleId === 'commerce.catalog' && ref.tenantId === tenantId && ref.resourceType === type;
 const validDate = (date: Date) => Option.isSome(DateTime.make(date));
+const sameInstant = (left: Date | undefined, right: Date | undefined) =>
+  left === undefined
+    ? right === undefined
+    : right !== undefined &&
+      DateTime.toEpochMillis(DateTime.makeUnsafe(left)) === DateTime.toEpochMillis(DateTime.makeUnsafe(right));
 const validEvidence = (values: readonly string[]) =>
   values.length > 0 && values.every((value) => value.length > 0 && value.length <= 300 && value.trim() === value);
 const validPublishLineage = (input: PublishSetCompositionInput): boolean => {
@@ -357,6 +362,39 @@ export const setCompositionPersistenceForScope = (
       }
       if (basis === undefined) {
         return yield* unavailable();
+      }
+      const [priorInvocation] = yield* transaction
+        .select()
+        .from(setCompositionRevisions)
+        .where(
+          and(
+            eq(setCompositionRevisions.tenantId, tenantId),
+            eq(setCompositionRevisions.actionInvocationId, input.actionInvocationId),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (priorInvocation !== undefined) {
+        if (
+          priorInvocation.compositionId !== compositionId ||
+          priorInvocation.revision !== revision.reference.revision
+        ) {
+          return { _tag: 'invalid', reason: 'Action invocation already belongs to another Set revision' };
+        }
+        const retained = yield* load(compositionId, priorInvocation.revision);
+        if (Option.isNone(retained)) {
+          return yield* unavailable();
+        }
+        const same = Schema.toEquivalence(SetCompositionRevisionSchema)(retained.value.revision, revision);
+        if (
+          !same ||
+          !sameInstant(retained.value.effectiveFrom, input.effectiveFrom) ||
+          !sameInstant(retained.value.effectiveTo, input.effectiveTo) ||
+          retained.value.lifecycleState !== input.lifecycleState
+        ) {
+          return { _tag: 'invalid', reason: 'Action invocation payload differs from retained Set revision' };
+        }
+        return { _tag: 'published', revision: priorInvocation.revision };
       }
       const inspected = yield* inspectTarget(input);
       if (inspected.outcome !== undefined) {
