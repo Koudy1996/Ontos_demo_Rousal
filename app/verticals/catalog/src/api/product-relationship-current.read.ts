@@ -7,7 +7,7 @@ import {
   defineReadResourcePermission,
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { DateTime, Effect } from 'effect';
 import {
   ProductRelationshipCurrentRequestSchema,
   ProductRelationshipCurrentResponseSchema,
@@ -19,11 +19,14 @@ import type {
 import type { ProductRelationshipReads } from '../persistence/product-relationship-reads.ts';
 import { productRelationshipReadsForScope } from '../persistence/product-relationship-reads.ts';
 
+const readKey = 'commerce.catalog.api.product-relationship-current';
+const moduleKey = 'commerce.catalog';
+
 export const productRelationshipCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-relationship' },
-  entrypointKey: 'commerce.catalog.api.product-relationship-current',
-  moduleKey: 'commerce.catalog',
+  entrypointKey: readKey,
+  moduleKey,
   role: 'api',
 });
 
@@ -36,27 +39,32 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
-export const readProductRelationshipCurrent = Effect.fn('ProductRelationshipCurrentRead.read')(function* (
-  input: ProductRelationshipCurrentRequest,
-  tenantId: string,
-  services: ProductRelationshipReads,
-  at = new Date().toISOString(),
-): Effect.fn.Return<ProductRelationshipCurrentResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
-  if (input.endpoint.tenantId !== tenantId) {
-    return yield* new ReadHandlerNotFound({
-      code: 'read_handler_not_found',
-      reason: 'The endpoint is outside the trusted Tenant',
-    });
-  }
-  const rows = yield* (
-    input.direction === 'forward' ? services.forward(input.endpoint, at) : services.reverse(input.endpoint, at)
-  ).pipe(Effect.mapError(unavailable));
-  return {
-    relationships: rows
-      .filter((row) => row.current)
-      .map(({ relationship, relationshipId, revision }) => ({ relationship, relationshipId, revision })),
-  };
-});
+export const readProductRelationshipCurrent = Effect.fn('ProductRelationshipCurrentRead.read')(
+  function* readProductRelationshipCurrentEffect(
+    input: ProductRelationshipCurrentRequest,
+    tenantId: string,
+    services: ProductRelationshipReads,
+    at?: string,
+  ): Effect.fn.Return<ProductRelationshipCurrentResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
+    if (input.endpoint.tenantId !== tenantId) {
+      return yield* new ReadHandlerNotFound({
+        code: 'read_handler_not_found',
+        reason: 'The endpoint is outside the trusted Tenant',
+      });
+    }
+    const effectiveAt = at ?? DateTime.formatIso(yield* DateTime.now);
+    const rows = yield* (
+      input.direction === 'forward'
+        ? services.forward(input.endpoint, effectiveAt)
+        : services.reverse(input.endpoint, effectiveAt)
+    ).pipe(Effect.mapError(unavailable));
+    return {
+      relationships: rows.flatMap(({ current, relationship, relationshipId, revision }) =>
+        current ? [{ relationship, relationshipId, revision }] : [],
+      ),
+    };
+  },
+);
 
 export const productRelationshipCurrentRead = defineRead(
   {
@@ -64,14 +72,14 @@ export const productRelationshipCurrentRead = defineRead(
     entrypoint: productRelationshipCurrentEntrypoint,
     evidencePolicy: {
       captureMode: 'metadata_only',
-      policyKey: 'commerce.catalog.api.product-relationship-current.evidence.v1',
+      policyKey: `${readKey}.evidence.v1`,
     },
     inputSchema: ProductRelationshipCurrentRequestSchema,
     legalEntityScope: 'required',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: moduleKey,
     permissionTarget: 'module',
     policies: [],
-    readKey: 'commerce.catalog.api.product-relationship-current',
+    readKey,
     resourcePermission: defineReadResourcePermission<ProductRelationshipCurrentRequest>(({ endpoint }) => ({
       permission: 'read',
       resource: endpoint,
@@ -84,6 +92,6 @@ export const productRelationshipCurrentRead = defineRead(
       Effect.map((result) => ({ evidence: { resultCount: result.relationships.length }, result })),
     ),
   (transaction, scope) => Effect.succeed(productRelationshipReadsForScope(transaction, scope)),
-  () => ({ kind: 'module', moduleId: 'commerce.catalog' }),
+  () => ({ kind: 'module', moduleId: moduleKey }),
   ({ relationships }) => relationships.flatMap(({ relationship }) => [relationship.source, relationship.target]),
 );
