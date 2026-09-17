@@ -484,6 +484,20 @@ it.live('accepts governed generated Actions, pages, Workers, catalogs, and route
   }),
 );
 
+it.live('advances past a hash in a regular expression without skipping boundary checks', () =>
+  Effect.gen(function* regexScannerControl() {
+    const root = yield* makeFixture();
+    const file = 'apps/shell-super-app/src/hex.ts';
+    const validSource = 'export const isHex = (value: string) => /^#[0-9a-fA-F]{6}$/u.test(value);';
+    yield* write(root, file, validSource);
+    yield* checkModuleEntrypointBoundaries(root);
+    yield* write(root, file, `${validSource}\ngetActionHandler(registration);`);
+    expect(String(yield* Effect.flip(checkModuleEntrypointBoundaries(root)))).toMatch(
+      /private handler accessors.*module-state gate/u,
+    );
+  }),
+);
+
 const ENGAGEMENT_ACTION_DIRECTORY = 'verticals/party-registry/src/actions';
 
 const ENGAGEMENT_REGISTRATION_FILE = `${ENGAGEMENT_ACTION_DIRECTORY}/engagement-lifecycle-registration.ts`;
