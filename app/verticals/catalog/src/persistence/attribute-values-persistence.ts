@@ -531,7 +531,13 @@ export const attributeValuesPersistenceForScope = (
           reason: input.reason,
           revision,
           tenantId,
-          valueSnapshot: values,
+          valueSnapshot: {
+            attributeDefinitionRevision: definition.currentRevision,
+            productTypeId: assignment.productTypeId,
+            productTypeRevision: productType.currentRevision,
+            sourceProductValueRevision: variantId === undefined ? null : (input.expectedProductValueRevision ?? null),
+            values,
+          },
         })
         .pipe(Effect.mapError(mapAttributeValuesWriteError));
       return { attributeValueSetId: setId, revision, state };
