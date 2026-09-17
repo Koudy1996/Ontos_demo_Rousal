@@ -10,7 +10,9 @@ import {
   products,
 } from '../database/schema.ts';
 
+import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
 import type { ProductCategoryRef } from '../../shared/resources/product-category.ts';
+import { ProductRefSchema } from '../../shared/resources/product.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 
 export class CategoryPersistenceUnavailable extends Schema.TaggedError<CategoryPersistenceUnavailable>()(
@@ -61,27 +63,45 @@ export interface CategoryAssignmentInput extends MutationBase {
   readonly productId: string;
 }
 
-export type CategoryMutationOutcome =
-  | {
-      readonly _tag: 'created' | 'renamed' | 'moved' | 'retired';
-      readonly category: CategoryRecord;
-      readonly changed: boolean;
-      readonly hierarchyRevision: number;
-    }
-  | {
-      readonly _tag: 'not_found' | 'lifecycle_conflict' | 'hierarchy_conflict' | 'reference_conflict';
-      readonly reason: string;
-    }
-  | { readonly _tag: 'revision_conflict'; readonly actualRevision: number; readonly reason: string };
+const CategoryRecordSchema = Schema.Struct({
+  categoryRef: ProductCategoryRefSchema,
+  lifecycle: Schema.Literals(['ACTIVE', 'RETIRED']),
+  name: Schema.String,
+  parentRef: Schema.optionalKey(ProductCategoryRefSchema),
+  revision: Schema.Finite,
+});
+const MutationSuccessFields = {
+  category: CategoryRecordSchema,
+  changed: Schema.Boolean,
+  hierarchyRevision: Schema.Finite,
+};
+const CategoryMutationOutcomeSchema = Schema.Union([
+  Schema.TaggedStruct('created', MutationSuccessFields),
+  Schema.TaggedStruct('renamed', MutationSuccessFields),
+  Schema.TaggedStruct('moved', MutationSuccessFields),
+  Schema.TaggedStruct('retired', MutationSuccessFields),
+  Schema.TaggedStruct('not_found', { reason: Schema.String }),
+  Schema.TaggedStruct('lifecycle_conflict', { reason: Schema.String }),
+  Schema.TaggedStruct('hierarchy_conflict', { reason: Schema.String }),
+  Schema.TaggedStruct('reference_conflict', { reason: Schema.String }),
+  Schema.TaggedStruct('revision_conflict', { actualRevision: Schema.Finite, reason: Schema.String }),
+]);
+export type CategoryMutationOutcome = typeof CategoryMutationOutcomeSchema.Type;
 
-export type CategoryAssignmentOutcome =
-  | {
-      readonly _tag: 'added' | 'removed' | 'unchanged';
-      readonly assignmentRevision: number;
-      readonly categoryRef: ProductCategoryRef;
-      readonly productRef: ProductRef;
-    }
-  | { readonly _tag: 'not_found' | 'lifecycle_conflict' | 'reference_conflict'; readonly reason: string };
+const AssignmentSuccessFields = {
+  assignmentRevision: Schema.Finite,
+  categoryRef: ProductCategoryRefSchema,
+  productRef: ProductRefSchema,
+};
+const CategoryAssignmentOutcomeSchema = Schema.Union([
+  Schema.TaggedStruct('added', AssignmentSuccessFields),
+  Schema.TaggedStruct('removed', AssignmentSuccessFields),
+  Schema.TaggedStruct('unchanged', AssignmentSuccessFields),
+  Schema.TaggedStruct('not_found', { reason: Schema.String }),
+  Schema.TaggedStruct('lifecycle_conflict', { reason: Schema.String }),
+  Schema.TaggedStruct('reference_conflict', { reason: Schema.String }),
+]);
+export type CategoryAssignmentOutcome = typeof CategoryAssignmentOutcomeSchema.Type;
 
 /** An owner-local service bound to Core's already-scoped transaction. */
 export interface CategoryPersistence {
@@ -114,6 +134,11 @@ type MutationInput =
   | RetireCategoryInput
   | CategoryAssignmentInput;
 
+const tenantMismatchReason = 'Tenant mismatch';
+const categoryNotFoundReason = 'Category not found';
+const revisionChangedReason = 'Revision changed';
+const categoryRetiredReason = 'Category retired';
+
 const unavailable = (cause?: unknown): CategoryPersistenceUnavailable => {
   const failure = new CategoryPersistenceUnavailable({
     code: 'category_persistence_unavailable',
@@ -137,13 +162,17 @@ const productRef = (tenantId: string, resourceId: string): ProductRef => ({
   resourceType: 'commerce.catalog.product',
   tenantId,
 });
-const record = (row: CategoryRow): CategoryRecord => ({
-  categoryRef: categoryRef(row.tenantId, row.categoryId),
-  lifecycle: row.lifecycleState === 'RETIRED' ? 'RETIRED' : 'ACTIVE',
-  name: row.name,
-  ...(row.parentCategoryId === null ? {} : { parentRef: categoryRef(row.tenantId, row.parentCategoryId) }),
-  revision: row.currentRevision,
-});
+const record = (row: CategoryRow): CategoryRecord => {
+  const result = {
+    categoryRef: categoryRef(row.tenantId, row.categoryId),
+    lifecycle: row.lifecycleState === 'RETIRED' ? 'RETIRED' : 'ACTIVE',
+    name: row.name,
+    revision: row.currentRevision,
+  } satisfies CategoryRecord;
+  return row.parentCategoryId === null
+    ? result
+    : { ...result, parentRef: categoryRef(row.tenantId, row.parentCategoryId) };
+};
 
 /** Core has already opened and scoped this transaction; the revision row serializes this tenant's category writes. */
 export const categoryPersistenceForScope = (
@@ -229,11 +258,34 @@ export const categoryPersistenceForScope = (
     const parent = yield* find(parentId);
     return parent?.lifecycleState === 'ACTIVE';
   });
+  const checkAncestor: (
+    categoryId: string,
+    ancestorId: string | undefined,
+    seen?: ReadonlySet<string>,
+  ) => Effect.Effect<'valid' | 'cycle' | 'missing', CategoryPersistenceUnavailable> = Effect.fn(
+    'CategoryPersistence.checkAncestor',
+  )(function* checkAncestorStep(
+    categoryId: string,
+    ancestorId: string | undefined,
+    seen: ReadonlySet<string> = new Set(),
+  ) {
+    if (ancestorId === undefined) {
+      return 'valid' as const;
+    }
+    if (ancestorId === categoryId || seen.has(ancestorId)) {
+      return 'cycle' as const;
+    }
+    const ancestor = yield* find(ancestorId);
+    if (ancestor === undefined) {
+      return 'missing' as const;
+    }
+    return yield* checkAncestor(categoryId, ancestor.parentCategoryId ?? undefined, new Set([...seen, ancestorId]));
+  });
 
   const createCategory: CategoryPersistence['createCategory'] = Effect.fn('CategoryPersistence.createCategory')(
     function* createCategory(input) {
       if (input.tenantId !== tenantId) {
-        return { _tag: 'not_found', reason: 'Tenant mismatch' } as const;
+        return { _tag: 'not_found', reason: tenantMismatchReason } as const;
       }
       const revision = yield* lock();
       if ((yield* find(input.categoryId)) !== undefined) {
@@ -272,22 +324,22 @@ export const categoryPersistenceForScope = (
   const renameCategory: CategoryPersistence['renameCategory'] = Effect.fn('CategoryPersistence.renameCategory')(
     function* renameCategory(input) {
       if (input.tenantId !== tenantId) {
-        return { _tag: 'not_found', reason: 'Tenant mismatch' } as const;
+        return { _tag: 'not_found', reason: tenantMismatchReason } as const;
       }
       const revision = yield* lock();
       const current = yield* find(input.categoryId);
       if (current === undefined) {
-        return { _tag: 'not_found', reason: 'Category not found' } as const;
+        return { _tag: 'not_found', reason: categoryNotFoundReason } as const;
       }
       if (current.currentRevision !== input.expectedRevision) {
         return {
           _tag: 'revision_conflict',
           actualRevision: current.currentRevision,
-          reason: 'Revision changed',
+          reason: revisionChangedReason,
         } as const;
       }
       if (current.lifecycleState !== 'ACTIVE') {
-        return { _tag: 'lifecycle_conflict', reason: 'Category retired' } as const;
+        return { _tag: 'lifecycle_conflict', reason: categoryRetiredReason } as const;
       }
       if (current.name === input.name) {
         return {
@@ -325,22 +377,22 @@ export const categoryPersistenceForScope = (
   const moveCategory: CategoryPersistence['moveCategory'] = Effect.fn('CategoryPersistence.moveCategory')(
     function* moveCategory(input) {
       if (input.tenantId !== tenantId) {
-        return { _tag: 'not_found', reason: 'Tenant mismatch' } as const;
+        return { _tag: 'not_found', reason: tenantMismatchReason } as const;
       }
       const revision = yield* lock();
       const current = yield* find(input.categoryId);
       if (current === undefined) {
-        return { _tag: 'not_found', reason: 'Category not found' } as const;
+        return { _tag: 'not_found', reason: categoryNotFoundReason } as const;
       }
       if (current.currentRevision !== input.expectedRevision) {
         return {
           _tag: 'revision_conflict',
           actualRevision: current.currentRevision,
-          reason: 'Revision changed',
+          reason: revisionChangedReason,
         } as const;
       }
       if (current.lifecycleState !== 'ACTIVE') {
-        return { _tag: 'lifecycle_conflict', reason: 'Category retired' } as const;
+        return { _tag: 'lifecycle_conflict', reason: categoryRetiredReason } as const;
       }
       if (current.parentCategoryId === (input.parentCategoryId ?? null)) {
         return {
@@ -353,18 +405,12 @@ export const categoryPersistenceForScope = (
       if (!(yield* validParent(input.parentCategoryId))) {
         return { _tag: 'reference_conflict', reason: 'Parent is not active' } as const;
       }
-      let ancestorId = input.parentCategoryId;
-      const seen = new Set<string>();
-      while (ancestorId !== undefined) {
-        if (ancestorId === input.categoryId || seen.has(ancestorId)) {
-          return { _tag: 'hierarchy_conflict', reason: 'Move would create a cycle' } as const;
-        }
-        seen.add(ancestorId);
-        const ancestor = yield* find(ancestorId);
-        if (ancestor === undefined) {
-          return { _tag: 'reference_conflict', reason: 'Ancestor not found' } as const;
-        }
-        ancestorId = ancestor.parentCategoryId ?? undefined;
+      const ancestry = yield* checkAncestor(input.categoryId, input.parentCategoryId);
+      if (ancestry === 'cycle') {
+        return { _tag: 'hierarchy_conflict', reason: 'Move would create a cycle' } as const;
+      }
+      if (ancestry === 'missing') {
+        return { _tag: 'reference_conflict', reason: 'Ancestor not found' } as const;
       }
       const [updated] = yield* query(
         transaction
@@ -397,22 +443,22 @@ export const categoryPersistenceForScope = (
   const retireCategory: CategoryPersistence['retireCategory'] = Effect.fn('CategoryPersistence.retireCategory')(
     function* retireCategory(input) {
       if (input.tenantId !== tenantId) {
-        return { _tag: 'not_found', reason: 'Tenant mismatch' } as const;
+        return { _tag: 'not_found', reason: tenantMismatchReason } as const;
       }
       const revision = yield* lock();
       const current = yield* find(input.categoryId);
       if (current === undefined) {
-        return { _tag: 'not_found', reason: 'Category not found' } as const;
+        return { _tag: 'not_found', reason: categoryNotFoundReason } as const;
       }
       if (current.currentRevision !== input.expectedRevision) {
         return {
           _tag: 'revision_conflict',
           actualRevision: current.currentRevision,
-          reason: 'Revision changed',
+          reason: revisionChangedReason,
         } as const;
       }
       if (current.lifecycleState !== 'ACTIVE') {
-        return { _tag: 'lifecycle_conflict', reason: 'Category retired' } as const;
+        return { _tag: 'lifecycle_conflict', reason: categoryRetiredReason } as const;
       }
       const [child] = yield* query(
         transaction
@@ -426,7 +472,7 @@ export const categoryPersistenceForScope = (
       if (child !== undefined) {
         return { _tag: 'reference_conflict', reason: 'Category has children' } as const;
       }
-      const [assignment] = yield* query(
+      const [dependentAssignment] = yield* query(
         transaction
           .select({ productId: productCategoryAssignments.productId })
           .from(productCategoryAssignments)
@@ -438,7 +484,7 @@ export const categoryPersistenceForScope = (
           )
           .limit(1),
       );
-      if (assignment !== undefined) {
+      if (dependentAssignment !== undefined) {
         return { _tag: 'reference_conflict', reason: 'Category has assignments' } as const;
       }
       const [updated] = yield* query(
@@ -466,64 +512,63 @@ export const categoryPersistenceForScope = (
     },
   );
 
-  const assignment = (
+  const assignment = Effect.fn('CategoryPersistence.assignment')(function* assignment(
     kind: 'add' | 'remove',
     input: CategoryAssignmentInput,
-  ): Effect.Effect<CategoryAssignmentOutcome, CategoryPersistenceUnavailable> =>
-    Effect.gen(function* assignment() {
-      if (input.tenantId !== tenantId) {
-        return { _tag: 'not_found', reason: 'Tenant mismatch' } as const;
-      }
-      const revision = yield* lock();
-      const category = yield* find(input.categoryId);
-      const [product] = yield* query(
-        transaction
-          .select({ productId: products.productId })
-          .from(products)
-          .where(and(eq(products.tenantId, tenantId), eq(products.productId, input.productId)))
-          .limit(1),
-      );
-      if (category === undefined || product === undefined) {
-        return { _tag: 'not_found', reason: 'Product or category not found' } as const;
-      }
-      if (category.lifecycleState !== 'ACTIVE') {
-        return { _tag: 'lifecycle_conflict', reason: 'Category retired' } as const;
-      }
-      const [existing] = yield* query(
-        transaction
-          .select({ productId: productCategoryAssignments.productId })
-          .from(productCategoryAssignments)
-          .where(
-            and(
-              eq(productCategoryAssignments.tenantId, tenantId),
-              eq(productCategoryAssignments.productId, input.productId),
-              eq(productCategoryAssignments.categoryId, input.categoryId),
-            ),
-          )
-          .limit(1),
-      );
-      const changed = kind === 'add' ? existing === undefined : existing !== undefined;
-      if (!changed) {
-        return {
-          _tag: 'unchanged',
-          assignmentRevision: revision.assignmentRevision,
-          categoryRef: categoryRef(tenantId, input.categoryId),
-          productRef: productRef(tenantId, input.productId),
-        } as const;
-      }
-      if (kind === 'add') {
-        yield* query(
-          transaction.insert(productCategoryAssignments).values({
-            tenantId,
-            categoryId: input.categoryId,
-            productId: input.productId,
+  ) {
+    if (input.tenantId !== tenantId) {
+      return { _tag: 'not_found', reason: tenantMismatchReason } as const;
+    }
+    const revision = yield* lock();
+    const category = yield* find(input.categoryId);
+    if (category === undefined) {
+      return { _tag: 'not_found', reason: 'Product or category not found' } as const;
+    }
+    if (category.lifecycleState !== 'ACTIVE') {
+      return { _tag: 'lifecycle_conflict', reason: categoryRetiredReason } as const;
+    }
+    const [product] = yield* query(
+      transaction
+        .select({ productId: products.productId })
+        .from(products)
+        .where(and(eq(products.tenantId, tenantId), eq(products.productId, input.productId)))
+        .limit(1),
+    );
+    if (product === undefined) {
+      return { _tag: 'not_found', reason: 'Product or category not found' } as const;
+    }
+    const [existing] = yield* query(
+      transaction
+        .select({ productId: productCategoryAssignments.productId })
+        .from(productCategoryAssignments)
+        .where(
+          and(
+            eq(productCategoryAssignments.tenantId, tenantId),
+            eq(productCategoryAssignments.productId, input.productId),
+            eq(productCategoryAssignments.categoryId, input.categoryId),
+          ),
+        )
+        .limit(1),
+    );
+    const changed = kind === 'add' ? existing === undefined : existing !== undefined;
+    if (!changed) {
+      return {
+        _tag: 'unchanged',
+        assignmentRevision: revision.assignmentRevision,
+        categoryRef: categoryRef(tenantId, input.categoryId),
+        productRef: productRef(tenantId, input.productId),
+      } as const;
+    }
+    yield* query(
+      kind === 'add'
+        ? transaction.insert(productCategoryAssignments).values({
             assignedByActionInvocationId: input.actionInvocationId,
             assignedByPrincipalId: input.principalId,
-          }),
-        );
-      } else {
-        yield* query(
-          transaction
+            categoryId: input.categoryId,
+            productId: input.productId,
+            tenantId,
+          })
+        : transaction
             .delete(productCategoryAssignments)
             .where(
               and(
@@ -532,19 +577,18 @@ export const categoryPersistenceForScope = (
                 eq(productCategoryAssignments.categoryId, input.categoryId),
               ),
             ),
-        );
-      }
-      const next = yield* bump('assignment', revision);
-      yield* event(input, kind === 'add' ? 'ASSIGNED' : 'UNASSIGNED', input.categoryId, next, {
-        productId: input.productId,
-      });
-      return {
-        _tag: kind === 'add' ? 'added' : 'removed',
-        assignmentRevision: next.assignmentRevision,
-        categoryRef: categoryRef(tenantId, input.categoryId),
-        productRef: productRef(tenantId, input.productId),
-      } as const;
+    );
+    const next = yield* bump('assignment', revision);
+    yield* event(input, kind === 'add' ? 'ASSIGNED' : 'UNASSIGNED', input.categoryId, next, {
+      productId: input.productId,
     });
+    return {
+      _tag: kind === 'add' ? 'added' : 'removed',
+      assignmentRevision: next.assignmentRevision,
+      categoryRef: categoryRef(tenantId, input.categoryId),
+      productRef: productRef(tenantId, input.productId),
+    } as const;
+  });
 
   return Effect.succeed({
     addAssignment: (input) => assignment('add', input),
