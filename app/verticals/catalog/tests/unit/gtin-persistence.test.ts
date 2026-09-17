@@ -183,6 +183,7 @@ describe('GTIN exact-target persistence', () => {
       const service = gtinPersistenceForScope(fixture(writes, { prior }), scope);
       expect(outcomeKind(yield* service.confirm(input))).toBe('confirmed');
       expect(outcomeKind(yield* service.confirm({ ...input, reason: 'Different evidence' }))).toBe('invalid');
+      expect(outcomeKind(yield* service.confirm({ ...input, expectedRevision: 1 }))).toBe('invalid');
       expect(writes).toEqual([]);
     }),
   );
@@ -277,6 +278,43 @@ describe('GTIN exact-target persistence', () => {
           }),
         ),
       ).toBe('invalid');
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('rejects a correction replay with a changed expected revision', () =>
+    Effect.gen(function* rejectsChangedCorrectionIntent() {
+      const writes: object[] = [];
+      const correction = {
+        ...input,
+        attributionEvidenceRef: 'provider-record:corrected-package',
+        expectedRevision: 1,
+        previousTarget: input.target,
+        supersededEvidenceRef: input.attributionEvidenceRef,
+        target: { kind: 'PACKAGE_LEVEL' as const, packageDefinitionId, tenantId },
+      };
+      const prior = {
+        actingPrincipalId: principalId,
+        actionInvocationId: input.actionInvocationId,
+        attributionEvidenceRef: correction.attributionEvidenceRef,
+        effectiveAt: input.effectiveAt,
+        gtin: input.code,
+        packageDefinitionId,
+        productId,
+        reason: input.reason,
+        revision: 2,
+        state: 'CONFIRMED',
+        variantId,
+      };
+      const before = {
+        ...prior,
+        attributionEvidenceRef: input.attributionEvidenceRef,
+        packageDefinitionId: null,
+        revision: 1,
+      };
+      // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+      const service = gtinPersistenceForScope(fixture(writes, { prior, revisionRows: [[prior], [before]] }), scope);
+      expect(outcomeKind(yield* service.correct({ ...correction, expectedRevision: 2 }))).toBe('invalid');
       expect(writes).toEqual([]);
     }),
   );

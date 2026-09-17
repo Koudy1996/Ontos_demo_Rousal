@@ -124,6 +124,7 @@ const replayMatches = (
   input: ConfirmGtinInput,
 ): boolean =>
   prior.gtin === input.code &&
+  prior.revision === input.expectedRevision + 1 &&
   (input.target.kind !== 'VARIANT' || prior.variantId === input.target.variantId) &&
   prior.packageDefinitionId === (input.target.kind === 'PACKAGE_LEVEL' ? input.target.packageDefinitionId : null) &&
   prior.attributionEvidenceRef === input.attributionEvidenceRef &&
@@ -147,6 +148,7 @@ const replayLifecycleMatches = (
   state: 'RETIRED' | 'UNRESOLVED',
 ): boolean =>
   prior.gtin === input.code &&
+  prior.revision === input.expectedRevision + 1 &&
   prior.state === state &&
   prior.attributionEvidenceRef === input.attributionEvidenceRef &&
   prior.reason === input.reason &&
@@ -163,6 +165,8 @@ const correctionHeadMatches = (
   head.attributionEvidenceRef === input.supersededEvidenceRef &&
   head.state === existing.state &&
   head.productId === existing.productId &&
+  head.variantId === existing.variantId &&
+  head.packageDefinitionId === existing.packageDefinitionId &&
   storedTargetMatches(head, input.previousTarget);
 
 /** Core owns the scoped transaction and rollback. This service never infers attribution from a code or name. */
