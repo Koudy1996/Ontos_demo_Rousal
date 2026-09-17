@@ -172,6 +172,19 @@ export const CatalogSelectionMembershipSchema = Schema.Struct({
 );
 export type CatalogSelectionMembership = typeof CatalogSelectionMembershipSchema.Type;
 
+const hasExactBasis = (
+  basis: readonly (typeof CatalogSelectionBasisSchema.Type)[],
+  role: typeof CatalogSelectionBasisSchema.Type.role,
+  reference: CatalogSelectionRevision,
+): boolean =>
+  basis.some(
+    ({ role: candidateRole, source }) =>
+      candidateRole === role &&
+      sameRef(source.resourceRef, reference.resourceRef) &&
+      source.revision === reference.revision &&
+      source.revisionId === reference.revisionId,
+  );
+
 /** Evidence is a point-in-time assessment, not a guarantee that it remains Current at Order commit. */
 const assessmentFields = {
   assessedAt: CatalogRevisionInstantSchema,
@@ -192,15 +205,19 @@ export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
     (validUntil === undefined || validUntil > assessedAt) &&
     basis.every(({ source }) => source.resourceRef.tenantId === selection.productRef.tenantId) &&
     basis.some(({ role, source }) => role === 'PRODUCT' && sameRef(source.resourceRef, selection.productRef)) &&
-    basis.some(
-      ({ role, source }) =>
-        role === 'VARIANT' &&
-        sameRef(source.resourceRef, membership.variant.resourceRef) &&
-        source.revision === membership.variant.revision &&
-        source.revisionId === membership.variant.revisionId,
-    )
+    hasExactBasis(basis, 'VARIANT', membership.variant) &&
+    (selection.packageOption === undefined ||
+      hasExactBasis(basis, 'PACKAGE_CONTENT', selection.packageOption.contentRevision)) &&
+    (selection.setComposition === undefined || hasExactBasis(basis, 'SET_COMPOSITION', selection.setComposition)) &&
+    (selection.configuration === undefined ||
+      (hasExactBasis(basis, 'CONFIGURATION_DEFINITION', selection.configuration.definition) &&
+        selection.configuration.choices.every(
+          ({ attributeDefinition, unit }) =>
+            hasExactBasis(basis, 'ATTRIBUTE_DEFINITION', attributeDefinition) &&
+            (unit === undefined || hasExactBasis(basis, 'UNIT', unit)),
+        )))
       ? undefined
-      : 'VALID evidence requires the exact Product–Variant membership and Variant source revision',
+      : 'VALID evidence requires exact membership and every selected source revision',
   ),
 );
 export const CatalogSelectionInvalidEvidenceSchema = Schema.Struct({

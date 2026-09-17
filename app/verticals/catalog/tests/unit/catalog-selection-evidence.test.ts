@@ -206,4 +206,71 @@ describe('Catalog Selection decision references', () => {
       Schema.decodeUnknownSync(CatalogAcceptedSelectionEvidenceSchema)({ ...accepted, historical: false }),
     ).toThrow();
   });
+
+  it('rejects VALID evidence missing a pinned package, set, or configuration source', () => {
+    const packageRef = ref('commerce.catalog.package-definition', '44444444-4444-4444-8444-444444444444');
+    const setRef = ref('commerce.catalog.set-composition', '55555555-5555-4555-8555-555555555555');
+    const definitionRef = ref('commerce.catalog.configuration-definition', '66666666-6666-4666-8666-666666666666');
+    const attributeRef = ref('commerce.catalog.attribute-definition', '77777777-7777-4777-8777-777777777777');
+    const unitRef = ref('commerce.catalog.unit', '88888888-8888-4888-8888-888888888888');
+    const contentRevision = { resourceRef: packageRef, revision: 4 };
+    const setComposition = { resourceRef: setRef, revision: 3 };
+    const definition = { resourceRef: definitionRef, revision: 2 };
+    const attributeDefinition = { resourceRef: attributeRef, revision: 5 };
+    const unit = { resourceRef: unitRef, revision: 1 };
+    const membership = {
+      attestationId: 'catalog-membership-2',
+      observedAt: instant,
+      productRef,
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      variant: { resourceRef: variantRef, revision: 2 },
+    };
+    const configuredPackedSet = {
+      ...selection,
+      configuration: {
+        choices: [{ attributeDefinition, choiceKey: 'length', unit, value: '83' }],
+        definition,
+        productRef,
+        variantRef,
+      },
+      packageOption: { contentRevision, optionRef: packageRef },
+      setComposition,
+    };
+    const directBasis = [
+      { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
+      { role: 'VARIANT', source: membership.variant },
+    ];
+    const requiredBasis = [
+      { role: 'PACKAGE_CONTENT', source: contentRevision },
+      { role: 'SET_COMPOSITION', source: setComposition },
+      { role: 'CONFIGURATION_DEFINITION', source: definition },
+      { role: 'ATTRIBUTE_DEFINITION', source: attributeDefinition },
+      { role: 'UNIT', source: unit },
+    ];
+    const evidence = {
+      assessedAt: instant,
+      basis: [...directBasis, ...requiredBasis],
+      membership,
+      purpose: 'PURCHASE_ACCEPTANCE',
+      selection: configuredPackedSet,
+      status: 'VALID',
+    };
+    expect(decodeEvidence(evidence)).toMatchObject(evidence);
+    for (const omitted of requiredBasis) {
+      expect(() =>
+        decodeEvidence({ ...evidence, basis: evidence.basis.filter((entry) => entry !== omitted) }),
+      ).toThrow();
+    }
+    expect(() =>
+      decodeEvidence({
+        ...evidence,
+        basis: [
+          ...directBasis,
+          ...requiredBasis.map((entry) =>
+            entry.role === 'PACKAGE_CONTENT' ? { ...entry, source: { resourceRef: packageRef, revision: 5 } } : entry,
+          ),
+        ],
+      }),
+    ).toThrow();
+  });
 });
