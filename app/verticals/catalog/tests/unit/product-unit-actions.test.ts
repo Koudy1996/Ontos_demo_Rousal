@@ -4,9 +4,13 @@ import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
 import { CreateProductUnitPayloadSchema } from '../../shared/actions/create-product-unit.ts';
+import type { CreateProductUnitResult } from '../../shared/actions/create-product-unit.ts';
 import { RetireProductUnitPayloadSchema } from '../../shared/actions/retire-product-unit.ts';
+import type { RetireProductUnitResult } from '../../shared/actions/retire-product-unit.ts';
 import { ReviseProductUnitPayloadSchema } from '../../shared/actions/revise-product-unit.ts';
+import type { ReviseProductUnitResult } from '../../shared/actions/revise-product-unit.ts';
 import { SetProductUnitTargetDivisibilityPayloadSchema } from '../../shared/actions/set-product-unit-target-divisibility.ts';
+import type { SetProductUnitTargetDivisibilityResult } from '../../shared/actions/set-product-unit-target-divisibility.ts';
 import { createProductUnitAction, handleCreateProductUnit } from '../../src/actions/create-product-unit.action.ts';
 import { handleRetireProductUnit, retireProductUnitAction } from '../../src/actions/retire-product-unit.action.ts';
 import { handleReviseProductUnit, reviseProductUnitAction } from '../../src/actions/revise-product-unit.action.ts';
@@ -86,6 +90,19 @@ const context = (
 });
 
 describe('Product Unit governed Actions', () => {
+  it('exports all four direct result types for owner API contracts', () => {
+    const result = {
+      ruleRevision: { revision: 1, rounding: 'UP' as const, step: '0.01', unit: unitRef },
+      unit: unitRef,
+    };
+    const createResult: CreateProductUnitResult = Schema.decodeUnknownSync(
+      createProductUnitAction.descriptor.resultSchema,
+    )(result);
+    const reviseResult: ReviseProductUnitResult = createResult;
+    const retireResult: RetireProductUnitResult = reviseResult;
+    const divisibilityResult: SetProductUnitTargetDivisibilityResult = retireResult;
+    expect(divisibilityResult.ruleRevision.revision).toBe(1);
+  });
   it('requires tenant-scoped, idempotent, explicitly authorized writes', () => {
     for (const action of [
       createProductUnitAction,
@@ -110,12 +127,8 @@ describe('Product Unit governed Actions', () => {
     expect(() =>
       Schema.decodeUnknownSync(CreateProductUnitPayloadSchema)({ ...create, rule: { ...rule, step: '0' } }),
     ).toThrow();
-    expect(() =>
-      Schema.decodeUnknownSync(ReviseProductUnitPayloadSchema)({ ...revise, expectedCurrent: undefined }),
-    ).toThrow();
-    expect(() =>
-      Schema.decodeUnknownSync(RetireProductUnitPayloadSchema)({ ...retire, expectedCurrent: undefined }),
-    ).toThrow();
+    expect(() => Schema.decodeUnknownSync(ReviseProductUnitPayloadSchema)({ ...common, rule })).toThrow();
+    expect(() => Schema.decodeUnknownSync(RetireProductUnitPayloadSchema)({ ...common })).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(SetProductUnitTargetDivisibilityPayloadSchema)({
         ...divisibility,
@@ -125,19 +138,24 @@ describe('Product Unit governed Actions', () => {
   });
 
   it.effect('never reports mutation success without authoritative persistence', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* unavailableWrites() {
       const errors = yield* Effect.all([
         handleCreateProductUnit(create, context()).pipe(Effect.flip),
         handleReviseProductUnit(revise, context()).pipe(Effect.flip),
         handleRetireProductUnit(retire, context()).pipe(Effect.flip),
         handleSetProductUnitTargetDivisibility(divisibility, context()).pipe(Effect.flip),
       ]);
-      expect(errors.map((error) => error.code)).toEqual(Array(4).fill('product_unit_unavailable'));
+      expect(errors.map((error) => error.code)).toEqual([
+        'product_unit_unavailable',
+        'product_unit_unavailable',
+        'product_unit_unavailable',
+        'product_unit_unavailable',
+      ]);
     }),
   );
 
   it.effect('rejects foreign Tenant references before persistence', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* rejectForeignTenant() {
       const foreign = Schema.decodeUnknownSync(CreateProductUnitPayloadSchema)({
         ...create,
         unitRef: { ...unitRef, tenantId: otherTenantId },

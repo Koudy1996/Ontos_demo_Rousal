@@ -18,3 +18,4 @@ export const CreateProductUnitPayloadSchema = Schema.Struct({
 });
 export type CreateProductUnitPayload = typeof CreateProductUnitPayloadSchema.Type;
 export const CreateProductUnitResultSchema = ProductUnitMutationResultSchema;
+export type CreateProductUnitResult = typeof CreateProductUnitResultSchema.Type;

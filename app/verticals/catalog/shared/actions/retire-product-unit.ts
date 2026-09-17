@@ -14,3 +14,4 @@ export const RetireProductUnitPayloadSchema = Schema.Struct({
 });
 export type RetireProductUnitPayload = typeof RetireProductUnitPayloadSchema.Type;
 export const RetireProductUnitResultSchema = ProductUnitMutationResultSchema;
+export type RetireProductUnitResult = typeof RetireProductUnitResultSchema.Type;

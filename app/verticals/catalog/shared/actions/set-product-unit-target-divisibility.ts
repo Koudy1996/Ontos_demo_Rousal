@@ -1,5 +1,9 @@
 import { Schema } from 'effect';
 
+import {
+  CatalogRevisionResourceIdSchema,
+  CatalogRevisionTenantIdSchema,
+} from '../domain/catalog-revision-reference.ts';
 import { ProductUnitRefSchema } from '../resources/product-unit.ts';
 import {
   ProductUnitEvidenceRefsSchema,
@@ -13,11 +17,12 @@ export const SetProductUnitTargetDivisibilityPayloadSchema = Schema.Struct({
   expectedCurrentRevision: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThan(0))),
   reason: ProductUnitReasonSchema,
   target: Schema.Struct({
-    targetId: Schema.String.check(Schema.isUUID(), Schema.isTrimmed()),
+    targetId: CatalogRevisionResourceIdSchema,
     targetType: Schema.Literals(['commerce.catalog.variant', 'commerce.catalog.package-definition']),
-    tenantId: Schema.String.check(Schema.isUUID(), Schema.isTrimmed()),
+    tenantId: CatalogRevisionTenantIdSchema,
     unit: ProductUnitRefSchema,
   }),
 });
 export type SetProductUnitTargetDivisibilityPayload = typeof SetProductUnitTargetDivisibilityPayloadSchema.Type;
 export const SetProductUnitTargetDivisibilityResultSchema = ProductUnitMutationResultSchema;
+export type SetProductUnitTargetDivisibilityResult = typeof SetProductUnitTargetDivisibilityResultSchema.Type;

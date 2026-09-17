@@ -16,3 +16,4 @@ export const ReviseProductUnitPayloadSchema = Schema.Struct({
 });
 export type ReviseProductUnitPayload = typeof ReviseProductUnitPayloadSchema.Type;
 export const ReviseProductUnitResultSchema = ProductUnitMutationResultSchema;
+export type ReviseProductUnitResult = typeof ReviseProductUnitResultSchema.Type;
