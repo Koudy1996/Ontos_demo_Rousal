@@ -9,6 +9,7 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 
 // <generated-governed-http-api-imports>
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
+import { AssignCatalogMediaActionApi } from './apis/assign-catalog-media-action.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
 import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
@@ -30,13 +31,17 @@ import { ProductHistoryApi } from './apis/product-history.ts';
 import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
 import { ReactivateVariantActionApi } from './apis/reactivate-variant-action.ts';
+import { RemoveCatalogMediaActionApi } from './apis/remove-catalog-media-action.ts';
 import { RemoveProductAttributeValuesActionApi } from './apis/remove-product-attribute-values-action.ts';
 import { RemoveProductCategoryAssignmentActionApi } from './apis/remove-product-category-assignment-action.ts';
+import { RemoveProductLocalizedFactsActionApi } from './apis/remove-product-localized-facts-action.ts';
 import { RemoveProductRelationshipActionApi } from './apis/remove-product-relationship-action.ts';
 import { RemoveVariantAttributeOverrideActionApi } from './apis/remove-variant-attribute-override-action.ts';
+import { RemoveVariantLocalizedFactsActionApi } from './apis/remove-variant-localized-facts-action.ts';
 import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-definition-action.ts';
 import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
 import { RenameProductCategoryActionApi } from './apis/rename-product-category-action.ts';
+import { ReorderCatalogMediaActionApi } from './apis/reorder-catalog-media-action.ts';
 import { RetireControlledAttributeValueActionApi } from './apis/retire-controlled-attribute-value-action.ts';
 import { RetirePackageDefinitionActionApi } from './apis/retire-package-definition-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
@@ -47,9 +52,11 @@ import { RevisePackageDefinitionActionApi } from './apis/revise-package-definiti
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
 import { ReviseProductUnitActionApi } from './apis/revise-product-unit-action.ts';
 import { SetProductAttributeValuesActionApi } from './apis/set-product-attribute-values-action.ts';
+import { SetProductLocalizedFactsActionApi } from './apis/set-product-localized-facts-action.ts';
 import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
 import { SetProductUnitTargetDivisibilityActionApi } from './apis/set-product-unit-target-divisibility-action.ts';
 import { SetVariantAttributeOverrideActionApi } from './apis/set-variant-attribute-override-action.ts';
+import { SetVariantLocalizedFactsActionApi } from './apis/set-variant-localized-facts-action.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
 // </generated-governed-http-api-imports>
 import { ProductActionInvocationIdSchema } from './domain/product.ts';
@@ -76,6 +83,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(AddProductCategoryAssignmentActionApi)
+  .addHttpApi(AssignCatalogMediaActionApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
   .addHttpApi(ChangeVariantActionApi)
   .addHttpApi(CorrectProductActionApi)
@@ -97,13 +105,17 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReactivateControlledAttributeValueActionApi)
   .addHttpApi(ReactivateProductActionApi)
   .addHttpApi(ReactivateVariantActionApi)
+  .addHttpApi(RemoveCatalogMediaActionApi)
   .addHttpApi(RemoveProductAttributeValuesActionApi)
   .addHttpApi(RemoveProductCategoryAssignmentActionApi)
+  .addHttpApi(RemoveProductLocalizedFactsActionApi)
   .addHttpApi(RemoveProductRelationshipActionApi)
   .addHttpApi(RemoveVariantAttributeOverrideActionApi)
+  .addHttpApi(RemoveVariantLocalizedFactsActionApi)
   .addHttpApi(RenameAttributeDefinitionActionApi)
   .addHttpApi(RenameControlledAttributeValueActionApi)
   .addHttpApi(RenameProductCategoryActionApi)
+  .addHttpApi(ReorderCatalogMediaActionApi)
   .addHttpApi(RetireControlledAttributeValueActionApi)
   .addHttpApi(RetirePackageDefinitionActionApi)
   .addHttpApi(RetireProductActionApi)
@@ -114,9 +126,11 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReviseProductTypeActionApi)
   .addHttpApi(ReviseProductUnitActionApi)
   .addHttpApi(SetProductAttributeValuesActionApi)
+  .addHttpApi(SetProductLocalizedFactsActionApi)
   .addHttpApi(SetProductTypeActionApi)
   .addHttpApi(SetProductUnitTargetDivisibilityActionApi)
   .addHttpApi(SetVariantAttributeOverrideActionApi)
+  .addHttpApi(SetVariantLocalizedFactsActionApi)
   .addHttpApi(UpdateProductActionApi)
   // </generated-governed-http-api-additions>
   .pipe(identity);

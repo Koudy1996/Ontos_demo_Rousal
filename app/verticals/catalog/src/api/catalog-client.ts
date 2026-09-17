@@ -14,6 +14,7 @@ import type { CatalogReadiness, OperationContext } from '../../shared/api.ts';
 
 // <generated-action-http-client-exports>
 export * from './add-product-category-assignment-action-client.ts';
+export * from './assign-catalog-media-action-client.ts';
 export * from './change-product-relationship-action-client.ts';
 export * from './change-variant-action-client.ts';
 export * from './correct-product-action-client.ts';
@@ -30,13 +31,17 @@ export * from './move-product-category-action-client.ts';
 export * from './reactivate-controlled-attribute-value-action-client.ts';
 export * from './reactivate-product-action-client.ts';
 export * from './reactivate-variant-action-client.ts';
+export * from './remove-catalog-media-action-client.ts';
 export * from './remove-product-attribute-values-action-client.ts';
 export * from './remove-product-category-assignment-action-client.ts';
+export * from './remove-product-localized-facts-action-client.ts';
 export * from './remove-product-relationship-action-client.ts';
 export * from './remove-variant-attribute-override-action-client.ts';
+export * from './remove-variant-localized-facts-action-client.ts';
 export * from './rename-attribute-definition-action-client.ts';
 export * from './rename-controlled-attribute-value-action-client.ts';
 export * from './rename-product-category-action-client.ts';
+export * from './reorder-catalog-media-action-client.ts';
 export * from './retire-controlled-attribute-value-action-client.ts';
 export * from './retire-package-definition-action-client.ts';
 export * from './retire-product-action-client.ts';
@@ -47,9 +52,11 @@ export * from './revise-package-definition-action-client.ts';
 export * from './revise-product-type-action-client.ts';
 export * from './revise-product-unit-action-client.ts';
 export * from './set-product-attribute-values-action-client.ts';
+export * from './set-product-localized-facts-action-client.ts';
 export * from './set-product-type-action-client.ts';
 export * from './set-product-unit-target-divisibility-action-client.ts';
 export * from './set-variant-attribute-override-action-client.ts';
+export * from './set-variant-localized-facts-action-client.ts';
 export * from './update-product-action-client.ts';
 // </generated-action-http-client-exports>
 export { executeProductDetail, executeProductDetailWithAuthorization } from './product-detail-client.ts';
