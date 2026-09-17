@@ -15,6 +15,8 @@ import { addProductCategoryAssignmentAction } from './src/actions/add-product-ca
 import { assertSizeEquivalenceAction } from './src/actions/assert-size-equivalence.action.ts';
 import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
 import { attributeDefinitionResourceDescriptor } from './shared/resources/attribute-definition.ts';
+import { BrandCurrentApi } from './shared/apis/brand-current.ts';
+import { BrandHistoryApi } from './shared/apis/brand-history.ts';
 import { brandResourceDescriptor } from './shared/resources/brand.ts';
 import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.ts';
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
@@ -34,8 +36,12 @@ import { createProductRelationshipAction } from './src/actions/create-product-re
 import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
 import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
+import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
+import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
 import { packageDefinitionResourceDescriptor } from './shared/resources/package-definition.ts';
+import { ProductBrandCurrentApi } from './shared/apis/product-brand-current.ts';
+import { ProductBrandHistoryApi } from './shared/apis/product-brand-history.ts';
 import { ProductCategoryClassificationApi } from './shared/apis/product-category-classification.ts';
 import { ProductCategoryHistoryApi } from './shared/apis/product-category-history.ts';
 import { productCategoryResourceDescriptor } from './shared/resources/product-category.ts';
@@ -179,7 +185,13 @@ export const catalogManifest = defineOntosModuleManifest({
     ],
     api: {
       // <generated-module-manifest-apis>
+      'brand-current': BrandCurrentApi,
+      'brand-history': BrandHistoryApi,
       'create-product-recovery': CreateProductRecoveryApi,
+      'manufacturer-relation-current': ManufacturerRelationCurrentApi,
+      'manufacturer-relation-history': ManufacturerRelationHistoryApi,
+      'product-brand-current': ProductBrandCurrentApi,
+      'product-brand-history': ProductBrandHistoryApi,
       'product-category-classification': ProductCategoryClassificationApi,
       'product-category-history': ProductCategoryHistoryApi,
       'product-detail': ProductDetailApi,

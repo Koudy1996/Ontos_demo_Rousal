@@ -124,7 +124,13 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
   entrypoints: {
     api: {
       // <generated-module-registration-apis>
+      'brand-current': () => import('./src/api/brand-current-client.ts'),
+      'brand-history': () => import('./src/api/brand-history-client.ts'),
       'create-product-recovery': () => import('./src/api/create-product-recovery-client.ts'),
+      'manufacturer-relation-current': () => import('./src/api/manufacturer-relation-current-client.ts'),
+      'manufacturer-relation-history': () => import('./src/api/manufacturer-relation-history-client.ts'),
+      'product-brand-current': () => import('./src/api/product-brand-current-client.ts'),
+      'product-brand-history': () => import('./src/api/product-brand-history-client.ts'),
       'product-category-classification': () => import('./src/api/product-category-classification-client.ts'),
       'product-category-history': () => import('./src/api/product-category-history-client.ts'),
       'product-detail': () => import('./src/api/product-detail-client.ts'),
