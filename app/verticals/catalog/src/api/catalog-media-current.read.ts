@@ -82,7 +82,7 @@ export const catalogMediaCurrentRead = defineRead(
     owningModuleKey: 'commerce.catalog',
     permissionTarget: 'resource',
     policies: [],
-    readKey,
+    readKey: 'commerce.catalog.api.catalog-media-current',
     resourcePermission: defineReadResourcePermission<CatalogMediaCurrentRequest>(({ target }) => ({
       permission: 'read',
       resource: target,

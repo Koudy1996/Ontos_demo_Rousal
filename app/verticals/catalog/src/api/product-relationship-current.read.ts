@@ -68,7 +68,7 @@ export const readProductRelationshipCurrent = Effect.fn('ProductRelationshipCurr
 
 export const productRelationshipCurrentRead = defineRead(
   {
-    accessKind: 'search',
+    accessKind: 'list',
     entrypoint: productRelationshipCurrentEntrypoint,
     evidencePolicy: {
       captureMode: 'metadata_only',
@@ -79,7 +79,7 @@ export const productRelationshipCurrentRead = defineRead(
     owningModuleKey: moduleKey,
     permissionTarget: 'module',
     policies: [],
-    readKey,
+    readKey: 'commerce.catalog.api.product-relationship-current',
     resourcePermission: defineReadResourcePermission<ProductRelationshipCurrentRequest>(({ endpoint }) => ({
       permission: 'read',
       resource: endpoint,
