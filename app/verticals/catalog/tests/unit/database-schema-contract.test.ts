@@ -15,6 +15,10 @@ import {
   attributeValueSets,
   brandRevisions,
   brands,
+  catalogMediaAssignmentRevisions,
+  catalogMediaAssignmentSetRevisions,
+  catalogMediaAssignmentSets,
+  catalogMediaAssignments,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
   manufacturerRelationRevisions,
@@ -30,6 +34,8 @@ import {
   productCategoryEvents,
   productCategoryHierarchyRevisions,
   productLifecycleEvents,
+  productLocalizedFactRevisions,
+  productLocalizedFacts,
   productRelationshipRevisions,
   productRelationships,
   productRevisions,
@@ -47,9 +53,11 @@ import {
   productVariantAxisEvents,
   productVariantRevisions,
   products,
+  variantLocalizedFactRevisions,
+  variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns thirty-nine tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns forty-seven tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -67,6 +75,10 @@ it('owns thirty-nine tenant-scoped Catalog tables with RLS and immutable history
     'attribute_value_sets',
     'brand_revisions',
     'brands',
+    'catalog_media_assignment_revisions',
+    'catalog_media_assignment_set_revisions',
+    'catalog_media_assignment_sets',
+    'catalog_media_assignments',
     'controlled_attribute_value_revisions',
     'controlled_attribute_values',
     'manufacturer_relation_revisions',
@@ -82,6 +94,8 @@ it('owns thirty-nine tenant-scoped Catalog tables with RLS and immutable history
     'product_category_events',
     'product_category_hierarchy_revisions',
     'product_lifecycle_events',
+    'product_localized_fact_revisions',
+    'product_localized_facts',
     'product_relationship_revisions',
     'product_relationships',
     'product_revisions',
@@ -97,6 +111,8 @@ it('owns thirty-nine tenant-scoped Catalog tables with RLS and immutable history
     'product_variant_revisions',
     'product_variants',
     'products',
+    'variant_localized_fact_revisions',
+    'variant_localized_facts',
     'variant_unit_divisibility',
     'variant_unit_divisibility_revisions',
   ]);
@@ -331,6 +347,41 @@ it('keeps Product identity, Variant ownership, and historical revision keys cons
   );
 });
 
+it('keeps exact-locale facts and opaque attachment references tenant-qualified', () => {
+  expect(getTableConfig(productLocalizedFacts).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_localized_facts_pk',
+  );
+  expect(getTableConfig(variantLocalizedFacts).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_variant_localized_facts_variant_fk',
+  ]);
+  expect(getTableConfig(productLocalizedFactRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_localized_fact_revisions_fact_fk',
+  ]);
+  expect(getTableConfig(variantLocalizedFactRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_variant_localized_fact_revisions_fact_fk',
+  ]);
+  expect(getTableConfig(catalogMediaAssignmentSets).indexes.map((index) => index.config.name)).toEqual([
+    'catalog_media_assignment_sets_product_uk',
+    'catalog_media_assignment_sets_variant_uk',
+  ]);
+  expect(getTableConfig(catalogMediaAssignments).indexes.map((index) => index.config.name)).toContain(
+    'catalog_media_assignments_active_position_uk',
+  );
+  expect(getTableConfig(catalogMediaAssignmentSetRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_media_assignment_set_revisions_set_fk',
+  ]);
+  expect(getTableConfig(catalogMediaAssignmentRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_media_assignment_revisions_assignment_fk',
+    'catalog_media_assignment_revisions_set_fk',
+  ]);
+  for (const table of [catalogMediaAssignments, catalogMediaAssignmentRevisions]) {
+    const names = getTableConfig(table).columns.map((column) => column.name);
+    expect(names).toEqual(expect.arrayContaining(['owner_module_id', 'owner_resource_type', 'owner_resource_id']));
+    expect(names).not.toContain('owner_version');
+    expect(names).not.toContain('storage_key');
+  }
+});
+
 it('separates Product and Variant value sets with controlled-value ownership and immutable revisions', () => {
   expect(getTableConfig(attributeValueSets).indexes.map((index) => index.config.name)).toEqual([
     'catalog_attribute_value_sets_product_uk',
@@ -391,6 +442,18 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_relationship_revisions_append_only');
   expect(combined).toContain('catalog_product_relationships_identity_immutable');
   expect(combined).toContain('catalog_product_relationships_exact_uk" UNIQUE NULLS NOT DISTINCT');
+  for (const trigger of [
+    'catalog_product_localized_fact_revisions_append_only',
+    'catalog_variant_localized_fact_revisions_append_only',
+    'catalog_media_assignment_set_revisions_append_only',
+    'catalog_media_assignment_revisions_append_only',
+    'catalog_product_localized_facts_identity_immutable',
+    'catalog_variant_localized_facts_identity_immutable',
+    'catalog_media_assignment_sets_identity_immutable',
+    'catalog_media_assignments_identity_immutable',
+  ]) {
+    expect(combined).toContain(trigger);
+  }
   for (const trigger of [
     'catalog_brand_revisions_append_only',
     'catalog_product_brand_assignment_revisions_append_only',

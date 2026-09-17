@@ -28,6 +28,10 @@ export const CATALOG_TABLE_INVENTORY = [
   'attribute_value_sets',
   'brand_revisions',
   'brands',
+  'catalog_media_assignment_revisions',
+  'catalog_media_assignment_set_revisions',
+  'catalog_media_assignment_sets',
+  'catalog_media_assignments',
   'controlled_attribute_value_revisions',
   'controlled_attribute_values',
   'manufacturer_relation_revisions',
@@ -43,6 +47,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_category_events',
   'product_category_hierarchy_revisions',
   'product_lifecycle_events',
+  'product_localized_fact_revisions',
+  'product_localized_facts',
   'product_relationship_revisions',
   'product_relationships',
   'product_revisions',
@@ -58,6 +64,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_variant_revisions',
   'product_variants',
   'products',
+  'variant_localized_fact_revisions',
+  'variant_localized_facts',
   'variant_unit_divisibility',
   'variant_unit_divisibility_revisions',
 ] as const;
@@ -357,6 +365,100 @@ export const productVariantAxisEvents = catalogSchema.table.withRLS(
   ],
 );
 
+/** Exact-locale factual copy; absent rows and REMOVED rows never imply a locale. */
+export const productLocalizedFacts = catalogSchema.table.withRLS(
+  'product_localized_facts',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    locale: text('locale').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    state: text('state').notNull(),
+    name: text('name'),
+    description: text('description'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.locale],
+      name: 'catalog_product_localized_facts_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_localized_facts_product_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_product_localized_facts_locale_ck',
+      sql`${table.locale} = btrim(${table.locale}) and length(${table.locale}) between 2 and 64`,
+    ),
+    check('catalog_product_localized_facts_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_product_localized_facts_state_ck', sql`${table.state} in ('SET', 'REMOVED')`),
+    check(
+      'catalog_product_localized_facts_name_ck',
+      sql`${table.name} is null or (${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240)`,
+    ),
+    check(
+      'catalog_product_localized_facts_description_ck',
+      sql`${table.description} is null or (${table.description} = btrim(${table.description}) and length(${table.description}) between 1 and 4000)`,
+    ),
+    check(
+      'catalog_product_localized_facts_shape_ck',
+      sql`(${table.state} = 'SET' and (${table.name} is not null or ${table.description} is not null)) or (${table.state} = 'REMOVED' and ${table.name} is null and ${table.description} is null)`,
+    ),
+    ...tenantRlsPolicies('catalog_product_localized_facts_tenant', table.tenantId),
+  ],
+);
+
+export const productLocalizedFactRevisions = catalogSchema.table.withRLS(
+  'product_localized_fact_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    locale: text('locale').notNull(),
+    revision: integer('revision').notNull(),
+    state: text('state').notNull(),
+    name: text('name'),
+    description: text('description'),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.locale, table.revision],
+      name: 'catalog_product_localized_fact_revisions_pk',
+    }),
+    unique('catalog_product_localized_fact_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.locale],
+      foreignColumns: [productLocalizedFacts.tenantId, productLocalizedFacts.productId, productLocalizedFacts.locale],
+      name: 'catalog_product_localized_fact_revisions_fact_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_localized_fact_revisions_revision_ck', sql`${table.revision} > 0`),
+    check('catalog_product_localized_fact_revisions_state_ck', sql`${table.state} in ('SET', 'REMOVED')`),
+    check(
+      'catalog_product_localized_fact_revisions_name_ck',
+      sql`${table.name} is null or (${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240)`,
+    ),
+    check(
+      'catalog_product_localized_fact_revisions_description_ck',
+      sql`${table.description} is null or (${table.description} = btrim(${table.description}) and length(${table.description}) between 1 and 4000)`,
+    ),
+    check(
+      'catalog_product_localized_fact_revisions_shape_ck',
+      sql`(${table.state} = 'SET' and (${table.name} is not null or ${table.description} is not null)) or (${table.state} = 'REMOVED' and ${table.name} is null and ${table.description} is null)`,
+    ),
+    check(
+      'catalog_product_localized_fact_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_localized_fact_revisions_tenant', table.tenantId),
+  ],
+);
+
 export const productVariants = catalogSchema.table.withRLS(
   'product_variants',
   {
@@ -407,6 +509,106 @@ export const productVariants = catalogSchema.table.withRLS(
       sql`${table.lifecycleState} in ('WORK_IN_PROGRESS', 'ACTIVE', 'RETIRED')`,
     ),
     ...tenantRlsPolicies('catalog_product_variants_tenant', table.tenantId),
+  ],
+);
+
+export const variantLocalizedFacts = catalogSchema.table.withRLS(
+  'variant_localized_facts',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    locale: text('locale').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    state: text('state').notNull(),
+    name: text('name'),
+    description: text('description'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.locale],
+      name: 'catalog_variant_localized_facts_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_variant_localized_facts_variant_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_variant_localized_facts_locale_ck',
+      sql`${table.locale} = btrim(${table.locale}) and length(${table.locale}) between 2 and 64`,
+    ),
+    check('catalog_variant_localized_facts_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_variant_localized_facts_state_ck', sql`${table.state} in ('SET', 'REMOVED')`),
+    check(
+      'catalog_variant_localized_facts_name_ck',
+      sql`${table.name} is null or (${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240)`,
+    ),
+    check(
+      'catalog_variant_localized_facts_description_ck',
+      sql`${table.description} is null or (${table.description} = btrim(${table.description}) and length(${table.description}) between 1 and 4000)`,
+    ),
+    check(
+      'catalog_variant_localized_facts_shape_ck',
+      sql`(${table.state} = 'SET' and (${table.name} is not null or ${table.description} is not null)) or (${table.state} = 'REMOVED' and ${table.name} is null and ${table.description} is null)`,
+    ),
+    ...tenantRlsPolicies('catalog_variant_localized_facts_tenant', table.tenantId),
+  ],
+);
+
+export const variantLocalizedFactRevisions = catalogSchema.table.withRLS(
+  'variant_localized_fact_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    locale: text('locale').notNull(),
+    revision: integer('revision').notNull(),
+    state: text('state').notNull(),
+    name: text('name'),
+    description: text('description'),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.locale, table.revision],
+      name: 'catalog_variant_localized_fact_revisions_pk',
+    }),
+    unique('catalog_variant_localized_fact_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.locale],
+      foreignColumns: [
+        variantLocalizedFacts.tenantId,
+        variantLocalizedFacts.productId,
+        variantLocalizedFacts.variantId,
+        variantLocalizedFacts.locale,
+      ],
+      name: 'catalog_variant_localized_fact_revisions_fact_fk',
+    }).onDelete('restrict'),
+    check('catalog_variant_localized_fact_revisions_revision_ck', sql`${table.revision} > 0`),
+    check('catalog_variant_localized_fact_revisions_state_ck', sql`${table.state} in ('SET', 'REMOVED')`),
+    check(
+      'catalog_variant_localized_fact_revisions_name_ck',
+      sql`${table.name} is null or (${table.name} = btrim(${table.name}) and length(${table.name}) between 1 and 240)`,
+    ),
+    check(
+      'catalog_variant_localized_fact_revisions_description_ck',
+      sql`${table.description} is null or (${table.description} = btrim(${table.description}) and length(${table.description}) between 1 and 4000)`,
+    ),
+    check(
+      'catalog_variant_localized_fact_revisions_shape_ck',
+      sql`(${table.state} = 'SET' and (${table.name} is not null or ${table.description} is not null)) or (${table.state} = 'REMOVED' and ${table.name} is null and ${table.description} is null)`,
+    ),
+    check(
+      'catalog_variant_localized_fact_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_variant_localized_fact_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -1821,7 +2023,183 @@ export const manufacturerRelationRevisions = catalogSchema.table.withRLS(
   ],
 );
 
+/** One lock/CAS counter per Product or Variant assignment set; an empty Variant set overrides Product. */
+export const catalogMediaAssignmentSets = catalogSchema.table.withRLS(
+  'catalog_media_assignment_sets',
+  {
+    assignmentSetId: uuid('assignment_set_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id'),
+    currentRevision: integer('current_revision').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_media_assignment_sets_scope_id_uk').on(table.tenantId, table.assignmentSetId),
+    uniqueIndex('catalog_media_assignment_sets_product_uk')
+      .on(table.tenantId, table.productId)
+      .where(sql`${table.variantId} is null`),
+    uniqueIndex('catalog_media_assignment_sets_variant_uk')
+      .on(table.tenantId, table.productId, table.variantId)
+      .where(sql`${table.variantId} is not null`),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_media_assignment_sets_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_media_assignment_sets_variant_fk',
+    }).onDelete('restrict'),
+    check('catalog_media_assignment_sets_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_media_assignment_sets_tenant', table.tenantId),
+  ],
+);
+
+export const catalogMediaAssignmentSetRevisions = catalogSchema.table.withRLS(
+  'catalog_media_assignment_set_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    assignmentSetId: uuid('assignment_set_id').notNull(),
+    revision: integer('revision').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.assignmentSetId, table.revision],
+      name: 'catalog_media_assignment_set_revisions_pk',
+    }),
+    unique('catalog_media_assignment_set_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.assignmentSetId],
+      foreignColumns: [catalogMediaAssignmentSets.tenantId, catalogMediaAssignmentSets.assignmentSetId],
+      name: 'catalog_media_assignment_set_revisions_set_fk',
+    }).onDelete('restrict'),
+    check('catalog_media_assignment_set_revisions_revision_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_media_assignment_set_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_media_assignment_set_revisions_tenant', table.tenantId),
+  ],
+);
+
+export const catalogMediaAssignments = catalogSchema.table.withRLS(
+  'catalog_media_assignments',
+  {
+    assignmentId: uuid('assignment_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    assignmentSetId: uuid('assignment_set_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    resourceKind: text('resource_kind').notNull(),
+    ownerModuleId: text('owner_module_id').notNull(),
+    ownerResourceType: text('owner_resource_type').notNull(),
+    ownerResourceId: uuid('owner_resource_id').notNull(),
+    ownerTenantId: uuid('owner_tenant_id').notNull(),
+    purpose: text('purpose').notNull(),
+    position: integer('position').notNull(),
+    state: text('state').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_media_assignments_scope_id_uk').on(table.tenantId, table.assignmentId),
+    uniqueIndex('catalog_media_assignments_active_position_uk')
+      .on(table.tenantId, table.assignmentSetId, table.resourceKind, table.position)
+      .where(sql`${table.state} = 'ACTIVE'`),
+    foreignKey({
+      columns: [table.tenantId, table.assignmentSetId],
+      foreignColumns: [catalogMediaAssignmentSets.tenantId, catalogMediaAssignmentSets.assignmentSetId],
+      name: 'catalog_media_assignments_set_fk',
+    }).onDelete('restrict'),
+    check('catalog_media_assignments_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_media_assignments_kind_ck', sql`${table.resourceKind} in ('MEDIA', 'DOCUMENT')`),
+    check('catalog_media_assignments_owner_tenant_ck', sql`${table.ownerTenantId} = ${table.tenantId}`),
+    check(
+      'catalog_media_assignments_owner_ck',
+      sql`${table.ownerModuleId} = btrim(${table.ownerModuleId}) and length(${table.ownerModuleId}) between 1 and 160 and ${table.ownerResourceType} = btrim(${table.ownerResourceType}) and length(${table.ownerResourceType}) between 1 and 160`,
+    ),
+    check(
+      'catalog_media_assignments_purpose_ck',
+      sql`${table.purpose} = btrim(${table.purpose}) and length(${table.purpose}) between 1 and 160`,
+    ),
+    check('catalog_media_assignments_position_ck', sql`${table.position} > 0`),
+    check('catalog_media_assignments_state_ck', sql`${table.state} in ('ACTIVE', 'REMOVED')`),
+    ...tenantRlsPolicies('catalog_media_assignments_tenant', table.tenantId),
+  ],
+);
+
+export const catalogMediaAssignmentRevisions = catalogSchema.table.withRLS(
+  'catalog_media_assignment_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    assignmentId: uuid('assignment_id').notNull(),
+    assignmentSetId: uuid('assignment_set_id').notNull(),
+    revision: integer('revision').notNull(),
+    setRevision: integer('set_revision').notNull(),
+    resourceKind: text('resource_kind').notNull(),
+    ownerModuleId: text('owner_module_id').notNull(),
+    ownerResourceType: text('owner_resource_type').notNull(),
+    ownerResourceId: uuid('owner_resource_id').notNull(),
+    ownerTenantId: uuid('owner_tenant_id').notNull(),
+    purpose: text('purpose').notNull(),
+    position: integer('position').notNull(),
+    state: text('state').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.assignmentId, table.revision],
+      name: 'catalog_media_assignment_revisions_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.assignmentId],
+      foreignColumns: [catalogMediaAssignments.tenantId, catalogMediaAssignments.assignmentId],
+      name: 'catalog_media_assignment_revisions_assignment_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.assignmentSetId],
+      foreignColumns: [catalogMediaAssignmentSets.tenantId, catalogMediaAssignmentSets.assignmentSetId],
+      name: 'catalog_media_assignment_revisions_set_fk',
+    }).onDelete('restrict'),
+    check('catalog_media_assignment_revisions_revision_ck', sql`${table.revision} > 0 and ${table.setRevision} > 0`),
+    check('catalog_media_assignment_revisions_kind_ck', sql`${table.resourceKind} in ('MEDIA', 'DOCUMENT')`),
+    check('catalog_media_assignment_revisions_owner_tenant_ck', sql`${table.ownerTenantId} = ${table.tenantId}`),
+    check(
+      'catalog_media_assignment_revisions_owner_ck',
+      sql`${table.ownerModuleId} = btrim(${table.ownerModuleId}) and length(${table.ownerModuleId}) between 1 and 160 and ${table.ownerResourceType} = btrim(${table.ownerResourceType}) and length(${table.ownerResourceType}) between 1 and 160`,
+    ),
+    check(
+      'catalog_media_assignment_revisions_purpose_ck',
+      sql`${table.purpose} = btrim(${table.purpose}) and length(${table.purpose}) between 1 and 160`,
+    ),
+    check('catalog_media_assignment_revisions_position_ck', sql`${table.position} > 0`),
+    check('catalog_media_assignment_revisions_state_ck', sql`${table.state} in ('ACTIVE', 'REMOVED')`),
+    check(
+      'catalog_media_assignment_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_media_assignment_revisions_tenant', table.tenantId),
+  ],
+);
+
 const catalogDatabaseSchema = {
+  catalogMediaAssignmentRevisions,
+  catalogMediaAssignments,
+  catalogMediaAssignmentSetRevisions,
+  catalogMediaAssignmentSets,
+  productLocalizedFactRevisions,
+  productLocalizedFacts,
+  variantLocalizedFactRevisions,
+  variantLocalizedFacts,
   brandRevisions,
   brands,
   manufacturerRelationRevisions,
@@ -1864,6 +2242,14 @@ const catalogDatabaseSchema = {
 } as const;
 
 export const CATALOG_TABLES = [
+  catalogMediaAssignmentRevisions,
+  catalogMediaAssignments,
+  catalogMediaAssignmentSetRevisions,
+  catalogMediaAssignmentSets,
+  productLocalizedFactRevisions,
+  productLocalizedFacts,
+  variantLocalizedFactRevisions,
+  variantLocalizedFacts,
   brandRevisions,
   brands,
   manufacturerRelationRevisions,

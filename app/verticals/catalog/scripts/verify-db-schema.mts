@@ -30,14 +30,18 @@ const pointersAreCurrent = (pointers: {
   controlled_value_mismatch: number;
   counter_mismatch: number;
   manufacturer_mismatch: number;
+  media_assignment_mismatch: number;
+  media_set_mismatch: number;
   package_mismatch: number;
   package_unit_mismatch: number;
   package_unit_reference_mismatch: number;
   product_brand_mismatch: number;
+  product_locale_mismatch: number;
   relationship_mismatch: number;
   type_mismatch: number;
   unit_rule_mismatch: number;
   variant_axis_integrity_mismatch: number;
+  variant_locale_mismatch: number;
   variant_mismatch: number;
   variant_unit_mismatch: number;
 }) => Object.values(pointers).every((count) => count === 0);
@@ -123,7 +127,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 41 ||
+    row.trigger_count !== 49 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -144,14 +148,18 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         controlled_value_mismatch: number;
         counter_mismatch: number;
         manufacturer_mismatch: number;
+        media_assignment_mismatch: number;
+        media_set_mismatch: number;
         package_mismatch: number;
         package_unit_mismatch: number;
         package_unit_reference_mismatch: number;
         product_brand_mismatch: number;
+        product_locale_mismatch: number;
         relationship_mismatch: number;
         type_mismatch: number;
         unit_rule_mismatch: number;
         variant_axis_integrity_mismatch: number;
+        variant_locale_mismatch: number;
         variant_mismatch: number;
         variant_unit_mismatch: number;
       }>(`select
@@ -314,6 +322,37 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         where c.unit_resource_type <> 'commerce.catalog.product-unit'
           or not exists (select 1 from catalog.product_units u
             where u.tenant_id=c.tenant_id and u.unit_id=c.unit_resource_id)) package_unit_reference_mismatch,
+      (select count(*)::integer from catalog.product_localized_facts f
+        where not exists (select 1 from catalog.product_localized_fact_revisions r
+          where r.tenant_id=f.tenant_id and r.product_id=f.product_id and r.locale=f.locale
+            and r.revision=f.current_revision and r.state=f.state
+            and r.name is not distinct from f.name and r.description is not distinct from f.description)
+          or f.current_revision <> (select max(r.revision) from catalog.product_localized_fact_revisions r
+            where r.tenant_id=f.tenant_id and r.product_id=f.product_id and r.locale=f.locale)) product_locale_mismatch,
+      (select count(*)::integer from catalog.variant_localized_facts f
+        where not exists (select 1 from catalog.variant_localized_fact_revisions r
+          where r.tenant_id=f.tenant_id and r.product_id=f.product_id and r.variant_id=f.variant_id
+            and r.locale=f.locale and r.revision=f.current_revision and r.state=f.state
+            and r.name is not distinct from f.name and r.description is not distinct from f.description)
+          or f.current_revision <> (select max(r.revision) from catalog.variant_localized_fact_revisions r
+            where r.tenant_id=f.tenant_id and r.product_id=f.product_id and r.variant_id=f.variant_id
+              and r.locale=f.locale)) variant_locale_mismatch,
+      (select count(*)::integer from catalog.catalog_media_assignment_sets s
+        where not exists (select 1 from catalog.catalog_media_assignment_set_revisions r
+          where r.tenant_id=s.tenant_id and r.assignment_set_id=s.assignment_set_id
+            and r.revision=s.current_revision)
+          or s.current_revision <> (select max(r.revision) from catalog.catalog_media_assignment_set_revisions r
+            where r.tenant_id=s.tenant_id and r.assignment_set_id=s.assignment_set_id)) media_set_mismatch,
+      (select count(*)::integer from catalog.catalog_media_assignments a
+        where not exists (select 1 from catalog.catalog_media_assignment_revisions r
+          where r.tenant_id=a.tenant_id and r.assignment_id=a.assignment_id
+            and r.assignment_set_id=a.assignment_set_id and r.revision=a.current_revision
+            and r.resource_kind=a.resource_kind and r.owner_module_id=a.owner_module_id
+            and r.owner_resource_type=a.owner_resource_type and r.owner_resource_id=a.owner_resource_id
+            and r.owner_tenant_id=a.owner_tenant_id and r.purpose=a.purpose
+            and r.position=a.position and r.state=a.state)
+          or a.current_revision <> (select max(r.revision) from catalog.catalog_media_assignment_revisions r
+            where r.tenant_id=a.tenant_id and r.assignment_id=a.assignment_id)) media_assignment_mismatch,
       (select count(*)::integer from catalog.product_category_hierarchy_revisions h
         where h.hierarchy_revision <> coalesce((select max(e.hierarchy_revision)
           from catalog.product_category_events e where e.tenant_id=h.tenant_id
