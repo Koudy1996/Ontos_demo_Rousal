@@ -2,6 +2,8 @@ import { PartyDetailResponseSchema, executePartyDetail } from '@app/party-regist
 import type { PartyDetailResponse } from '@app/party-registry/api/client';
 import { LegalEntityRefSchema } from '@app/core-runtime/resources/legal-entity';
 import type { LegalEntityRef } from '@app/core-runtime/resources/legal-entity';
+import { legalEntityDetailRead } from '@app/core-runtime';
+import type { OperationalScope, ReadRuntimeService } from '@app/core-runtime';
 import { Effect, Option, Predicate, Schema } from 'effect';
 
 import type { ManufacturerTarget } from '../../shared/domain/manufacturer-relation.ts';
@@ -47,7 +49,7 @@ interface ManagedLegalEntityDetail {
 }
 
 export interface ManufacturerTargetResolverPorts {
-  /** Bind to Shell's published executeLegalEntityDetail at the Shell composition seam. */
+  /** Bind to Core's governed Legal Entity detail Read at the Action service seam. */
   readonly readManagedLegalEntity?: (payload: {
     readonly legalEntityRef: LegalEntityRef;
   }) => Effect.Effect<ManagedLegalEntityDetail, PartyReadFailure>;
@@ -58,12 +60,14 @@ export interface ManufacturerTargetResolverPorts {
 }
 
 const legalEntityReadFailure = (failure: PartyReadFailure) => {
-  if (Predicate.isTagged(failure, 'ShellTargetNotFoundProblem')) {
+  if (Predicate.isTagged(failure, 'ReadHandlerNotFound')) {
     return new ManufacturerTargetAbsent();
   }
   if (
-    Predicate.isTagged(failure, 'ShellTargetForbiddenProblem') ||
-    Predicate.isTagged(failure, 'ShellAuthenticationRequiredProblem')
+    Predicate.isTagged(failure, 'ReadPermissionDenied') ||
+    Predicate.isTagged(failure, 'ReadPolicyDenied') ||
+    Predicate.isTagged(failure, 'OperationContextDenied') ||
+    Predicate.isTagged(failure, 'OperationAuthenticationRequired')
   ) {
     return new ManufacturerTargetForbidden();
   }
@@ -183,3 +187,17 @@ export const makeManufacturerTargetResolver = (configuredPorts?: ManufacturerTar
 };
 
 export const manufacturerTargetResolver = makeManufacturerTargetResolver();
+
+/** Carry the original, provenance-bearing principal into Core's governed Read lifecycle. */
+// oxlint-disable-next-line effect-native/no-dependency-parameters -- Action factory resolves ReadRuntime from Context and binds it here to the target resolver's owner-read port.
+export const manufacturerTargetResolverForCoreRead = (readRuntime: ReadRuntimeService, scope: OperationalScope) =>
+  makeManufacturerTargetResolver({
+    readManagedLegalEntity: ({ legalEntityRef }) =>
+      readRuntime.runRead({
+        input: { legalEntityRef },
+        principal: scope,
+        registration: legalEntityDetailRead,
+        transport: { correlationId: scope.correlationId },
+      }),
+    readPartyDetail: executePartyDetail,
+  });

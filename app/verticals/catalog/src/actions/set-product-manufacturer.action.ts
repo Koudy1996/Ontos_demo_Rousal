@@ -3,7 +3,7 @@
 // @ontos-action-slug set-product-manufacturer
 import { Effect, Match, Schema } from 'effect';
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { ReadRuntime, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   SetProductManufacturerPayloadSchema,
@@ -17,6 +17,7 @@ import {
 } from '../persistence/manufacturer-persistence.ts';
 import type { ManufacturerPersistence } from '../persistence/manufacturer-persistence.ts';
 import { ManufacturerTargetForbidden } from '../persistence/manufacturer-target-forbidden.ts';
+import { manufacturerTargetResolverForCoreRead } from '../persistence/manufacturer-target-resolver.ts';
 
 export { SetProductManufacturerPayloadSchema } from '../../shared/actions/manufacturer-mutations.ts';
 export type { SetProductManufacturerPayload } from '../../shared/actions/manufacturer-mutations.ts';
@@ -102,8 +103,12 @@ export const setProductManufacturerAction = defineAction(
     schemaVersion: '1',
   },
   handleSetProductManufacturer,
-  (...args: Parameters<typeof manufacturerPersistenceForScope>) =>
-    Effect.succeed(manufacturerPersistenceForScope(...args)),
+  Effect.fn('SetProductManufacturerAction.services')(function* manufacturerServices(transaction, scope) {
+    const readRuntime = yield* ReadRuntime;
+    return manufacturerPersistenceForScope(transaction, scope, {
+      targetResolver: manufacturerTargetResolverForCoreRead(readRuntime, scope),
+    });
+  }),
 );
 
 // <generated-outbox-message-exports>

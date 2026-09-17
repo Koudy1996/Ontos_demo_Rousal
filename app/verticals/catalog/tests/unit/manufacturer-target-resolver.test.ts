@@ -166,9 +166,13 @@ describe('Manufacturer owner target resolution', () => {
       const contradiction = yield* Effect.flip(contradictory.resolve(managedTarget, scope));
       expect(Schema.is(ManufacturerTargetUnavailable)(contradiction)).toBe(true);
       for (const [ownerTag, expected] of [
-        ['ShellTargetNotFoundProblem', ManufacturerTargetAbsent],
-        ['ShellTargetForbiddenProblem', ManufacturerTargetForbidden],
-        ['ShellCapabilityUnavailableProblem', ManufacturerTargetUnavailable],
+        ['ReadHandlerNotFound', ManufacturerTargetAbsent],
+        ['ReadPermissionDenied', ManufacturerTargetForbidden],
+        ['ReadPolicyDenied', ManufacturerTargetForbidden],
+        ['OperationContextDenied', ManufacturerTargetForbidden],
+        ['OperationAuthenticationRequired', ManufacturerTargetForbidden],
+        ['ReadHandlerUnavailable', ManufacturerTargetUnavailable],
+        ['ReadPermissionUnavailable', ManufacturerTargetUnavailable],
       ] as const) {
         const resolver = makeManufacturerTargetResolver({
           readManagedLegalEntity: () => Effect.fail({ _tag: ownerTag }),
