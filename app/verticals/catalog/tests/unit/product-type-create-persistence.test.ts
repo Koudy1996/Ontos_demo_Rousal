@@ -5,6 +5,7 @@ import { ProductTypeRulesRevisionSchema } from '../../shared/domain/product-type
 import {
   ProductTypeCreateConflict,
   mapProductTypeCreateWriteError,
+  validProductTypeRuleDefinitions,
 } from '../../src/persistence/product-type-create-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 
@@ -62,5 +63,32 @@ describe('Product Type create persistence', () => {
         ],
       }),
     ).toThrow();
+  });
+
+  it('rejects missing, foreign-tenant, and level-inapplicable Definitions before rule inserts', () => {
+    const productRule = { attributeDefinitionRef, level: 'PRODUCT', required: true } as const;
+    const variantRule = { attributeDefinitionRef, level: 'VARIANT', required: false } as const;
+    const definition = {
+      applicableLevels: ['PRODUCT'],
+      attributeDefinitionId: attributeDefinitionRef.resourceId,
+      tenantId,
+    } as const;
+    expect(validProductTypeRuleDefinitions([productRule], [definition], tenantId)).toBe(true);
+    expect(validProductTypeRuleDefinitions([productRule], [], tenantId)).toBe(false);
+    expect(validProductTypeRuleDefinitions([variantRule], [definition], tenantId)).toBe(false);
+    expect(
+      validProductTypeRuleDefinitions(
+        [productRule],
+        [{ ...definition, tenantId: '99999999-9999-4999-8999-999999999999' }],
+        tenantId,
+      ),
+    ).toBe(false);
+    expect(
+      validProductTypeRuleDefinitions(
+        [productRule, variantRule],
+        [{ ...definition, applicableLevels: ['PRODUCT', 'VARIANT'] }],
+        tenantId,
+      ),
+    ).toBe(true);
   });
 });

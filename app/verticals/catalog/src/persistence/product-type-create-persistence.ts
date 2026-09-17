@@ -1,6 +1,7 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { findPostgresFailure } from '@app/core-runtime';
 import { randomUUID } from 'node:crypto';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 
 import type { ProductTypeAttributeRule } from '../../shared/domain/product-type-rules.ts';
@@ -8,7 +9,12 @@ import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revisio
 import { ProductTypeRulesRevisionSchema } from '../../shared/domain/product-type-rules.ts';
 import type { CreateProductTypeResult } from '../actions/create-product-type.action.ts';
 import { ProductTypeRefSchema } from '../../shared/resources/product-type.ts';
-import { productTypeRevisionAttributes, productTypeRevisions, productTypes } from '../database/schema.ts';
+import {
+  attributeDefinitions,
+  productTypeRevisionAttributes,
+  productTypeRevisions,
+  productTypes,
+} from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -84,6 +90,30 @@ export interface ProductTypeCreatePersistence {
   ) => Effect.Effect<CreateProductTypeResult, ProductTypeCreateConflict | CatalogPersistenceUnavailable>;
 }
 
+interface DefinitionApplicability {
+  readonly applicableLevels: readonly string[];
+  readonly attributeDefinitionId: string;
+  readonly tenantId: string;
+}
+
+/** A rule may only point at a Current Definition in this Tenant that permits its level. */
+export const validProductTypeRuleDefinitions = (
+  rules: readonly ProductTypeAttributeRule[],
+  definitions: readonly DefinitionApplicability[],
+  tenantId: string,
+): boolean => {
+  const byId = new Map(definitions.map((definition) => [definition.attributeDefinitionId, definition]));
+  return rules.every((rule) => {
+    const definition = byId.get(rule.attributeDefinitionRef.resourceId);
+    return (
+      rule.attributeDefinitionRef.tenantId === tenantId &&
+      definition !== undefined &&
+      definition.tenantId === tenantId &&
+      definition.applicableLevels.includes(rule.level)
+    );
+  });
+};
+
 /** The Core-owned transaction commits or rolls back all three inserts together. */
 export const productTypeCreatePersistenceForScope = (
   transaction: ScopedTransaction,
@@ -111,6 +141,35 @@ export const productTypeCreatePersistenceForScope = (
           conflict: 'INVALID_RULES',
           reason: 'Initial Product Type rules are duplicated, malformed, or outside the trusted Tenant',
         });
+      }
+
+      if (input.rules.length > 0) {
+        const definitionIds = [
+          ...new Set(input.rules.map((rule) => rule.attributeDefinitionRef.resourceId)),
+        ].toSorted();
+        const definitions = yield* transaction
+          .select({
+            applicableLevels: attributeDefinitions.applicableLevels,
+            attributeDefinitionId: attributeDefinitions.attributeDefinitionId,
+            tenantId: attributeDefinitions.tenantId,
+          })
+          .from(attributeDefinitions)
+          .where(
+            and(
+              eq(attributeDefinitions.tenantId, tenantId),
+              inArray(attributeDefinitions.attributeDefinitionId, definitionIds),
+            ),
+          )
+          .orderBy(asc(attributeDefinitions.attributeDefinitionId))
+          .for('share')
+          .pipe(Effect.mapError(unavailable));
+        if (!validProductTypeRuleDefinitions(input.rules, definitions, tenantId)) {
+          return yield* new ProductTypeCreateConflict({
+            code: 'product_type_create_conflict',
+            conflict: 'INVALID_RULES',
+            reason: 'Referenced Attribute Definitions do not exist or do not permit the requested levels',
+          });
+        }
       }
 
       yield* transaction
