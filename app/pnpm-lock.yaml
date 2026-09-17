@@ -570,6 +570,22 @@ importers:
         specifier: 0.1.4
         version: 0.1.4(patch_hash=400646897be54f02f39200a151f0f4a48428fc12dccbd7d91a7391b55247152a)(@rstest/core@0.11.12(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0)(happy-dom@20.8.3))(effect@4.0.0-rc.112(patch_hash=b7489e5109ec4daf5d6c7ac30956ed95c312f4077cbc973b8c82f0f340108ada))
 
+  packages/email-delivery:
+    dependencies:
+      effect:
+        specifier: 4.0.0-rc.112
+        version: 4.0.0-rc.112(patch_hash=b7489e5109ec4daf5d6c7ac30956ed95c312f4077cbc973b8c82f0f340108ada)
+    devDependencies:
+      '@rstest/core':
+        specifier: 0.11.12
+        version: 0.11.12(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0)(happy-dom@20.8.3)
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.5.1
+      effect-rstest:
+        specifier: 0.1.4
+        version: 0.1.4(patch_hash=400646897be54f02f39200a151f0f4a48428fc12dccbd7d91a7391b55247152a)(@rstest/core@0.11.12(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0)(happy-dom@20.8.3))(effect@4.0.0-rc.112(patch_hash=b7489e5109ec4daf5d6c7ac30956ed95c312f4077cbc973b8c82f0f340108ada))
+
   packages/gateway-principal-verifier:
     dependencies:
       '@app/core-runtime':
