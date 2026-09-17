@@ -1,0 +1,41 @@
+import { Schema } from 'effect';
+
+import { CatalogResourceRefSchema } from './catalog-revision-reference.ts';
+
+const qualifiedPart = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed());
+
+/** A source record's literal identifier, qualified by its issuer and Tenant. It is not a SKU,
+ * GTIN, Product identity, or Connector Registry correlation. Its spelling is preserved. */
+export const CatalogExternalSourceRecordRefSchema = Schema.Struct({
+  tenantId: CatalogResourceRefSchema.fields.tenantId,
+  issuerKind: Schema.Literals(['EXTERNAL_BUSINESS_SYSTEM', 'EXTERNAL_EVIDENCE_PROVIDER']),
+  issuerId: qualifiedPart,
+  recordNamespace: qualifiedPart,
+  recordId: qualifiedPart,
+});
+export type CatalogExternalSourceRecordRef = typeof CatalogExternalSourceRecordRefSchema.Type;
+
+/** Provenance attached to one *exact* Catalog Resource, not authority to change its facts.
+ * The Connector Registry owner must independently establish any durable correlation. */
+export const CatalogExternalSourceEvidenceSchema = Schema.Struct({
+  sourceRecord: CatalogExternalSourceRecordRefSchema,
+  observedTarget: CatalogResourceRefSchema,
+}).check(
+  Schema.makeFilter(({ sourceRecord, observedTarget }) =>
+    sourceRecord.tenantId === observedTarget.tenantId
+      ? undefined
+      : 'External source and observed Catalog target must share one Tenant',
+  ),
+);
+export type CatalogExternalSourceEvidence = typeof CatalogExternalSourceEvidenceSchema.Type;
+
+/** Equality of source references never crosses issuer, namespace, or Tenant boundaries. */
+export const sameCatalogExternalSourceRecord = (
+  left: CatalogExternalSourceRecordRef,
+  right: CatalogExternalSourceRecordRef,
+): boolean =>
+  left.tenantId === right.tenantId &&
+  left.issuerKind === right.issuerKind &&
+  left.issuerId === right.issuerId &&
+  left.recordNamespace === right.recordNamespace &&
+  left.recordId === right.recordId;
