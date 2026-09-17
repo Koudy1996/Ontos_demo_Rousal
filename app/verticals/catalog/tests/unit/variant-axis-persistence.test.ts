@@ -52,8 +52,8 @@ type AxisTable =
 const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) => {
   const rows = new Map<AxisTable, readonly object[]>([
     [products, [{ productId }]],
-    [productVariantAxisEvents, [{ attributeDefinitionIds: [definitionId], axisRevision: 1 }]],
-    [productVariantAxes, [{ attributeDefinitionId: definitionId, axisRevision: 1, ordinal: 0 }]],
+    [productVariantAxisEvents, [{ attributeDefinitionIds: [definitionId], axisRevision: 1, productId, tenantId }]],
+    [productVariantAxes, [{ attributeDefinitionId: definitionId, axisRevision: 1, ordinal: 0, productId, tenantId }]],
     [productTypeAssignments, [{ productTypeId: typeId }]],
     [productTypes, [{ currentRevision: 2 }]],
     [productTypeRevisions, [{ revision: 2 }]],
@@ -63,6 +63,7 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) =>
         {
           applicableLevels: ['VARIANT'],
           attributeDefinitionId: definitionId,
+          tenantId,
           controlledValueKind: 'COLOR',
           currentRevision: 3,
           multiplicity: 'SINGLE',
@@ -137,6 +138,32 @@ describe('Variant Axis Current basis', () => {
       const persistence = variantAxisPersistenceForScope(
         // @ts-expect-error Focused Drizzle read-chain mock.
         transactionWith(new Map([[attributeDefinitionRevisions, []]])),
+        scope,
+      );
+      const failure = yield* Effect.flip(persistence.readCurrent(productRef));
+      expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+
+  it.effect('rejects an axis event for a different Product', () =>
+    Effect.gen(function* rejectsForeignEvent() {
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle read-chain mock.
+        transactionWith(
+          new Map([
+            [
+              productVariantAxisEvents,
+              [
+                {
+                  attributeDefinitionIds: [definitionId],
+                  axisRevision: 1,
+                  productId: '66666666-6666-4666-8666-666666666666',
+                  tenantId,
+                },
+              ],
+            ],
+          ]),
+        ),
         scope,
       );
       const failure = yield* Effect.flip(persistence.readCurrent(productRef));

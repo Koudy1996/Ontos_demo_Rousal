@@ -255,6 +255,14 @@ describe('private effective attribute value reads', () => {
     }),
   );
 
+  it.effect('rejects a removed set that still carries value items', () =>
+    Effect.gen(function* removedWithItems() {
+      const removed = { ...variantSet, currentRevision: 3, currentState: 'REMOVED' as const };
+      const reads = yield* serviceWith([removed], { [variantSetId]: 'stale value' }).service;
+      expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+    }),
+  );
+
   it.effect('rejects ambiguous sets and mismatched revision or item ownership', () =>
     Effect.gen(function* malformedSnapshots() {
       for (const fixture of [

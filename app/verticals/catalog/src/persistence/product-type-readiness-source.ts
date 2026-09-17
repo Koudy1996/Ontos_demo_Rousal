@@ -53,7 +53,12 @@ const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
 export const productTypeReadinessSourceForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
   load: Effect.fn('ProductTypeReadinessSource.load')(function* load(productRef: ProductRef, evaluatedAt: DateTime.Utc) {
     const { tenantId } = scope;
-    if (productRef.tenantId !== tenantId || !DateTime.isDateTime(evaluatedAt)) {
+    if (
+      productRef.tenantId !== tenantId ||
+      productRef.moduleId !== 'commerce.catalog' ||
+      productRef.resourceType !== 'commerce.catalog.product' ||
+      !DateTime.isDateTime(evaluatedAt)
+    ) {
       return yield* invalid('Invalid Product or evaluation instant');
     }
     const [product] = yield* transaction
@@ -78,6 +83,14 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
     if (assignment === undefined) {
       return { productRef, status: 'UNTYPED' } as const;
     }
+    if (
+      assignment.tenantId !== tenantId ||
+      assignment.productId !== productRef.resourceId ||
+      !Number.isInteger(assignment.assignmentRevision) ||
+      assignment.assignmentRevision < 1
+    ) {
+      return yield* invalid('Product Type assignment is malformed');
+    }
     const [type] = yield* transaction
       .select()
       .from(productTypes)
@@ -85,7 +98,7 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
       .for('share')
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-    if (type === undefined) {
+    if (type === undefined || type.tenantId !== tenantId || type.productTypeId !== assignment.productTypeId) {
       return yield* invalid('Assigned Product Type is missing');
     }
     const [revision] = yield* transaction
@@ -101,7 +114,12 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
       .for('share')
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-    if (revision === undefined) {
+    if (
+      revision === undefined ||
+      revision.tenantId !== tenantId ||
+      revision.productTypeId !== type.productTypeId ||
+      revision.revision !== type.currentRevision
+    ) {
       return yield* invalid('Current Product Type revision is missing');
     }
     const rules = yield* transaction
@@ -115,6 +133,16 @@ export const productTypeReadinessSourceForScope = (transaction: ScopedTransactio
         ),
       )
       .pipe(Effect.mapError(unavailable));
+    if (
+      rules.some(
+        (rule) =>
+          rule.tenantId !== tenantId ||
+          rule.productTypeId !== type.productTypeId ||
+          rule.revision !== type.currentRevision,
+      )
+    ) {
+      return yield* invalid('Current Product Type rules are malformed');
+    }
     const productTypeRef = {
       moduleId: 'commerce.catalog' as const,
       resourceId: type.productTypeId,

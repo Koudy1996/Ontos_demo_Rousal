@@ -151,7 +151,13 @@ const decodeItem = Effect.fn('EffectiveAttributeValueReads.decodeItem')(function
     )
     .limit(1)
     .pipe(Effect.mapError(unavailable));
-  if (controlled === undefined || controlled.specialization !== controlledKind) {
+  if (
+    controlled === undefined ||
+    controlled.tenantId !== tenantId ||
+    controlled.attributeDefinitionId !== definitionId ||
+    controlled.lifecycleState !== 'ACTIVE' ||
+    controlled.specialization !== controlledKind
+  ) {
     return Option.none<AttributeValue>();
   }
   return Schema.decodeUnknownOption(AttributeValueSchema)({
@@ -358,6 +364,7 @@ export const effectiveAttributeValueReadsForScope = (
           !Number.isInteger(set.currentRevision) ||
           set.currentRevision < 1 ||
           records[0].changeKind !== set.currentState ||
+          (set.currentState === 'REMOVED' && items.length !== 0) ||
           items.some(
             (item, index) =>
               item.tenantId !== tenantId ||

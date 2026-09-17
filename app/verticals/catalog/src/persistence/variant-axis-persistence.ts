@@ -83,7 +83,12 @@ export const variantAxisPersistenceForScope = (
       )
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-    if (definition === undefined || !new Set(definition.applicableLevels).has('VARIANT')) {
+    if (
+      definition === undefined ||
+      definition.tenantId !== tenantId ||
+      definition.attributeDefinitionId !== row.attributeDefinitionId ||
+      !new Set(definition.applicableLevels).has('VARIANT')
+    ) {
       return yield* basisUnavailable();
     }
     const [definitionRevision] = yield* transaction
@@ -178,6 +183,8 @@ export const variantAxisPersistenceForScope = (
         .orderBy(asc(productVariantAxes.ordinal))
         .pipe(Effect.mapError(unavailable));
       if (
+        (event !== undefined && (event.tenantId !== tenantId || event.productId !== productId)) ||
+        rows.some((row) => row.tenantId !== tenantId || row.productId !== productId) ||
         (event === undefined && rows.length !== 0) ||
         (event !== undefined &&
           (rows.length !== event.attributeDefinitionIds.length ||
@@ -205,7 +212,7 @@ export const variantAxisPersistenceForScope = (
           .where(and(eq(productTypes.tenantId, tenantId), eq(productTypes.productTypeId, assignment.productTypeId)))
           .limit(1)
           .pipe(Effect.mapError(unavailable));
-        if (type === undefined) {
+        if (type === undefined || !Number.isInteger(type.currentRevision) || type.currentRevision < 1) {
           return yield* basisUnavailable();
         }
         productTypeRevision = type.currentRevision;

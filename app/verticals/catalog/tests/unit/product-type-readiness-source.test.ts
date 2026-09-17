@@ -35,6 +35,7 @@ type Table =
   | typeof productTypeRevisionAttributes;
 interface Rows {
   readonly assigned?: boolean;
+  readonly foreignRule?: boolean;
   readonly revision?: number;
 }
 const rowsFor = (table: Table, options: Rows) => {
@@ -42,17 +43,34 @@ const rowsFor = (table: Table, options: Rows) => {
     return [{ productId }];
   }
   if (table === productTypeAssignments) {
-    return options.assigned === false ? [] : [{ assignmentRevision: 3, productTypeId: typeId }];
+    return options.assigned === false ? [] : [{ assignmentRevision: 3, productId, productTypeId: typeId, tenantId }];
   }
   if (table === productTypes) {
-    return [{ currentRevision: options.revision ?? 2, productTypeId: typeId }];
+    return [{ currentRevision: options.revision ?? 2, productTypeId: typeId, tenantId }];
   }
   if (table === productTypeRevisions) {
     return options.revision === 3
       ? []
-      : [{ effectiveAt: new Date('2026-09-16T00:00:00.000Z'), productTypeRevisionId: revisionId, revision: 2 }];
+      : [
+          {
+            effectiveAt: new Date('2026-09-16T00:00:00.000Z'),
+            productTypeId: typeId,
+            productTypeRevisionId: revisionId,
+            revision: 2,
+            tenantId,
+          },
+        ];
   }
-  return [{ attributeDefinitionId: definitionId, level: 'PRODUCT', requirement: 'REQUIRED' }];
+  return [
+    {
+      attributeDefinitionId: definitionId,
+      level: 'PRODUCT',
+      productTypeId: typeId,
+      requirement: 'REQUIRED',
+      revision: 2,
+      tenantId: options.foreignRule === true ? '77777777-7777-4777-8777-777777777777' : tenantId,
+    },
+  ];
 };
 const selected = (rows: readonly object[]) => ({
   where: () => {
@@ -95,6 +113,15 @@ describe('Product Type Current readiness source', () => {
     Effect.gen(function* stale() {
       // @ts-expect-error Mock supplies only the selected Drizzle query chain.
       const source = productTypeReadinessSourceForScope(transaction({ revision: 3 }), scope);
+      const result = yield* Effect.exit(source.load(productRef, at));
+      expect(result._tag).toBe('Failure');
+    }),
+  );
+
+  it.effect('rejects a rule row outside the exact Tenant revision', () =>
+    Effect.gen(function* foreignRule() {
+      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+      const source = productTypeReadinessSourceForScope(transaction({ foreignRule: true }), scope);
       const result = yield* Effect.exit(source.load(productRef, at));
       expect(result._tag).toBe('Failure');
     }),
