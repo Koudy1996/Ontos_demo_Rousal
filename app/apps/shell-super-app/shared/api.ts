@@ -1,6 +1,8 @@
 import { GatewayContextApiGroup } from '@app/shared-contracts';
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
+// @ontos-codesmith-core-read-contract-imports:start
+// @ontos-codesmith-core-read-contract-imports:end
 
 export type SafeTenantIdentity = typeof SafeTenantIdentitySchema.Type;
 export type SafeAuthenticatedIdentity = typeof SafeAuthenticatedIdentitySchema.Type;
@@ -800,6 +802,8 @@ export const ShellAuthenticationApi = HttpApi.make('shellAuthenticationApi')
         }),
       ),
   )
+  // @ontos-codesmith-core-read-api-groups:start
+  // @ontos-codesmith-core-read-api-groups:end
   .add(GatewayContextApiGroup);
 
 const authenticationEndpointPath = (endpoint: { readonly path: string }) =>

@@ -91,6 +91,8 @@ export {
 } from './auth/principal-management-errors.ts';
 export type { PrincipalManagementError } from './auth/principal-management-errors.ts';
 export { managedPrincipalsRead, selfApiKeyBindingsRead } from './auth/principal-administration-reads.ts';
+// @ontos-codesmith-core-read-exports:start
+// @ontos-codesmith-core-read-exports:end
 export {
   LegalEntityContext,
   LegalEntityContextAmbiguousError,

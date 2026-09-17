@@ -95,6 +95,8 @@ import type {
   TenantInternalProblem,
 } from '../shared/api.ts';
 import { ApiKeyService, ApiKeyServiceLive } from './auth/api-key-service.ts';
+// @ontos-codesmith-core-read-server-imports:start
+// @ontos-codesmith-core-read-server-imports:end
 import type { ApiKeyProviderError } from './auth/api-key-service.ts';
 import { AuthConfigLive } from './auth/config.ts';
 import type { AuthenticationRuntimeError, SwitchTenantRuntimeError } from './auth/errors.ts';
@@ -1637,6 +1639,8 @@ const supportRecoveryPrincipalLive = SupportRecoveryPrincipalContextResolverLive
   Layer.provide(corePersistenceLive),
 );
 
+// @ontos-codesmith-core-read-server-groups:start
+// @ontos-codesmith-core-read-server-groups:end
 const runtimeObservabilityLive = Layer.mergeAll(
   Logger.layer([Logger.defaultLogger, Logger.tracerLogger]),
   Layer.succeed(Tracer.Tracer, Tracer.make({ span: (options) => new Tracer.NativeSpan(options) })),
@@ -1799,6 +1803,8 @@ export const makeShellAuthenticationApiRuntime = (
     compositionGroupLive,
     resourcesGroupLive,
     gatewayContextGroupLive,
+    // @ontos-codesmith-core-read-server-layers:start
+    // @ontos-codesmith-core-read-server-layers:end
   ).pipe(Layer.provide(outboxMatcherLayer), Layer.provide(handlerDependenciesLive), Layer.orDie);
 
   return assembleEffectBffRuntime({

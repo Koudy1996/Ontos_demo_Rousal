@@ -10,6 +10,8 @@ import { Context } from 'effect';
 import { HttpClient, HttpClientRequest } from 'effect/unstable/http';
 
 import { ShellAuthenticationApi, shellAuthenticationApiContract } from '../../shared/api.ts';
+// @ontos-codesmith-core-read-client-imports:start
+// @ontos-codesmith-core-read-client-imports:end
 import type {
   AvailableLegalEntitiesResponse,
   AvailableTenantsResponse,
@@ -376,5 +378,8 @@ export const stopSupportImpersonation = (
       headers: identityHeaders(options),
     }),
   );
+
+// @ontos-codesmith-core-read-client-operations:start
+// @ontos-codesmith-core-read-client-operations:end
 
 export { Effect } from '@modern-js/bff-effect/effect-client';
