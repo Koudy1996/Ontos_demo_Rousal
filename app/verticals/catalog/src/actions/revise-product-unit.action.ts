@@ -25,7 +25,7 @@ import {
 export { ReviseProductUnitPayloadSchema } from '../../shared/actions/revise-product-unit.ts';
 export type { ReviseProductUnitPayload } from '../../shared/actions/revise-product-unit.ts';
 
-export const handleReviseProductUnit = Effect.fn('ReviseProductUnitAction.handle')(function* (
+export const handleReviseProductUnit = Effect.fn('ReviseProductUnitAction.handle')(function* handleReviseProductUnit(
   payload: ReviseProductUnitPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence>,
 ) {
