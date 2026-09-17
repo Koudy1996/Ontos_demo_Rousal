@@ -27,10 +27,6 @@ type ProblemOf<Tag extends SetProductTypeActionProblem['_tag']> = Extract<
   SetProductTypeActionProblem,
   { readonly _tag: Tag }
 >;
-type DomainProblemIdentity =
-  | { readonly code: 'product_type_stale_impact_basis'; readonly kind: 'conflict' }
-  | { readonly code: 'action_not_implemented'; readonly kind: 'ineligible' };
-
 const problemStatus = {
   authentication: 401,
   conflict: 409,
@@ -44,14 +40,6 @@ const problemStatus = {
   timeout: 504,
   unavailable: 503,
 } as const;
-
-const setProductTypeFailureProblemByCode = {
-  action_not_implemented: { code: 'action_not_implemented', kind: 'ineligible' },
-  product_type_stale_impact_basis: { code: 'product_type_stale_impact_basis', kind: 'conflict' },
-} as const satisfies Record<
-  Extract<DomainError, { readonly _tag: 'SetProductTypeFailure' }>['code'],
-  DomainProblemIdentity
->;
 
 export const setProductTypeActionProblem = {
   authentication: (): ProblemOf<'SetProductTypeActionAuthenticationProblem'> =>
@@ -135,17 +123,11 @@ export const setProductTypeActionProblem = {
     }),
 } as const;
 
-const mapDomainIdentity = (identity: DomainProblemIdentity): SetProductTypeActionProblem =>
-  Match.value(identity).pipe(
-    Match.when({ kind: 'conflict' as const }, (matched) => setProductTypeActionProblem.conflict(matched.code)),
-    Match.when({ kind: 'ineligible' as const }, (matched) => setProductTypeActionProblem.ineligible(matched.code)),
-    Match.exhaustive,
-  );
-
 const mapDomainProblem = (error: DomainError): SetProductTypeActionProblem =>
   Match.value(error).pipe(
     Match.tags({
-      SetProductTypeFailure: (failure) => mapDomainIdentity(setProductTypeFailureProblemByCode[failure.code]),
+      CatalogPersistenceUnavailable: setProductTypeActionProblem.internal,
+      ProductTypeAssignmentRejected: (failure) => setProductTypeActionProblem.conflict(failure.code),
     }),
     Match.exhaustive,
   );
