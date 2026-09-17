@@ -139,6 +139,25 @@ describe('Product Type allowed and required rules', () => {
       }),
     ).toThrow();
     expect(() =>
+      Schema.decodeUnknownSync(ProductTypeCurrentRulesRevisionSchema)({
+        ...revision,
+        rules: [
+          { attributeDefinitionRef: material, level: 'PRODUCT', required: true },
+          { attributeDefinitionRef: material, level: 'PRODUCT', required: false },
+        ],
+      }),
+    ).toThrow();
+    expect(
+      evaluateProductTypeRules(
+        { currentProductTypeRef: productTypeRef, productRef, productValues: [], variants: [] },
+        {
+          ...revision,
+          rules: [...revision.rules, { attributeDefinitionRef: material, level: 'PRODUCT', required: true }],
+        },
+        basis,
+      ).basisStatus,
+    ).toBe('MALFORMED');
+    expect(() =>
       decode({
         productTypeRef,
         revision: 2,
@@ -184,6 +203,54 @@ describe('Product Type allowed and required rules', () => {
         ],
       }),
     ).toThrow();
+  });
+
+  it('fails closed on ambiguous Current facts and duplicate Variant identities', () => {
+    const base = { currentProductTypeRef: productTypeRef, productRef, productValues: [], variants: [] } as const;
+    const duplicateValues = {
+      ...base,
+      productValues: [
+        { attributeDefinitionRef: material, valid: true },
+        { attributeDefinitionRef: material, valid: false },
+      ],
+    } as const;
+    expect(evaluateProductTypeRules(duplicateValues, revision, basis).basisStatus).toBe('MALFORMED');
+    const variant = { effectiveValues: [{ attributeDefinitionRef: length, valid: true }], productRef, variantRef };
+    expect(evaluateProductTypeRules({ ...base, variants: [variant, variant] }, revision, basis).basisStatus).toBe(
+      'MALFORMED',
+    );
+    expect(
+      evaluateProductTypeRules(
+        {
+          ...base,
+          variants: [{ ...variant, effectiveValues: [...variant.effectiveValues, ...variant.effectiveValues] }],
+        },
+        revision,
+        basis,
+      ).basisStatus,
+    ).toBe('MALFORMED');
+  });
+
+  it('keeps untyped empty facts distinct from unknown rules and an incomplete typed draft', () => {
+    const untyped = { productRef, productValues: [], variants: [] } as const;
+    expect(evaluateProductTypeRules(untyped)).toEqual({
+      basisStatus: 'UNTYPED',
+      minimumSatisfied: true,
+      violations: [],
+    });
+    expect(evaluateProductTypeRules({ ...untyped, currentProductTypeRef: productTypeRef })).toEqual({
+      basisStatus: 'MISSING',
+      minimumSatisfied: false,
+      violations: [],
+    });
+    const typed = evaluateProductTypeRules({ ...untyped, currentProductTypeRef: productTypeRef }, revision, basis);
+    expect(typed.basisStatus).toBe('CURRENT');
+    expect(typed.minimumSatisfied).toBe(false);
+    expect(typed.violations).toContainEqual({
+      attributeDefinitionId: material.resourceId,
+      kind: 'MISSING_REQUIRED',
+      level: 'PRODUCT',
+    });
   });
 
   it('requires exact Current revision identity and an effective canonical time basis', () => {

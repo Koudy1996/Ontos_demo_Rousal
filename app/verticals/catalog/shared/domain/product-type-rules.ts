@@ -26,29 +26,32 @@ export const ProductTypeAttributeRuleSchema = Schema.Struct({
 });
 export type ProductTypeAttributeRule = typeof ProductTypeAttributeRuleSchema.Type;
 
+const validateRules = (
+  productTypeRef: { readonly tenantId: string },
+  rules: readonly ProductTypeAttributeRule[],
+): string | undefined => {
+  const keys = new Set<string>();
+  for (const rule of rules) {
+    if (rule.attributeDefinitionRef.tenantId !== productTypeRef.tenantId) {
+      return 'Attribute Definitions must belong to the Product Type Tenant';
+    }
+    const key = `${rule.level}:${rule.attributeDefinitionRef.resourceId}`;
+    if (keys.has(key)) {
+      return 'A Product Type revision cannot repeat an Attribute Definition at one level';
+    }
+    keys.add(key);
+  }
+  return keys.size === rules.length
+    ? undefined
+    : 'A Product Type revision cannot repeat an Attribute Definition at one level';
+};
+
 /** Exact immutable rules; optional is represented by required=false, never an inferred default. */
 export const ProductTypeRulesRevisionSchema = Schema.Struct({
   productTypeRef: ProductTypeRefSchema,
   revision: CatalogRevisionNumberSchema,
   rules: Schema.Array(ProductTypeAttributeRuleSchema),
-}).check(
-  Schema.makeFilter(({ productTypeRef, rules }) => {
-    const keys = new Set<string>();
-    for (const rule of rules) {
-      if (rule.attributeDefinitionRef.tenantId !== productTypeRef.tenantId) {
-        return 'Attribute Definitions must belong to the Product Type Tenant';
-      }
-      const key = `${rule.level}:${rule.attributeDefinitionRef.resourceId}`;
-      if (keys.has(key)) {
-        return 'A Product Type revision cannot repeat an Attribute Definition at one level';
-      }
-      keys.add(key);
-    }
-    return keys.size === rules.length
-      ? undefined
-      : 'A Product Type revision cannot repeat an Attribute Definition at one level';
-  }),
-);
+}).check(Schema.makeFilter(({ productTypeRef, rules }) => validateRules(productTypeRef, rules)));
 export type ProductTypeRulesRevision = typeof ProductTypeRulesRevisionSchema.Type;
 
 /** Persisted, immutable revision identity used for Current evaluation. */
@@ -58,7 +61,7 @@ export const ProductTypeCurrentRulesRevisionSchema = Schema.Struct({
   revision: CatalogRevisionNumberSchema,
   revisionId: CatalogRevisionIdSchema,
   rules: Schema.Array(ProductTypeAttributeRuleSchema),
-});
+}).check(Schema.makeFilter(({ productTypeRef, rules }) => validateRules(productTypeRef, rules)));
 export type ProductTypeCurrentRulesRevision = typeof ProductTypeCurrentRulesRevisionSchema.Type;
 
 export const ProductTypeCurrentValueSchema = Schema.Struct({
@@ -95,6 +98,21 @@ export const ProductTypeSubjectSchema = Schema.Struct({
       ? undefined
       : 'Product Type subject, values, and Variants must belong to one Tenant',
   ),
+  Schema.makeFilter(({ productValues, variants }) => {
+    if (new Set(productValues.map((value) => value.attributeDefinitionRef.resourceId)).size !== productValues.length) {
+      return 'A Product cannot repeat a Current Attribute Definition';
+    }
+    if (new Set(variants.map((variant) => variant.variantRef.resourceId)).size !== variants.length) {
+      return 'A Product cannot repeat a Current Variant';
+    }
+    return variants.every(
+      (variant) =>
+        new Set(variant.effectiveValues.map((value) => value.attributeDefinitionRef.resourceId)).size ===
+        variant.effectiveValues.length,
+    )
+      ? undefined
+      : 'A Variant cannot repeat an effective Attribute Definition';
+  }),
 );
 export type ProductTypeSubject = typeof ProductTypeSubjectSchema.Type;
 
