@@ -52,21 +52,30 @@ const input = {
   },
 } as const;
 interface SetFixture {
+  readonly attributeDefinitionId: string;
   readonly attributeValueSetId: string;
   readonly currentRevision: number;
   readonly currentState: 'SET' | 'REMOVED';
+  readonly productId: string;
+  readonly tenantId: string;
   readonly variantId: string | null;
 }
 const productSet: SetFixture = {
+  attributeDefinitionId: definitionId,
   attributeValueSetId: productSetId,
   currentRevision: 4,
   currentState: 'SET',
+  productId,
+  tenantId,
   variantId: null,
 };
 const variantSet: SetFixture = {
+  attributeDefinitionId: definitionId,
   attributeValueSetId: variantSetId,
   currentRevision: 2,
   currentState: 'SET',
+  productId,
+  tenantId,
   variantId,
 };
 
@@ -85,7 +94,11 @@ type QueryTable =
 const queryResult = (result: ReturnType<(table: QueryTable) => readonly object[]>) =>
   Object.assign(Effect.succeed(result), { limit: () => Effect.succeed(result), orderBy: () => Effect.succeed(result) });
 
-const serviceWith = (sets: readonly SetFixture[], texts: Readonly<Record<string, string>>) => {
+const serviceWith = (
+  sets: readonly SetFixture[],
+  texts: Readonly<Record<string, string>>,
+  options: { readonly malformedItem?: boolean; readonly malformedRevision?: boolean } = {},
+) => {
   const queried: QueryTable[] = [];
   let revisionReads = 0;
   let itemReads = 0;
@@ -134,7 +147,16 @@ const serviceWith = (sets: readonly SetFixture[], texts: Readonly<Record<string,
     if (table === attributeValueRevisions) {
       const set = sets[revisionReads];
       revisionReads += 1;
-      return set === undefined ? [] : [{ changeKind: set.currentState }];
+      return set === undefined
+        ? []
+        : [
+            {
+            attributeValueSetId: options.malformedRevision === true ? variantSetId : set.attributeValueSetId,
+              changeKind: set.currentState,
+              revision: set.currentRevision,
+              tenantId,
+            },
+          ];
     }
     if (table === attributeValueItems) {
       const set = sets[itemReads];
@@ -142,7 +164,16 @@ const serviceWith = (sets: readonly SetFixture[], texts: Readonly<Record<string,
       const value = set === undefined ? undefined : texts[set.attributeValueSetId];
       return value === undefined
         ? []
-        : [{ attributeDefinitionId: definitionId, ordinal: 0, textValue: value, valueKind: 'TEXT' }];
+        : [
+            {
+              attributeDefinitionId: definitionId,
+            attributeValueSetId: options.malformedItem === true ? variantSetId : set.attributeValueSetId,
+              ordinal: 0,
+              tenantId,
+              textValue: value,
+              valueKind: 'TEXT',
+            },
+          ];
     }
     return [];
   };
@@ -213,6 +244,27 @@ describe('private effective attribute value reads', () => {
         values: [{ kind: 'TEXT', text: 'stainless steel' }],
         variantRevision: 3,
       });
+    }),
+  );
+
+  it.effect('returns absence after removal when the Product has no value', () =>
+    Effect.gen(function* absentAfterRemoval() {
+      const removed = { ...variantSet, currentRevision: 3, currentState: 'REMOVED' as const };
+      const reads = yield* serviceWith([removed], {}).service;
+      expect(yield* reads.resolveVariant(input)).toMatchObject({ status: 'CURRENT', values: [], variantRevision: 3 });
+    }),
+  );
+
+  it.effect('rejects ambiguous sets and mismatched revision or item ownership', () =>
+    Effect.gen(function* malformedSnapshots() {
+      for (const fixture of [
+        serviceWith([productSet, { ...productSet, attributeValueSetId: variantSetId }], {}),
+        serviceWith([productSet], { [productSetId]: 'steel' }, { malformedRevision: true }),
+        serviceWith([productSet], { [productSetId]: 'steel' }, { malformedItem: true }),
+      ]) {
+        const reads = yield* fixture.service;
+        expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+      }
     }),
   );
 });

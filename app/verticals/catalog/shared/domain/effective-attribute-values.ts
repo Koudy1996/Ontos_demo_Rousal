@@ -5,7 +5,11 @@ import type { VariantRef } from '../resources/variant.ts';
 import type { AttributeDefinition, AttributeValue, UnitConversion } from './attribute-values.ts';
 import { AttributeDefinitionSchema, validateAttributeValues } from './attribute-values.ts';
 import type { ProductTypeCurrentBasis, ProductTypeCurrentRulesRevision } from './product-type-rules.ts';
-import { ProductTypeCurrentBasisSchema, ProductTypeCurrentRulesRevisionSchema } from './product-type-rules.ts';
+import {
+  ProductTypeCurrentBasisSchema,
+  ProductTypeCurrentRulesRevisionSchema,
+  ProductTypeRulesRevisionSchema,
+} from './product-type-rules.ts';
 
 /** SET always contains an explicit nonempty answer; REMOVED is a tombstone, not a special value. */
 export interface AttributeValueSetSnapshot {
@@ -61,6 +65,7 @@ export const resolveEffectiveAttributeValues = (input: {
     rulesRevision === undefined ||
     !Schema.is(ProductTypeCurrentBasisSchema)(basis) ||
     !Schema.is(ProductTypeCurrentRulesRevisionSchema)(rulesRevision) ||
+    !Schema.is(ProductTypeRulesRevisionSchema)(rulesRevision) ||
     !Schema.is(AttributeDefinitionSchema)(definition) ||
     !sameRef(productRef, input.variantProductRef) ||
     productRef.tenantId !== variantRef.tenantId ||
@@ -96,6 +101,7 @@ export const resolveEffectiveAttributeValues = (input: {
     set === null ||
     (Number.isInteger(set.revision) &&
       set.revision > 0 &&
+      Array.isArray(set.values) &&
       (set.state === 'SET' ? set.values.length > 0 : set.state === 'REMOVED' && set.values.length === 0));
   if (!validSet(productSet) || !validSet(variantSet) || (productSet?.state === 'SET' && !inheritable)) {
     return { status: 'INVALID_AUTHORITY', reasons: ['Invalid value-set state or disallowed Product value'] };

@@ -316,7 +316,7 @@ export const effectiveAttributeValueReadsForScope = (
         if (set === undefined) {
           return { snapshot: null, valid: true };
         }
-        const [[record], items] = yield* Effect.all(
+        const [records, items] = yield* Effect.all(
           [
             query(
               transaction
@@ -329,7 +329,7 @@ export const effectiveAttributeValueReadsForScope = (
                     eq(attributeValueRevisions.revision, set.currentRevision),
                   ),
                 )
-                .limit(1),
+                .limit(2),
             ),
             query(
               transaction
@@ -347,9 +347,24 @@ export const effectiveAttributeValueReadsForScope = (
           { concurrency: 2 },
         );
         if (
-          record === undefined ||
-          record.changeKind !== set.currentState ||
-          items.some((item, index) => item.ordinal !== index || item.attributeDefinitionId !== definitionId)
+          records.length !== 1 ||
+          records[0]?.tenantId !== tenantId ||
+          records[0].attributeValueSetId !== set.attributeValueSetId ||
+          records[0].revision !== set.currentRevision ||
+          set.tenantId !== tenantId ||
+          set.productId !== productId ||
+          set.attributeDefinitionId !== definitionId ||
+          (set.variantId !== null && set.variantId !== variantId) ||
+          !Number.isInteger(set.currentRevision) ||
+          set.currentRevision < 1 ||
+          records[0].changeKind !== set.currentState ||
+          items.some(
+            (item, index) =>
+              item.tenantId !== tenantId ||
+              item.attributeValueSetId !== set.attributeValueSetId ||
+              item.ordinal !== index ||
+              item.attributeDefinitionId !== definitionId,
+          )
         ) {
           return { snapshot: null, valid: false };
         }
@@ -375,6 +390,19 @@ export const effectiveAttributeValueReadsForScope = (
         };
         return { snapshot, valid: true };
       });
+      if (
+        sets.some(
+          (set) =>
+            set.tenantId !== tenantId ||
+            set.productId !== productId ||
+            set.attributeDefinitionId !== definitionId ||
+            (set.variantId !== null && set.variantId !== variantId),
+        ) ||
+        sets.filter((set) => set.variantId === null).length > 1 ||
+        sets.filter((set) => set.variantId === variantId).length > 1
+      ) {
+        return invalid('Current attribute value sets are ambiguous or malformed');
+      }
       const [productSet, variantSet] = yield* Effect.all(
         [loadSet(sets.find((set) => set.variantId === null)), loadSet(sets.find((set) => set.variantId === variantId))],
         { concurrency: 2 },
