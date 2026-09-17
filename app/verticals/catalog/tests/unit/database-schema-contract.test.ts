@@ -237,12 +237,23 @@ it('keeps Product identity, Variant ownership, and historical revision keys cons
   expect(getTableConfig(productVariantRevisions).foreignKeys.map((foreignKey) => foreignKey.getName())).toContain(
     'catalog_product_variant_revisions_variant_fk',
   );
+  expect(getTableConfig(productVariants).foreignKeys.map((foreignKey) => foreignKey.getName())).toContain(
+    'catalog_product_variants_axis_revision_fk',
+  );
+  expect(getTableConfig(productVariantRevisions).foreignKeys.map((foreignKey) => foreignKey.getName())).toEqual([
+    'catalog_product_variant_revisions_variant_fk',
+    'catalog_product_variant_revisions_product_fk',
+    'catalog_product_variant_revisions_axis_revision_fk',
+  ]);
   expect(getTableConfig(productVariantAxes).foreignKeys.map((foreignKey) => foreignKey.getName())).toEqual([
     'catalog_product_variant_axes_product_fk',
     'catalog_product_variant_axes_definition_fk',
   ]);
   expect(getTableConfig(productVariantAxisEvents).primaryKeys.map((key) => key.getName())).toContain(
     'catalog_product_variant_axis_events_pk',
+  );
+  expect(getTableConfig(productVariantAxisEvents).checks.map((check) => check.name)).toContain(
+    'catalog_product_variant_axis_events_null_free_ck',
   );
   expect(getTableConfig(productRevisions).uniqueConstraints.map((constraint) => constraint.name)).toContain(
     'catalog_product_revisions_number_uk',
@@ -296,6 +307,10 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_variant_revisions_append_only');
   expect(combined).toContain('catalog_product_type_assignment_current_pointer');
   expect(combined).toContain('catalog_product_type_assignment_event_pointer');
+  expect(combined).toContain('VALIDATE CONSTRAINT "catalog_product_variants_combination_ck"');
+  expect(combined).toContain('catalog_product_variants_axis_current');
+  expect(combined).toContain('catalog_product_variant_axes_current');
+  expect(combined).toContain('catalog_product_variant_axis_events_distinct');
   expect(combined).toContain('catalog_package_content_revisions_append_only');
   expect(combined).toContain('catalog_package_definitions_identity_immutable');
   expect(combined).toContain('catalog_product_unit_rule_revisions_append_only');

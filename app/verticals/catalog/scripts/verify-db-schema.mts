@@ -33,6 +33,7 @@ const pointersAreCurrent = (pointers: {
   package_unit_reference_mismatch: number;
   type_mismatch: number;
   unit_rule_mismatch: number;
+  variant_axis_integrity_mismatch: number;
   variant_mismatch: number;
   variant_unit_mismatch: number;
 }) => Object.values(pointers).every((count) => count === 0);
@@ -99,12 +100,14 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         journal_count: number;
         policy_count: number;
         trigger_count: number;
+        validated_combination_count: number;
       }>(`select
       (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and c.relkind='r' and c.relrowsecurity and c.relforcerowsecurity) forced_rls,
       (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='drizzle' and c.relname='__drizzle_migrations_catalog') journal_count,
       (select count(*)::integer from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog') policy_count,
       (select count(*)::integer from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and not t.tgisinternal) trigger_count,
-      (select count(*)::integer from pg_constraint k join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and k.contype='f') foreign_key_count`),
+      (select count(*)::integer from pg_constraint k join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and k.contype='f') foreign_key_count,
+      (select count(*)::integer from pg_constraint k join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and c.relname='product_variants' and k.conname='catalog_product_variants_combination_ck' and k.convalidated) validated_combination_count`),
   });
   const [row] = infrastructure.rows;
   const expectedPolicyCount = CATALOG_TABLES.reduce((count, table) => count + getTableConfig(table).policies.length, 0);
@@ -116,7 +119,8 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 29 ||
+    row.trigger_count !== 33 ||
+    row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
     yield* new CatalogSchemaVerificationError({
@@ -139,6 +143,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         package_unit_reference_mismatch: number;
         type_mismatch: number;
         unit_rule_mismatch: number;
+        variant_axis_integrity_mismatch: number;
         variant_mismatch: number;
         variant_unit_mismatch: number;
       }>(`select
@@ -209,6 +214,27 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and e.attribute_definition_ids[a.ordinal + 1] = a.attribute_definition_id)
           or a.axis_revision <> (select max(e.axis_revision) from catalog.product_variant_axis_events e
             where e.tenant_id=a.tenant_id and e.product_id=a.product_id)) axis_mismatch,
+      (select count(*)::integer from catalog.product_variants v
+        where v.lifecycle_state='ACTIVE' and (v.combination_key is null
+          or v.combination_axis_revision is null or length(v.combination_key) <> 64
+          or v.combination_key !~ '^[0-9a-f]{64}$'
+          or v.combination_axis_revision is distinct from (
+            select max(e.axis_revision) from catalog.product_variant_axis_events e
+            where e.tenant_id=v.tenant_id and e.product_id=v.product_id)))
+      + (select count(*)::integer from catalog.product_variant_axis_events e
+        where array_position(e.attribute_definition_ids, null) is not null
+          or cardinality(e.attribute_definition_ids) <> (
+            select count(distinct x.id) from unnest(e.attribute_definition_ids) as x(id))
+          or (e.axis_revision = (select max(later.axis_revision) from catalog.product_variant_axis_events later
+            where later.tenant_id=e.tenant_id and later.product_id=e.product_id)
+            and e.attribute_definition_ids is distinct from coalesce((
+              select array_agg(a.attribute_definition_id order by a.ordinal)
+              from catalog.product_variant_axes a
+              where a.tenant_id=e.tenant_id and a.product_id=e.product_id), array[]::uuid[])))
+      + (select count(*)::integer from catalog.product_variant_axes a
+        where not exists (select 1 from catalog.product_variant_axis_events e
+          where e.tenant_id=a.tenant_id and e.product_id=a.product_id
+            and e.axis_revision=a.axis_revision)) variant_axis_integrity_mismatch,
       (select count(*)::integer from catalog.product_categories c
         where not exists (select 1 from catalog.product_category_events e
           where e.tenant_id=c.tenant_id and e.category_id=c.category_id

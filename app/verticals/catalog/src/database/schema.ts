@@ -165,6 +165,43 @@ export const products = catalogSchema.table.withRLS(
   ],
 );
 
+export const productVariantAxisEvents = catalogSchema.table.withRLS(
+  'product_variant_axis_events',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    axisRevision: integer('axis_revision').notNull(),
+    attributeDefinitionIds: uuid('attribute_definition_ids').array().notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.axisRevision],
+      name: 'catalog_product_variant_axis_events_pk',
+    }),
+    unique('catalog_product_variant_axis_events_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_variant_axis_events_product_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_variant_axis_events_revision_ck', sql`${table.axisRevision} > 0`),
+    check(
+      'catalog_product_variant_axis_events_null_free_ck',
+      sql`array_position(${table.attributeDefinitionIds}, null) is null`,
+    ),
+    check(
+      'catalog_product_variant_axis_events_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_variant_axis_events_tenant', table.tenantId),
+  ],
+);
+
 export const productVariants = catalogSchema.table.withRLS(
   'product_variants',
   {
@@ -187,6 +224,15 @@ export const productVariants = catalogSchema.table.withRLS(
       columns: [table.tenantId, table.productId],
       foreignColumns: [products.tenantId, products.productId],
       name: 'catalog_product_variants_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.combinationAxisRevision],
+      foreignColumns: [
+        productVariantAxisEvents.tenantId,
+        productVariantAxisEvents.productId,
+        productVariantAxisEvents.axisRevision,
+      ],
+      name: 'catalog_product_variants_axis_revision_fk',
     }).onDelete('restrict'),
     index('catalog_product_variants_product_idx').on(table.tenantId, table.productId, table.lifecycleState),
     uniqueIndex('catalog_product_variants_active_combination_uk')
@@ -236,6 +282,20 @@ export const productVariantRevisions = catalogSchema.table.withRLS(
       columns: [table.tenantId, table.variantId],
       foreignColumns: [productVariants.tenantId, productVariants.variantId],
       name: 'catalog_product_variant_revisions_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_variant_revisions_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.combinationAxisRevision],
+      foreignColumns: [
+        productVariantAxisEvents.tenantId,
+        productVariantAxisEvents.productId,
+        productVariantAxisEvents.axisRevision,
+      ],
+      name: 'catalog_product_variant_revisions_axis_revision_fk',
     }).onDelete('restrict'),
     check('catalog_product_variant_revisions_number_ck', sql`${table.revision} > 0`),
     check(
@@ -943,39 +1003,6 @@ export const productVariantAxes = catalogSchema.table.withRLS(
     }).onDelete('restrict'),
     check('catalog_product_variant_axes_revision_ck', sql`${table.axisRevision} > 0 and ${table.ordinal} >= 0`),
     ...tenantRlsPolicies('catalog_product_variant_axes_tenant', table.tenantId),
-  ],
-);
-
-export const productVariantAxisEvents = catalogSchema.table.withRLS(
-  'product_variant_axis_events',
-  {
-    tenantId: uuid('tenant_id').notNull(),
-    productId: uuid('product_id').notNull(),
-    axisRevision: integer('axis_revision').notNull(),
-    attributeDefinitionIds: uuid('attribute_definition_ids').array().notNull(),
-    reason: text('reason').notNull(),
-    evidenceRefs: text('evidence_refs').array().notNull(),
-    actionInvocationId: uuid('action_invocation_id').notNull(),
-    actingPrincipalId: uuid('acting_principal_id').notNull(),
-    recordedAt: recordedAt(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.tenantId, table.productId, table.axisRevision],
-      name: 'catalog_product_variant_axis_events_pk',
-    }),
-    unique('catalog_product_variant_axis_events_invocation_uk').on(table.tenantId, table.actionInvocationId),
-    foreignKey({
-      columns: [table.tenantId, table.productId],
-      foreignColumns: [products.tenantId, products.productId],
-      name: 'catalog_product_variant_axis_events_product_fk',
-    }).onDelete('restrict'),
-    check('catalog_product_variant_axis_events_revision_ck', sql`${table.axisRevision} > 0`),
-    check(
-      'catalog_product_variant_axis_events_reason_ck',
-      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
-    ),
-    ...tenantRlsPolicies('catalog_product_variant_axis_events_tenant', table.tenantId),
   ],
 );
 
