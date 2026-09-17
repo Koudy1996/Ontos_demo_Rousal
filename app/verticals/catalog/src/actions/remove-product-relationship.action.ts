@@ -10,6 +10,7 @@ import {
 } from '../../shared/actions/product-relationship-mutations.ts';
 import type { RemoveProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 import type { ProductRelationshipPersistence } from '../persistence/product-relationship-persistence.ts';
+import { ProductRelationshipChangedEventSchema } from './create-product-relationship.action.ts';
 import {
   ProductAuditEvidenceSchema,
   ProductRelationshipActionErrorSchema,
@@ -23,11 +24,14 @@ export { RemoveProductRelationshipPayloadSchema } from '../../shared/actions/pro
 export type { RemoveProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 export const RemoveProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
 export type RemoveProductRelationshipResult = typeof RemoveProductRelationshipResultSchema.Type;
+const domainEvents = {
+  'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
+} as const;
 
 export const handleRemoveProductRelationship = Effect.fn('RemoveProductRelationshipAction.handle')(
   function* handleRemoveProductRelationship(
     payload: RemoveProductRelationshipPayload,
-    context: ActionHandlerContext<Readonly<Record<string, never>>, ProductRelationshipPersistence>,
+    context: ActionHandlerContext<typeof domainEvents, ProductRelationshipPersistence>,
   ) {
     const outcome = yield* context.services.remove({
       actionInvocationId: context.actionInvocationId,
@@ -53,6 +57,23 @@ export const handleRemoveProductRelationship = Effect.fn('RemoveProductRelations
     yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
     yield* recordRelationshipAccess(context, result.relationship.source);
     yield* recordRelationshipAccess(context, result.relationship.target);
+    yield* context.addDomainEvent({
+      eventType: 'commerce.catalog.product-relationship-changed.v1',
+      payloadJson: {
+        changeKind: 'ENDED',
+        effectivePeriod: { ...result.relationship.effectivePeriod },
+        relationshipId: result.relationshipId,
+        revision: result.revision,
+        source: { ...result.relationship.source },
+        target: { ...result.relationship.target },
+        tenantId: context.scope.tenantId,
+        type: result.relationship.type,
+      },
+      producerModuleKey: 'commerce.catalog',
+      subjectModuleKey: 'commerce.catalog',
+      subjectResourceId: result.relationshipId,
+      subjectResourceType: 'commerce.catalog.product-relationship',
+    });
     return result;
   },
 );
@@ -67,7 +88,7 @@ export const removeProductRelationshipAction = defineAction(
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductRelationshipActionErrorSchema,
-    domainEvents: {},
+    domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },

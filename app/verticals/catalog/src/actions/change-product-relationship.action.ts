@@ -10,6 +10,7 @@ import {
 } from '../../shared/actions/product-relationship-mutations.ts';
 import type { ChangeProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 import type { ProductRelationshipPersistence } from '../persistence/product-relationship-persistence.ts';
+import { ProductRelationshipChangedEventSchema } from './create-product-relationship.action.ts';
 import {
   checkRelationshipTenant,
   ProductAuditEvidenceSchema,
@@ -24,11 +25,14 @@ export { ChangeProductRelationshipPayloadSchema } from '../../shared/actions/pro
 export type { ChangeProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 export const ChangeProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
 export type ChangeProductRelationshipResult = typeof ChangeProductRelationshipResultSchema.Type;
+const domainEvents = {
+  'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
+} as const;
 
 export const handleChangeProductRelationship = Effect.fn('ChangeProductRelationshipAction.handle')(
   function* handleChangeProductRelationship(
     payload: ChangeProductRelationshipPayload,
-    context: ActionHandlerContext<Readonly<Record<string, never>>, ProductRelationshipPersistence>,
+    context: ActionHandlerContext<typeof domainEvents, ProductRelationshipPersistence>,
   ) {
     yield* checkRelationshipTenant(context.scope.tenantId, payload.relationship.source);
     yield* checkRelationshipTenant(context.scope.tenantId, payload.relationship.target);
@@ -61,6 +65,23 @@ export const handleChangeProductRelationship = Effect.fn('ChangeProductRelations
     });
     yield* recordRelationshipAccess(context, result.relationship.source);
     yield* recordRelationshipAccess(context, result.relationship.target);
+    yield* context.addDomainEvent({
+      eventType: 'commerce.catalog.product-relationship-changed.v1',
+      payloadJson: {
+        changeKind: 'CORRECTED',
+        effectivePeriod: { ...result.relationship.effectivePeriod },
+        relationshipId: result.relationshipId,
+        revision: result.revision,
+        source: { ...result.relationship.source },
+        target: { ...result.relationship.target },
+        tenantId: context.scope.tenantId,
+        type: result.relationship.type,
+      },
+      producerModuleKey: 'commerce.catalog',
+      subjectModuleKey: 'commerce.catalog',
+      subjectResourceId: result.relationshipId,
+      subjectResourceType: 'commerce.catalog.product-relationship',
+    });
     return result;
   },
 );
@@ -75,7 +96,7 @@ export const changeProductRelationshipAction = defineAction(
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductRelationshipActionErrorSchema,
-    domainEvents: {},
+    domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
