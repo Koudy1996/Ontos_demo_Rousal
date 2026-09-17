@@ -50,6 +50,26 @@ const retire = Schema.decodeUnknownSync(RetireProductUnitPayloadSchema)({
 const divisibility = Schema.decodeUnknownSync(SetProductUnitTargetDivisibilityPayloadSchema)({
   ...common,
   divisible: true,
+  expectedSources: {
+    product: {
+      resourceRef: {
+        moduleId: 'commerce.catalog',
+        resourceId: '55555555-5555-4555-8555-555555555555',
+        resourceType: 'commerce.catalog.product',
+        tenantId,
+      },
+      revision: 2,
+    },
+    variant: {
+      resourceRef: {
+        moduleId: 'commerce.catalog',
+        resourceId: '44444444-4444-4444-8444-444444444444',
+        resourceType: 'commerce.catalog.variant',
+        tenantId,
+      },
+      revision: 3,
+    },
+  },
   target: {
     targetId: '44444444-4444-4444-8444-444444444444',
     targetType: 'commerce.catalog.variant',
@@ -133,6 +153,12 @@ describe('Product Unit governed Actions', () => {
       Schema.decodeUnknownSync(SetProductUnitTargetDivisibilityPayloadSchema)({
         ...divisibility,
         target: { ...divisibility.target, targetId: '' },
+      }),
+    ).toThrow();
+    const { expectedSources: _expectedSources, ...withoutExpectedSources } = divisibility;
+    expect(() =>
+      Schema.decodeUnknownSync(SetProductUnitTargetDivisibilityPayloadSchema)({
+        ...withoutExpectedSources,
       }),
     ).toThrow();
   });
