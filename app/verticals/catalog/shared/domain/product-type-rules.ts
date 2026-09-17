@@ -65,7 +65,19 @@ export const ProductTypeSubjectSchema = Schema.Struct({
   productRef: ProductRefSchema,
   productValues: Schema.Array(ProductTypeCurrentValueSchema),
   variants: Schema.Array(ProductTypeVariantValuesSchema),
-});
+}).check(
+  Schema.makeFilter(({ currentProductTypeRef, productRef, productValues, variants }) =>
+    (currentProductTypeRef === undefined || currentProductTypeRef.tenantId === productRef.tenantId) &&
+    productValues.every((value) => value.attributeDefinitionRef.tenantId === productRef.tenantId) &&
+    variants.every(
+      (variant) =>
+        variant.variantRef.tenantId === productRef.tenantId &&
+        variant.effectiveValues.every((value) => value.attributeDefinitionRef.tenantId === productRef.tenantId),
+    )
+      ? undefined
+      : 'Product Type subject, values, and Variants must belong to one Tenant',
+  ),
+);
 export type ProductTypeSubject = typeof ProductTypeSubjectSchema.Type;
 
 export interface ProductTypeViolation {
@@ -91,6 +103,7 @@ export const evaluateProductTypeRules = (
     rulesRevision !== undefined &&
     subject.currentProductTypeRef !== undefined &&
     rulesRevision.productTypeRef.resourceId === subject.currentProductTypeRef.resourceId &&
+    rulesRevision.productTypeRef.tenantId === subject.currentProductTypeRef.tenantId &&
     rulesRevision.productTypeRef.tenantId === subject.productRef.tenantId
       ? rulesRevision
       : undefined;

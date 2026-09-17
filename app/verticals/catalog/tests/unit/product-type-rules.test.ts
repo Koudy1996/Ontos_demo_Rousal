@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Schema } from 'effect';
 
-import { ProductTypeRulesRevisionSchema, evaluateProductTypeRules } from '../../shared/domain/product-type-rules.ts';
+import {
+  ProductTypeRulesRevisionSchema,
+  ProductTypeSubjectSchema,
+  evaluateProductTypeRules,
+} from '../../shared/domain/product-type-rules.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const productRef = {
@@ -126,6 +130,27 @@ describe('Product Type allowed and required rules', () => {
             required: true,
           },
         ],
+      }),
+    ).toThrow();
+  });
+
+  it('rejects cross-tenant type assignments, values, and Variants in the subject', () => {
+    const decode = Schema.decodeUnknownSync(ProductTypeSubjectSchema);
+    const foreignTenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const base = { currentProductTypeRef: productTypeRef, productRef, productValues: [], variants: [] } as const;
+    expect(() =>
+      decode({ ...base, currentProductTypeRef: { ...productTypeRef, tenantId: foreignTenantId } }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        ...base,
+        productValues: [{ attributeDefinitionRef: { ...material, tenantId: foreignTenantId }, valid: true }],
+      }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        ...base,
+        variants: [{ effectiveValues: [], variantRef: { ...variantRef, tenantId: foreignTenantId } }],
       }),
     ).toThrow();
   });
