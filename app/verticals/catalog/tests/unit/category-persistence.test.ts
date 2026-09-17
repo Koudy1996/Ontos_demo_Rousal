@@ -2,7 +2,11 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Match, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { productCategories, productCategoryHierarchyRevisions } from '../../src/database/schema.ts';
+import {
+  productCategories,
+  productCategoryEvents,
+  productCategoryHierarchyRevisions,
+} from '../../src/database/schema.ts';
 import { categoryPersistenceForScope } from '../../src/persistence/category-persistence.ts';
 
 const tenantId = '00000000-0000-4000-8000-000000000001';
@@ -46,7 +50,117 @@ const categoryReadQuery = (
   where: () => ({ limit: () => Effect.succeed([rows.shift()]) }),
 });
 
+const updatedCategoryQuery = <Row>(row: Row) => ({
+  set: () => ({ where: () => ({ returning: () => Effect.succeed([row]) }) }),
+});
+
 describe('Category persistence transaction boundary', () => {
+  it.effect('stores complete before/after state on a create event', () =>
+    Effect.gen(function* createHistory() {
+      const events: (typeof productCategoryEvents.$inferInsert)[] = [];
+      const created = {
+        categoryId: categoryA,
+        currentRevision: 1,
+        lifecycleState: 'ACTIVE',
+        name: 'A',
+        parentCategoryId: null,
+        tenantId,
+      };
+      const transaction = {
+        insert: (
+          table: typeof productCategories | typeof productCategoryEvents | typeof productCategoryHierarchyRevisions,
+        ) => {
+          if (table === productCategoryHierarchyRevisions) {
+            return { values: () => ({ onConflictDoNothing: () => Effect.succeed([]) }) };
+          }
+          if (table === productCategories) {
+            return { values: () => ({ returning: () => Effect.succeed([created]) }) };
+          }
+          expect(table).toBe(productCategoryEvents);
+          return {
+            values: (row: typeof productCategoryEvents.$inferInsert) => {
+              events.push(row);
+              return Effect.succeed([]);
+            },
+          };
+        },
+        select: () => ({
+          from: (table: typeof productCategories | typeof productCategoryHierarchyRevisions) =>
+            table === productCategoryHierarchyRevisions ? revisionLockQuery([]) : categoryReadQuery([]),
+        }),
+        update: () => ({ set: () => ({ where: () => Effect.succeed([]) }) }),
+      };
+      // @ts-expect-error The mock implements only the create path's Drizzle query chains.
+      const persistence = yield* categoryPersistenceForScope(transaction, scope);
+      yield* persistence.createCategory({ ...input, categoryId: categoryA, name: 'A' });
+      expect(events).toEqual([
+        expect.objectContaining({
+          categoryId: categoryA,
+          categoryRevision: 1,
+          changeKind: 'CREATED',
+          nextLifecycleState: 'ACTIVE',
+          nextName: 'A',
+          nextParentCategoryId: null,
+          previousLifecycleState: null,
+          previousName: null,
+          previousParentCategoryId: null,
+        }),
+      ]);
+    }),
+  );
+
+  it.effect('stores the exact old and new category names on rename', () =>
+    Effect.gen(function* renameHistory() {
+      const events: (typeof productCategoryEvents.$inferInsert)[] = [];
+      const previous = {
+        categoryId: categoryA,
+        currentRevision: 1,
+        lifecycleState: 'ACTIVE',
+        name: 'Old',
+        parentCategoryId: null,
+        tenantId,
+      };
+      const updated = { ...previous, currentRevision: 2, name: 'New' };
+      const transaction = {
+        insert: (table: typeof productCategoryEvents | typeof productCategoryHierarchyRevisions) => {
+          if (table === productCategoryHierarchyRevisions) {
+            return { values: () => ({ onConflictDoNothing: () => Effect.succeed([]) }) };
+          }
+          expect(table).toBe(productCategoryEvents);
+          return {
+            values: (row: typeof productCategoryEvents.$inferInsert) => {
+              events.push(row);
+              return Effect.succeed([]);
+            },
+          };
+        },
+        select: () => ({
+          from: (table: typeof productCategories | typeof productCategoryHierarchyRevisions) =>
+            table === productCategoryHierarchyRevisions ? revisionLockQuery([]) : categoryReadQuery([previous]),
+        }),
+        update: (table: typeof productCategories | typeof productCategoryHierarchyRevisions) => {
+          if (table === productCategoryHierarchyRevisions) {
+            return { set: () => ({ where: () => Effect.succeed([]) }) };
+          }
+          return updatedCategoryQuery(updated);
+        },
+      };
+      // @ts-expect-error The mock implements only the rename path's Drizzle query chains.
+      const persistence = yield* categoryPersistenceForScope(transaction, scope);
+      yield* persistence.renameCategory({ ...input, categoryId: categoryA, expectedRevision: 1, name: 'New' });
+      expect(events).toEqual([
+        expect.objectContaining({
+          categoryRevision: 2,
+          changeKind: 'RENAMED',
+          nextLifecycleState: 'ACTIVE',
+          nextName: 'New',
+          previousLifecycleState: 'ACTIVE',
+          previousName: 'Old',
+        }),
+      ]);
+    }),
+  );
+
   it.effect('rejects a tenant mismatch before touching the transaction', () =>
     Effect.gen(function* tenantMismatch() {
       const transaction = new Proxy(

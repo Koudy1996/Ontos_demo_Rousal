@@ -210,24 +210,30 @@ export const categoryPersistenceForScope = (
   const event = (
     input: MutationInput,
     kind: string,
-    categoryId: string,
+    before: CategoryRow | undefined,
+    after: CategoryRow,
     revisions: {
       assignmentRevision: number;
       hierarchyRevision: number;
     },
-    options?: { nextParentCategoryId?: string | null; previousParentCategoryId?: string | null; productId?: string },
+    productId?: string,
   ) =>
     query(
       transaction.insert(productCategoryEvents).values({
         actingPrincipalId: input.principalId,
         actionInvocationId: input.actionInvocationId,
         assignmentRevision: revisions.assignmentRevision,
-        categoryId,
+        categoryId: after.categoryId,
+        categoryRevision: after.currentRevision,
         changeKind: kind,
         hierarchyRevision: revisions.hierarchyRevision,
-        nextParentCategoryId: options?.nextParentCategoryId ?? null,
-        previousParentCategoryId: options?.previousParentCategoryId ?? null,
-        productId: options?.productId ?? null,
+        nextLifecycleState: after.lifecycleState,
+        nextName: after.name,
+        nextParentCategoryId: after.parentCategoryId,
+        previousLifecycleState: before?.lifecycleState ?? null,
+        previousName: before?.name ?? null,
+        previousParentCategoryId: before?.parentCategoryId ?? null,
+        productId: productId ?? null,
         reason: input.reason,
         tenantId,
       }),
@@ -311,7 +317,7 @@ export const categoryPersistenceForScope = (
         return yield* unavailable();
       }
       const next = yield* bump('hierarchy', revision);
-      yield* event(input, 'CREATED', input.categoryId, next, { nextParentCategoryId: input.parentCategoryId ?? null });
+      yield* event(input, 'CREATED', undefined, created, next);
       return {
         _tag: 'created',
         category: record(created),
@@ -364,7 +370,7 @@ export const categoryPersistenceForScope = (
         return yield* unavailable();
       }
       const next = yield* bump('hierarchy', revision);
-      yield* event(input, 'RENAMED', input.categoryId, next);
+      yield* event(input, 'RENAMED', current, updated, next);
       return {
         _tag: 'renamed',
         category: record(updated),
@@ -427,10 +433,7 @@ export const categoryPersistenceForScope = (
         return yield* unavailable();
       }
       const next = yield* bump('hierarchy', revision);
-      yield* event(input, 'MOVED', input.categoryId, next, {
-        nextParentCategoryId: input.parentCategoryId ?? null,
-        previousParentCategoryId: current.parentCategoryId,
-      });
+      yield* event(input, 'MOVED', current, updated, next);
       return {
         _tag: 'moved',
         category: record(updated),
@@ -502,7 +505,7 @@ export const categoryPersistenceForScope = (
         return yield* unavailable();
       }
       const next = yield* bump('hierarchy', revision);
-      yield* event(input, 'RETIRED', input.categoryId, next);
+      yield* event(input, 'RETIRED', current, updated, next);
       return {
         _tag: 'retired',
         category: record(updated),
@@ -579,9 +582,7 @@ export const categoryPersistenceForScope = (
             ),
     );
     const next = yield* bump('assignment', revision);
-    yield* event(input, kind === 'add' ? 'ASSIGNED' : 'UNASSIGNED', input.categoryId, next, {
-      productId: input.productId,
-    });
+    yield* event(input, kind === 'add' ? 'ASSIGNED' : 'UNASSIGNED', category, category, next, input.productId);
     return {
       _tag: kind === 'add' ? 'added' : 'removed',
       assignmentRevision: next.assignmentRevision,
