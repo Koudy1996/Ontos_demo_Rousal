@@ -2,7 +2,10 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { readProductCategoryHistory } from '../../src/api/product-category-history.read.ts';
+import {
+  productCategoryHistoryEntrypoint,
+  readProductCategoryHistory,
+} from '../../src/api/product-category-history.read.ts';
 import { productCategoryEvents } from '../../src/database/schema.ts';
 import { categoryHistoryPersistenceForScope } from '../../src/persistence/category-history-persistence.ts';
 import type { CategoryHistoryPersistence } from '../../src/persistence/category-history-persistence.ts';
@@ -11,6 +14,7 @@ const tenantId = '00000000-0000-4000-8000-000000000001';
 const categoryId = '00000000-0000-4000-8000-000000000002';
 const oldParentId = '00000000-0000-4000-8000-000000000003';
 const newParentId = '00000000-0000-4000-8000-000000000004';
+const productId = '00000000-0000-4000-8000-000000000008';
 const categoryRef = {
   moduleId: 'commerce.catalog' as const,
   resourceId: categoryId,
@@ -39,6 +43,10 @@ const historyTransaction = <Row>(rows: readonly Row[]) => {
 };
 
 describe('governed Category history', () => {
+  it('uses the explicit historical read access class for retained Category events', () => {
+    expect(productCategoryHistoryEntrypoint.access).toBe('historical_read');
+  });
+
   it.effect('returns exact retained rename and move snapshots without reading Current', () =>
     Effect.gen(function* readRetainedCategoryHistoryCase() {
       const rows = [
@@ -54,6 +62,7 @@ describe('governed Category history', () => {
           previousLifecycleState: 'ACTIVE',
           previousName: 'Shelves on wall',
           previousParentCategoryId: oldParentId,
+          productId: null,
           recordedAt: new Date('2026-09-17T10:00:00.000Z'),
         },
         {
@@ -68,6 +77,7 @@ describe('governed Category history', () => {
           previousLifecycleState: 'ACTIVE',
           previousName: 'Wall shelves',
           previousParentCategoryId: oldParentId,
+          productId: null,
           recordedAt: new Date('2026-09-17T11:00:00.000Z'),
         },
       ];
@@ -81,6 +91,33 @@ describe('governed Category history', () => {
       expect(result.events[1]?.previousParentRef?.resourceId).toBe(oldParentId);
       expect(result.events[1]?.nextParentRef?.resourceId).toBe(newParentId);
       expect('current' in result).toBe(false);
+    }),
+  );
+
+  it.effect('retains assignment product identity and legacy nullable Category revision', () =>
+    Effect.gen(function* readAssignmentHistoryCase() {
+      const rows = [
+        {
+          actionInvocationId: '00000000-0000-4000-8000-000000000007',
+          assignmentRevision: 2,
+          categoryRevision: null,
+          changeKind: 'ASSIGNED',
+          hierarchyRevision: 4,
+          nextLifecycleState: null,
+          nextName: null,
+          nextParentCategoryId: null,
+          previousLifecycleState: null,
+          previousName: null,
+          previousParentCategoryId: null,
+          productId,
+          recordedAt: new Date('2026-09-17T12:00:00.000Z'),
+        },
+      ];
+      // @ts-expect-error SAFETY: mock implements precisely the single event-select chain used by getHistory.
+      const services = yield* categoryHistoryPersistenceForScope(historyTransaction(rows), scope);
+      const result = yield* readProductCategoryHistory({ categoryRef }, tenantId, services);
+      expect(result.events[0]?.categoryRevision).toBeNull();
+      expect(result.events[0]?.productRef?.resourceId).toBe(productId);
     }),
   );
 

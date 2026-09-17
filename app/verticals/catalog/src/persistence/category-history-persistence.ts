@@ -5,6 +5,7 @@ import { Effect, Option, Schema } from 'effect';
 import { ProductCategoryHistoryResponseSchema } from '../../shared/apis/product-category-history.ts';
 import type { ProductCategoryHistoryResponse } from '../../shared/apis/product-category-history.ts';
 import type { ProductCategoryRef } from '../../shared/resources/product-category.ts';
+import type { ProductRef } from '../../shared/resources/product.ts';
 import { productCategoryEvents } from '../database/schema.ts';
 import { CategoryPersistenceUnavailable } from './category-persistence.ts';
 
@@ -25,6 +26,13 @@ const categoryRef = (tenantId: string, resourceId: string): ProductCategoryRef =
   moduleId: 'commerce.catalog',
   resourceId,
   resourceType: 'commerce.catalog.product-category',
+  tenantId,
+});
+
+const productRef = (tenantId: string, resourceId: string): ProductRef => ({
+  moduleId: 'commerce.catalog',
+  resourceId,
+  resourceType: 'commerce.catalog.product',
   tenantId,
 });
 
@@ -52,22 +60,39 @@ export const categoryHistoryPersistenceForScope = (
       }
       const candidate = {
         categoryRef: categoryRef(tenantId, categoryId),
-        events: rows.map((row) => ({
-          actionInvocationId: row.actionInvocationId,
-          assignmentRevision: row.assignmentRevision,
-          categoryRevision: row.categoryRevision,
-          changeKind: row.changeKind,
-          hierarchyRevision: row.hierarchyRevision,
-          nextLifecycle: row.nextLifecycleState ?? undefined,
-          nextName: row.nextName ?? undefined,
-          nextParentRef:
-            row.nextParentCategoryId === null ? undefined : categoryRef(tenantId, row.nextParentCategoryId),
-          previousLifecycle: row.previousLifecycleState ?? undefined,
-          previousName: row.previousName ?? undefined,
-          previousParentRef:
-            row.previousParentCategoryId === null ? undefined : categoryRef(tenantId, row.previousParentCategoryId),
-          recordedAt: row.recordedAt.toISOString(),
-        })),
+        events: rows.map((row) => {
+          const event = {
+            actionInvocationId: row.actionInvocationId,
+            assignmentRevision: row.assignmentRevision,
+            categoryRevision: row.categoryRevision,
+            changeKind: row.changeKind,
+            hierarchyRevision: row.hierarchyRevision,
+            nextLifecycle: row.nextLifecycleState ?? undefined,
+            nextName: row.nextName ?? undefined,
+            nextParentRef:
+              row.nextParentCategoryId === null ? undefined : categoryRef(tenantId, row.nextParentCategoryId),
+            previousLifecycle: row.previousLifecycleState ?? undefined,
+            previousName: row.previousName ?? undefined,
+            previousParentRef:
+              row.previousParentCategoryId === null ? undefined : categoryRef(tenantId, row.previousParentCategoryId),
+            productRef: row.productId === null ? undefined : productRef(tenantId, row.productId),
+            recordedAt: row.recordedAt.toISOString(),
+          };
+          for (const key of [
+            'nextLifecycle',
+            'nextName',
+            'nextParentRef',
+            'previousLifecycle',
+            'previousName',
+            'previousParentRef',
+            'productRef',
+          ] as const) {
+            if (event[key] === undefined) {
+              Reflect.deleteProperty(event, key);
+            }
+          }
+          return event;
+        }),
         historical: true as const,
       };
       const history = yield* Schema.decodeUnknownEffect(ProductCategoryHistoryResponseSchema)(candidate);

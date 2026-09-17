@@ -9,6 +9,7 @@ import {
 } from '../actions/create-product-category.ts';
 import { ProductInstantSchema } from '../domain/product.ts';
 import { ProductCategoryRefSchema } from '../resources/product-category.ts';
+import { ProductRefSchema } from '../resources/product.ts';
 
 const CategoryLifecycleSchema = Schema.Literals(['ACTIVE', 'RETIRED']);
 const checkedInvocationId = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
@@ -25,7 +26,8 @@ export const ProductCategoryHistoryResponseSchema = Schema.Struct({
     Schema.Struct({
       actionInvocationId: CategoryActionInvocationIdSchema,
       assignmentRevision: CategoryCounterSchema,
-      categoryRevision: CategoryRevisionSchema,
+      // oxlint-disable-next-line effect-native/no-nullable-schema-field -- retained assignment events may have SQL NULL revision; null is the historical wire value, expires: 2027-03-31.
+      categoryRevision: Schema.NullOr(CategoryRevisionSchema),
       changeKind: Schema.Literals(['CREATED', 'RENAMED', 'MOVED', 'RETIRED', 'ASSIGNED', 'UNASSIGNED']),
       hierarchyRevision: CategoryCounterSchema,
       nextLifecycle: Schema.optionalKey(CategoryLifecycleSchema),
@@ -34,6 +36,7 @@ export const ProductCategoryHistoryResponseSchema = Schema.Struct({
       previousLifecycle: Schema.optionalKey(CategoryLifecycleSchema),
       previousName: Schema.optionalKey(CategoryNameSchema),
       previousParentRef: Schema.optionalKey(ProductCategoryRefSchema),
+      productRef: Schema.optionalKey(ProductRefSchema),
       recordedAt: ProductInstantSchema,
     }),
   ).check(Schema.isMinLength(1)),

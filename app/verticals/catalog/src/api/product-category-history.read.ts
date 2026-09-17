@@ -21,7 +21,7 @@ import type { CategoryHistoryPersistence } from '../persistence/category-history
 const moduleKey = 'commerce.catalog';
 
 export const productCategoryHistoryEntrypoint = defineTenantModuleEntrypoint({
-  access: 'read',
+  access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-category-history' },
   entrypointKey: 'commerce.catalog.api.product-category-history',
   moduleKey,
