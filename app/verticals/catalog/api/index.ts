@@ -44,6 +44,7 @@ import { createProductRelationshipActionApiLive } from './create-product-relatio
 import { createProductTypeActionApiLive } from './create-product-type-action-server.ts';
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
+import { manufacturerRelationCurrentReadApiLive } from './manufacturer-relation-current-read-server.ts';
 import { manufacturerRelationHistoryReadApiLive } from './manufacturer-relation-history-read-server.ts';
 import { moveProductCategoryActionApiLive } from './move-product-category-action-server.ts';
 import { productBrandCurrentReadApiLive } from './product-brand-current-read-server.ts';
@@ -207,6 +208,7 @@ export const makeCatalogApiRuntime = (
     createProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    manufacturerRelationCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     moveProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     productBrandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),

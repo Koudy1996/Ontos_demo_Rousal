@@ -27,6 +27,7 @@ import { CreateProductRelationshipActionApi } from './apis/create-product-relati
 import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
+import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
 import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
 import { ProductBrandCurrentApi } from './apis/product-brand-current.ts';
@@ -116,6 +117,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductTypeActionApi)
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateVariantActionApi)
+  .addHttpApi(ManufacturerRelationCurrentApi)
   .addHttpApi(ManufacturerRelationHistoryApi)
   .addHttpApi(MoveProductCategoryActionApi)
   .addHttpApi(ProductBrandCurrentApi)

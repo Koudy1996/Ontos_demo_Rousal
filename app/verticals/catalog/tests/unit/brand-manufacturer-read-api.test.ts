@@ -6,11 +6,13 @@ import { BrandHistoryRequestSchema } from '../../shared/apis/brand-history.ts';
 import { ProductBrandCurrentResponseSchema } from '../../shared/apis/product-brand-current.ts';
 import { ProductBrandHistoryResponseSchema } from '../../shared/apis/product-brand-history.ts';
 import { ManufacturerRelationHistoryRequestSchema } from '../../shared/apis/manufacturer-relation-history.ts';
+import { ManufacturerRelationCurrentRequestSchema } from '../../shared/apis/manufacturer-relation-current.ts';
 import { brandCurrentEntrypoint } from '../../src/api/brand-current.read.ts';
 import { brandHistoryEntrypoint } from '../../src/api/brand-history.read.ts';
 import { productBrandCurrentEntrypoint } from '../../src/api/product-brand-current.read.ts';
 import { productBrandHistoryEntrypoint } from '../../src/api/product-brand-history.read.ts';
 import { manufacturerRelationHistoryEntrypoint } from '../../src/api/manufacturer-relation-history.read.ts';
+import { manufacturerRelationCurrentEntrypoint } from '../../src/api/manufacturer-relation-current.read.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const resourceId = '22222222-2222-4222-8222-222222222222';
@@ -24,6 +26,7 @@ describe('Brand and Manufacturer governed read contracts', () => {
     expect(brandHistoryEntrypoint.access).toBe('historical_read');
     expect(productBrandHistoryEntrypoint.access).toBe('historical_read');
     expect(manufacturerRelationHistoryEntrypoint.access).toBe('historical_read');
+    expect(manufacturerRelationCurrentEntrypoint.access).toBe('read');
   });
 
   it('requires typed Brand and Product targets, rejecting a cross-kind reference', () => {
@@ -69,6 +72,9 @@ describe('Brand and Manufacturer governed read contracts', () => {
       }),
     ).toBe(true);
     expect(Schema.is(ManufacturerRelationHistoryRequestSchema)({ relationId: resourceId, subject: productRef })).toBe(
+      true,
+    );
+    expect(Schema.is(ManufacturerRelationCurrentRequestSchema)({ relationId: resourceId, subject: productRef })).toBe(
       true,
     );
   });
