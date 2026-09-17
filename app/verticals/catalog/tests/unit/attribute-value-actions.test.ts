@@ -4,17 +4,27 @@ import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
 import {
+  RemoveProductAttributeValuesPayloadSchema,
   RemoveVariantAttributeOverridePayloadSchema,
   SetProductAttributeValuesPayloadSchema,
   SetVariantAttributeOverridePayloadSchema,
 } from '../../shared/actions/attribute-value-mutations.ts';
-import { removeProductAttributeValuesAction } from '../../src/actions/remove-product-attribute-values.action.ts';
-import { removeVariantAttributeOverrideAction } from '../../src/actions/remove-variant-attribute-override.action.ts';
+import {
+  handleRemoveProductAttributeValues,
+  removeProductAttributeValuesAction,
+} from '../../src/actions/remove-product-attribute-values.action.ts';
+import {
+  handleRemoveVariantAttributeOverride,
+  removeVariantAttributeOverrideAction,
+} from '../../src/actions/remove-variant-attribute-override.action.ts';
 import {
   handleSetProductAttributeValues,
   setProductAttributeValuesAction,
 } from '../../src/actions/set-product-attribute-values.action.ts';
-import { setVariantAttributeOverrideAction } from '../../src/actions/set-variant-attribute-override.action.ts';
+import {
+  handleSetVariantAttributeOverride,
+  setVariantAttributeOverrideAction,
+} from '../../src/actions/set-variant-attribute-override.action.ts';
 import { AttributeValuesConflict } from '../../src/persistence/attribute-values-persistence.ts';
 import type { AttributeValuesPersistence } from '../../src/persistence/attribute-values-persistence.ts';
 
@@ -39,6 +49,28 @@ const attributeDefinitionRef = {
 };
 const base = { attributeDefinitionRef, expectedRevision: null, productRef, reason: 'Assign documented product fact' };
 const unexpected = () => Effect.die('Unexpected persistence method');
+const failure = (conflict: AttributeValuesConflict['conflict']) =>
+  new AttributeValuesConflict({ code: 'attribute_values_conflict', conflict, reason: 'Unsafe value change' });
+const scope = {
+  ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+    authContextRef: 'job:attribute-values:run:1',
+    authMethod: 'system',
+    principalId: '55555555-5555-4555-8555-555555555555',
+    tenantId,
+  }),
+  correlationId: 'attribute-values-handoff-test',
+};
+const makeContext = (
+  services: AttributeValuesPersistence,
+): ActionHandlerContext<Readonly<Record<string, never>>, AttributeValuesPersistence> => ({
+  actionInvocationId: '66666666-6666-4666-8666-666666666666',
+  addDomainEvent: () => Effect.succeed(Object.create(null)),
+  addOutboxMessage: () => Effect.void,
+  recordAuditEvidence: () => Effect.void,
+  recordDataAccess: () => Effect.void,
+  scope,
+  services,
+});
 
 describe('Catalog attribute value Actions', () => {
   it('requires a real value and optimistic revision while distinguishing absent from unknown', () => {
@@ -79,15 +111,6 @@ describe('Catalog attribute value Actions', () => {
         ...base,
         values: [{ kind: 'SPECIAL', state: 'UNKNOWN' }],
       });
-      const scope = {
-        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
-          authContextRef: 'job:attribute-values:run:1',
-          authMethod: 'system',
-          principalId: '55555555-5555-4555-8555-555555555555',
-          tenantId,
-        }),
-        correlationId: 'attribute-values-handoff-test',
-      };
       const services: AttributeValuesPersistence = {
         removeProductValues: unexpected,
         removeVariantOverride: unexpected,
@@ -100,17 +123,74 @@ describe('Catalog attribute value Actions', () => {
           }),
         setVariantOverride: unexpected,
       };
-      const context: ActionHandlerContext<Readonly<Record<string, never>>, AttributeValuesPersistence> = {
-        actionInvocationId: '66666666-6666-4666-8666-666666666666',
-        addDomainEvent: () => Effect.succeed(Object.create(null)),
-        addOutboxMessage: () => Effect.void,
-        recordAuditEvidence: () => Effect.void,
-        recordDataAccess: () => Effect.void,
-        scope,
-        services,
-      };
-      const result = yield* handleSetProductAttributeValues(payload, context);
+      const result = yield* handleSetProductAttributeValues(payload, makeContext(services));
       expect(result.state).toBe('SET');
+    }),
+  );
+
+  it.effect('removes a Variant override only with the caller-observed inherited source revision', () =>
+    Effect.gen(function* removeOverrideHandoff() {
+      const payload = Schema.decodeUnknownSync(RemoveVariantAttributeOverridePayloadSchema)({
+        ...base,
+        expectedProductValueRevision: 3,
+        expectedRevision: 2,
+        variantRef,
+      });
+      const services: AttributeValuesPersistence = {
+        removeProductValues: unexpected,
+        removeVariantOverride: (input) =>
+          Effect.sync(() => {
+            expect(input.expectedProductValueRevision).toBe(3);
+            expect(input.expectedRevision).toBe(2);
+            expect(input.variantRef.resourceId).toBe(variantRef.resourceId);
+            expect(input.actionInvocationId).toBe('66666666-6666-4666-8666-666666666666');
+            return {
+              attributeValueSetId: '77777777-7777-4777-8777-777777777777',
+              revision: 3,
+              state: 'REMOVED' as const,
+            };
+          }),
+        setProductValues: unexpected,
+        setVariantOverride: unexpected,
+      };
+      const result = yield* handleRemoveVariantAttributeOverride(payload, makeContext(services));
+      expect(result.state).toBe('REMOVED');
+    }),
+  );
+
+  it.effect('preserves typed fail-closed conflicts from all four persistence operations', () =>
+    Effect.gen(function* rejectedChanges() {
+      const services: AttributeValuesPersistence = {
+        removeProductValues: () => Effect.fail(failure('REQUIRED')),
+        removeVariantOverride: () => Effect.fail(failure('BASIS_CHANGED')),
+        setProductValues: () => Effect.fail(failure('CONTROLLED_RETIRED')),
+        setVariantOverride: () => Effect.fail(failure('IDENTITY_IMPACT')),
+      };
+      const context = makeContext(services);
+      const productSet = Schema.decodeUnknownSync(SetProductAttributeValuesPayloadSchema)({
+        ...base,
+        values: [{ kind: 'TEXT', text: 'Steel' }],
+      });
+      const productRemove = Schema.decodeUnknownSync(RemoveProductAttributeValuesPayloadSchema)(base);
+      const variantSet = Schema.decodeUnknownSync(SetVariantAttributeOverridePayloadSchema)({
+        ...base,
+        values: [{ kind: 'TEXT', text: 'Blue' }],
+        variantRef,
+      });
+      const variantRemove = Schema.decodeUnknownSync(RemoveVariantAttributeOverridePayloadSchema)({
+        ...base,
+        expectedProductValueRevision: null,
+        variantRef,
+      });
+      const outcomes = yield* Effect.all([
+        handleSetProductAttributeValues(productSet, context).pipe(Effect.flip),
+        handleRemoveProductAttributeValues(productRemove, context).pipe(Effect.flip),
+        handleSetVariantAttributeOverride(variantSet, context).pipe(Effect.flip),
+        handleRemoveVariantAttributeOverride(variantRemove, context).pipe(Effect.flip),
+      ]);
+      expect(
+        outcomes.map((outcome) => (Schema.is(AttributeValuesConflict)(outcome) ? outcome.conflict : 'OTHER')),
+      ).toEqual(['CONTROLLED_RETIRED', 'REQUIRED', 'IDENTITY_IMPACT', 'BASIS_CHANGED']);
     }),
   );
 
