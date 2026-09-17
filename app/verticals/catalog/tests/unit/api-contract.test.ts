@@ -10,8 +10,11 @@ import {
   catalogPublicOperationContracts,
   CatalogOperationOutcomeSchema,
 } from '../../shared/api.ts';
-import { ProductDetailApi } from '../../shared/apis/product-detail.ts';
-import { ProductDetailRequestSchema, ProductDetailResponseSchema } from '../../shared/apis/product-detail.ts';
+import {
+  ProductDetailApi,
+  ProductDetailRequestSchema,
+  ProductDetailResponseSchema,
+} from '../../shared/apis/product-detail.ts';
 import { ProductHistoryApi } from '../../shared/apis/product-history.ts';
 import { CategoryRevisionConflict } from '../../shared/actions/create-product-category.ts';
 import { mapAddProductCategoryAssignmentActionProblem } from '../../api/add-product-category-assignment-action-problems.ts';
@@ -274,25 +277,32 @@ it.effect(
           },
         ],
       });
-      const base = {
+      const base: CatalogPersistence = {
+        correct: () => Effect.die('unused'),
+        create: () => Effect.die('unused'),
+        getCreatedByInvocation: () => Effect.die('unused'),
         getCurrent: () => Effect.succeed(Option.some(product)),
-      } as unknown as CatalogPersistence;
+        getHistory: () => Effect.die('unused'),
+        reactivate: () => Effect.die('unused'),
+        retire: () => Effect.die('unused'),
+        update: () => Effect.die('unused'),
+      };
       const present = yield* readProductDetail({ locale: 'cs-CZ', productRef }, productRef.tenantId, {
         ...base,
         currentProduct: () =>
           Effect.succeed({
+            description: 'Věcný popis',
             kind: 'PRESENT' as const,
             locale: 'cs-CZ',
             name: 'Police Alfa',
-            description: 'Věcný popis',
             revision: 1,
           }),
       });
       expect(present.localized).toEqual({
+        description: 'Věcný popis',
         kind: 'PRESENT',
         locale: 'cs-CZ',
         name: 'Police Alfa',
-        description: 'Věcný popis',
       });
       expect(present.product.name).toBeUndefined();
       expect(present.product.description).toBeUndefined();
@@ -301,6 +311,17 @@ it.effect(
         currentProduct: () => Effect.succeed({ kind: 'MISSING_TRANSLATION' as const, locale: 'de-DE', revision: 0 }),
       });
       expect(missing.localized).toEqual({ kind: 'MISSING_TRANSLATION', requestedLocale: 'de-DE' });
+      const descriptionOnly = yield* readProductDetail({ locale: 'de-DE', productRef }, productRef.tenantId, {
+        ...base,
+        currentProduct: () =>
+          Effect.succeed({
+            description: 'Sachliche Beschreibung',
+            kind: 'PRESENT' as const,
+            locale: 'de-DE',
+            revision: 1,
+          }),
+      });
+      expect(descriptionOnly.localized).toEqual({ kind: 'MISSING_TRANSLATION', requestedLocale: 'de-DE' });
       expect(Schema.is(ProductDetailRequestSchema)({ locale: 'de-DE', productRef })).toBe(true);
       expect(Schema.is(ProductDetailRequestSchema)({ locale: 'de-de', productRef })).toBe(false);
       expect(Schema.is(ProductDetailResponseSchema)(present)).toBe(true);

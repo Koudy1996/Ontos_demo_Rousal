@@ -12,6 +12,8 @@ import { ProductDetailRequestSchema, ProductDetailResponseSchema } from '../../s
 import type { ProductDetailRequest, ProductDetailResponse } from '../../shared/apis/product-detail.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
+import type { LocalizedFactsReads } from '../persistence/localized-facts-reads.ts';
+import { localizedFactsReadsForScope } from '../persistence/localized-facts-reads.ts';
 
 const catalogModuleKey = 'commerce.catalog';
 
@@ -41,7 +43,7 @@ const unavailable = (cause: unknown) => {
 export const readProductDetail = Effect.fn('ProductDetailRead.read')(function* readProductDetail(
   input: ProductDetailRequest,
   trustedTenantId: string,
-  services: CatalogPersistence,
+  services: CatalogPersistence & Pick<LocalizedFactsReads, 'currentProduct'>,
 ): Effect.fn.Return<ProductDetailResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
   if (input.productRef.tenantId !== trustedTenantId) {
     return yield* notFound();
@@ -50,7 +52,25 @@ export const readProductDetail = Effect.fn('ProductDetailRead.read')(function* r
   if (Option.isNone(product)) {
     return yield* notFound();
   }
-  return { product: product.value };
+  const localized = yield* services.currentProduct(input.productRef, input.locale).pipe(Effect.mapError(unavailable));
+  const { description: _legacyDescription, name: _legacyName, ...canonicalProduct } = product.value;
+  let localizedResult: ProductDetailResponse['localized'];
+  if (localized.kind !== 'PRESENT' || localized.name === undefined) {
+    localizedResult = { kind: 'MISSING_TRANSLATION', requestedLocale: input.locale };
+  } else if (localized.description === undefined) {
+    localizedResult = { kind: 'PRESENT', locale: localized.locale, name: localized.name };
+  } else {
+    localizedResult = {
+      description: localized.description,
+      kind: 'PRESENT',
+      locale: localized.locale,
+      name: localized.name,
+    };
+  }
+  return {
+    localized: localizedResult,
+    product: canonicalProduct,
+  };
 });
 
 export const productDetailRead = defineRead(
@@ -70,13 +90,19 @@ export const productDetailRead = defineRead(
     resultSchema: ProductDetailResponseSchema,
     schemaVersion: '1',
   },
-  (input, context: ReadHandlerContext<CatalogPersistence>) =>
+  (input, context: ReadHandlerContext<CatalogPersistence & Pick<LocalizedFactsReads, 'currentProduct'>>) =>
     readProductDetail(input, context.scope.tenantId, context.services).pipe(
       Effect.map((result) => ({
         evidence: { resultCount: 1 },
         result,
       })),
     ),
-  (transaction, scope) => catalogPersistenceForScope(transaction, scope),
+  (transaction, scope) =>
+    catalogPersistenceForScope(transaction, scope).pipe(
+      Effect.map((catalog) => ({
+        ...catalog,
+        currentProduct: localizedFactsReadsForScope(transaction, scope).currentProduct,
+      })),
+    ),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

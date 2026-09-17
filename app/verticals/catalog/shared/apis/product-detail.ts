@@ -2,14 +2,35 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { ProductSchema } from '../domain/product.ts';
+import { ProductNameSchema, ProductSchema } from '../domain/product.ts';
+import { CatalogLocaleSchema } from '../domain/product-descriptive-facts.ts';
 import { ProductRefSchema } from '../resources/product.ts';
 
 export const ProductDetailRequestSchema = Schema.Struct({
+  locale: CatalogLocaleSchema.check(
+    Schema.isMaxLength(64),
+    Schema.makeFilter((locale) => {
+      try {
+        return Intl.getCanonicalLocales(locale)[0] === locale ? undefined : 'Expected a canonical locale';
+      } catch {
+        return 'Expected a canonical locale';
+      }
+    }),
+  ),
   productRef: ProductRefSchema,
 });
 export type ProductDetailRequest = typeof ProductDetailRequestSchema.Type;
+export const ProductDetailLocalizedSchema = Schema.Union([
+  Schema.Struct({
+    description: Schema.optionalKey(Schema.String),
+    kind: Schema.Literal('PRESENT'),
+    locale: CatalogLocaleSchema,
+    name: ProductNameSchema,
+  }),
+  Schema.Struct({ kind: Schema.Literal('MISSING_TRANSLATION'), requestedLocale: CatalogLocaleSchema }),
+]);
 export const ProductDetailResponseSchema = Schema.Struct({
+  localized: ProductDetailLocalizedSchema,
   product: ProductSchema,
 });
 export type ProductDetailResponse = typeof ProductDetailResponseSchema.Type;
