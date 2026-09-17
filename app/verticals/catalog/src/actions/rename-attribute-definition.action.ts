@@ -29,6 +29,7 @@ export type {
 } from '../../shared/actions/attribute-governance.ts';
 
 const domainEvents = {} as const;
+const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 export const handleRenameAttributeDefinition = Effect.fn('RenameAttributeDefinitionAction.handle')(
   function* handleRenameAttributeDefinition(
     payload: RenameAttributeDefinitionPayload,
@@ -52,6 +53,15 @@ export const handleRenameAttributeDefinition = Effect.fn('RenameAttributeDefinit
       principalId: context.scope.principalId,
       reason: payload.reason,
       sameMeaning: payload.sameMeaning,
+    });
+    yield* context.recordDataAccess({
+      accessKind: 'read',
+      queryHash: `catalog-attribute-definition:${payload.attributeDefinitionRef.resourceId}`,
+      resultCount: 1,
+      servingModuleKey: CATALOG_MODULE_KEY,
+      targetModuleKey: CATALOG_MODULE_KEY,
+      targetResourceId: payload.attributeDefinitionRef.resourceId,
+      targetResourceType: 'commerce.catalog.attribute-definition',
     });
     yield* context.recordAuditEvidence({ reason: payload.reason });
     return yield* Schema.decodeEffect(RenameAttributeDefinitionResultSchema)(result).pipe(
@@ -86,12 +96,12 @@ export const renameAttributeDefinitionAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.rename-attribute-definition',
-      moduleKey: 'commerce.catalog',
+      moduleKey: CATALOG_MODULE_KEY,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: CATALOG_MODULE_KEY,
     payloadSchema: RenameAttributeDefinitionPayloadSchema,
     policies: [],
     resultSchema: RenameAttributeDefinitionResultSchema,

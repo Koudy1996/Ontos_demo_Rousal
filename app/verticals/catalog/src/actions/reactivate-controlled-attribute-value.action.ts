@@ -29,6 +29,7 @@ export type {
 } from '../../shared/actions/attribute-governance.ts';
 
 const domainEvents = {} as const;
+const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 export const handleReactivateControlledAttributeValue = Effect.fn('ReactivateControlledAttributeValueAction.handle')(
   function* handleReactivateControlledAttributeValue(
     payload: ReactivateControlledAttributeValuePayload,
@@ -51,6 +52,15 @@ export const handleReactivateControlledAttributeValue = Effect.fn('ReactivateCon
       expectedRevision: payload.expectedRevision,
       principalId: context.scope.principalId,
       reason: payload.reason,
+    });
+    yield* context.recordDataAccess({
+      accessKind: 'read',
+      queryHash: `catalog-controlled-attribute-value:${payload.controlledValueRef.resourceId}`,
+      resultCount: 1,
+      servingModuleKey: CATALOG_MODULE_KEY,
+      targetModuleKey: CATALOG_MODULE_KEY,
+      targetResourceId: payload.controlledValueRef.resourceId,
+      targetResourceType: 'commerce.catalog.controlled-attribute-value',
     });
     yield* context.recordAuditEvidence({ reason: payload.reason });
     return yield* Schema.decodeUnknownEffect(ReactivateControlledAttributeValueResultSchema)(result).pipe(
@@ -85,12 +95,12 @@ export const reactivateControlledAttributeValueAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.reactivate-controlled-attribute-value',
-      moduleKey: 'commerce.catalog',
+      moduleKey: CATALOG_MODULE_KEY,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: CATALOG_MODULE_KEY,
     payloadSchema: ReactivateControlledAttributeValuePayloadSchema,
     policies: [],
     resultSchema: ReactivateControlledAttributeValueResultSchema,

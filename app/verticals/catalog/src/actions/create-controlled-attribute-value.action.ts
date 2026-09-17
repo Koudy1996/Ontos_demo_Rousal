@@ -32,6 +32,7 @@ export type {
 } from '../../shared/actions/attribute-governance.ts';
 
 const domainEvents = {} as const;
+const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 export const handleCreateControlledAttributeValue = Effect.fn('CreateControlledAttributeValueAction.handle')(
   function* handleCreateControlledAttributeValue(
     payload: CreateControlledAttributeValuePayload,
@@ -59,6 +60,15 @@ export const handleCreateControlledAttributeValue = Effect.fn('CreateControlledA
       Object.assign(input, { color: payload.color });
     }
     const result = yield* context.services.createControlledValue(input);
+    yield* context.recordDataAccess({
+      accessKind: 'read',
+      queryHash: `catalog-attribute-definition:${payload.attributeDefinitionRef.resourceId}`,
+      resultCount: 1,
+      servingModuleKey: CATALOG_MODULE_KEY,
+      targetModuleKey: CATALOG_MODULE_KEY,
+      targetResourceId: payload.attributeDefinitionRef.resourceId,
+      targetResourceType: 'commerce.catalog.attribute-definition',
+    });
     yield* context.recordAuditEvidence({ reason: payload.reason });
     return yield* Schema.decodeUnknownEffect(CreateControlledAttributeValueResultSchema)(result).pipe(
       Effect.mapError((error) => {
@@ -92,12 +102,12 @@ export const createControlledAttributeValueAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.create-controlled-attribute-value',
-      moduleKey: 'commerce.catalog',
+      moduleKey: CATALOG_MODULE_KEY,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: CATALOG_MODULE_KEY,
     payloadSchema: CreateControlledAttributeValuePayloadSchema,
     policies: [],
     resultSchema: CreateControlledAttributeValueResultSchema,
