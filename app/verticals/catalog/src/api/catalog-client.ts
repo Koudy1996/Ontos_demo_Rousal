@@ -13,6 +13,7 @@ import { catalogApi, catalogApiContract, catalogOperationContexts } from '../../
 import type { CatalogReadiness, OperationContext } from '../../shared/api.ts';
 
 // <generated-action-http-client-exports>
+export * from './activate-package-definition-action-client.ts';
 export * from './add-product-category-assignment-action-client.ts';
 export * from './assign-catalog-media-action-client.ts';
 export * from './change-product-manufacturer-action-client.ts';

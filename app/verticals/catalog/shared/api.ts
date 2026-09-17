@@ -8,6 +8,7 @@ import type { MicroVerticalOperationContext } from '@modern-js/bff-effect/microv
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
 
 // <generated-governed-http-api-imports>
+import { ActivatePackageDefinitionActionApi } from './apis/activate-package-definition-action.ts';
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
 import { AssignCatalogMediaActionApi } from './apis/assign-catalog-media-action.ts';
 import { BrandCurrentApi } from './apis/brand-current.ts';
@@ -98,6 +99,7 @@ export const catalogFoundationApi = HttpApi.make('CatalogApiFoundation').add(
 export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
+  .addHttpApi(ActivatePackageDefinitionActionApi)
   .addHttpApi(AddProductCategoryAssignmentActionApi)
   .addHttpApi(AssignCatalogMediaActionApi)
   .addHttpApi(BrandCurrentApi)

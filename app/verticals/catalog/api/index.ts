@@ -25,6 +25,7 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 // </generated-governed-http-handler-support-imports>
 
 // <generated-governed-http-handler-imports>
+import { activatePackageDefinitionActionApiLive } from './activate-package-definition-action-server.ts';
 import { addProductCategoryAssignmentActionApiLive } from './add-product-category-assignment-action-server.ts';
 import { assignCatalogMediaActionApiLive } from './assign-catalog-media-action-server.ts';
 import { brandCurrentReadApiLive } from './brand-current-read-server.ts';
@@ -186,6 +187,7 @@ export const makeCatalogApiRuntime = (
   const apiHandlersLive = Layer.mergeAll(
     catalogReadinessLayer,
     // <generated-governed-http-handler-layers>
+    activatePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     addProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     assignCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     brandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),

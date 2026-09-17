@@ -4,6 +4,7 @@
 import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
 import { catalogManifest } from './vertical.manifest.ts';
 // <generated-module-registration-imports>
+import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
 import { assertSizeEquivalenceAction } from './src/actions/assert-size-equivalence.action.ts';
 import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
@@ -64,6 +65,7 @@ import { updateProductAction } from './src/actions/update-product.action.ts';
 export const catalogRegistration = defineVerticalRuntimeRegistration({
   actions: [
     // <generated-module-registration-actions>
+    activatePackageDefinitionAction,
     addProductCategoryAssignmentAction,
     assertSizeEquivalenceAction,
     assignCatalogMediaAction,

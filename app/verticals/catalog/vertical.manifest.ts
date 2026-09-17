@@ -11,6 +11,7 @@ import {
 } from '@app/core-runtime';
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
+import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
 import { assertSizeEquivalenceAction } from './src/actions/assert-size-equivalence.action.ts';
 import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
@@ -126,6 +127,7 @@ export const catalogManifest = defineOntosModuleManifest({
   publicSurface: {
     actions: [
       // <generated-module-manifest-actions>
+      activatePackageDefinitionAction,
       addProductCategoryAssignmentAction,
       assertSizeEquivalenceAction,
       assignCatalogMediaAction,
