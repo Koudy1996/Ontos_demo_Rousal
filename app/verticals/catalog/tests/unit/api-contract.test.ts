@@ -88,12 +88,17 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   expect(new Set(permissions).size).toBe(contracts.length);
   for (const [key, contract] of contracts) {
     expect(contract.version).toBe('1');
+    // Product is a business target, not a per-Product SpiceDB authorization resource.
+    expect(contract.authorizationScope).toBe('tenant');
+    expect(contract.scope).toBe(key === 'commerce.catalog.create-product' ? 'tenant' : 'product');
     if (contract.permissionKind === 'action_execution') {
       expect(contract.permission).toBe(key);
     }
     expect(catalogAuthorityBundles[contract.authorityBundle]).toContain(contract.permission);
   }
   expect(catalogAuthorityBundles.CATALOG_DEFINITION_MANAGER).toEqual([]);
+  // #411B/#481 Definition Manager, importer, and overrides are deferred.
+  expect(contracts).toHaveLength(7);
   const bundlePermissions = Object.values(catalogAuthorityBundles).flat();
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
   expect(bundlePermissions).toHaveLength(contracts.length);
