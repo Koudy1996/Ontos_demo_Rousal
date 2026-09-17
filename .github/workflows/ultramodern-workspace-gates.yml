@@ -272,6 +272,7 @@ jobs:
         env:
           GIT_CEILING_DIRECTORIES: ${{ github.workspace }}
           MODERN_PUBLIC_SITE_URL: https://shell-super-app.invalid
+          ULTRAMODERN_PUBLIC_URL_CATALOG: https://catalog.invalid
           ULTRAMODERN_PUBLIC_URL_COMMERCE_CUSTOMER_CONTEXT: https://commerce-customer-context.invalid
           ULTRAMODERN_PUBLIC_URL_PARTY_REGISTRY: https://party-registry.invalid
           ULTRAMODERN_PUBLIC_URL_PAYMENT_TERM_CATALOG: https://payment-term-catalog.invalid
@@ -287,6 +288,7 @@ jobs:
     timeout-minutes: 60
     environment: stage
     env:
+      ZEROPS_CATALOG_SERVICE_ID: ${{ vars.ZEROPS_CATALOG_SERVICE_ID }}
       ZEROPS_COMMERCE_CUSTOMER_CONTEXT_SERVICE_ID: ${{ vars.ZEROPS_COMMERCE_CUSTOMER_CONTEXT_SERVICE_ID }}
       ZEROPS_COMMERCE_CUSTOMER_CONTEXT_WORKER_SERVICE_ID: ${{ vars.ZEROPS_COMMERCE_CUSTOMER_CONTEXT_WORKER_SERVICE_ID }}
       ZEROPS_MIGRATOR_SERVICE_ID: ${{ vars.ZEROPS_MIGRATOR_SERVICE_ID }}

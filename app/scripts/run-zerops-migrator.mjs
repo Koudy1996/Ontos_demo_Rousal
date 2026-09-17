@@ -154,6 +154,7 @@ const main = Effect.scoped(
     yield* migrate('verticals/party-registry', 'drizzle.config.ts');
     yield* migrate('verticals/payment-term-catalog', 'drizzle.config.ts');
     yield* migrate('verticals/commerce-customer-context', 'drizzle.config.ts');
+    yield* migrate('verticals/catalog', 'drizzle.config.ts');
     yield* runAppScript('scripts/postgres/bootstrap-runtime-role.mts');
     yield* runAppScript('scripts/verify-application-db-schema.mts');
     yield* serveReadiness(yield* migratorPort);
