@@ -62,22 +62,32 @@ const rows = new Map<unknown, unknown>([
   [productUnits, { currentRuleRevision: 7, lifecycleState: 'ACTIVE', unitId }],
   [productUnitRuleRevisions, { revision: 7, rounding: 'UP', step: '0.01', unitId }],
 ]);
+type ReadTable =
+  | typeof products
+  | typeof productVariants
+  | typeof packageDefinitions
+  | typeof variantUnitDivisibility
+  | typeof packageUnitDivisibility
+  | typeof productUnits
+  | typeof productUnitRuleRevisions;
+const queryResult = (table: ReadTable, overrides: Map<unknown, unknown>) => {
+  const row = overrides.has(table) ? overrides.get(table) : rows.get(table);
+  return Effect.succeed(row === null ? [] : [row]);
+};
+const makeLimit = (table: ReadTable, overrides: Map<unknown, unknown>) => () => queryResult(table, overrides);
+const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>) => () => ({
+  limit: makeLimit(table, overrides),
+});
+const makeFrom = (overrides: Map<unknown, unknown>) => (table: ReadTable) => ({
+  where: makeWhere(table, overrides),
+});
 const transactionFor = (overrides = new Map<unknown, unknown>()) => ({
-  select: () => ({
-    from: (table: unknown) => ({
-      where: () => ({
-        limit: () =>
-          Effect.succeed(
-            overrides.has(table) ? (overrides.get(table) === null ? [] : [overrides.get(table)]) : [rows.get(table)],
-          ),
-      }),
-    }),
-  }),
+  select: () => ({ from: makeFrom(overrides) }),
 });
 
 describe('Catalog quantity preparation', () => {
   it.effect('normalizes exactly and retains current source revisions', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* normalizesExactly() {
       // @ts-expect-error The mock provides only the read chains exercised here.
       const result = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
         amount: '2.537',
@@ -103,23 +113,23 @@ describe('Catalog quantity preparation', () => {
   );
 
   it.effect('rejects a fractional package count before rounding', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* rejectsFractionalPackage() {
       const packageSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
         ...selection,
         packageOption: {
           contentRevision: {
             resourceRef: {
               moduleId: 'commerce.catalog',
-              resourceType: 'commerce.catalog.package-definition',
               resourceId: packageId,
+              resourceType: 'commerce.catalog.package-definition',
               tenantId,
             },
             revision: 4,
           },
           optionRef: {
             moduleId: 'commerce.catalog',
-            resourceType: 'commerce.catalog.package-definition',
             resourceId: packageId,
+            resourceType: 'commerce.catalog.package-definition',
             tenantId,
           },
         },
@@ -135,11 +145,11 @@ describe('Catalog quantity preparation', () => {
   );
 
   it.effect('returns stale when a candidate pins an older Unit rule', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* detectsStaleRule() {
       // @ts-expect-error The mock provides only the read chains exercised here.
       const result = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
         amount: '2.53',
-        expected: { productRevision: 2, variantRevision: 3, unitRuleRevision: 6, targetDivisibilityRevision: 5 },
+        expected: { productRevision: 2, targetDivisibilityRevision: 5, unitRuleRevision: 6, variantRevision: 3 },
         phase: 'APPROVED',
         selection,
       });

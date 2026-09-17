@@ -27,11 +27,11 @@ export interface CatalogQuantityPreparationRequest {
   readonly amount: string;
   /** Revisions previously observed by the candidate; mismatch requires re-preparation. */
   readonly expected?: {
-    readonly productRevision: number;
-    readonly variantRevision: number;
     readonly packageDefinitionRevision?: number;
-    readonly unitRuleRevision: number;
+    readonly productRevision: number;
     readonly targetDivisibilityRevision: number;
+    readonly unitRuleRevision: number;
+    readonly variantRevision: number;
   };
   readonly phase: QuantityPhase;
   readonly selection: CatalogSelection;
@@ -43,11 +43,11 @@ export type CatalogQuantityPreparation =
       readonly quantity: Extract<QuantityNormalization, { status: 'VALID' }>;
       readonly selection: CatalogSelection;
       readonly sources: {
-        readonly product: CatalogSelectionRevision;
-        readonly variant: CatalogSelectionRevision;
         readonly packageDefinition: CatalogSelectionRevision | undefined;
-        readonly unitRuleRevision: number;
+        readonly product: CatalogSelectionRevision;
         readonly targetDivisibilityRevision: number;
+        readonly unitRuleRevision: number;
+        readonly variant: CatalogSelectionRevision;
       };
       readonly status: 'PREPARED';
       readonly unitRef: CatalogResourceRef;
@@ -71,6 +71,127 @@ const failure = (status: 'INVALID' | 'INDETERMINATE' | 'STALE', reason: string):
 const validRevision = (revision: number): boolean =>
   Number.isSafeInteger(revision) && revision > 0 && revision <= 2_147_483_647;
 
+const changedSources = (
+  expected: NonNullable<CatalogQuantityPreparationRequest['expected']>,
+  actual: Omit<NonNullable<CatalogQuantityPreparationRequest['expected']>, 'packageDefinitionRevision'> & {
+    readonly packageDefinitionRevision: number | undefined;
+  },
+): boolean =>
+  expected.productRevision !== actual.productRevision ||
+  expected.variantRevision !== actual.variantRevision ||
+  expected.packageDefinitionRevision !== actual.packageDefinitionRevision ||
+  expected.unitRuleRevision !== actual.unitRuleRevision ||
+  expected.targetDivisibilityRevision !== actual.targetDivisibilityRevision;
+
+const readSelectionBasis = Effect.fn('CatalogQuantityPreparation.readSelectionBasis')(
+  function* readSelectionBasisOperation(transaction: ScopedTransaction, tenantId: string, selection: CatalogSelection) {
+    const [product] = yield* transaction
+      .select()
+      .from(products)
+      .where(and(eq(products.tenantId, tenantId), eq(products.productId, selection.productRef.resourceId)))
+      .limit(1);
+    if (product === undefined) {
+      return failure('INDETERMINATE', 'Product basis is missing');
+    }
+    const [variant] = yield* transaction
+      .select()
+      .from(productVariants)
+      .where(
+        and(eq(productVariants.tenantId, tenantId), eq(productVariants.variantId, selection.variantRef.resourceId)),
+      )
+      .limit(1);
+    if (variant === undefined) {
+      return failure('INDETERMINATE', 'Variant basis is missing');
+    }
+    if (variant.productId !== product.productId) {
+      return failure('INVALID', 'Variant belongs to another Product');
+    }
+    if (product.lifecycleState !== 'ACTIVE' || variant.lifecycleState !== 'ACTIVE') {
+      return failure('INVALID', 'Product or Variant is not active');
+    }
+    if (!validRevision(product.currentRevision) || !validRevision(variant.currentRevision)) {
+      return failure('INDETERMINATE', 'Product or Variant revision is unusable');
+    }
+    const packageId = selection.packageOption?.optionRef.resourceId;
+    if (packageId === undefined) {
+      return { pack: null, product, variant };
+    }
+    const [pack] = yield* transaction
+      .select()
+      .from(packageDefinitions)
+      .where(and(eq(packageDefinitions.tenantId, tenantId), eq(packageDefinitions.packageDefinitionId, packageId)))
+      .limit(1);
+    if (pack === undefined) {
+      return failure('INDETERMINATE', 'Package Definition basis is missing');
+    }
+    if (pack.productId !== product.productId || pack.variantId !== variant.variantId) {
+      return failure('INVALID', 'Package Definition belongs to another Product or Variant');
+    }
+    if (pack.lifecycleState !== 'ACTIVE' || pack.optionState !== 'ACTIVE') {
+      return failure('INVALID', 'Package Option is not selectable');
+    }
+    if (!validRevision(pack.currentRevision)) {
+      return failure('INDETERMINATE', 'Package Definition revision is unusable');
+    }
+    return { pack, product, variant };
+  },
+  Effect.mapError(unavailable),
+);
+
+const readUnitBasis = Effect.fn('CatalogQuantityPreparation.readUnitBasis')(function* readUnitBasisOperation(
+  transaction: ScopedTransaction,
+  tenantId: string,
+  targetId: string,
+  isPackage: boolean,
+) {
+  const [target] = isPackage
+    ? yield* transaction
+        .select()
+        .from(packageUnitDivisibility)
+        .where(
+          and(
+            eq(packageUnitDivisibility.tenantId, tenantId),
+            eq(packageUnitDivisibility.packageDefinitionId, targetId),
+          ),
+        )
+        .limit(1)
+    : yield* transaction
+        .select()
+        .from(variantUnitDivisibility)
+        .where(and(eq(variantUnitDivisibility.tenantId, tenantId), eq(variantUnitDivisibility.variantId, targetId)))
+        .limit(1);
+  if (target === undefined || !validRevision(target.currentRevision)) {
+    return failure('INDETERMINATE', 'Target Unit or divisibility revision is missing');
+  }
+  const [unit] = yield* transaction
+    .select()
+    .from(productUnits)
+    .where(and(eq(productUnits.tenantId, tenantId), eq(productUnits.unitId, target.unitId)))
+    .limit(1);
+  if (unit === undefined || !validRevision(unit.currentRuleRevision)) {
+    return failure('INDETERMINATE', 'Product Unit basis is missing');
+  }
+  if (unit.lifecycleState !== 'ACTIVE') {
+    return failure('INVALID', 'Product Unit is retired');
+  }
+  const [rule] = yield* transaction
+    .select()
+    .from(productUnitRuleRevisions)
+    .where(
+      and(
+        eq(productUnitRuleRevisions.tenantId, tenantId),
+        eq(productUnitRuleRevisions.unitId, unit.unitId),
+        eq(productUnitRuleRevisions.revision, unit.currentRuleRevision),
+      ),
+    )
+    .limit(1);
+  if (rule === undefined || (rule.rounding !== 'UP' && rule.rounding !== 'DOWN' && rule.rounding !== 'HALF_UP')) {
+    return failure('INDETERMINATE', 'Current Unit rule is missing or unusable');
+  }
+  const rounding: 'UP' | 'DOWN' | 'HALF_UP' = rule.rounding;
+  return { rounding, rule, target, unit };
+}, Effect.mapError(unavailable));
+
 /** Owner-local candidate preparation. The caller supplies Core's one scoped transaction. */
 export const catalogQuantityPreparationForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
   prepare: Effect.fn('CatalogQuantityPreparation.prepare')(function* prepare(
@@ -84,122 +205,29 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
     if (input.phase !== 'PREPARE' && input.expected === undefined) {
       return failure('INDETERMINATE', 'Later phases require the prepared candidate revisions');
     }
-    const [product] = yield* transaction
-      .select()
-      .from(products)
-      .where(and(eq(products.tenantId, tenantId), eq(products.productId, selection.productRef.resourceId)))
-      .limit(1)
-      .pipe(Effect.mapError(unavailable));
-    if (product === undefined) {
-      return failure('INDETERMINATE', 'Product basis is missing');
+    const selectionBasis = yield* readSelectionBasis(transaction, tenantId, selection);
+    if ('status' in selectionBasis) {
+      return selectionBasis;
     }
-    const [variant] = yield* transaction
-      .select()
-      .from(productVariants)
-      .where(
-        and(eq(productVariants.tenantId, tenantId), eq(productVariants.variantId, selection.variantRef.resourceId)),
-      )
-      .limit(1)
-      .pipe(Effect.mapError(unavailable));
-    if (variant === undefined) {
-      return failure('INDETERMINATE', 'Variant basis is missing');
-    }
-    if (variant.productId !== product.productId) {
-      return failure('INVALID', 'Variant belongs to another Product');
-    }
-    if (product.lifecycleState !== 'ACTIVE' || variant.lifecycleState !== 'ACTIVE') {
-      return failure('INVALID', 'Product or Variant is not active');
-    }
-    if (!validRevision(product.currentRevision) || !validRevision(variant.currentRevision)) {
-      return failure('INDETERMINATE', 'Product or Variant revision is unusable');
-    }
-
+    const { pack, product, variant } = selectionBasis;
     const packageId = selection.packageOption?.optionRef.resourceId;
-    const [pack] =
-      packageId === undefined
-        ? [undefined]
-        : yield* transaction
-            .select()
-            .from(packageDefinitions)
-            .where(
-              and(eq(packageDefinitions.tenantId, tenantId), eq(packageDefinitions.packageDefinitionId, packageId)),
-            )
-            .limit(1)
-            .pipe(Effect.mapError(unavailable));
-    if (packageId !== undefined && pack === undefined) {
-      return failure('INDETERMINATE', 'Package Definition basis is missing');
-    }
-    if (pack !== undefined) {
-      if (pack.productId !== product.productId || pack.variantId !== variant.variantId) {
-        return failure('INVALID', 'Package Definition belongs to another Product or Variant');
-      }
-      if (pack.lifecycleState !== 'ACTIVE' || pack.optionState !== 'ACTIVE') {
-        return failure('INVALID', 'Package Option is not selectable');
-      }
-      if (!validRevision(pack.currentRevision)) {
-        return failure('INDETERMINATE', 'Package Definition revision is unusable');
-      }
-    }
-
     const targetId = packageId ?? variant.variantId;
-    const [target] =
-      packageId === undefined
-        ? yield* transaction
-            .select()
-            .from(variantUnitDivisibility)
-            .where(and(eq(variantUnitDivisibility.tenantId, tenantId), eq(variantUnitDivisibility.variantId, targetId)))
-            .limit(1)
-            .pipe(Effect.mapError(unavailable))
-        : yield* transaction
-            .select()
-            .from(packageUnitDivisibility)
-            .where(
-              and(
-                eq(packageUnitDivisibility.tenantId, tenantId),
-                eq(packageUnitDivisibility.packageDefinitionId, targetId),
-              ),
-            )
-            .limit(1)
-            .pipe(Effect.mapError(unavailable));
-    if (target === undefined || !validRevision(target.currentRevision)) {
-      return failure('INDETERMINATE', 'Target Unit or divisibility revision is missing');
+    const unitBasis = yield* readUnitBasis(transaction, tenantId, targetId, packageId !== undefined);
+    if ('status' in unitBasis) {
+      return unitBasis;
     }
-    const [unit] = yield* transaction
-      .select()
-      .from(productUnits)
-      .where(and(eq(productUnits.tenantId, tenantId), eq(productUnits.unitId, target.unitId)))
-      .limit(1)
-      .pipe(Effect.mapError(unavailable));
-    if (unit === undefined || !validRevision(unit.currentRuleRevision)) {
-      return failure('INDETERMINATE', 'Product Unit basis is missing');
-    }
-    if (unit.lifecycleState !== 'ACTIVE') {
-      return failure('INVALID', 'Product Unit is retired');
-    }
-    const [rule] = yield* transaction
-      .select()
-      .from(productUnitRuleRevisions)
-      .where(
-        and(
-          eq(productUnitRuleRevisions.tenantId, tenantId),
-          eq(productUnitRuleRevisions.unitId, unit.unitId),
-          eq(productUnitRuleRevisions.revision, unit.currentRuleRevision),
-        ),
-      )
-      .limit(1)
-      .pipe(Effect.mapError(unavailable));
-    if (rule === undefined || (rule.rounding !== 'UP' && rule.rounding !== 'DOWN' && rule.rounding !== 'HALF_UP')) {
-      return failure('INDETERMINATE', 'Current Unit rule is missing or unusable');
-    }
+    const { rounding, rule, target, unit } = unitBasis;
 
     const { expected } = input;
     if (
       expected !== undefined &&
-      (expected.productRevision !== product.currentRevision ||
-        expected.variantRevision !== variant.currentRevision ||
-        expected.packageDefinitionRevision !== pack?.currentRevision ||
-        expected.unitRuleRevision !== unit.currentRuleRevision ||
-        expected.targetDivisibilityRevision !== target.currentRevision)
+      changedSources(expected, {
+        packageDefinitionRevision: pack?.currentRevision,
+        productRevision: product.currentRevision,
+        targetDivisibilityRevision: target.currentRevision,
+        unitRuleRevision: unit.currentRuleRevision,
+        variantRevision: variant.currentRevision,
+      })
     ) {
       return failure('STALE', 'Candidate Catalog quantity sources changed');
     }
@@ -214,7 +242,7 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
       },
       {
         revision: rule.revision,
-        rounding: rule.rounding,
+        rounding,
         step: rule.step,
         tenantId,
         unitId: unit.unitId,
@@ -222,8 +250,12 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
       input.phase,
     );
     if (quantity.status !== 'VALID') {
-      if (quantity.status === 'INVALID') return failure('INVALID', quantity.reason);
-      if (quantity.status === 'REPREPARE_REQUIRED') return failure('STALE', quantity.reason);
+      if (quantity.status === 'INVALID') {
+        return failure('INVALID', quantity.reason);
+      }
+      if (quantity.status === 'REPREPARE_REQUIRED') {
+        return failure('STALE', quantity.reason);
+      }
       return failure('INDETERMINATE', quantity.reason);
     }
     const unitRef = {
@@ -241,18 +273,18 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
       revision: variant.currentRevision,
     }).pipe(Effect.mapError(unavailable));
     const packageSource =
-      pack === undefined || selection.packageOption === undefined
+      pack === null || selection.packageOption === undefined
         ? undefined
         : yield* Schema.decodeEffect(CatalogSelectionRevisionSchema)({
             resourceRef: selection.packageOption.optionRef,
             revision: pack.currentRevision,
           }).pipe(Effect.mapError(unavailable));
     const sources = {
+      packageDefinition: packageSource,
       product: productSource,
-      variant: variantSource,
       targetDivisibilityRevision: target.currentRevision,
       unitRuleRevision: unit.currentRuleRevision,
-      packageDefinition: packageSource,
+      variant: variantSource,
     };
     return {
       divisible: target.divisible,
