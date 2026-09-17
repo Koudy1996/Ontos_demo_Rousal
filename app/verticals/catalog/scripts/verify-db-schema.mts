@@ -37,8 +37,8 @@ const pointersAreCurrent = (pointers: {
   package_unit_mismatch: number;
   package_unit_reference_mismatch: number;
   product_brand_mismatch: number;
-  product_size_usage_mismatch: number;
   product_locale_mismatch: number;
+  product_size_usage_mismatch: number;
   relationship_mismatch: number;
   type_mismatch: number;
   unit_rule_mismatch: number;
@@ -157,8 +157,8 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         package_unit_mismatch: number;
         package_unit_reference_mismatch: number;
         product_brand_mismatch: number;
-        product_size_usage_mismatch: number;
         product_locale_mismatch: number;
+        product_size_usage_mismatch: number;
         relationship_mismatch: number;
         type_mismatch: number;
         unit_rule_mismatch: number;
