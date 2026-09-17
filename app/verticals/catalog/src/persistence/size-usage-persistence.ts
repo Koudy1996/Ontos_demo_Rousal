@@ -88,6 +88,7 @@ export const sizeUsagePersistenceForScope = (
       list.orderedSizeRefs.some((ref) => !validRef(ref, tenantId, SIZE_TYPE)) ||
       !Number.isSafeInteger(input.expectedRevision) ||
       input.expectedRevision < 0 ||
+      input.expectedRevision >= 2_147_483_647 ||
       !validEvidence(input.reason, input.evidenceRefs)
     ) {
       return yield* conflict('INVALID_INPUT', 'Invalid Size usage list or evidence');
@@ -275,11 +276,31 @@ export const sizeUsagePersistenceForScope = (
     if (set === undefined) {
       return Option.none();
     }
+    if (!Number.isSafeInteger(set.revision) || set.revision <= 0) {
+      return yield* unavailable('Invalid current Size usage revision');
+    }
+    const [recorded] = yield* transaction
+      .select({ revision: productSizeUsageRevisions.revision })
+      .from(productSizeUsageRevisions)
+      .where(
+        and(
+          eq(productSizeUsageRevisions.tenantId, tenantId),
+          eq(productSizeUsageRevisions.productId, productId),
+          eq(productSizeUsageRevisions.revision, set.revision),
+        ),
+      )
+      .limit(1);
+    if (recorded === undefined) {
+      return yield* unavailable('Current Size usage revision has no recorded evidence');
+    }
     const items = yield* transaction
-      .select({ id: productSizeUsageItems.sizeValueId })
+      .select({ id: productSizeUsageItems.sizeValueId, position: productSizeUsageItems.position })
       .from(productSizeUsageItems)
       .where(and(eq(productSizeUsageItems.tenantId, tenantId), eq(productSizeUsageItems.productId, productId)))
       .orderBy(asc(productSizeUsageItems.position));
+    if (items.some((item, index) => item.position !== index)) {
+      return yield* unavailable('Current Size usage order is not contiguous');
+    }
     return Option.some({ orderedSizeIds: items.map((item) => item.id), revision: set.revision });
   }, Effect.mapError(unavailable));
   return { assertEquivalence, read, replace };

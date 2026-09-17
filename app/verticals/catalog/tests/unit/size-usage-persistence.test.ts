@@ -1,8 +1,10 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { SizeEquivalenceAssertionSchema, SizeUsageListSchema } from '../../shared/domain/attribute-vocabulary.ts';
+import { productSizeUsageItems, productSizeUsageSets } from '../../src/database/schema.ts';
+import type { productSizeUsageRevisions } from '../../src/database/schema.ts';
 import { SizePersistenceConflict, sizeUsagePersistenceForScope } from '../../src/persistence/size-usage-persistence.ts';
 
 const tenantId = '00000000-0000-4000-8000-000000000001';
@@ -44,6 +46,30 @@ const forbiddenTransaction = new Proxy(
   },
 );
 
+const readTransaction = (revisionRecorded: boolean, positions: readonly number[]) => ({
+  select: () => {
+    let table: typeof productSizeUsageSets | typeof productSizeUsageRevisions | typeof productSizeUsageItems;
+    const query = {
+      from(value: typeof productSizeUsageSets | typeof productSizeUsageRevisions | typeof productSizeUsageItems) {
+        table = value;
+        return query;
+      },
+      limit: () => Effect.succeed(table === productSizeUsageSets || revisionRecorded ? [{ revision: 1 }] : []),
+      orderBy: () =>
+        Effect.succeed(
+          table === productSizeUsageItems
+            ? positions.map((position, index) => ({
+                id: index === 0 ? sizeRef.resourceId : '00000000-0000-4000-8000-000000000005',
+                position,
+              }))
+            : [],
+        ),
+      where: () => query,
+    };
+    return query;
+  },
+});
+
 describe('Size usage persistence preflight', () => {
   it.effect('rejects a cross-tenant product before touching storage', () =>
     Effect.gen(function* test() {
@@ -80,6 +106,72 @@ describe('Size usage persistence preflight', () => {
       expect(Schema.is(SizePersistenceConflict)(result)).toBe(true);
       if (Schema.is(SizePersistenceConflict)(result)) {
         expect(result.conflict).toBe('INVALID_INPUT');
+      }
+    }),
+  );
+
+  it.effect('rejects a cross-tenant Size before touching storage', () =>
+    Effect.gen(function* test() {
+      // @ts-expect-error Only the validation path is exercised.
+      const service = sizeUsagePersistenceForScope(forbiddenTransaction, scope);
+      const result = yield* Effect.flip(
+        service.replace({
+          actionInvocationId: '00000000-0000-4000-8000-000000000006',
+          evidenceRefs: [],
+          expectedRevision: 0,
+          list: { ...list, orderedSizeRefs: [{ ...sizeRef, tenantId: '00000000-0000-4000-8000-000000000099' }] },
+          principalId,
+          reason: 'Verified order',
+        }),
+      );
+      expect(result).toMatchObject({ conflict: 'INVALID_INPUT' });
+    }),
+  );
+
+  it.effect('rejects a revision that cannot fit the persisted integer column', () =>
+    Effect.gen(function* test() {
+      // @ts-expect-error Only the validation path is exercised.
+      const service = sizeUsagePersistenceForScope(forbiddenTransaction, scope);
+      const result = yield* Effect.flip(
+        service.replace({
+          actionInvocationId: '00000000-0000-4000-8000-000000000006',
+          evidenceRefs: [],
+          expectedRevision: 2_147_483_647,
+          list,
+          principalId,
+          reason: 'Verified order',
+        }),
+      );
+      expect(result).toMatchObject({ conflict: 'INVALID_INPUT' });
+    }),
+  );
+
+  it.effect('fails closed when a current list has no matching revision record', () =>
+    Effect.gen(function* test() {
+      const transaction = readTransaction(false, [0]);
+      // @ts-expect-error The focused test supplies only the read query shape.
+      const service = sizeUsagePersistenceForScope(transaction, scope);
+      const failure = yield* Effect.flip(service.read(productRef.resourceId));
+      expect(failure.code).toBe('catalog_persistence_unavailable');
+    }),
+  );
+
+  it.effect('fails closed on a gapped order and preserves an intact explicit order', () =>
+    Effect.gen(function* test() {
+      // @ts-expect-error The focused test supplies only the read query shape.
+      const inconsistent = sizeUsagePersistenceForScope(readTransaction(true, [0, 2]), scope);
+      const failure = yield* Effect.flip(inconsistent.read(productRef.resourceId));
+      expect(failure.code).toBe('catalog_persistence_unavailable');
+
+      // @ts-expect-error The focused test supplies only the read query shape.
+      const intact = sizeUsagePersistenceForScope(readTransaction(true, [0, 1]), scope);
+      const result = yield* intact.read(productRef.resourceId);
+      expect(Option.isSome(result)).toBe(true);
+      if (Option.isSome(result)) {
+        expect(result.value).toEqual({
+          orderedSizeIds: [sizeRef.resourceId, '00000000-0000-4000-8000-000000000005'],
+          revision: 1,
+        });
       }
     }),
   );
