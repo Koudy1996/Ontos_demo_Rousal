@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@rstest/core';
+import { describe, expect, it } from 'effect-rstest';
 
 import {
   addDirectCategory,
@@ -24,12 +24,16 @@ describe('Product category classification', () => {
 
     const first = addDirectCategory([], productRef, child);
     expect(first.status).toBe('ADDED');
-    if (!('assignments' in first)) return;
+    if (!('assignments' in first)) {
+      return;
+    }
     const again = addDirectCategory(first.assignments, productRef, child);
     expect(again).toEqual({ assignments: first.assignments, status: 'UNCHANGED' });
     const two = addDirectCategory(first.assignments, productRef, second);
     expect(two.status).toBe('ADDED');
-    if (!('assignments' in two)) return;
+    if (!('assignments' in two)) {
+      return;
+    }
     expect(two.assignments).toHaveLength(2);
     expect(Object.keys(two.assignments[0] ?? {})).toEqual(['categoryRef', 'productRef']);
   });
@@ -55,7 +59,9 @@ describe('Product category classification', () => {
     ];
     const removed = removeDirectCategory(assignments, productRef, child);
     expect(removed.status).toBe('REMOVED');
-    if (!('assignments' in removed)) return;
+    if (!('assignments' in removed)) {
+      return;
+    }
     expect(removed.assignments.map(({ categoryRef }) => categoryRef)).toEqual([parent, second]);
     const result = deriveClassification(productRef, removed.assignments, hierarchy, revision);
     expect(matchesCategory(result, parent, 'DIRECT')).toBe(true);
@@ -71,12 +77,18 @@ describe('Product category classification', () => {
       { categoryRef: child, productRef: ref('other-product') },
     ];
     const before = deriveClassification(productRef, assignments, expandedHierarchy, revision);
-    if (before.status !== 'AVAILABLE') throw new Error('Expected complete classification snapshot');
+    if (before.status !== 'AVAILABLE') {
+      throw new Error('Expected complete classification snapshot');
+    }
     expect(before.ancestors).toEqual([{ ancestorRef: parent, viaDirectCategories: [child, sibling] }]);
     const removed = removeDirectCategory(assignments, productRef, child);
-    if (!('assignments' in removed)) throw new Error('Expected same-Tenant removal');
+    if (!('assignments' in removed)) {
+      throw new Error('Expected same-Tenant removal');
+    }
     const after = deriveClassification(productRef, removed.assignments, expandedHierarchy, revision);
-    if (after.status !== 'AVAILABLE') throw new Error('Expected complete classification snapshot');
+    if (after.status !== 'AVAILABLE') {
+      throw new Error('Expected complete classification snapshot');
+    }
     expect(after.directCategories).toEqual([sibling]);
     expect(after.ancestors).toEqual([{ ancestorRef: parent, viaDirectCategories: [sibling] }]);
     expect(removed.assignments).toContainEqual({ categoryRef: child, productRef: ref('other-product') });
@@ -93,7 +105,9 @@ describe('Product category classification', () => {
     expect(moved.status).toBe('AVAILABLE');
     expect(matchesCategory(moved, parent, 'SUBTREE')).toBe(false);
     expect(matchesCategory(moved, second, 'SUBTREE')).toBe(true);
-    if (moved.status === 'AVAILABLE') expect(moved.directCategories).toEqual([child]);
+    if (moved.status === 'AVAILABLE') {
+      expect(moved.directCategories).toEqual([child]);
+    }
   });
 
   it('keeps unavailable classification distinct from a known empty assignment', () => {
