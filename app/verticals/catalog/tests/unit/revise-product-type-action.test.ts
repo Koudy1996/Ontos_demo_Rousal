@@ -30,7 +30,7 @@ const attributeDefinitionRef = {
 const payload = {
   effectiveFrom: '2026-09-17T10:00:00.000Z',
   expectedCurrentRevision: 1,
-  impactBasisToken: '55555555-5555-4555-8555-555555555555',
+  impactBasisToken: 'a'.repeat(64),
   productTypeRef,
   proposedRules: [{ attributeDefinitionRef, level: 'PRODUCT', required: true }],
   unresolvedProductRefs: [productRef],
@@ -42,6 +42,9 @@ describe('Revise Product Type Action contract', () => {
     expect(decode(payload).expectedCurrentRevision).toBe(1);
     expect(() => decode({ ...payload, expectedCurrentRevision: 0 })).toThrow();
     expect(() => decode({ ...payload, impactBasisToken: '' })).toThrow();
+    expect(() => decode({ ...payload, impactBasisToken: '55555555-5555-4555-8555-555555555555' })).toThrow();
+    expect(() => decode({ ...payload, impactBasisToken: 'A'.repeat(64) })).toThrow();
+    expect(() => decode({ ...payload, impactBasisToken: 'a'.repeat(63) })).toThrow();
     expect(() => decode({ ...payload, effectiveFrom: 'tomorrow' })).toThrow();
   });
 
