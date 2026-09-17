@@ -8,13 +8,22 @@ import {
   CATALOG_SCHEMA_NAME,
   CATALOG_TABLE_INVENTORY,
   CATALOG_TABLES,
+  productCategories,
+  productCategoryAssignments,
+  productCategoryEvents,
+  productCategoryHierarchyRevisions,
   productLifecycleEvents,
   productRevisions,
+  productTypeAssignmentEvents,
+  productTypeAssignments,
+  productTypeRevisionAttributes,
+  productTypeRevisions,
+  productTypes,
   productVariants,
   products,
 } from '../../src/database/schema.ts';
 
-it('owns four tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns thirteen tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -25,8 +34,17 @@ it('owns four tenant-scoped Catalog tables with RLS and immutable history', () =
 
   expect(CATALOG_SCHEMA_NAME).toBe('catalog');
   expect(CATALOG_TABLE_INVENTORY).toEqual([
+    'product_categories',
+    'product_category_assignments',
+    'product_category_events',
+    'product_category_hierarchy_revisions',
     'product_lifecycle_events',
     'product_revisions',
+    'product_type_assignment_events',
+    'product_type_assignments',
+    'product_type_revision_attributes',
+    'product_type_revisions',
+    'product_types',
     'product_variants',
     'products',
   ]);
@@ -38,6 +56,47 @@ it('owns four tenant-scoped Catalog tables with RLS and immutable history', () =
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('constrains Product Type revisions, rule levels, and a single current assignment', () => {
+  expect(getTableConfig(productTypes).uniqueConstraints.map((constraint) => constraint.name)).toContain(
+    'catalog_product_types_scope_id_uk',
+  );
+  expect(getTableConfig(productTypeRevisions).uniqueConstraints.map((constraint) => constraint.name)).toContain(
+    'catalog_product_type_revisions_number_uk',
+  );
+  expect(getTableConfig(productTypeRevisionAttributes).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_type_revision_attributes_pk',
+  );
+  expect(getTableConfig(productTypeAssignments).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_type_assignments_pk',
+  );
+  expect(getTableConfig(productTypeAssignments).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_type_assignments_product_fk',
+    'catalog_product_type_assignments_type_fk',
+  ]);
+  expect(getTableConfig(productTypeAssignmentEvents).uniqueConstraints.map((constraint) => constraint.name)).toContain(
+    'catalog_product_type_assignment_events_number_uk',
+  );
+});
+
+it('constrains tenant-qualified Category hierarchy, direct links, and revision lock', () => {
+  expect(getTableConfig(productCategories).foreignKeys.map((key) => key.getName())).toContain(
+    'catalog_product_categories_parent_fk',
+  );
+  expect(getTableConfig(productCategoryAssignments).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_category_assignments_pk',
+  );
+  expect(getTableConfig(productCategoryAssignments).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_category_assignments_product_fk',
+    'catalog_product_category_assignments_category_fk',
+  ]);
+  expect(getTableConfig(productCategoryHierarchyRevisions).columns.map((column) => column.name)).toContain(
+    'assignment_revision',
+  );
+  expect(getTableConfig(productCategoryEvents).uniqueConstraints.map((constraint) => constraint.name)).toContain(
+    'catalog_product_category_events_invocation_uk',
+  );
 });
 
 it('keeps Product identity, Variant ownership, and historical revision keys constrained', () => {
@@ -68,4 +127,8 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_lifecycle_events_append_only');
   expect(combined).toContain('catalog_products_identity_immutable');
   expect(combined).toContain('catalog_product_variants_identity_immutable');
+  expect(combined).toContain('catalog_product_type_revisions_append_only');
+  expect(combined).toContain('catalog_product_type_revision_attributes_append_only');
+  expect(combined).toContain('catalog_product_type_assignment_events_append_only');
+  expect(combined).toContain('catalog_product_category_events_append_only');
 });

@@ -90,12 +90,17 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
       (select count(*)::integer from pg_constraint k join pg_class c on c.oid=k.conrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='catalog' and k.contype='f') foreign_key_count`),
   });
   const [row] = infrastructure.rows;
+  const expectedPolicyCount = CATALOG_TABLES.reduce((count, table) => count + getTableConfig(table).policies.length, 0);
+  const expectedForeignKeyCount = CATALOG_TABLES.reduce(
+    (count, table) => count + getTableConfig(table).foreignKeys.length,
+    0,
+  );
   if (
-    row?.forced_rls !== 4 ||
+    row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
-    row.policy_count !== 16 ||
-    row.trigger_count !== 4 ||
-    row.foreign_key_count !== 3
+    row.policy_count !== expectedPolicyCount ||
+    row.trigger_count !== 8 ||
+    row.foreign_key_count !== expectedForeignKeyCount
   ) {
     yield* new CatalogSchemaVerificationError({
       reason: 'Catalog RLS, journal, trigger, or foreign-key inventory differs from its migration',
