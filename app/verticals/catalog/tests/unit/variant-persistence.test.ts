@@ -2,7 +2,12 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Match, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { productVariantRevisions, productVariants, products } from '../../src/database/schema.ts';
+import {
+  manufacturerRelations,
+  productVariantRevisions,
+  productVariants,
+  products,
+} from '../../src/database/schema.ts';
 import {
   variantPersistenceForScope,
   VariantCurrentBasisUnavailable,
@@ -63,10 +68,10 @@ describe('Variant persistence', () => {
           },
         }),
         select: () => ({
-          from: (table: typeof products) => {
-            expect(table).toBe(products);
-            return lockedRow({ ...row, currentRevision: 4 });
-          },
+          from: (table: typeof products | typeof manufacturerRelations) =>
+            table === products
+              ? lockedRow({ ...row, currentRevision: 4 })
+              : { where: () => ({ for: () => ({ pipe: () => Effect.succeed([]) }) }) },
         }),
       };
       // @ts-expect-error Only the exercised Drizzle query chains are mocked.
@@ -92,6 +97,35 @@ describe('Variant persistence', () => {
           }),
         ],
       ]);
+    }),
+  );
+
+  it.effect('rejects a new exact form under a current Product-wide manufacturer assertion without writing', () =>
+    Effect.gen(function* rejectUnverifiedManufacturerScope() {
+      const transaction = {
+        insert: () => {
+          throw new Error('manufacturer scope conflict must not write');
+        },
+        select: () => ({
+          from: (table: typeof products | typeof manufacturerRelations) =>
+            table === products
+              ? lockedRow({ ...row, currentRevision: 4 })
+              : {
+                  where: () => ({
+                    for: () => ({
+                      pipe: () =>
+                        Effect.succeed([
+                          { disposition: 'CONFIRMED', effectiveTo: null, productId, tenantId, variantId: null },
+                        ]),
+                    }),
+                  }),
+                },
+        }),
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope);
+      const outcome = yield* service.create({ ...evidence, expectedProductRevision: 4, productRef, variantRef });
+      expect(outcome).toEqual({ _tag: 'identity_conflict' });
     }),
   );
 

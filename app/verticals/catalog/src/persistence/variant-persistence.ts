@@ -7,7 +7,7 @@ import { ProductVariantSchema } from '../../shared/domain/product.ts';
 import type { ProductVariant } from '../../shared/domain/product.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
-import { productVariantRevisions, productVariants, products } from '../database/schema.ts';
+import { manufacturerRelations, productVariantRevisions, productVariants, products } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -201,6 +201,23 @@ export const variantPersistenceForScope = (
     }
     if (parent.lifecycleState === 'RETIRED') {
       return { _tag: 'lifecycle_conflict' };
+    }
+    // The Product row lock serializes this check with Manufacturer Relation mutations.
+    // A Product-wide assertion cannot silently acquire another exact form without amended evidence.
+    const productManufacturerRelations = yield* transaction
+      .select()
+      .from(manufacturerRelations)
+      .where(and(eq(manufacturerRelations.tenantId, tenantId), eq(manufacturerRelations.productId, parent.productId)))
+      .for('update')
+      .pipe(Effect.mapError(unavailable));
+    const now = DateTime.toDateUtc(yield* DateTime.now);
+    if (
+      productManufacturerRelations.some(
+        (relation) =>
+          relation.disposition === 'CONFIRMED' && (relation.effectiveTo === null || relation.effectiveTo > now),
+      )
+    ) {
+      return { _tag: 'identity_conflict' };
     }
     const inserted = yield* transaction
       .insert(productVariants)
