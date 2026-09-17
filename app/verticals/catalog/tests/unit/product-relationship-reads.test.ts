@@ -5,6 +5,8 @@ import { describe, expect, it } from 'effect-rstest';
 import type { productRelationshipRevisions } from '../../src/database/schema.ts';
 import { productRelationships } from '../../src/database/schema.ts';
 import { productRelationshipReadsForScope } from '../../src/persistence/product-relationship-reads.ts';
+import { readProductRelationshipCurrent } from '../../src/api/product-relationship-current.read.ts';
+import { readProductRelationshipHistory } from '../../src/api/product-relationship-history.read.ts';
 
 const tenantId = '00000000-0000-4000-8000-000000000001';
 const sourceId = '00000000-0000-4000-8000-000000000002';
@@ -75,6 +77,46 @@ const serviceWith = (
 };
 
 describe('Product relationship read persistence', () => {
+  it.effect('Current BFF preserves direction and excludes ended relationships', () =>
+    Effect.gen(function* currentApi() {
+      const { service } = serviceWith([head], [revision]);
+      const forward = yield* readProductRelationshipCurrent(
+        { direction: 'forward', endpoint: source },
+        tenantId,
+        service,
+        '2026-09-19T00:00:00.000Z',
+      );
+      const reverse = yield* readProductRelationshipCurrent(
+        { direction: 'reverse', endpoint: target },
+        tenantId,
+        service,
+        '2026-09-19T00:00:00.000Z',
+      );
+      const ended = yield* readProductRelationshipCurrent(
+        { direction: 'reverse', endpoint: target },
+        tenantId,
+        service,
+        '2026-09-20T00:00:00.000Z',
+      );
+      expect(forward.relationships).toHaveLength(1);
+      expect(reverse.relationships[0]?.relationship.source).toEqual(source);
+      expect(reverse.relationships[0]?.relationship.target).toEqual(target);
+      expect(ended.relationships).toEqual([]);
+    }),
+  );
+
+  it.effect('history BFF returns retained revisions separately from Current', () =>
+    Effect.gen(function* historyApi() {
+      const { service } = serviceWith([head], [revision]);
+      const result = yield* readProductRelationshipHistory({ relationshipId }, service);
+      expect(result.revisions).toHaveLength(1);
+      expect(result.revisions[0]).toMatchObject({
+        changeKind: 'CREATED',
+        relationship: { source, target },
+        revision: 1,
+      });
+    }),
+  );
   it.effect('preserves direction, exact Variant scope, evidence, and the exclusive effective end', () =>
     Effect.gen(function* directedRead() {
       const { service } = serviceWith([head], [revision]);

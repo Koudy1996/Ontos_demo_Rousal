@@ -47,6 +47,8 @@ import { productCategoryClassificationReadApiLive } from './product-category-cla
 import { productCategoryHistoryReadApiLive } from './product-category-history-read-server.ts';
 import { productDetailReadApiLive } from './product-detail-read-server.ts';
 import { productHistoryReadApiLive } from './product-history-read-server.ts';
+import { productRelationshipCurrentReadApiLive } from './product-relationship-current-read-server.ts';
+import { productRelationshipHistoryReadApiLive } from './product-relationship-history-read-server.ts';
 import { reactivateBrandActionApiLive } from './reactivate-brand-action-server.ts';
 import { reactivateControlledAttributeValueActionApiLive } from './reactivate-controlled-attribute-value-action-server.ts';
 import { reactivateProductActionApiLive } from './reactivate-product-action-server.ts';
@@ -202,6 +204,8 @@ export const makeCatalogApiRuntime = (
     productCategoryHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productDetailReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    productRelationshipCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    productRelationshipHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reactivateBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reactivateControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reactivateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

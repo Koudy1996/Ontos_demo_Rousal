@@ -30,6 +30,8 @@ import { ProductCategoryClassificationApi } from './apis/product-category-classi
 import { ProductCategoryHistoryApi } from './apis/product-category-history.ts';
 import { ProductDetailApi } from './apis/product-detail.ts';
 import { ProductHistoryApi } from './apis/product-history.ts';
+import { ProductRelationshipCurrentApi } from './apis/product-relationship-current.ts';
+import { ProductRelationshipHistoryApi } from './apis/product-relationship-history.ts';
 import { ReactivateBrandActionApi } from './apis/reactivate-brand-action.ts';
 import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
@@ -112,6 +114,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductCategoryHistoryApi)
   .addHttpApi(ProductDetailApi)
   .addHttpApi(ProductHistoryApi)
+  .addHttpApi(ProductRelationshipCurrentApi)
+  .addHttpApi(ProductRelationshipHistoryApi)
   .addHttpApi(ReactivateBrandActionApi)
   .addHttpApi(ReactivateControlledAttributeValueActionApi)
   .addHttpApi(ReactivateProductActionApi)
