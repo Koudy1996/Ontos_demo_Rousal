@@ -77,6 +77,25 @@ describe('Variant Action payload contracts', () => {
         variantRef,
       }),
     ).toThrow();
+    expect(
+      decode({
+        classification: 'SAME_MEANING_RENAME',
+        evidenceRefs: ['name-record'],
+        expectedVariantRevision: 2,
+        reason: 'Same form, clearer name',
+        variantRef,
+      }).classification,
+    ).toBe('SAME_MEANING_RENAME');
+    expect(
+      decode({
+        classification: 'EVIDENCED_PARENT_CORRECTION',
+        evidenceRefs: ['original-parent-record'],
+        expectedVariantRevision: 2,
+        reason: 'Wrong parent recorded',
+        targetProductRef: { ...productRef, resourceId: '77777777-7777-4777-8777-777777777777' },
+        variantRef,
+      }).targetProductRef?.resourceId,
+    ).toBe('77777777-7777-4777-8777-777777777777');
   });
 
   it('requires an optimistic revision and identity evidence for reactivation', () => {
@@ -88,6 +107,14 @@ describe('Variant Action payload contracts', () => {
         variantRef,
       }),
     ).toThrow();
+    expect(
+      Schema.decodeUnknownSync(ReactivateVariantPayloadSchema)({
+        evidenceRefs: ['same-identity-proof'],
+        expectedVariantRevision: 2,
+        reason: 'Restore the same form',
+        variantRef,
+      }).variantRef,
+    ).toEqual(variantRef);
   });
 
   it('routes all mutations through explicit tenant-scoped, idempotent Action authorization', () => {

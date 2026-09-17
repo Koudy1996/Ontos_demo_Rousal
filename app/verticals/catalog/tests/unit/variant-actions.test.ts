@@ -6,6 +6,8 @@ import { describe, expect, it } from 'effect-rstest';
 import { handleChangeVariant } from '../../src/actions/change-variant.action.ts';
 import { handleCreateVariant } from '../../src/actions/create-variant.action.ts';
 import { handleRetireVariant } from '../../src/actions/retire-variant.action.ts';
+import { handleReactivateVariant } from '../../src/actions/reactivate-variant.action.ts';
+import { VariantCurrentBasisUnavailable } from '../../src/persistence/variant-persistence.ts';
 import type { VariantPersistence } from '../../src/persistence/variant-persistence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -93,6 +95,24 @@ describe('Variant Action handlers', () => {
     }),
   );
 
+  it.effect('rejects a cross-tenant parent before persistence', () =>
+    Effect.gen(function* variantParentTenantTest() {
+      const run = context({});
+      const error = yield* handleCreateVariant(
+        {
+          evidenceRefs: ['sheet'],
+          expectedProductRevision: 1,
+          productRef: { ...productRef, tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+          reason: 'Wrong parent tenant',
+          variantRef,
+        },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(error.code).toBe('variant_action_not_found');
+      expect(run.reads).toEqual([]);
+    }),
+  );
+
   it.effect('maps concurrent identity collision to typed conflict', () =>
     Effect.gen(function* variantCollisionTest() {
       const run = context({ create: () => Effect.succeed({ _tag: 'identity_conflict' }) });
@@ -141,6 +161,79 @@ describe('Variant Action handlers', () => {
         run.value,
       ).pipe(Effect.flip);
       expect(error).toMatchObject({ code: 'variant_action_conflict', conflict: 'INVALID_CHANGE' });
+    }),
+  );
+
+  it.effect('preserves parent-correction intent and fails closed when current basis is unavailable', () =>
+    Effect.gen(function* variantParentCorrectionTest() {
+      const targetProductRef = { ...productRef, resourceId: '77777777-7777-4777-8777-777777777777' };
+      const run = context({
+        change: (input) => {
+          expect(input.classification).toBe('EVIDENCED_PARENT_CORRECTION');
+          expect(input.targetProductRef).toEqual(targetProductRef);
+          return Effect.fail(
+            new VariantCurrentBasisUnavailable({
+              code: 'variant_current_basis_unavailable',
+              reason: 'Current basis unavailable',
+            }),
+          );
+        },
+      });
+      const error = yield* handleChangeVariant(
+        {
+          classification: 'EVIDENCED_PARENT_CORRECTION',
+          evidenceRefs: ['original record'],
+          expectedVariantRevision: 1,
+          reason: 'Correct mistaken parent',
+          targetProductRef,
+          variantRef,
+        },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(error.code).toBe('variant_current_basis_unavailable');
+      expect(run.reads).toEqual([]);
+    }),
+  );
+
+  it.effect('rejects cross-tenant parent correction before persistence', () =>
+    Effect.gen(function* variantCrossTenantCorrectionTest() {
+      const run = context({});
+      const error = yield* handleChangeVariant(
+        {
+          classification: 'EVIDENCED_PARENT_CORRECTION',
+          evidenceRefs: ['original record'],
+          expectedVariantRevision: 1,
+          reason: 'Wrong tenant',
+          targetProductRef: { ...productRef, tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+          variantRef,
+        },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(error.code).toBe('variant_action_not_found');
+    }),
+  );
+
+  it.effect('keeps retired and colliding reactivation outcomes typed', () =>
+    Effect.gen(function* variantReactivationTest() {
+      const retired = context({ change: () => Effect.succeed({ _tag: 'lifecycle_conflict' }) });
+      const changeError = yield* handleChangeVariant(
+        {
+          classification: 'SAME_MEANING_RENAME',
+          evidenceRefs: ['record'],
+          expectedVariantRevision: 2,
+          reason: 'Rename retired variant',
+          variantRef,
+        },
+        retired.value,
+      ).pipe(Effect.flip);
+      expect(changeError).toMatchObject({ code: 'variant_action_conflict', conflict: 'LIFECYCLE' });
+
+      const collision = context({ reactivate: () => Effect.succeed({ _tag: 'identity_conflict' }) });
+      const reactivateError = yield* handleReactivateVariant(
+        { evidenceRefs: ['record'], expectedVariantRevision: 2, reason: 'Restore', variantRef },
+        collision.value,
+      ).pipe(Effect.flip);
+      expect(reactivateError).toMatchObject({ code: 'variant_action_conflict', conflict: 'IDENTITY' });
     }),
   );
 });
