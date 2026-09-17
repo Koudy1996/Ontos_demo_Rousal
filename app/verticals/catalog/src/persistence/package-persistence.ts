@@ -112,7 +112,7 @@ const validContent = (content: Content, tenantId: string, definitionId: string):
   Schema.is(PackageDefinitionContentInputSchema)(content) &&
   sameRef(content.form.productRef, tenantId, 'commerce.catalog.product') &&
   sameRef(content.form.variantRef, tenantId, variantType) &&
-  sameRef(content.unitRef, tenantId, 'commerce.catalog.unit') &&
+  sameRef(content.unitRef, tenantId, 'commerce.catalog.product-unit') &&
   (content.lower === undefined ||
     (sameRef(content.lower.revision.resourceRef, tenantId, packageType) &&
       content.lower.revision.resourceRef.resourceId !== definitionId &&

@@ -35,7 +35,7 @@ const payload = Schema.decodeUnknownSync(CreatePackageDefinitionPayloadSchema)({
     amount: '10',
     effectiveAt: '2026-09-17T10:00:00.000Z',
     form: { productRef: ref('product', productId), variantRef: ref('variant', variantId) },
-    unitRef: ref('unit', '66666666-6666-4666-8666-666666666666'),
+    unitRef: ref('product-unit', '66666666-6666-4666-8666-666666666666'),
   },
   definitionRef: ref('package-definition', packageId),
   evidenceRefs: ['catalog-record:package-1'],
@@ -85,7 +85,12 @@ describe('Package persistence', () => {
         [packageDefinitions, expect.objectContaining({ lifecycleState: 'DRAFT', optionState: 'NOT_SELECTABLE' })],
         [
           packageContentRevisions,
-          expect.objectContaining({ amount: '10', revision: 1, unitResourceId: payload.content.unitRef.resourceId }),
+          expect.objectContaining({
+            amount: '10',
+            revision: 1,
+            unitResourceId: payload.content.unitRef.resourceId,
+            unitResourceType: 'commerce.catalog.product-unit',
+          }),
         ],
       ]);
     }),
@@ -125,6 +130,29 @@ describe('Package persistence', () => {
           definitionRef: { ...payload.definitionRef, tenantId: '88888888-8888-4888-8888-888888888888' },
         },
       });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('invalid', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('rejects a noncanonical Unit resource type before reading or writing', () =>
+    Effect.gen(function* wrongUnitType() {
+      const transaction = {
+        select: () => {
+          throw new Error('Noncanonical Unit must be rejected first');
+        },
+      };
+      const legacyPayload = Schema.decodeUnknownSync(CreatePackageDefinitionPayloadSchema)({
+        ...payload,
+        content: { ...payload.content, unitRef: ref('unit', payload.content.unitRef.resourceId) },
+      });
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = packagePersistenceForScope(transaction, scope);
+      const outcome = yield* service.create({ ...evidence, payload: legacyPayload });
       expect(
         Match.value(outcome).pipe(
           Match.tag('invalid', () => true),
