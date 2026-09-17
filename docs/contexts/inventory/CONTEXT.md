@@ -20,12 +20,20 @@ _Avoid_: warehouse name alone as reservation scope, Product-level stock bucket.
 
 ## Stock demand and mapping
 
-**Stock Requirement** — Exact Inventory-owned physical demand derived from one exact Catalog Selection and purchase Quantity under one Stock Mapping Revision. It identifies the required Stock Item, Quantity/Unit, provenance, and every physical-feasibility constraint needed to decide whether an allocation truly satisfies the demand.
+**Stock Basis** — Inventory meaning chosen by one Stock Mapping Revision for how an exact Catalog Selection is represented as physical demand, for example one finished/package Stock Item or exact component requirements. For Launch it is determined before Stock Location or Stock Position allocation and does not change merely because another location has different stock available.
+_Avoid_: availability-driven remapping, Location-specific fallback stock basis.
 
-**Stock Requirement Feasibility** — Business meaning that determines whether Quantity arithmetic alone is sufficient to satisfy one Stock Requirement. Additively divisible demand may be satisfied by compatible summed allocations; indivisible, contiguous, single-source, or otherwise constrained demand requires owner-valid evidence that the proposed physical allocation is actually realizable.
-_Avoid_: assuming equal total Quantity always means physical fulfillability, inferring contiguity from aggregate ON_HAND.
+**Stock Requirement** — Exact Inventory-owned physical demand derived from one exact Catalog Selection and purchase Quantity under one Stock Mapping Revision before any Stock Position allocation is selected. It identifies the required Stock Item, Quantity/Unit, provenance, and every physical-feasibility constraint needed to decide whether an allocation truly satisfies the demand.
 
-**Stock Mapping Revision** — Immutable Inventory-owned evidence of how one exact Catalog Selection and purchase Quantity were translated into Stock Requirements. Later mapping changes do not reinterpret an existing Reservation, Commitment Protection, or Accepted Order history.
+**Stock Requirement Feasibility** — Business meaning that determines whether Quantity arithmetic alone is sufficient to satisfy one Stock Requirement. Additively divisible demand may be satisfied by compatible summed allocations; indivisible, contiguous, single-source, required physical form, or otherwise constrained demand requires owner-valid evidence that the proposed physical allocation is actually realizable.
+_Avoid_: assuming equal total Quantity always means physical fulfillability, inferring contiguity or required package/set form from aggregate ON_HAND.
+
+**Stock Allocation** — Exact assignment of all or part of one Stock Requirement to one Stock Position. Allocation decides where demand is satisfied; it does not change the requirement's Stock Basis, Catalog meaning, Quantity, or physical-feasibility semantics.
+_Avoid_: Location allocation treated as remapping, availability-driven substitution.
+
+**Stock Mapping Revision** — Immutable Inventory-owned evidence of how one exact Catalog Selection and purchase Quantity were translated into one Stock Basis and its Stock Requirements. Later allocation or mapping changes do not reinterpret an existing Reservation, Commitment Protection, or Accepted Order history.
+
+**Stocked Purchase** — Prospective purchase whose Current Stock Mapping yields one or more constrained physical Stock Requirements. Standard Launch Stocked Purchase requires enforceable Reservation evidence and Commitment Protection before Order commitment; preorder, backorder, made-to-order, or order-to-source acceptance without that guarantee is a separate business capability.
 
 ## Reservations and commitment
 
@@ -37,12 +45,17 @@ _Avoid_: Cart line as Reservation identity, synthetic Order Commitment Attempt c
 **Reservation Confirmation** — Attempt-bound owner proof issued by the actual Reservation Authority that one exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. It is not issued by Availability merely because Availability owns the customer-facing promise, and it is not part of the pre-attempt Order Acceptance Decision Bundle.
 _Avoid_: `Inventory/Availability-owner-issued`, local `RESERVED` bookkeeping treated as physical guarantee.
 
+**Reservation Release** — Explicit owner-governed end of one whole provisional Inventory Reservation after release safety is proven. Confirmation expiry, `AT_RISK`, or `REVOKED` proof state is not Reservation Release.
+
+**Provisional Shortage Priority** — Launch FIFO rule for competing unprotected provisional Reservation Confirmations after a material shortage: older owner-issued Confirmation has priority over younger Confirmation. Commitment Protection and `COMMITTED_OBLIGATION` are outside this priority pool.
+_Avoid_: best-fit skipping, B2C-over-B2B priority, technical arrival order as FIFO.
+
 **Commitment Protection** — Attempt-bound owner guarantee established for one exact Inventory Reservation immediately before Order commitment. Once established, the protected Quantity remains fenced from incompatible competing use until authoritative Order truth proves commit or proves non-commit plus closure of that Attempt; an unknown outcome keeps the fence.
 _Avoid_: final read/check treated as protection, provisional Confirmation expiry treated as release of a protected commitment.
 
 **COMMITTED_OBLIGATION** — Post-commit lifecycle meaning of the Inventory stock obligation for an Accepted Order. It continues to constrain its exact Stock Positions until explicit owner-governed transitions account for the remaining Quantity; old provisional expiry does not release it.
 
-**AT_RISK** — Guarantee-health meaning stating that an obligation still exists but its promised physical guarantee cannot currently be owner-verifiably honored. `AT_RISK` is not release, cancellation, free stock, or proof that an Order did not commit.
+**AT_RISK** — Guarantee-health meaning stating that an obligation still exists but its promised physical guarantee cannot currently be owner-verifiably honored. `AT_RISK` is not release, revocation, cancellation, free stock, or proof that an Order did not commit.
 
 **Imported Committed Obligation** — Migration-origin Inventory obligation bound directly to an already-proven imported Order and explicit source lineage, starting in committed meaning without claiming that an OntOS Order Commitment Attempt historically existed. Uncommitted legacy holds without a real Attempt are not converted into canonical provisional Reservations by inventing history.
 
