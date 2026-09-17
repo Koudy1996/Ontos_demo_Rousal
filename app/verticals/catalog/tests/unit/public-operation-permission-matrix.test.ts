@@ -107,10 +107,28 @@ it('keeps read, ordinary edit, shared-definition, and high-impact lifecycle auth
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.activate-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-product-unit');
+  expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.activate-package-option');
+  expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.retire-package-option');
+  for (const productAction of [
+    'commerce.catalog.assign-sku',
+    'commerce.catalog.rename-sku',
+    'commerce.catalog.correct-sku',
+    'commerce.catalog.confirm-gtin',
+    'commerce.catalog.correct-gtin',
+    'commerce.catalog.publish-product-configuration',
+    'commerce.catalog.create-set-composition',
+    'commerce.catalog.revise-set-composition',
+  ]) {
+    expect(bundles.PRODUCT_EDITOR).toContain(productAction);
+    expect(bundles.CATALOG_DEFINITION_MANAGER).not.toContain(productAction);
+    expect(bundles.CATALOG_LIFECYCLE_MANAGER).not.toContain(productAction);
+  }
   expect(bundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.retire-product');
   expect(bundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.retire-variant');
   expect(bundles.PRODUCT_EDITOR).not.toContain('commerce.catalog.retire-product');
   expect(bundles.PRODUCT_EDITOR).not.toContain('commerce.catalog.create-brand');
+  expect(bundles.PRODUCT_EDITOR).not.toContain('commerce.catalog.activate-package-option');
+  expect(bundles.PRODUCT_EDITOR).not.toContain('commerce.catalog.retire-package-option');
   expect(bundles.CATALOG_DEFINITION_MANAGER).not.toContain('commerce.catalog.retire-product');
   expect(bundles.CATALOG_READER).not.toContain('commerce.catalog.create-product');
 });
