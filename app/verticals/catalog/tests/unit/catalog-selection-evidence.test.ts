@@ -92,6 +92,8 @@ describe('Catalog Selection decision references', () => {
       configuration: {
         choices: [{ attributeDefinition: { resourceRef: attribute, revision: 3 }, choiceKey: 'length', value: '83' }],
         definition: { resourceRef: definition, revision: 1 },
+        productRef,
+        variantRef,
       },
     };
     const line = {
@@ -100,18 +102,77 @@ describe('Catalog Selection decision references', () => {
     };
     expect(Schema.decodeUnknownSync(CatalogSelectionWithQuantitySchema)(line)).toMatchObject(line);
     expect(() => decodeSelection({ ...configured, configurationRef: definition })).toThrow();
+    expect(() =>
+      decodeSelection({
+        ...configured,
+        configuration: {
+          ...configured.configuration,
+          variantRef: ref('commerce.catalog.variant', '99999999-9999-4999-8999-999999999999'),
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeSelection({
+        ...configured,
+        configuration: {
+          ...configured.configuration,
+          choices: [...configured.configuration.choices, ...configured.configuration.choices],
+        },
+      }),
+    ).toThrow();
   });
 
   it('distinguishes invalid, indeterminate, unavailable and historical accepted evidence', () => {
-    const basis = [{ role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } }];
-    expect(decodeEvidence({ assessedAt: instant, basis, selection, status: 'VALID' })).toMatchObject({
+    const membership = {
+      attestationId: 'catalog-membership-1',
+      observedAt: instant,
+      productRef,
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      variant: { resourceRef: variantRef, revision: 2 },
+    };
+    const basis = [
+      { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
+      { role: 'VARIANT', source: membership.variant },
+    ];
+    const purpose = 'PURCHASE_ACCEPTANCE';
+    expect(
+      decodeEvidence({ assessedAt: instant, basis, membership, purpose, selection, status: 'VALID' }),
+    ).toMatchObject({
       status: 'VALID',
     });
+    expect(() => decodeEvidence({ assessedAt: instant, basis, purpose, selection, status: 'VALID' })).toThrow();
+    expect(() =>
+      decodeEvidence({
+        assessedAt: instant,
+        basis,
+        membership: { ...membership, observedAt: '2026-09-16T12:00:00.000Z' },
+        purpose,
+        selection,
+        status: 'VALID',
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeEvidence({
+        assessedAt: instant,
+        basis,
+        membership: { ...membership, variant: { resourceRef: variantRef, revision: 3 } },
+        purpose,
+        selection,
+        status: 'VALID',
+      }),
+    ).toThrow();
     expect(
-      decodeEvidence({ assessedAt: instant, basis, reason: 'Retired Variant', selection, status: 'INVALID' }),
+      decodeEvidence({ assessedAt: instant, basis, purpose, reason: 'Retired Variant', selection, status: 'INVALID' }),
     ).toMatchObject({ status: 'INVALID' });
     expect(
-      decodeEvidence({ assessedAt: instant, basis, reason: 'Type unavailable', selection, status: 'INDETERMINATE' }),
+      decodeEvidence({
+        assessedAt: instant,
+        basis,
+        purpose,
+        reason: 'Type unavailable',
+        selection,
+        status: 'INDETERMINATE',
+      }),
     ).toMatchObject({ status: 'INDETERMINATE' });
     expect(
       Schema.decodeUnknownSync(CatalogSelectionAssessmentResultSchema)({
@@ -120,7 +181,15 @@ describe('Catalog Selection decision references', () => {
       }),
     ).toMatchObject({ kind: 'UNAVAILABLE' });
     expect(() =>
-      decodeEvidence({ assessedAt: instant, basis, kind: 'UNAVAILABLE', selection, status: 'VALID' }),
+      decodeEvidence({
+        assessedAt: instant,
+        basis,
+        kind: 'UNAVAILABLE',
+        membership,
+        purpose,
+        selection,
+        status: 'VALID',
+      }),
     ).toThrow();
     const accepted = {
       acceptedAt: instant,
@@ -130,6 +199,7 @@ describe('Catalog Selection decision references', () => {
       },
       basis,
       historical: true,
+      purpose,
     };
     expect(Schema.decodeUnknownSync(CatalogAcceptedSelectionEvidenceSchema)(accepted)).toMatchObject(accepted);
     expect(() =>

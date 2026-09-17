@@ -11,6 +11,7 @@ import { VariantRefSchema } from '../resources/variant.ts';
 
 const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed());
 const choiceKeySchema = nonEmptyText.pipe(Schema.brand('CatalogConfigurationChoiceKey'));
+const membershipAttestationIdSchema = nonEmptyText.pipe(Schema.brand('CatalogMembershipAttestationId'));
 
 /** An owner-issued business revision; no revision ID is invented when the owner issues only a sequence. */
 export const CatalogSelectionRevisionSchema = Schema.Struct({
@@ -42,6 +43,20 @@ const sameResource = (
     readonly tenantId: string;
   },
 ) => left.tenantId === right.tenantId && left.resourceId === right.resourceId;
+const sameRef = (
+  left: {
+    readonly moduleId: string;
+    readonly resourceId: string;
+    readonly resourceType: string;
+    readonly tenantId: string;
+  },
+  right: {
+    readonly moduleId: string;
+    readonly resourceId: string;
+    readonly resourceType: string;
+    readonly tenantId: string;
+  },
+) => left.moduleId === right.moduleId && left.resourceType === right.resourceType && sameResource(left, right);
 
 /** A configuration is a complete value for one exact target, not a Configuration Resource. */
 export const ProductConfigurationSelectionSchema = Schema.Struct({
@@ -54,7 +69,15 @@ export const ProductConfigurationSelectionSchema = Schema.Struct({
     }),
   ),
   definition: ConfigurationDefinitionSelectionRevisionSchema,
-});
+  productRef: ProductRefSchema,
+  variantRef: VariantRefSchema,
+}).check(
+  Schema.makeFilter(({ choices }) =>
+    new Set(choices.map(({ choiceKey }) => choiceKey)).size === choices.length
+      ? undefined
+      : 'Configuration choice keys must be unique',
+  ),
+);
 
 /** Package quantity remains distinct from purchase-line Quantity. */
 export const CatalogPackageOptionSelectionSchema = Schema.Struct({
@@ -89,9 +112,15 @@ export const CatalogSelectionSchema = Schema.Struct({
         choice.unit?.resourceRef,
       ]) ?? []),
     ];
-    return refs.every((ref) => ref === undefined || ref.tenantId === tenantId)
+    if (!refs.every((ref) => ref === undefined || ref.tenantId === tenantId)) {
+      return 'Selection references must share one Tenant';
+    }
+    const { configuration } = selection;
+    return configuration === undefined ||
+      (sameRef(configuration.productRef, selection.productRef) &&
+        sameRef(configuration.variantRef, selection.variantRef))
       ? undefined
-      : 'Selection references must share one Tenant';
+      : 'Configuration must target the exact selected Product and Variant';
   }),
 );
 export type CatalogSelection = typeof CatalogSelectionSchema.Type;
@@ -127,17 +156,53 @@ export const CatalogSelectionBasisSchema = Schema.Struct({
   source: CatalogSelectionRevisionSchema,
 });
 
+/** Owner-issued membership evidence binds a Variant revision to its Product without changing the request. */
+export const CatalogSelectionMembershipSchema = Schema.Struct({
+  attestationId: membershipAttestationIdSchema,
+  observedAt: CatalogRevisionInstantSchema,
+  productRef: ProductRefSchema,
+  source: Schema.Literal('CATALOG_OWNER_CURRENT_READ'),
+  variant: VariantSelectionRevisionSchema,
+}).check(
+  Schema.makeFilter(({ productRef, variant }) =>
+    productRef.tenantId === variant.resourceRef.tenantId
+      ? undefined
+      : 'Variant membership must share the Product Tenant',
+  ),
+);
+export type CatalogSelectionMembership = typeof CatalogSelectionMembershipSchema.Type;
+
 /** Evidence is a point-in-time assessment, not a guarantee that it remains Current at Order commit. */
 const assessmentFields = {
   assessedAt: CatalogRevisionInstantSchema,
   basis: Schema.Array(CatalogSelectionBasisSchema),
+  purpose: nonEmptyText,
   selection: CatalogSelectionSchema,
   validUntil: Schema.optionalKey(CatalogRevisionInstantSchema),
 };
 export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
   ...assessmentFields,
+  membership: CatalogSelectionMembershipSchema,
   status: Schema.Literal('VALID'),
-});
+}).check(
+  Schema.makeFilter(({ assessedAt, basis, membership, selection, validUntil }) =>
+    sameRef(membership.productRef, selection.productRef) &&
+    sameRef(membership.variant.resourceRef, selection.variantRef) &&
+    membership.observedAt === assessedAt &&
+    (validUntil === undefined || validUntil > assessedAt) &&
+    basis.every(({ source }) => source.resourceRef.tenantId === selection.productRef.tenantId) &&
+    basis.some(({ role, source }) => role === 'PRODUCT' && sameRef(source.resourceRef, selection.productRef)) &&
+    basis.some(
+      ({ role, source }) =>
+        role === 'VARIANT' &&
+        sameRef(source.resourceRef, membership.variant.resourceRef) &&
+        source.revision === membership.variant.revision &&
+        source.revisionId === membership.variant.revisionId,
+    )
+      ? undefined
+      : 'VALID evidence requires the exact Product–Variant membership and Variant source revision',
+  ),
+);
 export const CatalogSelectionInvalidEvidenceSchema = Schema.Struct({
   ...assessmentFields,
   reason: nonEmptyText,
@@ -170,4 +235,5 @@ export const CatalogAcceptedSelectionEvidenceSchema = Schema.Struct({
   acceptedSelection: CatalogSelectionWithQuantitySchema,
   basis: Schema.Array(CatalogSelectionBasisSchema),
   historical: Schema.Literal(true),
+  purpose: nonEmptyText,
 });
