@@ -1,0 +1,37 @@
+import { Option } from 'effect';
+
+import { CatalogIdentityScopeSchema } from './identity-scope.ts';
+import type { Product, ProductVariant } from './product.ts';
+
+/**
+ * An exact predefined form identifies both its Product and one explicit Variant.
+ * This private contract carries identity only: it does not certify Current validity,
+ * axis completeness, assortment, price, availability, or permission.
+ */
+export const VariantExactFormSchema = CatalogIdentityScopeSchema;
+export type VariantExactForm = typeof VariantExactFormSchema.Type;
+
+const sameProduct = (left: ProductVariant['productRef'], right: Product['productRef']): boolean =>
+  left.tenantId === right.tenantId && left.resourceId === right.resourceId;
+
+/**
+ * Resolve an exact form only from an explicitly recorded Variant of this Product.
+ * A bare VariantRef cannot prove parentage; an absent form is not synthesized from
+ * possible axis values. Lifecycle and Current rules remain separate checks.
+ */
+export const resolveVariantExactForm = (
+  product: Pick<Product, 'productRef' | 'variants'>,
+  variantRef: ProductVariant['variantRef'],
+): Option.Option<VariantExactForm> => {
+  const match = product.variants.find(
+    (variant) =>
+      sameProduct(variant.productRef, product.productRef) &&
+      variant.variantRef.tenantId === product.productRef.tenantId &&
+      variant.variantRef.tenantId === variantRef.tenantId &&
+      variant.variantRef.resourceId === variantRef.resourceId &&
+      variant.variantId === variant.variantRef.resourceId,
+  );
+  return match === undefined
+    ? Option.none()
+    : Option.some({ productRef: product.productRef, variantRef: match.variantRef });
+};

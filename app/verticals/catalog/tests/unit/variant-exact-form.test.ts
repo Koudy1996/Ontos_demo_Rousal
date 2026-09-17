@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'effect-rstest';
+import { Option, Schema } from 'effect';
+
+import { resolveVariantExactForm, VariantExactFormSchema } from '../../shared/domain/variant-exact-form.ts';
+import { ProductVariantSchema } from '../../shared/domain/product.ts';
+import { ProductRefSchema } from '../../shared/resources/product.ts';
+import { VariantRefSchema } from '../../shared/resources/variant.ts';
+
+const tenantId = '11111111-1111-4111-8111-111111111111';
+const otherTenantId = '99999999-9999-4999-8999-999999999999';
+const productRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: '22222222-2222-4222-8222-222222222222',
+  resourceType: 'commerce.catalog.product',
+  tenantId,
+} as const;
+const variantRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: '33333333-3333-4333-8333-333333333333',
+  resourceType: 'commerce.catalog.variant',
+  tenantId,
+} as const;
+const decodeVariant = Schema.decodeUnknownSync(ProductVariantSchema);
+const recordedVariant = decodeVariant({
+  lifecycle: 'WORK_IN_PROGRESS',
+  productRef,
+  variantId: variantRef.resourceId,
+  variantRef,
+});
+
+describe('Variant exact form foundation', () => {
+  it('requires Product and Variant ResourceRefs from one Tenant', () => {
+    const decode = Schema.decodeUnknownSync(VariantExactFormSchema, { onExcessProperty: 'error' });
+    expect(decode({ productRef, variantRef })).toEqual({ productRef, variantRef });
+    expect(() => decode({ productRef, variantRef: { ...variantRef, tenantId: otherTenantId } })).toThrow();
+    expect(() => decode({ productRef, sku: 'NOT_AN_IDENTITY', variantRef })).toThrow();
+  });
+
+  it('resolves an explicit working Variant without asserting it is selectable', () => {
+    const product = {
+      productRef: Schema.decodeUnknownSync(VariantExactFormSchema)({ productRef, variantRef }).productRef,
+      variants: [recordedVariant],
+    };
+    const resolved = resolveVariantExactForm(product, recordedVariant.variantRef);
+    expect(Option.isSome(resolved)).toBe(true);
+    if (Option.isSome(resolved)) {
+      expect(resolved.value).toEqual({ productRef, variantRef });
+    }
+  });
+
+  it('does not invent a form or accept a Variant recorded under another Product', () => {
+    const product = { productRef: recordedVariant.productRef, variants: [recordedVariant] };
+    expect(
+      Option.isNone(
+        resolveVariantExactForm(product, {
+          ...recordedVariant.variantRef,
+          resourceId: Schema.decodeUnknownSync(VariantRefSchema)({
+            ...variantRef,
+            resourceId: '44444444-4444-4444-8444-444444444444',
+          }).resourceId,
+        }),
+      ),
+    ).toBe(true);
+    const differentProduct = {
+      ...recordedVariant.productRef,
+      resourceId: Schema.decodeUnknownSync(ProductRefSchema)({
+        ...productRef,
+        resourceId: '55555555-5555-4555-8555-555555555555',
+      }).resourceId,
+    };
+    expect(
+      Option.isNone(
+        resolveVariantExactForm(
+          { productRef: differentProduct, variants: [recordedVariant] },
+          recordedVariant.variantRef,
+        ),
+      ),
+    ).toBe(true);
+  });
+});
