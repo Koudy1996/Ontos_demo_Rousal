@@ -323,6 +323,11 @@ export const packagePersistenceForScope = (
     if (row.lifecycleState === 'RETIRED') {
       return { _tag: 'invalid', reason: 'Package Definition is already retired' };
     }
+    // An ACTIVE Option is a separate historical role. This service cannot prove #479 open-selection
+    // impact or append its role revision, so Definition retirement must not change that role silently.
+    if (row.optionState === 'ACTIVE') {
+      return yield* unavailable();
+    }
     if (basis === undefined) {
       return yield* unavailable();
     }
@@ -339,7 +344,6 @@ export const packagePersistenceForScope = (
       .set({
         currentRevision: row.currentRevision + 1,
         lifecycleState: 'RETIRED',
-        optionState: row.optionState === 'ACTIVE' ? 'RETIRED' : row.optionState,
         updatedAt: DateTime.toDateUtc(yield* DateTime.now),
       })
       .where(

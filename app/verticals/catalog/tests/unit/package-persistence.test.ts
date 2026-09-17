@@ -3,6 +3,7 @@ import { Effect, Match, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { CreatePackageDefinitionPayloadSchema } from '../../shared/actions/create-package-definition.ts';
+import { RetirePackageDefinitionPayloadSchema } from '../../shared/actions/retire-package-definition.ts';
 import { RevisePackageDefinitionPayloadSchema } from '../../shared/actions/revise-package-definition.ts';
 import { packageContentRevisions, packageDefinitions, productVariants, products } from '../../src/database/schema.ts';
 import {
@@ -48,6 +49,21 @@ const selected = () => ({
 const staleSelection = () => ({
   where: () => ({
     for: () => ({ limit: () => Effect.succeed([{ currentRevision: 2, packageDefinitionId: packageId }]) }),
+  }),
+});
+const activeOptionSelection = () => ({
+  where: () => ({
+    for: () => ({
+      limit: () =>
+        Effect.succeed([
+          {
+            currentRevision: 1,
+            lifecycleState: 'ACTIVE',
+            optionState: 'ACTIVE',
+            packageDefinitionId: packageId,
+          },
+        ]),
+    }),
   }),
 });
 
@@ -186,5 +202,31 @@ describe('Package persistence', () => {
         ),
       ).toBe(2);
     }),
+  );
+
+  it.effect(
+    'does not silently retire an ACTIVE Option when Definition retirement lacks role history and selection impact',
+    () =>
+      Effect.gen(function* activeOption() {
+        const transaction = {
+          insert: () => {
+            throw new Error('No incomplete role/content history may be written');
+          },
+          select: () => ({ from: () => activeOptionSelection() }),
+          update: () => {
+            throw new Error('ACTIVE Option must remain unchanged');
+          },
+        };
+        const retirePayload = Schema.decodeUnknownSync(RetirePackageDefinitionPayloadSchema)({
+          evidenceRefs: payload.evidenceRefs,
+          expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
+          reason: payload.reason,
+        });
+        const basis = { verify: () => Effect.succeed(true) };
+        // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+        const service = packagePersistenceForScope(transaction, scope, basis);
+        const failure = yield* service.retire({ ...evidence, payload: retirePayload }).pipe(Effect.flip);
+        expect(Schema.is(PackagePersistenceUnavailable)(failure)).toBe(true);
+      }),
   );
 });
