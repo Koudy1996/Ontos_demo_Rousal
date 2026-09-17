@@ -25,23 +25,25 @@ import {
 export { CreateProductUnitPayloadSchema } from '../../shared/actions/create-product-unit.ts';
 export type { CreateProductUnitPayload } from '../../shared/actions/create-product-unit.ts';
 
-export const handleCreateProductUnit = Effect.fn('CreateProductUnitAction.handle')(function* (
-  payload: CreateProductUnitPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence>,
-) {
-  if (payload.unitRef.tenantId !== context.scope.tenantId) {
-    return yield* new ProductUnitActionError({
-      code: 'product_unit_invalid',
-      reason: 'Unit must belong to the trusted Tenant',
-    });
-  }
-  const outcome = yield* context.services
-    .create({ actionInvocationId: context.actionInvocationId, payload, principalId: context.scope.principalId })
-    .pipe(Effect.mapError(mapProductUnitPersistenceError));
-  const result = yield* resolveProductUnitMutation(outcome);
-  yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
-  return result;
-});
+export const handleCreateProductUnit = Effect.fn('CreateProductUnitAction.handle')(
+  function* handleCreateProductUnitEffect(
+    payload: CreateProductUnitPayload,
+    context: ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence>,
+  ) {
+    if (payload.unitRef.tenantId !== context.scope.tenantId) {
+      return yield* new ProductUnitActionError({
+        code: 'product_unit_invalid',
+        reason: 'Unit must belong to the trusted Tenant',
+      });
+    }
+    const outcome = yield* context.services
+      .create({ actionInvocationId: context.actionInvocationId, payload, principalId: context.scope.principalId })
+      .pipe(Effect.mapError(mapProductUnitPersistenceError));
+    const result = yield* resolveProductUnitMutation(outcome);
+    yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
+    return result;
+  },
+);
 
 export const createProductUnitAction = defineAction(
   {

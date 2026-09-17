@@ -25,23 +25,25 @@ import {
 export { RetireProductUnitPayloadSchema } from '../../shared/actions/retire-product-unit.ts';
 export type { RetireProductUnitPayload } from '../../shared/actions/retire-product-unit.ts';
 
-export const handleRetireProductUnit = Effect.fn('RetireProductUnitAction.handle')(function* (
-  payload: RetireProductUnitPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence>,
-) {
-  if (payload.expectedCurrent.unit.tenantId !== context.scope.tenantId) {
-    return yield* new ProductUnitActionError({
-      code: 'product_unit_invalid',
-      reason: 'Unit must belong to the trusted Tenant',
-    });
-  }
-  const outcome = yield* context.services
-    .retire({ actionInvocationId: context.actionInvocationId, payload, principalId: context.scope.principalId })
-    .pipe(Effect.mapError(mapProductUnitPersistenceError));
-  const result = yield* resolveProductUnitMutation(outcome);
-  yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
-  return result;
-});
+export const handleRetireProductUnit = Effect.fn('RetireProductUnitAction.handle')(
+  function* handleRetireProductUnitEffect(
+    payload: RetireProductUnitPayload,
+    context: ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence>,
+  ) {
+    if (payload.expectedCurrent.unit.tenantId !== context.scope.tenantId) {
+      return yield* new ProductUnitActionError({
+        code: 'product_unit_invalid',
+        reason: 'Unit must belong to the trusted Tenant',
+      });
+    }
+    const outcome = yield* context.services
+      .retire({ actionInvocationId: context.actionInvocationId, payload, principalId: context.scope.principalId })
+      .pipe(Effect.mapError(mapProductUnitPersistenceError));
+    const result = yield* resolveProductUnitMutation(outcome);
+    yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
+    return result;
+  },
+);
 
 export const retireProductUnitAction = defineAction(
   {

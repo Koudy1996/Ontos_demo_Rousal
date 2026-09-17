@@ -26,7 +26,7 @@ export { SetProductUnitTargetDivisibilityPayloadSchema } from '../../shared/acti
 export type { SetProductUnitTargetDivisibilityPayload } from '../../shared/actions/set-product-unit-target-divisibility.ts';
 
 export const handleSetProductUnitTargetDivisibility = Effect.fn('SetProductUnitTargetDivisibilityAction.handle')(
-  function* (
+  function* handleSetProductUnitTargetDivisibilityEffect(
     payload: SetProductUnitTargetDivisibilityPayload,
     context: ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence>,
   ) {
