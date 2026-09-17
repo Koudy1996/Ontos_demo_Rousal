@@ -5,7 +5,8 @@
   "workspaces": [
     "apps/*",
     "verticals/*",
-    "packages/*"
+    "packages/*",
+    "vendor/*"
   ],
   "type": "module",
   "scripts": {
@@ -128,7 +129,7 @@
     "@vercel/nft": "0.29.2",
     "cross-env": "10.1.0",
     "effect": "4.0.0-rc.112",
-    "effect-rstest": "https://pkg.pr.new/ScriptedAlchemy/effect-rstest@79abbf684c7b150ee5f32694129a7caf969903bc",
+    "effect-rstest": "workspace:*",
     "esbuild": "0.28.1",
     "eslint-plugin-github": "6.1.2",
     "eslint-plugin-perfectionist": "5.10.1",

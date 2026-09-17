@@ -1,0 +1,41 @@
+{
+  "name": "effect-rstest",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "A set of helpers for testing Effect (v4) code with Rstest — a port of @effect/vitest",
+  "homepage": "https://github.com/ScriptedAlchemy/effect-rstest",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ScriptedAlchemy/effect-rstest.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ScriptedAlchemy/effect-rstest/issues"
+  },
+  "keywords": [
+    "effect",
+    "rstest",
+    "testing",
+    "typescript"
+  ],
+  "sideEffects": [],
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./utils": {
+      "types": "./dist/utils.d.mts",
+      "default": "./dist/utils.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "peerDependencies": {
+    "@rstest/core": "^0.11.11",
+    "effect": "^4.0.0-rc.108"
+  }
+}

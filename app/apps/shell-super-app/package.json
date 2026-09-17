@@ -81,7 +81,7 @@
     "bun-types": "1.4.0",
     "cross-env": "10.1.0",
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
-    "effect-rstest": "https://pkg.pr.new/ScriptedAlchemy/effect-rstest@79abbf684c7b150ee5f32694129a7caf969903bc",
+    "effect-rstest": "workspace:*",
     "happy-dom": "20.8.3",
     "tailwindcss": "^4.3.3",
     "typescript": "7.0.2",

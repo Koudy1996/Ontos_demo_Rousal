@@ -23,7 +23,7 @@
   "devDependencies": {
     "@rstest/core": "0.11.11",
     "@types/node": "20.19.43",
-    "effect-rstest": "https://pkg.pr.new/ScriptedAlchemy/effect-rstest@79abbf684c7b150ee5f32694129a7caf969903bc"
+    "effect-rstest": "workspace:*"
   },
   "ontosContractOwner": {
     "appId": "commerce-customer-context",
