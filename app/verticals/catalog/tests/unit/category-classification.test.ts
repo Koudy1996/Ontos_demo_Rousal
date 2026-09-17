@@ -14,7 +14,11 @@ const productRef = ref('product');
 const parent = ref('shelves');
 const child = ref('wall-shelves');
 const second = ref('spares');
-const hierarchy = [{ categoryRef: parent }, { categoryRef: child, parentRef: parent }, { categoryRef: second }];
+const hierarchy = [
+  { categoryRef: parent, lifecycle: 'ACTIVE' as const },
+  { categoryRef: child, lifecycle: 'ACTIVE' as const, parentRef: parent },
+  { categoryRef: second, lifecycle: 'ACTIVE' as const },
+];
 const revision = { assignments: 3, hierarchy: 7 };
 
 describe('Product category classification', () => {
@@ -70,7 +74,7 @@ describe('Product category classification', () => {
 
   it('retains an ancestor supported by another direct assignment', () => {
     const sibling = ref('floor-shelves');
-    const expandedHierarchy = [...hierarchy, { categoryRef: sibling, parentRef: parent }];
+    const expandedHierarchy = [...hierarchy, { categoryRef: sibling, lifecycle: 'ACTIVE' as const, parentRef: parent }];
     const assignments = [
       { categoryRef: child, productRef },
       { categoryRef: sibling, productRef },
@@ -99,7 +103,11 @@ describe('Product category classification', () => {
     const moved = deriveClassification(
       productRef,
       assignments,
-      [{ categoryRef: parent }, { categoryRef: child, parentRef: second }, { categoryRef: second }],
+      [
+        { categoryRef: parent, lifecycle: 'ACTIVE' },
+        { categoryRef: child, lifecycle: 'ACTIVE', parentRef: second },
+        { categoryRef: second, lifecycle: 'ACTIVE' },
+      ],
       { assignments: 3, hierarchy: 8 },
     );
     expect(moved.status).toBe('AVAILABLE');
@@ -124,11 +132,40 @@ describe('Product category classification', () => {
         productRef,
         assignments,
         [
-          { categoryRef: child, parentRef: parent },
-          { categoryRef: parent, parentRef: child },
+          { categoryRef: child, lifecycle: 'ACTIVE', parentRef: parent },
+          { categoryRef: parent, lifecycle: 'ACTIVE', parentRef: child },
         ],
         revision,
       ),
+    ).toEqual({ status: 'UNAVAILABLE' });
+  });
+
+  it('fails closed on duplicate direct links, duplicate hierarchy nodes, and retired ancestry', () => {
+    const assignment = { categoryRef: child, productRef };
+    expect(deriveClassification(productRef, [assignment, assignment], hierarchy, revision)).toEqual({
+      status: 'UNAVAILABLE',
+    });
+    expect(
+      deriveClassification(
+        productRef,
+        [assignment],
+        [...hierarchy, { categoryRef: child, lifecycle: 'ACTIVE' }],
+        revision,
+      ),
+    ).toEqual({ status: 'UNAVAILABLE' });
+    expect(
+      deriveClassification(
+        productRef,
+        [assignment],
+        [
+          { categoryRef: parent, lifecycle: 'RETIRED' },
+          { categoryRef: child, lifecycle: 'ACTIVE', parentRef: parent },
+        ],
+        revision,
+      ),
+    ).toEqual({ status: 'UNAVAILABLE' });
+    expect(
+      deriveClassification(productRef, [assignment], [{ categoryRef: child, lifecycle: 'RETIRED' }], revision),
     ).toEqual({ status: 'UNAVAILABLE' });
   });
 

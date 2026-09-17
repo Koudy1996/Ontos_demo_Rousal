@@ -11,6 +11,7 @@ export interface DirectCategoryAssignment {
 
 export interface CategoryParent {
   readonly categoryRef: CategoryKey;
+  readonly lifecycle: 'ACTIVE' | 'RETIRED';
   readonly parentRef?: CategoryKey;
 }
 
@@ -94,10 +95,27 @@ export const deriveClassification = (
       direct.push(assignment.categoryRef);
     }
   }
-  const parentByCategory = new Map(hierarchy.map(({ categoryRef, parentRef }) => [keyOf(categoryRef), parentRef]));
+  const parentByCategory = new Map<string, CategoryParent>();
+  for (const node of hierarchy) {
+    const key = keyOf(node.categoryRef);
+    if (parentByCategory.has(key)) {
+      return { status: 'UNAVAILABLE' };
+    }
+    parentByCategory.set(key, node);
+  }
+  const seenDirect = new Set<string>();
+  for (const categoryRef of direct) {
+    const key = keyOf(categoryRef);
+    if (seenDirect.has(key)) {
+      return { status: 'UNAVAILABLE' };
+    }
+    seenDirect.add(key);
+  }
   if (
     direct.some(
-      (categoryRef) => categoryRef.tenantId !== productRef.tenantId || !parentByCategory.has(keyOf(categoryRef)),
+      (categoryRef) =>
+        categoryRef.tenantId !== productRef.tenantId ||
+        parentByCategory.get(keyOf(categoryRef))?.lifecycle !== 'ACTIVE',
     ) ||
     hierarchy.some(
       ({ categoryRef, parentRef }) =>
@@ -111,10 +129,14 @@ export const deriveClassification = (
   const ancestors = new Map<string, { ancestorRef: CategoryKey; viaDirectCategories: CategoryKey[] }>();
   for (const source of direct) {
     const visited = new Set<string>([keyOf(source)]);
-    let parent = parentByCategory.get(keyOf(source));
+    let parent = parentByCategory.get(keyOf(source))?.parentRef;
     while (parent !== undefined) {
       const key = keyOf(parent);
       if (visited.has(key)) {
+        return { status: 'UNAVAILABLE' };
+      }
+      const node = parentByCategory.get(key);
+      if (node?.lifecycle !== 'ACTIVE') {
         return { status: 'UNAVAILABLE' };
       }
       visited.add(key);
@@ -124,7 +146,7 @@ export const deriveClassification = (
       } else if (!classification.viaDirectCategories.some((existing) => sameRef(existing, source))) {
         classification.viaDirectCategories.push(source);
       }
-      parent = parentByCategory.get(key);
+      parent = node.parentRef;
     }
   }
   return { ancestors: [...ancestors.values()], directCategories: direct, revision, status: 'AVAILABLE' };

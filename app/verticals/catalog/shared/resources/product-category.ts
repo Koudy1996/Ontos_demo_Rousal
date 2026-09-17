@@ -4,8 +4,10 @@
 import type { OntosResourceType } from '@app/core-runtime';
 import { Schema } from 'effect';
 
-const ResourceIdSchema = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300));
-const TenantIdSchema = Schema.String.check(Schema.isUUID());
+/** Category identity follows the UUID-backed tenant and category database keys. */
+const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
+const ResourceIdSchema = checkedUuid.pipe(Schema.brand('CatalogProductCategoryId'), Schema.decodeTo(checkedUuid));
+const TenantIdSchema = checkedUuid.pipe(Schema.brand('CatalogTenantId'), Schema.decodeTo(checkedUuid));
 
 export const ProductCategoryRefSchema = Schema.Struct({
   moduleId: Schema.Literal('commerce.catalog'),
