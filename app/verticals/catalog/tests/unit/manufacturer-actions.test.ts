@@ -1,4 +1,6 @@
-import { Schema } from 'effect';
+import { Effect, Schema } from 'effect';
+import type { ActionHandlerContext } from '@app/core-runtime';
+import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
@@ -6,6 +8,15 @@ import {
   RemoveProductManufacturerPayloadSchema,
   SetProductManufacturerPayloadSchema,
 } from '../../shared/actions/manufacturer-mutations.ts';
+import {
+  handleSetProductManufacturer,
+  setProductManufacturerAction,
+} from '../../src/actions/set-product-manufacturer.action.ts';
+import { handleChangeProductManufacturer } from '../../src/actions/change-product-manufacturer.action.ts';
+import { handleRemoveProductManufacturer } from '../../src/actions/remove-product-manufacturer.action.ts';
+import { ManufacturerPersistenceUnavailable } from '../../src/persistence/manufacturer-persistence.ts';
+import type { ManufacturerPersistence } from '../../src/persistence/manufacturer-persistence.ts';
+import { ManufacturerTargetForbidden } from '../../src/persistence/manufacturer-target-forbidden.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const subject = {
@@ -28,6 +39,51 @@ const basis = {
   subject,
   target: { kind: 'PARTY', partyRef },
 } as const;
+const setPayload = Schema.decodeUnknownSync(SetProductManufacturerPayloadSchema)(basis);
+const changePayload = Schema.decodeUnknownSync(ChangeProductManufacturerPayloadSchema)({
+  ...basis,
+  expectedRevision: 1,
+});
+const removePayload = Schema.decodeUnknownSync(RemoveProductManufacturerPayloadSchema)({
+  evidenceRefs: basis.evidenceRefs,
+  expectedRevision: 1,
+  reason: basis.reason,
+  relationId: basis.relationId,
+  subject,
+});
+const scope = {
+  ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+    authContextRef: 'job:manufacturer-actions:run:1',
+    authMethod: 'system',
+    principalId: '77777777-7777-4777-8777-777777777777',
+    tenantId,
+  }),
+  correlationId: 'manufacturer-action-test',
+};
+const unavailable = () =>
+  Effect.fail(
+    new ManufacturerPersistenceUnavailable({
+      code: 'manufacturer_persistence_unavailable',
+      reason: 'Owner unavailable',
+    }),
+  );
+const context = (
+  overrides: Partial<ManufacturerPersistence> = {},
+): ActionHandlerContext<Readonly<Record<string, never>>, ManufacturerPersistence> => ({
+  actionInvocationId: '88888888-8888-4888-8888-888888888888',
+  addDomainEvent: () => Effect.succeed(Object.create(null)),
+  addOutboxMessage: () => Effect.void,
+  recordAuditEvidence: () => Effect.void,
+  recordDataAccess: () => Effect.void,
+  scope,
+  services: {
+    change: unavailable,
+    history: () => Effect.die('Unexpected history read'),
+    remove: unavailable,
+    set: unavailable,
+    ...overrides,
+  },
+});
 
 describe('manufacturer Action contracts', () => {
   it('requires typed identity, exact subject, reason and evidence', () => {
@@ -61,4 +117,41 @@ describe('manufacturer Action contracts', () => {
     expect(() => change({ ...basis, expectedRevision: 0 })).toThrow();
     expect(() => remove({ ...basis, expectedRevision: -1 })).toThrow();
   });
+
+  it.effect('preserves definite owner forbidden separately from unavailable', () =>
+    Effect.gen(function* verifyForbidden() {
+      expect(setProductManufacturerAction.descriptor.idempotency).toBe('required');
+      const forbidden = yield* handleSetProductManufacturer(
+        setPayload,
+        context({
+          set: () => Effect.fail(new ManufacturerTargetForbidden()),
+        }),
+      ).pipe(Effect.flip);
+      expect(Schema.is(ManufacturerTargetForbidden)(forbidden)).toBe(true);
+      const failed = yield* handleSetProductManufacturer(setPayload, context()).pipe(Effect.flip);
+      expect(Schema.is(ManufacturerPersistenceUnavailable)(failed)).toBe(true);
+    }),
+  );
+
+  it.effect('maps missing, invalid, and conflicting mutations without writing evidence', () =>
+    Effect.gen(function* verifyOutcomes() {
+      const missing = yield* handleSetProductManufacturer(
+        setPayload,
+        context({ set: () => Effect.succeed({ _tag: 'not_found' }) }),
+      ).pipe(Effect.flip);
+      expect(missing).toMatchObject({ code: 'manufacturer_not_found' });
+      const conflict = yield* handleChangeProductManufacturer(
+        changePayload,
+        context({ change: () => Effect.succeed({ _tag: 'identity_conflict' }) }),
+      ).pipe(Effect.flip);
+      expect(conflict).toMatchObject({ code: 'manufacturer_conflict' });
+      const removed = yield* handleRemoveProductManufacturer(
+        removePayload,
+        context({
+          remove: () => Effect.succeed({ _tag: 'applied', relationId: removePayload.relationId, revision: 2 }),
+        }),
+      );
+      expect(removed).toMatchObject({ revision: 2, subject });
+    }),
+  );
 });

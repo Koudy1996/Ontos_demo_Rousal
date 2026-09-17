@@ -64,7 +64,12 @@ export const ProductManufacturerMutationResultSchema = Schema.Struct({
 });
 
 export class ManufacturerActionError extends Schema.TaggedError<ManufacturerActionError>()('ManufacturerActionError', {
-  code: Schema.Literals(['manufacturer_invalid', 'manufacturer_conflict', 'manufacturer_reference_unavailable']),
+  code: Schema.Literals([
+    'manufacturer_invalid',
+    'manufacturer_not_found',
+    'manufacturer_conflict',
+    'manufacturer_reference_unavailable',
+  ]),
   reason: Schema.String,
 }) {}
 
