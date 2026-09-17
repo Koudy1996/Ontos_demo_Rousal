@@ -33,6 +33,7 @@ const pointersAreCurrent = (pointers: {
   media_assignment_mismatch: number;
   media_set_mismatch: number;
   package_mismatch: number;
+  package_option_mismatch: number;
   package_unit_mismatch: number;
   package_unit_reference_mismatch: number;
   product_brand_mismatch: number;
@@ -128,7 +129,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 53 ||
+    row.trigger_count !== 54 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -152,6 +153,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         media_assignment_mismatch: number;
         media_set_mismatch: number;
         package_mismatch: number;
+        package_option_mismatch: number;
         package_unit_mismatch: number;
         package_unit_reference_mismatch: number;
         product_brand_mismatch: number;
@@ -302,6 +304,17 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and r.lifecycle_state=d.lifecycle_state)
           or d.current_revision <> (select max(r.revision) from catalog.package_content_revisions r
             where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id)) package_mismatch,
+      (select count(*)::integer from catalog.package_definitions d
+        where (d.current_option_revision=0 and d.option_state<>'NOT_SELECTABLE')
+          or (d.current_option_revision>0 and (
+            not exists (select 1 from catalog.package_option_role_revisions r
+              where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id
+                and r.revision=d.current_option_revision and r.state=d.option_state
+                and r.product_id=d.product_id and r.variant_id=d.variant_id)
+            or d.current_option_revision <> (select max(r.revision) from catalog.package_option_role_revisions r
+              where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id)))
+          or (d.current_option_revision=0 and exists (select 1 from catalog.package_option_role_revisions r
+            where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id))) package_option_mismatch,
       (select count(*)::integer from catalog.product_units u
         where not exists (select 1 from catalog.product_unit_rule_revisions r
           where r.tenant_id=u.tenant_id and r.unit_id=u.unit_id and r.revision=u.current_rule_revision

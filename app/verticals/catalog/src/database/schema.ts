@@ -38,6 +38,7 @@ export const CATALOG_TABLE_INVENTORY = [
   'manufacturer_relations',
   'package_content_revisions',
   'package_definitions',
+  'package_option_role_revisions',
   'package_unit_divisibility',
   'package_unit_divisibility_revisions',
   'product_brand_assignment_revisions',
@@ -854,6 +855,7 @@ export const packageDefinitions = catalogSchema.table.withRLS(
     variantId: uuid('variant_id').notNull(),
     lifecycleState: text('lifecycle_state').default('DRAFT').notNull(),
     optionState: text('option_state').default('NOT_SELECTABLE').notNull(),
+    currentOptionRevision: integer('current_option_revision').default(0).notNull(),
     currentRevision: integer('current_revision').default(1).notNull(),
     createdByActionInvocationId: uuid('created_by_action_invocation_id').notNull(),
     createdByPrincipalId: uuid('created_by_principal_id').notNull(),
@@ -875,6 +877,7 @@ export const packageDefinitions = catalogSchema.table.withRLS(
     }).onDelete('restrict'),
     index('catalog_package_definitions_variant_idx').on(table.tenantId, table.productId, table.variantId),
     check('catalog_package_definitions_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_package_definitions_option_revision_ck', sql`${table.currentOptionRevision} >= 0`),
     check('catalog_package_definitions_state_ck', sql`${table.lifecycleState} in ('DRAFT', 'ACTIVE', 'RETIRED')`),
     check(
       'catalog_package_definitions_option_ck',
@@ -1106,6 +1109,75 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
       sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
     ),
     ...tenantRlsPolicies('catalog_package_content_revisions_tenant', table.tenantId),
+  ],
+);
+
+/** An independently versioned, immutable decision about the Definition's selectable role. */
+export const packageOptionRoleRevisions = catalogSchema.table.withRLS(
+  'package_option_role_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    revision: integer('revision').notNull(),
+    contentRevision: integer('content_revision').notNull(),
+    state: text('state').notNull(),
+    independentlyRequested: boolean('independently_requested').notNull(),
+    looseUnitsSubstitutable: boolean('loose_units_substitutable').notNull(),
+    validationReason: text('validation_reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.packageDefinitionId, table.revision],
+      name: 'catalog_package_option_role_revisions_pk',
+    }),
+    unique('catalog_package_option_role_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_package_option_role_revisions_definition_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.packageDefinitionId, table.contentRevision],
+      foreignColumns: [
+        packageContentRevisions.tenantId,
+        packageContentRevisions.packageDefinitionId,
+        packageContentRevisions.revision,
+      ],
+      name: 'catalog_package_option_role_revisions_content_fk',
+    }).onDelete('restrict'),
+    index('catalog_package_option_role_revisions_effective_idx').on(
+      table.tenantId,
+      table.packageDefinitionId,
+      table.effectiveAt,
+    ),
+    check('catalog_package_option_role_revisions_number_ck', sql`${table.revision} > 0`),
+    check('catalog_package_option_role_revisions_content_ck', sql`${table.contentRevision} > 0`),
+    check('catalog_package_option_role_revisions_state_ck', sql`${table.state} in ('ACTIVE', 'RETIRED')`),
+    check(
+      'catalog_package_option_role_revisions_active_ck',
+      sql`${table.state} <> 'ACTIVE' or (${table.independentlyRequested} and not ${table.looseUnitsSubstitutable})`,
+    ),
+    check(
+      'catalog_package_option_role_revisions_reason_ck',
+      sql`${table.validationReason} = btrim(${table.validationReason}) and length(${table.validationReason}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_package_option_role_revisions_evidence_ck',
+      sql`cardinality(${table.evidenceRefs}) > 0 and array_position(${table.evidenceRefs}, null) is null`,
+    ),
+    ...tenantRlsPolicies('catalog_package_option_role_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -2423,6 +2495,7 @@ const catalogDatabaseSchema = {
   controlledAttributeValues,
   packageContentRevisions,
   packageDefinitions,
+  packageOptionRoleRevisions,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
@@ -2478,6 +2551,7 @@ export const CATALOG_TABLES = [
   controlledAttributeValues,
   packageContentRevisions,
   packageDefinitions,
+  packageOptionRoleRevisions,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,

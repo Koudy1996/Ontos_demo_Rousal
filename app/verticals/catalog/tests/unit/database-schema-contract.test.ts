@@ -25,6 +25,7 @@ import {
   manufacturerRelations,
   packageContentRevisions,
   packageDefinitions,
+  packageOptionRoleRevisions,
   packageUnitDivisibility,
   packageUnitDivisibilityRevisions,
   productBrandAssignmentRevisions,
@@ -62,7 +63,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns fifty-two tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns fifty-three tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -90,6 +91,7 @@ it('owns fifty-two tenant-scoped Catalog tables with RLS and immutable history',
     'manufacturer_relations',
     'package_content_revisions',
     'package_definitions',
+    'package_option_role_revisions',
     'package_unit_divisibility',
     'package_unit_divisibility_revisions',
     'product_brand_assignment_revisions',
@@ -247,6 +249,18 @@ it('pins homogeneous Package content to one Variant and an exact lower revision'
     ]),
   );
   expect(getTableConfig(packageDefinitions).columns.map((column) => column.name)).toContain('option_state');
+  expect(getTableConfig(packageDefinitions).columns.map((column) => column.name)).toContain('current_option_revision');
+  expect(getTableConfig(packageOptionRoleRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_package_option_role_revisions_definition_fk',
+    'catalog_package_option_role_revisions_content_fk',
+  ]);
+  expect(getTableConfig(packageOptionRoleRevisions).checks.map((key) => key.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_package_option_role_revisions_active_ck',
+      'catalog_package_option_role_revisions_reason_ck',
+      'catalog_package_option_role_revisions_evidence_ck',
+    ]),
+  );
 });
 
 it('anchors Unit rules and target divisibility in tenant-owned immutable revision history', () => {
@@ -481,6 +495,7 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_variant_axes_current');
   expect(combined).toContain('catalog_product_variant_axis_events_distinct');
   expect(combined).toContain('catalog_package_content_revisions_append_only');
+  expect(combined).toContain('catalog_package_option_role_revisions_append_only');
   expect(combined).toContain('catalog_package_definitions_identity_immutable');
   expect(combined).toContain('catalog_product_unit_rule_revisions_append_only');
   expect(combined).toContain('catalog_variant_unit_divisibility_revisions_append_only');
