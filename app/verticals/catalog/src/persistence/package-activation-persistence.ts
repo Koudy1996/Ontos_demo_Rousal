@@ -331,3 +331,4 @@ export const packageActivationPersistenceForScope = (
     return { _tag: 'activated', revision: updated.currentRevision } as const;
   }),
 });
+export type PackageActivationPersistence = ReturnType<typeof packageActivationPersistenceForScope>;
