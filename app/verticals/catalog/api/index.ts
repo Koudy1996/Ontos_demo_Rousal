@@ -26,6 +26,7 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 
 // <generated-governed-http-handler-imports>
 import { addProductCategoryAssignmentActionApiLive } from './add-product-category-assignment-action-server.ts';
+import { changeVariantActionApiLive } from './change-variant-action-server.ts';
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
 import { createAttributeDefinitionActionApiLive } from './create-attribute-definition-action-server.ts';
 import { createControlledAttributeValueActionApiLive } from './create-controlled-attribute-value-action-server.ts';
@@ -33,6 +34,7 @@ import { createProductActionApiLive } from './create-product-action-server.ts';
 import { createProductCategoryActionApiLive } from './create-product-category-action-server.ts';
 import { createProductRecoveryReadApiLive } from './create-product-recovery-read-server.ts';
 import { createProductTypeActionApiLive } from './create-product-type-action-server.ts';
+import { createVariantActionApiLive } from './create-variant-action-server.ts';
 import { moveProductCategoryActionApiLive } from './move-product-category-action-server.ts';
 import { productCategoryClassificationReadApiLive } from './product-category-classification-read-server.ts';
 import { productCategoryHistoryReadApiLive } from './product-category-history-read-server.ts';
@@ -40,6 +42,7 @@ import { productDetailReadApiLive } from './product-detail-read-server.ts';
 import { productHistoryReadApiLive } from './product-history-read-server.ts';
 import { reactivateControlledAttributeValueActionApiLive } from './reactivate-controlled-attribute-value-action-server.ts';
 import { reactivateProductActionApiLive } from './reactivate-product-action-server.ts';
+import { reactivateVariantActionApiLive } from './reactivate-variant-action-server.ts';
 import { removeProductCategoryAssignmentActionApiLive } from './remove-product-category-assignment-action-server.ts';
 import { renameAttributeDefinitionActionApiLive } from './rename-attribute-definition-action-server.ts';
 import { renameControlledAttributeValueActionApiLive } from './rename-controlled-attribute-value-action-server.ts';
@@ -47,6 +50,7 @@ import { renameProductCategoryActionApiLive } from './rename-product-category-ac
 import { retireControlledAttributeValueActionApiLive } from './retire-controlled-attribute-value-action-server.ts';
 import { retireProductActionApiLive } from './retire-product-action-server.ts';
 import { retireProductCategoryActionApiLive } from './retire-product-category-action-server.ts';
+import { retireVariantActionApiLive } from './retire-variant-action-server.ts';
 import { reviseProductTypeActionApiLive } from './revise-product-type-action-server.ts';
 import { setProductTypeActionApiLive } from './set-product-type-action-server.ts';
 import { updateProductActionApiLive } from './update-product-action-server.ts';
@@ -145,6 +149,7 @@ export const makeCatalogApiRuntime = (
     catalogReadinessLayer,
     // <generated-governed-http-handler-layers>
     addProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -155,6 +160,7 @@ export const makeCatalogApiRuntime = (
       Layer.provide(governedActionRuntimeLive),
     ),
     createProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     moveProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     productCategoryClassificationReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productCategoryHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
@@ -162,6 +168,7 @@ export const makeCatalogApiRuntime = (
     productHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reactivateControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reactivateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reactivateVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     renameAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     renameControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -169,6 +176,7 @@ export const makeCatalogApiRuntime = (
     retireControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     updateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

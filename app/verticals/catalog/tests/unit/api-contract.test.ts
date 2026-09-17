@@ -19,6 +19,16 @@ import { mapMoveProductCategoryActionProblem } from '../../api/move-product-cate
 import { mapRemoveProductCategoryAssignmentActionProblem } from '../../api/remove-product-category-assignment-action-problems.ts';
 import { mapRenameProductCategoryActionProblem } from '../../api/rename-product-category-action-problems.ts';
 import { mapRetireProductCategoryActionProblem } from '../../api/retire-product-category-action-problems.ts';
+import { mapCreateVariantActionProblem } from '../../api/create-variant-action-problems.ts';
+import { mapChangeVariantActionProblem } from '../../api/change-variant-action-problems.ts';
+import { mapRetireVariantActionProblem } from '../../api/retire-variant-action-problems.ts';
+import { mapReactivateVariantActionProblem } from '../../api/reactivate-variant-action-problems.ts';
+import { VariantActionConflict } from '../../src/actions/variant-action-support.ts';
+import { VariantCurrentBasisUnavailable } from '../../src/persistence/variant-persistence.ts';
+import { CreateVariantActionApi } from '../../shared/apis/create-variant-action.ts';
+import { ChangeVariantActionApi } from '../../shared/apis/change-variant-action.ts';
+import { RetireVariantActionApi } from '../../shared/apis/retire-variant-action.ts';
+import { ReactivateVariantActionApi } from '../../shared/apis/reactivate-variant-action.ts';
 import {
   ProductCategoryClassificationApi,
   ProductCategoryClassificationResponseSchema,
@@ -47,6 +57,40 @@ it('publishes governed Product detail and historical-read APIs behind the Catalo
   expect(ProductHistoryApi).toBeDefined();
   expect(ProductCategoryClassificationApi).toBeDefined();
   expect(ProductCategoryHistoryApi).toBeDefined();
+});
+
+it('publishes four independent Variant Action transports with redacted conflicts and unavailable Current basis', () => {
+  expect([CreateVariantActionApi, ChangeVariantActionApi, RetireVariantActionApi, ReactivateVariantActionApi]).toEqual([
+    expect.anything(),
+    expect.anything(),
+    expect.anything(),
+    expect.anything(),
+  ]);
+  const mappers = [
+    mapCreateVariantActionProblem,
+    mapChangeVariantActionProblem,
+    mapRetireVariantActionProblem,
+    mapReactivateVariantActionProblem,
+  ] as const;
+  for (const mapper of mappers) {
+    const conflict = mapper(
+      new VariantActionConflict({
+        code: 'variant_action_conflict',
+        conflict: 'IDENTITY',
+        reason: 'secret tenant and variant identity',
+      }),
+    );
+    expect(conflict).toMatchObject({ code: 'variant_action_conflict', status: 409 });
+    expect(JSON.stringify(conflict)).not.toContain('secret');
+    const unavailable = mapper(
+      new VariantCurrentBasisUnavailable({
+        code: 'variant_current_basis_unavailable',
+        reason: 'private lookup failed',
+      }),
+    );
+    expect(unavailable).toMatchObject({ code: 'variant_current_basis_unavailable', retryable: true, status: 503 });
+    expect(JSON.stringify(unavailable)).not.toContain('private');
+  }
 });
 
 it('keeps empty classification distinct from unavailable with paired revision evidence', () => {
@@ -197,6 +241,7 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
       'product',
       'product-category',
       'product-type',
+      'variant',
     ]).toContain(contract.businessTarget);
     expect(contract.scope).toBe('tenant');
     if (contract.permissionKind === 'action_execution') {
@@ -218,8 +263,12 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
     'commerce.catalog.retire-product-category',
     'commerce.catalog.revise-product-type',
   ]);
+  expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.retire-variant');
+  expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).toContain('commerce.catalog.reactivate-variant');
+  expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.create-variant');
+  expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.change-variant');
   // #411B/#481 importer and overrides are deferred.
-  expect(contracts).toHaveLength(25);
+  expect(contracts).toHaveLength(29);
   const bundlePermissions = Object.values(catalogAuthorityBundles).flat();
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
   expect(bundlePermissions).toHaveLength(contracts.length);

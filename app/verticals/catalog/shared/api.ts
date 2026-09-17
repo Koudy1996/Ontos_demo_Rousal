@@ -9,6 +9,7 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 
 // <generated-governed-http-api-imports>
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
+import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
 import { CreateAttributeDefinitionActionApi } from './apis/create-attribute-definition-action.ts';
 import { CreateControlledAttributeValueActionApi } from './apis/create-controlled-attribute-value-action.ts';
@@ -16,6 +17,7 @@ import { CreateProductActionApi } from './apis/create-product-action.ts';
 import { CreateProductCategoryActionApi } from './apis/create-product-category-action.ts';
 import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
 import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
+import { CreateVariantActionApi } from './apis/create-variant-action.ts';
 import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
 import { ProductCategoryClassificationApi } from './apis/product-category-classification.ts';
 import { ProductCategoryHistoryApi } from './apis/product-category-history.ts';
@@ -23,6 +25,7 @@ import { ProductDetailApi } from './apis/product-detail.ts';
 import { ProductHistoryApi } from './apis/product-history.ts';
 import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
+import { ReactivateVariantActionApi } from './apis/reactivate-variant-action.ts';
 import { RemoveProductCategoryAssignmentActionApi } from './apis/remove-product-category-assignment-action.ts';
 import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-definition-action.ts';
 import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
@@ -30,6 +33,7 @@ import { RenameProductCategoryActionApi } from './apis/rename-product-category-a
 import { RetireControlledAttributeValueActionApi } from './apis/retire-controlled-attribute-value-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
+import { RetireVariantActionApi } from './apis/retire-variant-action.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
 import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
@@ -58,6 +62,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(AddProductCategoryAssignmentActionApi)
+  .addHttpApi(ChangeVariantActionApi)
   .addHttpApi(CorrectProductActionApi)
   .addHttpApi(CreateAttributeDefinitionActionApi)
   .addHttpApi(CreateControlledAttributeValueActionApi)
@@ -65,6 +70,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductCategoryActionApi)
   .addHttpApi(CreateProductRecoveryApi)
   .addHttpApi(CreateProductTypeActionApi)
+  .addHttpApi(CreateVariantActionApi)
   .addHttpApi(MoveProductCategoryActionApi)
   .addHttpApi(ProductCategoryClassificationApi)
   .addHttpApi(ProductCategoryHistoryApi)
@@ -72,6 +78,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductHistoryApi)
   .addHttpApi(ReactivateControlledAttributeValueActionApi)
   .addHttpApi(ReactivateProductActionApi)
+  .addHttpApi(ReactivateVariantActionApi)
   .addHttpApi(RemoveProductCategoryAssignmentActionApi)
   .addHttpApi(RenameAttributeDefinitionActionApi)
   .addHttpApi(RenameControlledAttributeValueActionApi)
@@ -79,6 +86,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RetireControlledAttributeValueActionApi)
   .addHttpApi(RetireProductActionApi)
   .addHttpApi(RetireProductCategoryActionApi)
+  .addHttpApi(RetireVariantActionApi)
   .addHttpApi(ReviseProductTypeActionApi)
   .addHttpApi(SetProductTypeActionApi)
   .addHttpApi(UpdateProductActionApi)
@@ -164,6 +172,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.change-variant': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.change-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.correct-product': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
@@ -212,6 +228,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.create-variant': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.create-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.move-product-category': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: productCategoryBusinessTarget,
@@ -232,6 +256,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'product',
     permission: 'commerce.catalog.reactivate-product',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.reactivate-variant': {
+    authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.reactivate-variant',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -292,6 +324,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.retire-variant': {
+    authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.retire-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.revise-product-type': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: 'product-type',
@@ -335,7 +375,9 @@ export const catalogAuthorityBundles = {
   ],
   CATALOG_LIFECYCLE_MANAGER: [
     'commerce.catalog.reactivate-product',
+    'commerce.catalog.reactivate-variant',
     'commerce.catalog.retire-product',
+    'commerce.catalog.retire-variant',
     'commerce.catalog.update-product',
   ],
   CATALOG_READER: [
@@ -347,8 +389,10 @@ export const catalogAuthorityBundles = {
   ],
   PRODUCT_EDITOR: [
     'commerce.catalog.add-product-category-assignment',
+    'commerce.catalog.change-variant',
     'commerce.catalog.create-product',
     'commerce.catalog.correct-product',
+    'commerce.catalog.create-variant',
     'commerce.catalog.remove-product-category-assignment',
     'commerce.catalog.set-product-type',
   ],
