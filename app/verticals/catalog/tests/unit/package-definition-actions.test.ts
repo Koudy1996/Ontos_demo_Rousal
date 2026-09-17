@@ -1,3 +1,5 @@
+import type { ActionHandlerContext } from '@app/core-runtime';
+import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
@@ -16,6 +18,9 @@ import {
   handleRetirePackageDefinition,
   retirePackageDefinitionAction,
 } from '../../src/actions/retire-package-definition.action.ts';
+import { resolvePackageMutation } from '../../src/actions/package-definition-action-support.ts';
+import { PackagePersistenceUnavailable } from '../../src/persistence/package-persistence.ts';
+import type { PackagePersistence } from '../../src/persistence/package-persistence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const otherTenantId = '22222222-2222-4222-8222-222222222222';
@@ -33,9 +38,44 @@ const expectedCurrent = { resourceRef: definitionRef, revision: 1 };
 const content = { amount: '10', effectiveAt: '2026-09-17T10:00:00.000Z', form: { productRef, variantRef }, unitRef };
 const reason = 'Packaging content confirmed';
 const evidenceRefs = ['packaging-specification-2026'];
-const context = { scope: { tenantId } };
+const scope = {
+  ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+    authContextRef: 'job:package-actions:run:1',
+    authMethod: 'system',
+    principalId: '77777777-7777-4777-8777-777777777777',
+    tenantId,
+  }),
+  correlationId: 'package-action-test',
+};
+const unavailable = () =>
+  Effect.fail(
+    new PackagePersistenceUnavailable({ code: 'package_persistence_unavailable', reason: 'No Current basis' }),
+  );
+const unexpected = () => Effect.die('Unexpected persistence call');
+const context = (
+  overrides: Partial<PackagePersistence> = {},
+): ActionHandlerContext<Readonly<Record<string, never>>, PackagePersistence> => ({
+  actionInvocationId: '88888888-8888-4888-8888-888888888888',
+  addDomainEvent: () => Effect.succeed(Object.create(null)),
+  addOutboxMessage: () => Effect.void,
+  recordAuditEvidence: () => Effect.void,
+  recordDataAccess: () => Effect.void,
+  scope,
+  services: { create: unavailable, retire: unavailable, revise: unavailable, ...overrides },
+});
 
 describe('Package Definition governed Action contracts', () => {
+  it.effect('keeps stale and invalid persistence outcomes distinct', () =>
+    Effect.gen(function* typedOutcomes() {
+      const stale = yield* resolvePackageMutation({ _tag: 'stale', actualRevision: 2 }).pipe(Effect.flip);
+      const invalid = yield* resolvePackageMutation({
+        _tag: 'invalid',
+        reason: 'Content differs from lower revision',
+      }).pipe(Effect.flip);
+      expect(stale.code).toBe('package_definition_stale');
+      expect(invalid.code).toBe('package_definition_invalid');
+    }),
+  );
   it('keeps every mutation tenant-scoped, idempotent, and explicitly authorized', () => {
     for (const action of [
       createPackageDefinitionAction,
@@ -96,9 +136,9 @@ describe('Package Definition governed Action contracts', () => {
         reason,
       });
       const errors = yield* Effect.all([
-        handleCreatePackageDefinition(create, context).pipe(Effect.flip),
-        handleRevisePackageDefinition(revise, context).pipe(Effect.flip),
-        handleRetirePackageDefinition(retire, context).pipe(Effect.flip),
+        handleCreatePackageDefinition(create, context()).pipe(Effect.flip),
+        handleRevisePackageDefinition(revise, context()).pipe(Effect.flip),
+        handleRetirePackageDefinition(retire, context()).pipe(Effect.flip),
       ]);
       expect(errors.map((error) => error.code)).toEqual([
         'package_definition_unavailable',
@@ -116,7 +156,7 @@ describe('Package Definition governed Action contracts', () => {
         evidenceRefs,
         reason,
       });
-      const error = yield* handleCreatePackageDefinition(payload, context).pipe(Effect.flip);
+      const error = yield* handleCreatePackageDefinition(payload, context({ create: unexpected })).pipe(Effect.flip);
       expect(error.code).toBe('package_definition_invalid');
     }),
   );

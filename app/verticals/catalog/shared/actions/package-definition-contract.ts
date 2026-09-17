@@ -21,6 +21,10 @@ export const PackageDefinitionReasonSchema = Schema.String.check(
 export const PackageDefinitionEvidenceRefsSchema = Schema.Array(
   Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
 ).check(Schema.isMinLength(1));
+export const PackageDefinitionAuditEvidenceSchema = Schema.Struct({
+  evidenceRefs: PackageDefinitionEvidenceRefsSchema,
+  reason: PackageDefinitionReasonSchema,
+});
 
 /** A requested immutable content revision, never a mutable latest-size field. */
 export const PackageDefinitionContentInputSchema = Schema.Struct({
