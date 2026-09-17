@@ -68,6 +68,32 @@ const lengthRule: MeasuredConstraint = {
   step: { amount: '1', base: '60' },
   unit: unitRef.resourceId,
 };
+const ruleRevisions = [
+  {
+    definitionRevision: definition.reference,
+    kind: 'MEASURED' as const,
+    ownerModuleId: 'commerce.catalog' as const,
+    revision: 1,
+    ruleId: 'length-range',
+  },
+  {
+    definitionRevision: definition.reference,
+    kind: 'COMPATIBILITY' as const,
+    ownerModuleId: 'commerce.catalog' as const,
+    revision: 1,
+    ruleId: 'A-max',
+  },
+];
+const current = {
+  attestationId: 'owner-attestation-1',
+  definitionRevision: definition.reference,
+  effectiveFrom: '2026-09-17T09:00:00.000Z',
+  observedAt: '2026-09-17T10:00:00.000Z',
+  ownerModuleId: 'commerce.catalog' as const,
+  ruleRevisions,
+  source: 'CATALOG_OWNER_CURRENT_READ' as const,
+  status: 'CONFIRMED' as const,
+};
 const basis: ConfigurationValidationBasis = {
   assessedAt: '2026-09-17T10:00:00.000Z',
   compatibilityCompleteness: 'COMPLETE',
@@ -83,6 +109,7 @@ const basis: ConfigurationValidationBasis = {
       unit: unitRef.resourceId,
     },
   ],
+  current,
   definition,
   measuredRules: { length: lengthRule },
   targetCompleteness: 'COMPLETE',
@@ -96,6 +123,7 @@ describe('configuration selection validator', () => {
     expect(validateConfigurationSelection(selection, basis)).toMatchObject({
       assessedAt: basis.assessedAt,
       definitionRevision: definition.reference,
+      ruleRevisions,
       status: 'VALID',
     });
     expect(JSON.stringify(selection)).toBe(before);
@@ -148,6 +176,46 @@ describe('configuration selection validator', () => {
 
   it('requires exact definition and target evidence without mistaking unknown for unrestricted', () => {
     expect(validateConfigurationSelection(selection, { ...basis, definition: null }).status).toBe('INDETERMINATE');
+    expect(validateConfigurationSelection(selection, { ...basis, current: null })).toMatchObject({
+      code: 'CURRENT_DEFINITION_UNVERIFIED',
+      status: 'INDETERMINATE',
+    });
+    expect(
+      validateConfigurationSelection(
+        {
+          ...selection,
+          values: [selection.values[0], { amount: '110', choiceKey: 'length', kind: 'MEASURED_VALUE', unitRef }],
+        },
+        { ...basis, current: null },
+      ).status,
+    ).toBe('INDETERMINATE');
+    expect(
+      validateConfigurationSelection(selection, {
+        ...basis,
+        current: { ...current, effectiveFrom: '2026-09-18T00:00:00.000Z' },
+      }).status,
+    ).toBe('INDETERMINATE');
+    expect(
+      validateConfigurationSelection(selection, { ...basis, current: { ...current, effectiveTo: basis.assessedAt } })
+        .status,
+    ).toBe('INDETERMINATE');
+    expect(
+      validateConfigurationSelection(selection, {
+        ...basis,
+        current: { ...current, ruleRevisions: ruleRevisions.slice(0, 1) },
+      }).status,
+    ).toBe('INDETERMINATE');
+    expect(
+      validateConfigurationSelection(selection, {
+        ...basis,
+        current: {
+          ...current,
+          ruleRevisions: ruleRevisions.map((rule) =>
+            rule.ruleId === 'length-range' ? { ...rule, revision: 2 } : rule,
+          ),
+        },
+      }).status,
+    ).toBe('INDETERMINATE');
     expect(validateConfigurationSelection(selection, { ...basis, variantProductRef: null }).status).toBe(
       'INDETERMINATE',
     );
@@ -175,5 +243,23 @@ describe('configuration selection validator', () => {
         basis,
       ).status,
     ).toBe('INDETERMINATE');
+  });
+
+  it('requires exact package presence and identity', () => {
+    const packageRef = ref('commerce.catalog.package-definition', '77777777-7777-4777-8777-777777777777');
+    expect(validateConfigurationSelection(selection, { ...basis, packageOptionRef: packageRef })).toMatchObject({
+      code: 'PACKAGE_TARGET_MISMATCH',
+      status: 'INVALID',
+    });
+    expect(validateConfigurationSelection({ ...selection, packageOptionRef: packageRef }, basis)).toMatchObject({
+      code: 'PACKAGE_TARGET_MISMATCH',
+      status: 'INVALID',
+    });
+    expect(
+      validateConfigurationSelection(
+        { ...selection, packageOptionRef: packageRef },
+        { ...basis, packageOptionRef: packageRef, packageOptionVariantRef: variantRef },
+      ).status,
+    ).toBe('VALID');
   });
 });

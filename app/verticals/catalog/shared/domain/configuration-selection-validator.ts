@@ -8,11 +8,16 @@ import type {
   ConfigurationValue,
   MeasuredConstraint,
 } from './configuration-constraints.ts';
-import { inspectConfigurationDefinition } from './product-configuration.ts';
+import {
+  inspectConfigurationDefinition,
+  inspectProductConfigurationCurrentActivation,
+} from './product-configuration.ts';
 import type {
+  ConfigurationRuleRevisionEvidence,
   ConfigurationMeasuredValue,
   ConfigurationMeasuredValueDefinition,
   ProductConfiguration,
+  ProductConfigurationCurrentActivation,
   ProductConfigurationDefinitionRevision,
 } from './product-configuration.ts';
 import type { ProductRef } from '../resources/product.ts';
@@ -24,6 +29,8 @@ export interface ConfigurationValidationBasis {
   readonly compatibilityCompleteness: 'COMPLETE' | 'UNKNOWN';
   readonly compatibilityRules: readonly CompatibilityRule[];
   readonly conversions?: readonly ConfigurationUnitConversion[];
+  /** Owner read must attest the one applicable revision at this trusted operation time. */
+  readonly current: ProductConfigurationCurrentActivation | null;
   readonly definition: ProductConfigurationDefinitionRevision | null;
   readonly measuredRules: Readonly<Record<string, MeasuredConstraint | null>>;
   readonly packageOptionRef?: CatalogResourceRef;
@@ -37,6 +44,7 @@ export type ConfigurationValidationResult =
   | {
       readonly assessedAt: CatalogRevisionInstant;
       readonly definitionRevision: CatalogSelectionRevision | undefined;
+      readonly ruleRevisions: readonly ConfigurationRuleRevisionEvidence[];
       readonly status: 'VALID';
     }
   | {
@@ -44,6 +52,7 @@ export type ConfigurationValidationResult =
       readonly code: string;
       readonly definitionRevision: CatalogSelectionRevision | undefined;
       readonly ruleIds: readonly string[];
+      readonly ruleRevisions: readonly ConfigurationRuleRevisionEvidence[];
       readonly status: 'INVALID' | 'INDETERMINATE';
     };
 
@@ -52,6 +61,60 @@ const sameRef = (left: CatalogResourceRef, right: CatalogResourceRef): boolean =
   left.resourceType === right.resourceType &&
   left.tenantId === right.tenantId &&
   left.resourceId === right.resourceId;
+
+const ruleRevisions = (basis: ConfigurationValidationBasis): readonly ConfigurationRuleRevisionEvidence[] => {
+  if (basis.definition === null) {
+    return [];
+  }
+  const definitionRevision = basis.definition.reference;
+  const measured = Object.values(basis.measuredRules).flatMap((rule) =>
+    rule === null
+      ? []
+      : [
+          {
+            definitionRevision,
+            kind: 'MEASURED' as const,
+            ownerModuleId: 'commerce.catalog' as const,
+            revision: rule.revision,
+            ruleId: rule.ruleId,
+          },
+        ],
+  );
+  const compatibility = basis.compatibilityRules.map((rule) => ({
+    definitionRevision,
+    kind: 'COMPATIBILITY' as const,
+    ownerModuleId: 'commerce.catalog' as const,
+    revision: rule.revision,
+    ruleId: rule.ruleId,
+  }));
+  return [...measured, ...compatibility];
+};
+
+const sameRuleRevisions = (
+  expected: readonly ConfigurationRuleRevisionEvidence[],
+  attested: readonly ConfigurationRuleRevisionEvidence[],
+): boolean => {
+  if (expected.length !== attested.length) {
+    return false;
+  }
+  const used = new Set<number>();
+  for (const rule of expected) {
+    const index = attested.findIndex(
+      (candidate, candidateIndex) =>
+        !used.has(candidateIndex) &&
+        candidate.ownerModuleId === rule.ownerModuleId &&
+        candidate.kind === rule.kind &&
+        candidate.ruleId === rule.ruleId &&
+        candidate.revision === rule.revision &&
+        sameCatalogRevisionReference(candidate.definitionRevision, rule.definitionRevision),
+    );
+    if (index === -1) {
+      return false;
+    }
+    used.add(index);
+  }
+  return true;
+};
 
 interface ChoiceScan {
   readonly chosen: Readonly<Record<string, ConfigurationValue>>;
@@ -93,6 +156,13 @@ const checkTarget = (selection: ProductConfiguration, basis: ConfigurationValida
   }
   if (basis.variantRef !== undefined && !sameRef(selection.variantRef, basis.variantRef)) {
     return { code: 'VARIANT_TARGET_UNVERIFIED', ruleIds: [], status: 'INDETERMINATE' };
+  }
+  if ((selection.packageOptionRef === undefined) !== (basis.packageOptionRef === undefined)) {
+    return {
+      code: 'PACKAGE_TARGET_MISMATCH',
+      ruleIds: [],
+      status: basis.targetCompleteness === 'COMPLETE' ? 'INVALID' : 'INDETERMINATE',
+    };
   }
   if (
     selection.packageOptionRef !== undefined &&
@@ -201,7 +271,7 @@ export const validateConfigurationSelection = (
   basis: ConfigurationValidationBasis,
 ): ConfigurationValidationResult => {
   const revision = basis.definition?.reference;
-  const evidence = { assessedAt: basis.assessedAt, definitionRevision: revision };
+  const evidence = { assessedAt: basis.assessedAt, definitionRevision: revision, ruleRevisions: ruleRevisions(basis) };
   const invalid = (code: string, ruleIds: readonly string[] = []): ConfigurationValidationResult => ({
     ...evidence,
     code,
@@ -231,11 +301,26 @@ export const validateConfigurationSelection = (
   if (target?.status === 'INDETERMINATE') {
     return unknown(target.code, target.ruleIds);
   }
+  if (
+    inspectProductConfigurationCurrentActivation(
+      selection,
+      basis.definition,
+      basis.current ?? undefined,
+      basis.assessedAt,
+    ).status !== 'VALID' ||
+    basis.current === null ||
+    !sameRuleRevisions(evidence.ruleRevisions, basis.current.ruleRevisions)
+  ) {
+    return unknown('CURRENT_DEFINITION_UNVERIFIED');
+  }
 
   const scanned = scanChoices(selection, basis.definition, basis);
   const decision = assessRules(selection, basis, scanned);
   if (decision?.status === 'INVALID') {
     return invalid(decision.code, decision.ruleIds);
   }
-  return decision === undefined ? { ...evidence, status: 'VALID' } : unknown(decision.code, decision.ruleIds);
+  if (decision !== undefined) {
+    return unknown(decision.code, decision.ruleIds);
+  }
+  return { ...evidence, status: 'VALID' };
 };
