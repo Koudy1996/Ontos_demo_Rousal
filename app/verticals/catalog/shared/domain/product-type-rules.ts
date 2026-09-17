@@ -39,7 +39,9 @@ export const ProductTypeRulesRevisionSchema = Schema.Struct({
       }
       keys.add(key);
     }
-    return undefined;
+    return keys.size === rules.length
+      ? undefined
+      : 'A Product Type revision cannot repeat an Attribute Definition at one level';
   }),
 );
 export type ProductTypeRulesRevision = typeof ProductTypeRulesRevisionSchema.Type;
@@ -66,23 +68,23 @@ export const ProductTypeSubjectSchema = Schema.Struct({
 });
 export type ProductTypeSubject = typeof ProductTypeSubjectSchema.Type;
 
-export type ProductTypeViolation = {
+export interface ProductTypeViolation {
   readonly attributeDefinitionId: string;
   readonly kind: 'DISALLOWED' | 'INVALID' | 'MISSING_REQUIRED';
   readonly level: 'PRODUCT' | 'VARIANT';
-  readonly variantId?: string;
-};
+  variantId?: string;
+}
 
-export type ProductTypeRulesResult = {
+export interface ProductTypeRulesResult {
   readonly minimumSatisfied: boolean;
   readonly revision: number | undefined;
   readonly violations: readonly ProductTypeViolation[];
-};
+}
 
 /** Evaluates only Product Type minimum, never overall Catalog readiness or purchasing permission. */
 export const evaluateProductTypeRules = (
   subject: ProductTypeSubject,
-  rulesRevision: ProductTypeRulesRevision | undefined,
+  rulesRevision?: ProductTypeRulesRevision,
 ): ProductTypeRulesResult => {
   const violations: ProductTypeViolation[] = [];
   const activeRevision =
@@ -105,19 +107,25 @@ export const evaluateProductTypeRules = (
         value.attributeDefinitionRef.tenantId !== subject.productRef.tenantId ||
         !allowed.some((rule) => rule.attributeDefinitionRef.resourceId === attributeDefinitionId)
       ) {
-        violations.push({
+        const violation: ProductTypeViolation = {
           attributeDefinitionId,
           kind: 'DISALLOWED',
           level,
-          ...(variantId === undefined ? {} : { variantId }),
-        });
+        };
+        if (variantId !== undefined) {
+          violation.variantId = variantId;
+        }
+        violations.push(violation);
       } else if (!value.valid) {
-        violations.push({
+        const violation: ProductTypeViolation = {
           attributeDefinitionId,
           kind: 'INVALID',
           level,
-          ...(variantId === undefined ? {} : { variantId }),
-        });
+        };
+        if (variantId !== undefined) {
+          violation.variantId = variantId;
+        }
+        violations.push(violation);
       }
     }
     for (const rule of allowed) {
@@ -127,12 +135,15 @@ export const evaluateProductTypeRules = (
           (value) => value.attributeDefinitionRef.resourceId === rule.attributeDefinitionRef.resourceId && value.valid,
         )
       ) {
-        violations.push({
+        const violation: ProductTypeViolation = {
           attributeDefinitionId: rule.attributeDefinitionRef.resourceId,
           kind: 'MISSING_REQUIRED',
           level,
-          ...(variantId === undefined ? {} : { variantId }),
-        });
+        };
+        if (variantId !== undefined) {
+          violation.variantId = variantId;
+        }
+        violations.push(violation);
       }
     }
   };

@@ -50,8 +50,8 @@ describe('Product Type allowed and required rules', () => {
         productRef,
         productValues: [],
         variants: [
-          { variantRef, effectiveValues: [] },
-          { variantRef: otherVariantRef, effectiveValues: [{ attributeDefinitionRef: length, valid: true }] },
+          { effectiveValues: [], variantRef },
+          { effectiveValues: [{ attributeDefinitionRef: length, valid: true }], variantRef: otherVariantRef },
         ],
       },
       revision,
@@ -73,7 +73,7 @@ describe('Product Type allowed and required rules', () => {
       currentProductTypeRef: productTypeRef,
       productRef,
       productValues: [{ attributeDefinitionRef: material, valid: true }],
-      variants: [{ variantRef, effectiveValues: [{ attributeDefinitionRef: length, valid: true }] }],
+      variants: [{ effectiveValues: [{ attributeDefinitionRef: length, valid: true }], variantRef }],
     } as const;
     expect(evaluateProductTypeRules(base, revision)).toEqual({ minimumSatisfied: true, revision: 1, violations: [] });
     const result = evaluateProductTypeRules(
@@ -96,11 +96,10 @@ describe('Product Type allowed and required rules', () => {
       productValues: [{ attributeDefinitionRef: material, valid: true }],
       variants: [],
     } as const;
-    expect(evaluateProductTypeRules(base, undefined).violations[0]?.kind).toBe('DISALLOWED');
-    expect(evaluateProductTypeRules({ ...base, productValues: [] }, undefined).minimumSatisfied).toBe(true);
+    expect(evaluateProductTypeRules(base).violations[0]?.kind).toBe('DISALLOWED');
+    expect(evaluateProductTypeRules({ ...base, productValues: [] }).minimumSatisfied).toBe(true);
     expect(
-      evaluateProductTypeRules({ ...base, currentProductTypeRef: productTypeRef, productValues: [] }, undefined)
-        .minimumSatisfied,
+      evaluateProductTypeRules({ ...base, currentProductTypeRef: productTypeRef, productValues: [] }).minimumSatisfied,
     ).toBe(false);
   });
 
