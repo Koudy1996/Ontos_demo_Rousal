@@ -29,8 +29,12 @@ const pointersAreCurrent = (pointers: {
   controlled_value_mismatch: number;
   counter_mismatch: number;
   package_mismatch: number;
+  package_unit_mismatch: number;
+  package_unit_reference_mismatch: number;
   type_mismatch: number;
+  unit_rule_mismatch: number;
   variant_mismatch: number;
+  variant_unit_mismatch: number;
 }) => Object.values(pointers).every((count) => count === 0);
 
 const verification = Effect.gen(function* verifyCatalogDatabase() {
@@ -112,7 +116,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 23 ||
+    row.trigger_count !== 29 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
     yield* new CatalogSchemaVerificationError({
@@ -131,8 +135,12 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         controlled_value_mismatch: number;
         counter_mismatch: number;
         package_mismatch: number;
+        package_unit_mismatch: number;
+        package_unit_reference_mismatch: number;
         type_mismatch: number;
+        unit_rule_mismatch: number;
         variant_mismatch: number;
+        variant_unit_mismatch: number;
       }>(`select
       (select count(*)::integer from catalog.product_type_assignments a
         where not exists (select 1 from catalog.product_type_assignment_events e
@@ -218,6 +226,28 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and r.lifecycle_state=d.lifecycle_state)
           or d.current_revision <> (select max(r.revision) from catalog.package_content_revisions r
             where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id)) package_mismatch,
+      (select count(*)::integer from catalog.product_units u
+        where not exists (select 1 from catalog.product_unit_rule_revisions r
+          where r.tenant_id=u.tenant_id and r.unit_id=u.unit_id and r.revision=u.current_rule_revision
+            and r.lifecycle_state=u.lifecycle_state)
+          or u.current_rule_revision <> (select max(r.revision) from catalog.product_unit_rule_revisions r
+            where r.tenant_id=u.tenant_id and r.unit_id=u.unit_id)) unit_rule_mismatch,
+      (select count(*)::integer from catalog.variant_unit_divisibility d
+        where not exists (select 1 from catalog.variant_unit_divisibility_revisions r
+          where r.tenant_id=d.tenant_id and r.variant_id=d.variant_id and r.revision=d.current_revision
+            and r.unit_id=d.unit_id and r.divisible=d.divisible)
+          or d.current_revision <> (select max(r.revision) from catalog.variant_unit_divisibility_revisions r
+            where r.tenant_id=d.tenant_id and r.variant_id=d.variant_id)) variant_unit_mismatch,
+      (select count(*)::integer from catalog.package_unit_divisibility d
+        where not exists (select 1 from catalog.package_unit_divisibility_revisions r
+          where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id
+            and r.revision=d.current_revision and r.unit_id=d.unit_id and r.divisible=d.divisible)
+          or d.current_revision <> (select max(r.revision) from catalog.package_unit_divisibility_revisions r
+            where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id)) package_unit_mismatch,
+      (select count(*)::integer from catalog.package_content_revisions c
+        where c.unit_resource_type <> 'commerce.catalog.product-unit'
+          or not exists (select 1 from catalog.product_units u
+            where u.tenant_id=c.tenant_id and u.unit_id=c.unit_resource_id)) package_unit_reference_mismatch,
       (select count(*)::integer from catalog.product_category_hierarchy_revisions h
         where h.hierarchy_revision <> coalesce((select max(e.hierarchy_revision)
           from catalog.product_category_events e where e.tenant_id=h.tenant_id

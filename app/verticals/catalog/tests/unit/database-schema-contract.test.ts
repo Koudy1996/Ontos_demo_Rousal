@@ -17,6 +17,8 @@ import {
   controlledAttributeValues,
   packageContentRevisions,
   packageDefinitions,
+  packageUnitDivisibility,
+  packageUnitDivisibilityRevisions,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
@@ -28,6 +30,10 @@ import {
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
+  productUnits,
+  productUnitRuleRevisions,
+  variantUnitDivisibility,
+  variantUnitDivisibilityRevisions,
   productVariants,
   productVariantAxes,
   productVariantAxisEvents,
@@ -35,7 +41,7 @@ import {
   products,
 } from '../../src/database/schema.ts';
 
-it('owns twenty-five tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns thirty-one tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -55,6 +61,8 @@ it('owns twenty-five tenant-scoped Catalog tables with RLS and immutable history
     'controlled_attribute_values',
     'package_content_revisions',
     'package_definitions',
+    'package_unit_divisibility',
+    'package_unit_divisibility_revisions',
     'product_categories',
     'product_category_assignments',
     'product_category_events',
@@ -66,11 +74,15 @@ it('owns twenty-five tenant-scoped Catalog tables with RLS and immutable history
     'product_type_revision_attributes',
     'product_type_revisions',
     'product_types',
+    'product_unit_rule_revisions',
+    'product_units',
     'product_variant_axes',
     'product_variant_axis_events',
     'product_variant_revisions',
     'product_variants',
     'products',
+    'variant_unit_divisibility',
+    'variant_unit_divisibility_revisions',
   ]);
   expect(qualifiedNames).toEqual(CATALOG_TABLE_INVENTORY.map((name) => `catalog.${name}`));
   for (const table of CATALOG_TABLES) {
@@ -88,6 +100,7 @@ it('pins homogeneous Package content to one Variant and an exact lower revision'
   ]);
   expect(getTableConfig(packageContentRevisions).foreignKeys.map((key) => key.getName())).toEqual([
     'catalog_package_content_revisions_definition_fk',
+    'catalog_package_content_revisions_unit_fk',
     'catalog_package_content_revisions_lower_form_fk',
     'catalog_package_content_revisions_lower_revision_fk',
   ]);
@@ -100,6 +113,31 @@ it('pins homogeneous Package content to one Variant and an exact lower revision'
     ]),
   );
   expect(getTableConfig(packageDefinitions).columns.map((column) => column.name)).toContain('option_state');
+});
+
+it('anchors Unit rules and target divisibility in tenant-owned immutable revision history', () => {
+  expect(getTableConfig(productUnits).uniqueConstraints.map((key) => key.name)).toContain(
+    'catalog_product_units_code_uk',
+  );
+  expect(getTableConfig(productUnitRuleRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_unit_rule_revisions_unit_fk',
+  ]);
+  expect(getTableConfig(variantUnitDivisibility).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_variant_unit_divisibility_variant_fk',
+    'catalog_variant_unit_divisibility_unit_fk',
+  ]);
+  expect(getTableConfig(variantUnitDivisibilityRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_variant_unit_divisibility_revisions_target_fk',
+    'catalog_variant_unit_divisibility_revisions_unit_fk',
+  ]);
+  expect(getTableConfig(packageUnitDivisibility).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_package_unit_divisibility_package_fk',
+    'catalog_package_unit_divisibility_unit_fk',
+  ]);
+  expect(getTableConfig(packageUnitDivisibilityRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_package_unit_divisibility_revisions_target_fk',
+    'catalog_package_unit_divisibility_revisions_unit_fk',
+  ]);
 });
 
 it('constrains Product Type revisions, rule levels, and a single current assignment', () => {
@@ -260,4 +298,12 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_type_assignment_event_pointer');
   expect(combined).toContain('catalog_package_content_revisions_append_only');
   expect(combined).toContain('catalog_package_definitions_identity_immutable');
+  expect(combined).toContain('catalog_product_unit_rule_revisions_append_only');
+  expect(combined).toContain('catalog_variant_unit_divisibility_revisions_append_only');
+  expect(combined).toContain('catalog_package_unit_divisibility_revisions_append_only');
+  expect(combined).toContain('catalog_product_units_identity_immutable');
+  expect(combined).toContain('catalog_variant_unit_divisibility_identity_immutable');
+  expect(combined).toContain('catalog_package_unit_divisibility_identity_immutable');
+  expect(combined).toContain('catalog_package_content_revisions_unit_fk');
+  expect(combined).toContain("'commerce.catalog.product-unit') NOT VALID");
 });

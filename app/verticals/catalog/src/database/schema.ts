@@ -2,6 +2,7 @@
 import { tenantRlsPolicies } from '@app/core-runtime';
 import { defineRelations, sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -29,6 +30,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'controlled_attribute_values',
   'package_content_revisions',
   'package_definitions',
+  'package_unit_divisibility',
+  'package_unit_divisibility_revisions',
   'product_categories',
   'product_category_assignments',
   'product_category_events',
@@ -40,16 +43,89 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_type_revision_attributes',
   'product_type_revisions',
   'product_types',
+  'product_unit_rule_revisions',
+  'product_units',
   'product_variant_axes',
   'product_variant_axis_events',
   'product_variant_revisions',
   'product_variants',
   'products',
+  'variant_unit_divisibility',
+  'variant_unit_divisibility_revisions',
 ] as const;
 
 export const catalogSchema = pgSchema(CATALOG_SCHEMA_NAME);
 
 const recordedAt = () => timestamp('recorded_at', { withTimezone: true }).defaultNow().notNull();
+
+/** Tenant-wide Unit identity is stable while purchase rules advance by revision. */
+export const productUnits = catalogSchema.table.withRLS(
+  'product_units',
+  {
+    unitId: uuid('unit_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    code: text('code').notNull(),
+    label: text('label').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    currentRuleRevision: integer('current_rule_revision').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_product_units_scope_id_uk').on(table.tenantId, table.unitId),
+    unique('catalog_product_units_code_uk').on(table.tenantId, table.code),
+    check('catalog_product_units_revision_ck', sql`${table.currentRuleRevision} > 0`),
+    check(
+      'catalog_product_units_code_ck',
+      sql`${table.code} = btrim(${table.code}) and length(${table.code}) between 1 and 80`,
+    ),
+    check(
+      'catalog_product_units_label_ck',
+      sql`${table.label} = btrim(${table.label}) and length(${table.label}) between 1 and 240`,
+    ),
+    check('catalog_product_units_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
+    ...tenantRlsPolicies('catalog_product_units_tenant', table.tenantId),
+  ],
+);
+
+export const productUnitRuleRevisions = catalogSchema.table.withRLS(
+  'product_unit_rule_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    unitId: uuid('unit_id').notNull(),
+    revision: integer('revision').notNull(),
+    step: numeric('step').notNull(),
+    rounding: text('rounding').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    changeKind: text('change_kind').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.unitId, table.revision],
+      name: 'catalog_product_unit_rule_revisions_pk',
+    }),
+    unique('catalog_product_unit_rule_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_product_unit_rule_revisions_unit_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_unit_rule_revisions_number_ck', sql`${table.revision} > 0`),
+    check('catalog_product_unit_rule_revisions_step_ck', sql`${table.step} > 0`),
+    check('catalog_product_unit_rule_revisions_rounding_ck', sql`${table.rounding} in ('UP', 'DOWN', 'HALF_UP')`),
+    check('catalog_product_unit_rule_revisions_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
+    check('catalog_product_unit_rule_revisions_kind_ck', sql`${table.changeKind} in ('CREATED', 'REVISED', 'RETIRED')`),
+    check(
+      'catalog_product_unit_rule_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_unit_rule_revisions_tenant', table.tenantId),
+  ],
+);
 
 export const products = catalogSchema.table.withRLS(
   'products',
@@ -218,6 +294,137 @@ export const packageDefinitions = catalogSchema.table.withRLS(
   ],
 );
 
+/** Divisibility is owned by the selectable Variant, not the shared Unit. */
+export const variantUnitDivisibility = catalogSchema.table.withRLS(
+  'variant_unit_divisibility',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    unitId: uuid('unit_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    divisible: boolean('divisible').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.variantId], name: 'catalog_variant_unit_divisibility_pk' }),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_variant_unit_divisibility_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_variant_unit_divisibility_unit_fk',
+    }).onDelete('restrict'),
+    check('catalog_variant_unit_divisibility_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_variant_unit_divisibility_tenant', table.tenantId),
+  ],
+);
+
+export const variantUnitDivisibilityRevisions = catalogSchema.table.withRLS(
+  'variant_unit_divisibility_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    revision: integer('revision').notNull(),
+    unitId: uuid('unit_id').notNull(),
+    divisible: boolean('divisible').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.variantId, table.revision],
+      name: 'catalog_variant_unit_divisibility_revisions_pk',
+    }),
+    unique('catalog_variant_unit_divisibility_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [variantUnitDivisibility.tenantId, variantUnitDivisibility.variantId],
+      name: 'catalog_variant_unit_divisibility_revisions_target_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_variant_unit_divisibility_revisions_unit_fk',
+    }).onDelete('restrict'),
+    check('catalog_variant_unit_divisibility_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_variant_unit_divisibility_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_variant_unit_divisibility_revisions_tenant', table.tenantId),
+  ],
+);
+
+export const packageUnitDivisibility = catalogSchema.table.withRLS(
+  'package_unit_divisibility',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id').notNull(),
+    unitId: uuid('unit_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    divisible: boolean('divisible').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.packageDefinitionId], name: 'catalog_package_unit_divisibility_pk' }),
+    foreignKey({
+      columns: [table.tenantId, table.packageDefinitionId],
+      foreignColumns: [packageDefinitions.tenantId, packageDefinitions.packageDefinitionId],
+      name: 'catalog_package_unit_divisibility_package_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_package_unit_divisibility_unit_fk',
+    }).onDelete('restrict'),
+    check('catalog_package_unit_divisibility_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_package_unit_divisibility_tenant', table.tenantId),
+  ],
+);
+
+export const packageUnitDivisibilityRevisions = catalogSchema.table.withRLS(
+  'package_unit_divisibility_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id').notNull(),
+    revision: integer('revision').notNull(),
+    unitId: uuid('unit_id').notNull(),
+    divisible: boolean('divisible').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.packageDefinitionId, table.revision],
+      name: 'catalog_package_unit_divisibility_revisions_pk',
+    }),
+    unique('catalog_package_unit_divisibility_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.packageDefinitionId],
+      foreignColumns: [packageUnitDivisibility.tenantId, packageUnitDivisibility.packageDefinitionId],
+      name: 'catalog_package_unit_divisibility_revisions_target_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_package_unit_divisibility_revisions_unit_fk',
+    }).onDelete('restrict'),
+    check('catalog_package_unit_divisibility_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_package_unit_divisibility_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_package_unit_divisibility_revisions_tenant', table.tenantId),
+  ],
+);
+
 /** The complete, immutable content basis; lower levels bind an exact revision, not latest. */
 export const packageContentRevisions = catalogSchema.table.withRLS(
   'package_content_revisions',
@@ -261,6 +468,11 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
       name: 'catalog_package_content_revisions_definition_fk',
     }).onDelete('restrict'),
     foreignKey({
+      columns: [table.tenantId, table.unitResourceId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_package_content_revisions_unit_fk',
+    }).onDelete('restrict'),
+    foreignKey({
       columns: [table.tenantId, table.productId, table.variantId, table.lowerPackageDefinitionId],
       foreignColumns: [
         packageDefinitions.tenantId,
@@ -283,7 +495,10 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
     check('catalog_package_content_revisions_number_ck', sql`${table.revision} > 0`),
     check('catalog_package_content_revisions_state_ck', sql`${table.lifecycleState} in ('DRAFT', 'ACTIVE', 'RETIRED')`),
     check('catalog_package_content_revisions_amount_ck', sql`${table.amount} > 0`),
-    check('catalog_package_content_revisions_unit_ck', sql`${table.unitResourceType} = 'commerce.catalog.unit'`),
+    check(
+      'catalog_package_content_revisions_unit_ck',
+      sql`${table.unitResourceType} = 'commerce.catalog.product-unit'`,
+    ),
     check(
       'catalog_package_content_revisions_configuration_ck',
       sql`${table.configurationKey} is null or (${table.configurationKey} = btrim(${table.configurationKey}) and length(${table.configurationKey}) between 1 and 300)`,
@@ -1169,6 +1384,12 @@ const catalogDatabaseSchema = {
   productVariantRevisions,
   productVariants,
   products,
+  productUnits,
+  productUnitRuleRevisions,
+  variantUnitDivisibility,
+  variantUnitDivisibilityRevisions,
+  packageUnitDivisibility,
+  packageUnitDivisibilityRevisions,
 } as const;
 
 export const CATALOG_TABLES = [
@@ -1197,6 +1418,12 @@ export const CATALOG_TABLES = [
   productVariantRevisions,
   productVariants,
   products,
+  productUnits,
+  productUnitRuleRevisions,
+  variantUnitDivisibility,
+  variantUnitDivisibilityRevisions,
+  packageUnitDivisibility,
+  packageUnitDivisibilityRevisions,
 ] as const;
 
 export const catalogRelations = defineRelations(catalogDatabaseSchema);
