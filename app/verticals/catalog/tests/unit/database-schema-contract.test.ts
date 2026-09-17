@@ -10,6 +10,9 @@ import {
   CATALOG_TABLES,
   attributeDefinitionRevisions,
   attributeDefinitions,
+  attributeValueItems,
+  attributeValueRevisions,
+  attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
   productCategories,
@@ -24,10 +27,13 @@ import {
   productTypeRevisions,
   productTypes,
   productVariants,
+  productVariantAxes,
+  productVariantAxisEvents,
+  productVariantRevisions,
   products,
 } from '../../src/database/schema.ts';
 
-it('owns seventeen tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns twenty-three tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -40,6 +46,9 @@ it('owns seventeen tenant-scoped Catalog tables with RLS and immutable history',
   expect(CATALOG_TABLE_INVENTORY).toEqual([
     'attribute_definition_revisions',
     'attribute_definitions',
+    'attribute_value_items',
+    'attribute_value_revisions',
+    'attribute_value_sets',
     'controlled_attribute_value_revisions',
     'controlled_attribute_values',
     'product_categories',
@@ -53,6 +62,9 @@ it('owns seventeen tenant-scoped Catalog tables with RLS and immutable history',
     'product_type_revision_attributes',
     'product_type_revisions',
     'product_types',
+    'product_variant_axes',
+    'product_variant_axis_events',
+    'product_variant_revisions',
     'product_variants',
     'products',
   ]);
@@ -157,11 +169,38 @@ it('keeps Product identity, Variant ownership, and historical revision keys cons
   expect(getTableConfig(productVariants).foreignKeys.map((foreignKey) => foreignKey.getName())).toContain(
     'catalog_product_variants_product_fk',
   );
+  expect(getTableConfig(productVariants).indexes.map((index) => index.config.name)).toContain(
+    'catalog_product_variants_active_combination_uk',
+  );
+  expect(getTableConfig(productVariantRevisions).foreignKeys.map((foreignKey) => foreignKey.getName())).toContain(
+    'catalog_product_variant_revisions_variant_fk',
+  );
+  expect(getTableConfig(productVariantAxes).foreignKeys.map((foreignKey) => foreignKey.getName())).toEqual([
+    'catalog_product_variant_axes_product_fk',
+    'catalog_product_variant_axes_definition_fk',
+  ]);
+  expect(getTableConfig(productVariantAxisEvents).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_variant_axis_events_pk',
+  );
   expect(getTableConfig(productRevisions).uniqueConstraints.map((constraint) => constraint.name)).toContain(
     'catalog_product_revisions_number_uk',
   );
   expect(getTableConfig(productLifecycleEvents).uniqueConstraints.map((constraint) => constraint.name)).toContain(
     'catalog_product_lifecycle_invocation_uk',
+  );
+});
+
+it('separates Product and Variant value sets with controlled-value ownership and immutable revisions', () => {
+  expect(getTableConfig(attributeValueSets).indexes.map((index) => index.config.name)).toEqual([
+    'catalog_attribute_value_sets_product_uk',
+    'catalog_attribute_value_sets_variant_uk',
+  ]);
+  expect(getTableConfig(attributeValueItems).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_attribute_value_items_set_fk',
+    'catalog_attribute_value_items_controlled_fk',
+  ]);
+  expect(getTableConfig(attributeValueRevisions).primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_attribute_value_revisions_pk',
   );
 });
 
@@ -190,4 +229,9 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_attribute_definitions_identity_immutable');
   expect(combined).toContain('catalog_controlled_values_identity_immutable');
   expect(combined).toContain('catalog_controlled_values_definition_kind');
+  expect(combined).toContain('catalog_attribute_value_revisions_append_only');
+  expect(combined).toContain('catalog_product_variant_axis_events_append_only');
+  expect(combined).toContain('catalog_product_variant_revisions_append_only');
+  expect(combined).toContain('catalog_product_type_assignment_current_pointer');
+  expect(combined).toContain('catalog_product_type_assignment_event_pointer');
 });

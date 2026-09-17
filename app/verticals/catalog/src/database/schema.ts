@@ -6,6 +6,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgSchema,
   primaryKey,
@@ -21,6 +22,9 @@ export const CATALOG_SCHEMA_NAME = 'catalog';
 export const CATALOG_TABLE_INVENTORY = [
   'attribute_definition_revisions',
   'attribute_definitions',
+  'attribute_value_items',
+  'attribute_value_revisions',
+  'attribute_value_sets',
   'controlled_attribute_value_revisions',
   'controlled_attribute_values',
   'product_categories',
@@ -34,6 +38,9 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_type_revision_attributes',
   'product_type_revisions',
   'product_types',
+  'product_variant_axes',
+  'product_variant_axis_events',
+  'product_variant_revisions',
   'product_variants',
   'products',
 ] as const;
@@ -87,6 +94,9 @@ export const productVariants = catalogSchema.table.withRLS(
     tenantId: uuid('tenant_id').notNull(),
     productId: uuid('product_id').notNull(),
     lifecycleState: text('lifecycle_state').default('WORK_IN_PROGRESS').notNull(),
+    currentRevision: integer('current_revision').default(1).notNull(),
+    combinationKey: text('combination_key'),
+    combinationAxisRevision: integer('combination_axis_revision'),
     createdByActionInvocationId: uuid('created_by_action_invocation_id').notNull(),
     createdByPrincipalId: uuid('created_by_principal_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -101,11 +111,68 @@ export const productVariants = catalogSchema.table.withRLS(
       name: 'catalog_product_variants_product_fk',
     }).onDelete('restrict'),
     index('catalog_product_variants_product_idx').on(table.tenantId, table.productId, table.lifecycleState),
+    uniqueIndex('catalog_product_variants_active_combination_uk')
+      .on(table.tenantId, table.productId, table.combinationKey)
+      .where(sql`${table.lifecycleState} = 'ACTIVE'`),
+    check('catalog_product_variants_revision_ck', sql`${table.currentRevision} > 0`),
+    check(
+      'catalog_product_variants_axis_revision_ck',
+      sql`${table.combinationAxisRevision} is null or ${table.combinationAxisRevision} > 0`,
+    ),
+    check(
+      'catalog_product_variants_combination_ck',
+      sql`(${table.lifecycleState} = 'ACTIVE' and ${table.combinationKey} is not null and ${table.combinationAxisRevision} is not null and length(${table.combinationKey}) = 64 and ${table.combinationKey} ~ '^[0-9a-f]{64}$') or (${table.lifecycleState} <> 'ACTIVE' and ${table.combinationKey} is null and ${table.combinationAxisRevision} is null)`,
+    ),
     check(
       'catalog_product_variants_lifecycle_ck',
       sql`${table.lifecycleState} in ('WORK_IN_PROGRESS', 'ACTIVE', 'RETIRED')`,
     ),
     ...tenantRlsPolicies('catalog_product_variants_tenant', table.tenantId),
+  ],
+);
+
+export const productVariantRevisions = catalogSchema.table.withRLS(
+  'product_variant_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    revision: integer('revision').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    combinationKey: text('combination_key'),
+    combinationAxisRevision: integer('combination_axis_revision'),
+    changeKind: text('change_kind').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.variantId, table.revision],
+      name: 'catalog_product_variant_revisions_pk',
+    }),
+    unique('catalog_product_variant_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.variantId],
+      name: 'catalog_product_variant_revisions_variant_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_variant_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_product_variant_revisions_lifecycle_ck',
+      sql`${table.lifecycleState} in ('WORK_IN_PROGRESS', 'ACTIVE', 'RETIRED')`,
+    ),
+    check(
+      'catalog_product_variant_revisions_kind_ck',
+      sql`${table.changeKind} in ('CREATED', 'CORRECTED', 'LIFECYCLE', 'PARENT_CORRECTION', 'AXIS_REVALIDATION')`,
+    ),
+    check(
+      'catalog_product_variant_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_variant_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -504,6 +571,200 @@ export const productTypeRevisionAttributes = catalogSchema.table.withRLS(
   ],
 );
 
+// An axis is a Product-local role for a shared definition.  The revision is a
+// compare-and-swap token for whole-product combination revalidation.
+export const productVariantAxes = catalogSchema.table.withRLS(
+  'product_variant_axes',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    axisRevision: integer('axis_revision').notNull(),
+    ordinal: integer('ordinal').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.attributeDefinitionId],
+      name: 'catalog_product_variant_axes_pk',
+    }),
+    unique('catalog_product_variant_axes_ordinal_uk').on(table.tenantId, table.productId, table.ordinal),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_variant_axes_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId],
+      foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId],
+      name: 'catalog_product_variant_axes_definition_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_variant_axes_revision_ck', sql`${table.axisRevision} > 0 and ${table.ordinal} >= 0`),
+    ...tenantRlsPolicies('catalog_product_variant_axes_tenant', table.tenantId),
+  ],
+);
+
+export const productVariantAxisEvents = catalogSchema.table.withRLS(
+  'product_variant_axis_events',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    axisRevision: integer('axis_revision').notNull(),
+    attributeDefinitionIds: uuid('attribute_definition_ids').array().notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.axisRevision],
+      name: 'catalog_product_variant_axis_events_pk',
+    }),
+    unique('catalog_product_variant_axis_events_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_variant_axis_events_product_fk',
+    }).onDelete('restrict'),
+    check('catalog_product_variant_axis_events_revision_ck', sql`${table.axisRevision} > 0`),
+    check(
+      'catalog_product_variant_axis_events_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_variant_axis_events_tenant', table.tenantId),
+  ],
+);
+
+// A missing Variant set means inheritance.  A present set (including SPECIAL)
+// is an explicit complete override; item rows never merge with Product items.
+export const attributeValueSets = catalogSchema.table.withRLS(
+  'attribute_value_sets',
+  {
+    attributeValueSetId: uuid('attribute_value_set_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id'),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    currentRevision: integer('current_revision').default(1).notNull(),
+    currentState: text('current_state').default('SET').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_attribute_value_sets_scope_id_uk').on(table.tenantId, table.attributeValueSetId),
+    unique('catalog_attribute_value_sets_definition_id_uk').on(
+      table.tenantId,
+      table.attributeValueSetId,
+      table.attributeDefinitionId,
+    ),
+    uniqueIndex('catalog_attribute_value_sets_product_uk')
+      .on(table.tenantId, table.productId, table.attributeDefinitionId)
+      .where(sql`${table.variantId} is null`),
+    uniqueIndex('catalog_attribute_value_sets_variant_uk')
+      .on(table.tenantId, table.variantId, table.attributeDefinitionId)
+      .where(sql`${table.variantId} is not null`),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_attribute_value_sets_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_attribute_value_sets_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId],
+      foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId],
+      name: 'catalog_attribute_value_sets_definition_fk',
+    }).onDelete('restrict'),
+    check('catalog_attribute_value_sets_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_attribute_value_sets_state_ck', sql`${table.currentState} in ('SET', 'REMOVED')`),
+    ...tenantRlsPolicies('catalog_attribute_value_sets_tenant', table.tenantId),
+  ],
+);
+
+export const attributeValueItems = catalogSchema.table.withRLS(
+  'attribute_value_items',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    attributeValueSetId: uuid('attribute_value_set_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    ordinal: integer('ordinal').notNull(),
+    valueKind: text('value_kind').notNull(),
+    textValue: text('text_value'),
+    numericValue: numeric('numeric_value'),
+    unit: text('unit'),
+    controlledAttributeValueId: uuid('controlled_attribute_value_id'),
+    specialState: text('special_state'),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.attributeValueSetId, table.ordinal],
+      name: 'catalog_attribute_value_items_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.attributeValueSetId, table.attributeDefinitionId],
+      foreignColumns: [
+        attributeValueSets.tenantId,
+        attributeValueSets.attributeValueSetId,
+        attributeValueSets.attributeDefinitionId,
+      ],
+      name: 'catalog_attribute_value_items_set_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId, table.controlledAttributeValueId],
+      foreignColumns: [
+        controlledAttributeValues.tenantId,
+        controlledAttributeValues.attributeDefinitionId,
+        controlledAttributeValues.controlledAttributeValueId,
+      ],
+      name: 'catalog_attribute_value_items_controlled_fk',
+    }).onDelete('restrict'),
+    check('catalog_attribute_value_items_ordinal_ck', sql`${table.ordinal} >= 0`),
+    check(
+      'catalog_attribute_value_items_shape_ck',
+      sql`(${table.valueKind} = 'TEXT' and ${table.textValue} is not null and ${table.numericValue} is null and ${table.unit} is null and ${table.controlledAttributeValueId} is null and ${table.specialState} is null) or (${table.valueKind} = 'MEASUREMENT' and ${table.textValue} is null and ${table.numericValue} is not null and ${table.unit} is not null and ${table.controlledAttributeValueId} is null and ${table.specialState} is null) or (${table.valueKind} = 'CONTROLLED' and ${table.textValue} is null and ${table.numericValue} is null and ${table.unit} is null and ${table.controlledAttributeValueId} is not null and ${table.specialState} is null) or (${table.valueKind} = 'SPECIAL' and ${table.textValue} is null and ${table.numericValue} is null and ${table.unit} is null and ${table.controlledAttributeValueId} is null and ${table.specialState} in ('UNKNOWN', 'NOT_APPLICABLE', 'NONE'))`,
+    ),
+    ...tenantRlsPolicies('catalog_attribute_value_items_tenant', table.tenantId),
+  ],
+);
+
+export const attributeValueRevisions = catalogSchema.table.withRLS(
+  'attribute_value_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    attributeValueSetId: uuid('attribute_value_set_id').notNull(),
+    revision: integer('revision').notNull(),
+    changeKind: text('change_kind').notNull(),
+    valueSnapshot: jsonb('value_snapshot').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.attributeValueSetId, table.revision],
+      name: 'catalog_attribute_value_revisions_pk',
+    }),
+    unique('catalog_attribute_value_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.attributeValueSetId],
+      foreignColumns: [attributeValueSets.tenantId, attributeValueSets.attributeValueSetId],
+      name: 'catalog_attribute_value_revisions_set_fk',
+    }).onDelete('restrict'),
+    check('catalog_attribute_value_revisions_number_ck', sql`${table.revision} > 0`),
+    check('catalog_attribute_value_revisions_kind_ck', sql`${table.changeKind} in ('SET', 'REMOVED')`),
+    check(
+      'catalog_attribute_value_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_attribute_value_revisions_tenant', table.tenantId),
+  ],
+);
+
 export const productTypeAssignments = catalogSchema.table.withRLS(
   'product_type_assignments',
   {
@@ -757,6 +1018,9 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
 const catalogDatabaseSchema = {
   attributeDefinitionRevisions,
   attributeDefinitions,
+  attributeValueItems,
+  attributeValueRevisions,
+  attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
   productCategories,
@@ -770,6 +1034,9 @@ const catalogDatabaseSchema = {
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
+  productVariantAxes,
+  productVariantAxisEvents,
+  productVariantRevisions,
   productVariants,
   products,
 } as const;
@@ -777,6 +1044,9 @@ const catalogDatabaseSchema = {
 export const CATALOG_TABLES = [
   attributeDefinitionRevisions,
   attributeDefinitions,
+  attributeValueItems,
+  attributeValueRevisions,
+  attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
   productCategories,
@@ -790,6 +1060,9 @@ export const CATALOG_TABLES = [
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
+  productVariantAxes,
+  productVariantAxisEvents,
+  productVariantRevisions,
   productVariants,
   products,
 ] as const;

@@ -20,6 +20,18 @@ const expectedColumns = EffectArray.sort(
   Order.String,
 );
 
+const pointersAreCurrent = (pointers: {
+  assignment_mismatch: number;
+  attribute_definition_mismatch: number;
+  attribute_value_mismatch: number;
+  axis_mismatch: number;
+  category_mismatch: number;
+  controlled_value_mismatch: number;
+  counter_mismatch: number;
+  type_mismatch: number;
+  variant_mismatch: number;
+}) => Object.values(pointers).every((count) => count === 0);
+
 const verification = Effect.gen(function* verifyCatalogDatabase() {
   const configuration = yield* loadDatabaseConnectionPair();
   const client = yield* Effect.acquireRelease(
@@ -99,7 +111,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 16 ||
+    row.trigger_count !== 21 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
     yield* new CatalogSchemaVerificationError({
@@ -111,11 +123,14 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     try: async () =>
       await client.query<{
         assignment_mismatch: number;
+        attribute_definition_mismatch: number;
+        attribute_value_mismatch: number;
+        axis_mismatch: number;
         category_mismatch: number;
+        controlled_value_mismatch: number;
         counter_mismatch: number;
         type_mismatch: number;
-        attribute_definition_mismatch: number;
-        controlled_value_mismatch: number;
+        variant_mismatch: number;
       }>(`select
       (select count(*)::integer from catalog.product_type_assignments a
         where not exists (select 1 from catalog.product_type_assignment_events e
@@ -162,6 +177,28 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and r.swatch_code is not distinct from v.swatch_code
             and r.preview_hex is not distinct from v.preview_hex
             and r.preview_evidence_ref is not distinct from v.preview_evidence_ref)) controlled_value_mismatch,
+      (select count(*)::integer from catalog.attribute_value_sets s
+        where not exists (select 1 from catalog.attribute_value_revisions r
+          where r.tenant_id=s.tenant_id and r.attribute_value_set_id=s.attribute_value_set_id
+            and r.revision=s.current_revision and r.change_kind=s.current_state)
+          or s.current_revision <> (select max(r.revision) from catalog.attribute_value_revisions r
+            where r.tenant_id=s.tenant_id and r.attribute_value_set_id=s.attribute_value_set_id)
+          or (s.current_state='REMOVED' and exists (select 1 from catalog.attribute_value_items i
+            where i.tenant_id=s.tenant_id and i.attribute_value_set_id=s.attribute_value_set_id))) attribute_value_mismatch,
+      (select count(*)::integer from catalog.product_variants v
+        where not exists (select 1 from catalog.product_variant_revisions r
+          where r.tenant_id=v.tenant_id and r.variant_id=v.variant_id and r.revision=v.current_revision
+            and r.product_id=v.product_id and r.lifecycle_state=v.lifecycle_state
+            and r.combination_key is not distinct from v.combination_key
+            and r.combination_axis_revision is not distinct from v.combination_axis_revision)
+          or v.current_revision <> (select max(r.revision) from catalog.product_variant_revisions r
+            where r.tenant_id=v.tenant_id and r.variant_id=v.variant_id)) variant_mismatch,
+      (select count(*)::integer from catalog.product_variant_axes a
+        where not exists (select 1 from catalog.product_variant_axis_events e
+          where e.tenant_id=a.tenant_id and e.product_id=a.product_id and e.axis_revision=a.axis_revision
+            and e.attribute_definition_ids[a.ordinal + 1] = a.attribute_definition_id)
+          or a.axis_revision <> (select max(e.axis_revision) from catalog.product_variant_axis_events e
+            where e.tenant_id=a.tenant_id and e.product_id=a.product_id)) axis_mismatch,
       (select count(*)::integer from catalog.product_categories c
         where not exists (select 1 from catalog.product_category_events e
           where e.tenant_id=c.tenant_id and e.category_id=c.category_id
@@ -181,14 +218,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
           and e.change_kind in ('ASSIGNED','UNASSIGNED')), 0)) counter_mismatch`),
   });
   const [pointers] = currentPointers.rows;
-  if (
-    pointers?.assignment_mismatch !== 0 ||
-    pointers.type_mismatch !== 0 ||
-    pointers.attribute_definition_mismatch !== 0 ||
-    pointers.controlled_value_mismatch !== 0 ||
-    pointers.category_mismatch !== 0 ||
-    pointers.counter_mismatch !== 0
-  ) {
+  if (pointers === undefined || !pointersAreCurrent(pointers)) {
     yield* new CatalogSchemaVerificationError({
       reason: 'Catalog Current revision pointers or category counters differ from durable events',
     });
