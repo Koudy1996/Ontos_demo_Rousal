@@ -126,7 +126,7 @@ export const setProductTypeActionProblem = {
 const mapDomainProblem = (error: DomainError): SetProductTypeActionProblem =>
   Match.value(error).pipe(
     Match.tags({
-      CatalogPersistenceUnavailable: setProductTypeActionProblem.internal,
+      CatalogPersistenceUnavailable: () => setProductTypeActionProblem.unavailable('action_transaction_failed'),
       ProductTypeAssignmentRejected: (failure) => setProductTypeActionProblem.conflict(failure.code),
     }),
     Match.exhaustive,

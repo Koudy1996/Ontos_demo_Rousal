@@ -18,6 +18,7 @@ export { SetProductTypePayloadSchema, SetProductTypeResultSchema } from '../../s
 export type { SetProductTypePayload, SetProductTypeResult } from '../../shared/actions/set-product-type.ts';
 
 const domainEvents = {} as const;
+const moduleKey = 'commerce.catalog' as const;
 
 export const handleSetProductType = Effect.fn('SetProductTypeAction.handle')(function* handleSetProductType(
   payload: SetProductTypePayload,
@@ -40,6 +41,26 @@ export const handleSetProductType = Effect.fn('SetProductTypeAction.handle')(fun
   const result = yield* context.services.set(
     payload.nextProductTypeRef === undefined ? input : { ...input, nextProductTypeRef: payload.nextProductTypeRef },
   );
+  yield* context.recordDataAccess({
+    accessKind: 'read',
+    queryHash: `catalog-product-type-assignment:${payload.productRef.resourceId}`,
+    resultCount: 1,
+    servingModuleKey: moduleKey,
+    targetModuleKey: moduleKey,
+    targetResourceId: payload.productRef.resourceId,
+    targetResourceType: 'commerce.catalog.product',
+  });
+  if (payload.nextProductTypeRef !== undefined) {
+    yield* context.recordDataAccess({
+      accessKind: 'read',
+      queryHash: `catalog-product-type:${payload.nextProductTypeRef.resourceId}`,
+      resultCount: 1,
+      servingModuleKey: moduleKey,
+      targetModuleKey: moduleKey,
+      targetResourceId: payload.nextProductTypeRef.resourceId,
+      targetResourceType: 'commerce.catalog.product-type',
+    });
+  }
   yield* context.recordAuditEvidence({ reason: payload.reason });
   return result;
 });
@@ -59,12 +80,12 @@ export const setProductTypeAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.set-product-type',
-      moduleKey: 'commerce.catalog',
+      moduleKey,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: moduleKey,
     payloadSchema: SetProductTypePayloadSchema,
     policies: [],
     resultSchema: SetProductTypeResultSchema,
