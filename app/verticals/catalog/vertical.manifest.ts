@@ -12,6 +12,7 @@ import {
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
+import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
 import { attributeDefinitionResourceDescriptor } from './shared/resources/attribute-definition.ts';
 import { brandResourceDescriptor } from './shared/resources/brand.ts';
 import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.ts';
@@ -46,15 +47,19 @@ import { reactivateBrandAction } from './src/actions/reactivate-brand.action.ts'
 import { reactivateControlledAttributeValueAction } from './src/actions/reactivate-controlled-attribute-value.action.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
 import { reactivateVariantAction } from './src/actions/reactivate-variant.action.ts';
+import { removeCatalogMediaAction } from './src/actions/remove-catalog-media.action.ts';
 import { removeProductAttributeValuesAction } from './src/actions/remove-product-attribute-values.action.ts';
 import { removeProductCategoryAssignmentAction } from './src/actions/remove-product-category-assignment.action.ts';
+import { removeProductLocalizedFactsAction } from './src/actions/remove-product-localized-facts.action.ts';
 import { removeProductManufacturerAction } from './src/actions/remove-product-manufacturer.action.ts';
 import { removeProductRelationshipAction } from './src/actions/remove-product-relationship.action.ts';
 import { removeVariantAttributeOverrideAction } from './src/actions/remove-variant-attribute-override.action.ts';
+import { removeVariantLocalizedFactsAction } from './src/actions/remove-variant-localized-facts.action.ts';
 import { renameAttributeDefinitionAction } from './src/actions/rename-attribute-definition.action.ts';
 import { renameBrandAction } from './src/actions/rename-brand.action.ts';
 import { renameControlledAttributeValueAction } from './src/actions/rename-controlled-attribute-value.action.ts';
 import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
+import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.action.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
 import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
@@ -67,10 +72,12 @@ import { reviseProductTypeAction } from './src/actions/revise-product-type.actio
 import { reviseProductUnitAction } from './src/actions/revise-product-unit.action.ts';
 import { setProductAttributeValuesAction } from './src/actions/set-product-attribute-values.action.ts';
 import { setProductBrandAction } from './src/actions/set-product-brand.action.ts';
+import { setProductLocalizedFactsAction } from './src/actions/set-product-localized-facts.action.ts';
 import { setProductManufacturerAction } from './src/actions/set-product-manufacturer.action.ts';
 import { setProductTypeAction } from './src/actions/set-product-type.action.ts';
 import { setProductUnitTargetDivisibilityAction } from './src/actions/set-product-unit-target-divisibility.action.ts';
 import { setVariantAttributeOverrideAction } from './src/actions/set-variant-attribute-override.action.ts';
+import { setVariantLocalizedFactsAction } from './src/actions/set-variant-localized-facts.action.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
 import { variantResourceDescriptor } from './shared/resources/variant.ts';
 // </generated-module-manifest-imports>
@@ -110,6 +117,7 @@ export const catalogManifest = defineOntosModuleManifest({
     actions: [
       // <generated-module-manifest-actions>
       addProductCategoryAssignmentAction,
+      assignCatalogMediaAction,
       changeProductManufacturerAction,
       changeProductRelationshipAction,
       changeVariantAction,
@@ -129,15 +137,19 @@ export const catalogManifest = defineOntosModuleManifest({
       reactivateControlledAttributeValueAction,
       reactivateProductAction,
       reactivateVariantAction,
+      removeCatalogMediaAction,
       removeProductAttributeValuesAction,
       removeProductCategoryAssignmentAction,
+      removeProductLocalizedFactsAction,
       removeProductManufacturerAction,
       removeProductRelationshipAction,
       removeVariantAttributeOverrideAction,
+      removeVariantLocalizedFactsAction,
       renameAttributeDefinitionAction,
       renameBrandAction,
       renameControlledAttributeValueAction,
       renameProductCategoryAction,
+      reorderCatalogMediaAction,
       retireBrandAction,
       retireControlledAttributeValueAction,
       retirePackageDefinitionAction,
@@ -150,10 +162,12 @@ export const catalogManifest = defineOntosModuleManifest({
       reviseProductUnitAction,
       setProductAttributeValuesAction,
       setProductBrandAction,
+      setProductLocalizedFactsAction,
       setProductManufacturerAction,
       setProductTypeAction,
       setProductUnitTargetDivisibilityAction,
       setVariantAttributeOverrideAction,
+      setVariantLocalizedFactsAction,
       updateProductAction,
       // </generated-module-manifest-actions>
     ],
