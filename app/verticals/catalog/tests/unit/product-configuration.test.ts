@@ -7,6 +7,7 @@ import {
 } from '../../shared/domain/catalog-revision-reference.ts';
 import {
   inspectConfigurationDefinition,
+  inspectProductConfigurationCurrentActivation,
   inspectProductConfiguration,
   sameProductConfigurationSelection,
 } from '../../shared/domain/product-configuration.ts';
@@ -150,6 +151,59 @@ describe('Product Configuration definition and identity', () => {
           definition: { ...definition.reference, revision: Schema.decodeUnknownSync(CatalogRevisionNumberSchema)(2) },
         },
         definition,
+      ).status,
+    ).toBe('INDETERMINATE');
+  });
+
+  it('requires an owner-issued exact Current activation and rule revision evidence', () => {
+    const assessedAt = '2026-09-17T12:00:00.000Z';
+    const activation = {
+      attestationId: '88888888-8888-4888-8888-888888888888',
+      definitionRevision: definition.reference,
+      effectiveFrom: '2026-09-17T11:00:00.000Z',
+      observedAt: assessedAt,
+      ownerModuleId: 'commerce.catalog' as const,
+      ruleRevisions: [
+        {
+          definitionRevision: definition.reference,
+          kind: 'MEASURED' as const,
+          ownerModuleId: 'commerce.catalog' as const,
+          revision: 1,
+          ruleId: 'length-range',
+        },
+      ],
+      source: 'CATALOG_OWNER_CURRENT_READ' as const,
+      status: 'CONFIRMED' as const,
+    };
+    expect(inspectProductConfigurationCurrentActivation(selected, definition, activation, assessedAt).status).toBe(
+      'VALID',
+    );
+    const unavailable = new Map<string, typeof activation>().get('missing');
+    expect(inspectProductConfigurationCurrentActivation(selected, definition, unavailable, assessedAt).status).toBe(
+      'INDETERMINATE',
+    );
+    expect(
+      inspectProductConfigurationCurrentActivation(
+        selected,
+        definition,
+        { ...activation, observedAt: '2026-09-17T10:00:00.000Z' },
+        assessedAt,
+      ).status,
+    ).toBe('INDETERMINATE');
+    expect(
+      inspectProductConfigurationCurrentActivation(
+        selected,
+        definition,
+        { ...activation, effectiveTo: assessedAt },
+        assessedAt,
+      ).status,
+    ).toBe('INDETERMINATE');
+    expect(
+      inspectProductConfigurationCurrentActivation(
+        selected,
+        definition,
+        { ...activation, ruleRevisions: [{ ...activation.ruleRevisions[0], revision: 0 }] },
+        assessedAt,
       ).status,
     ).toBe('INDETERMINATE');
   });

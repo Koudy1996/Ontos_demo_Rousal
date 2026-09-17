@@ -1,4 +1,4 @@
-import type { CatalogResourceRef } from './catalog-revision-reference.ts';
+import type { CatalogResourceRef, CatalogRevisionInstant } from './catalog-revision-reference.ts';
 import { sameCatalogRevisionReference } from './catalog-revision-reference.ts';
 import type { CatalogSelectionRevision } from './catalog-selection-evidence.ts';
 import type { ProductRef } from '../resources/product.ts';
@@ -28,6 +28,28 @@ export interface ProductConfigurationDefinitionRevision {
   readonly choices: readonly ConfigurationChoiceDefinition[];
   readonly productRef: ProductRef;
   readonly reference: CatalogSelectionRevision;
+}
+
+/** A rule's exact revision is qualified by its owning Definition revision. */
+export interface ConfigurationRuleRevisionEvidence {
+  readonly definitionRevision: CatalogSelectionRevision;
+  readonly kind: 'COMPATIBILITY' | 'MEASURED';
+  readonly ownerModuleId: 'commerce.catalog';
+  readonly revision: number;
+  readonly ruleId: string;
+}
+
+/** Produced by a trusted Catalog Current read, not inferred from a caller's clock or a `latest` ref. */
+export interface ProductConfigurationCurrentActivation {
+  readonly attestationId: string;
+  readonly definitionRevision: CatalogSelectionRevision;
+  readonly effectiveFrom: CatalogRevisionInstant;
+  readonly effectiveTo?: CatalogRevisionInstant;
+  readonly observedAt: CatalogRevisionInstant;
+  readonly ownerModuleId: 'commerce.catalog';
+  readonly ruleRevisions: readonly ConfigurationRuleRevisionEvidence[];
+  readonly source: 'CATALOG_OWNER_CURRENT_READ';
+  readonly status: 'CONFIRMED';
 }
 
 export interface ConfigurationSingleChoiceValue {
@@ -109,6 +131,43 @@ export const inspectConfigurationDefinition = (
     } else if (choice.unitRef.tenantId !== definition.productRef.tenantId) {
       return { reason: 'Measured Unit must share the Product Tenant', status: 'INVALID' };
     }
+  }
+  return { status: 'VALID' };
+};
+
+/** Pure consistency check of owner-issued Current evidence; issuance itself stays at the owner read boundary. */
+export const inspectProductConfigurationCurrentActivation = (
+  selection: ProductConfiguration,
+  definition: ProductConfigurationDefinitionRevision | undefined,
+  activation: ProductConfigurationCurrentActivation | undefined,
+  assessedAt: CatalogRevisionInstant,
+): ConfigurationInspection => {
+  if (definition === undefined || activation === undefined) {
+    return { reason: 'Owner Current activation evidence is unavailable', status: 'INDETERMINATE' };
+  }
+  if (
+    activation.source !== 'CATALOG_OWNER_CURRENT_READ' ||
+    activation.status !== 'CONFIRMED' ||
+    activation.ownerModuleId !== 'commerce.catalog' ||
+    !isKey(activation.attestationId) ||
+    activation.observedAt !== assessedAt ||
+    !sameCatalogRevisionReference(activation.definitionRevision, definition.reference) ||
+    !sameCatalogRevisionReference(selection.definition, activation.definitionRevision) ||
+    activation.effectiveFrom > assessedAt ||
+    (activation.effectiveTo !== undefined && assessedAt >= activation.effectiveTo) ||
+    activation.ruleRevisions.some(
+      (rule) =>
+        rule.ownerModuleId !== 'commerce.catalog' ||
+        !sameCatalogRevisionReference(rule.definitionRevision, activation.definitionRevision) ||
+        !isKey(rule.ruleId) ||
+        !Number.isSafeInteger(rule.revision) ||
+        rule.revision < 1,
+    )
+  ) {
+    return {
+      reason: 'Current activation or rule revision evidence does not match the exact assessment',
+      status: 'INDETERMINATE',
+    };
   }
   return { status: 'VALID' };
 };
