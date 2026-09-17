@@ -885,42 +885,67 @@ Binding+Revision resolver participant inside one constituent. Guest is not a Pur
 Assortment result never creates Permission, Price, Availability, publication, or Order acceptance,
 and Product-level `VISIBILITY` is not proof that any Variant or Package Option is `PURCHASE` eligible.
 
-**Pricing** — Domain determining the pre-Tax commercial price of one exact purchase candidate in an
-explicit Commerce Purchasing Context. One Pricing Decision evaluates `1..N stable Pricing Lines`;
-each Pricing Line has an identity supplied by the exact candidate before Pricing calculation and
-binds one exact Catalog Selection, resulting Quantity and Unit. Pricing owns canonical tax-exclusive
-Price facts, Pricing-owned discounts and fees, quantity tiers, quotations, Price Group interpretation,
-calculation and pre-Tax commercial totals. Pricing calculation does not create, merge or split Pricing
-Lines; a purpose-specific aggregation may group stable Pricing Lines without changing their identities.
-Tax is a downstream owner: Pricing Result is complete without Tax Decision and Pricing never derives
-Tax rates, Tax amounts, exemptions, jurisdiction or gross-to-net decomposition. Set/Package prices are
-not silently derived from component sums or loose-piece prices.
+**Pricing** — Commerce domain for the pre-Tax commercial valuation of one exact purchase candidate.
+It owns canonical Price facts, Pricing-owned Discounts and Commercial Fees, Quantity Tiers, Pricing
+Quotations, Price Group interpretation and the resulting Pricing Decision/Result; Tax is a separate
+downstream owner.
+_Avoid_: final-price engine, Tax calculation.
 
-**Price** — Pricing-owned tax-exclusive commercial fact stating one Monetary Amount in an explicit
-currency and pricing basis for one declared Pricing target, Pricing Commercial Scope and Effective
-Period with authoritative provenance. Canonical Price is always pre-Tax. A gross/tax-inclusive source
-assertion is source evidence, not a canonical Price; it requires owner-authoritative normalization to a
-tax-exclusive commercial amount before canonical Pricing use. Without such normalization it remains
-unresolved and cannot affect Current Pricing. Pricing never reverse-calculates Tax.
+**Price** — Pricing-owned tax-exclusive Monetary Amount for declared Catalog applicability, currency,
+pricing basis, commercial scope and Effective Period, with authoritative provenance. A gross or
+tax-inclusive source amount is not a Price until authoritatively normalized to a tax-exclusive amount.
+_Avoid_: gross Price, VAT-inclusive Price, price-list row.
 
-**Pricing Decision** — Pricing-owned Current pre-Tax commercial decision for one exact purchase
-candidate with `1..N stable Pricing Lines` in one explicit currency, trusted Commerce Purchasing
-Context and trusted operation time. A candidate with one Pricing Line uses the same authoritative
-model as a multi-line candidate; there is no second line-only Pricing Decision semantics. Pricing
-evaluation preserves the stable candidate line structure and is complete without a Tax Decision.
+**External Price Assertion** — Provenance-backed claim from an external source about a price-like
+monetary term, preserving the source amount and Tax meaning when known. It is mapping/reconciliation
+evidence, not canonical Pricing truth or a Price by itself.
+_Avoid_: imported Price, canonical Price.
 
-**Pricing Result** — Complete successful pre-Tax payload of a `PRICE_RESOLVED` Pricing Decision for
-one exact whole candidate. It preserves stable Pricing-Line bindings, Pricing-owned monetary values
-and breakdowns, canonical pre-Tax totals, currency, material source revisions and Currentness evidence.
-Tax Result is a separate downstream owner output; combining Pricing Result with Tax for a gross or
-customer-facing view does not create a new Pricing-owned total.
+**Pricing Decision** — Current pre-Tax commercial decision for one exact purchase candidate with
+`1..N stable Pricing Lines`, one explicit currency, a trusted Commerce Purchasing Context and trusted
+operation time. A candidate with one line is the `N=1` case of the same whole-candidate model.
+_Avoid_: line-only Pricing Decision, gross Pricing Decision.
 
-**Pricing Line** — Stable per-selection Pricing part of one exact purchase candidate. Its identity
-and the candidate's Pricing-Line cardinality are supplied before Pricing calculation; it binds one
-exact Catalog Selection, resulting Quantity and Unit. Catalog owns the Catalog Selection meaning.
-Pricing does not create, merge or split Pricing Lines as a calculation side effect. A purpose-specific
-aggregation group or bounded quantity/calculation portion is not another Pricing Line. Pricing Line
-does not by itself define Cart/Order line lifecycle.
+**Pricing Result** — Successful pre-Tax result of one Pricing Decision for one exact whole candidate,
+preserving Pricing-Line bindings, canonical Pricing monetary values/totals, currency and material
+evidence. Tax Result is separate downstream truth.
+_Avoid_: final payable amount, tax-inclusive total.
+
+**Pricing Line** — Stable Pricing component of one exact purchase candidate that binds one exact
+Catalog Selection, resulting Quantity and Unit while preserving the candidate-supplied line identity.
+A Pricing aggregation group or bounded calculation portion is not another Pricing Line.
+_Avoid_: Cart Line, Order Line, database row, aggregation group.
+
+**Pricing Unit Price** — Pre-Tax price for one Pricing Line's explicit pricing basis after Price
+resolution and any applicable Quantity Tier, before Pricing-owned Discounts, Commercial Fees and
+Promotion contributions.
+_Avoid_: tax-inclusive unit price, line total.
+
+**Line Commercial Value** — Pre-Tax commercial value of one Pricing Line after its canonical Pricing
+composition and allocations. It is prospective Pricing truth, not an Accepted Order-line amount or
+tax-inclusive total.
+_Avoid_: Order Line Total, tax-inclusive line total.
+
+**Quantity Tier** — Pricing-owned quantity rule that replaces the applicable Pricing Unit Price with
+an exact pre-Tax resulting price when its threshold and quantity basis are reached. Launch Quantity
+Tier is not a percentage or fixed Discount.
+_Avoid_: quantity discount.
+
+**Pricing-owned Discount** — Typed pre-Tax commercial reduction owned by Pricing under its bounded
+discount families. It is distinct from Quantity Tier and Promotion.
+_Avoid_: Promotion, voucher, Quantity Tier.
+
+**Pricing-owned Commercial Fee** — Typed pre-Tax commercial charge whose business meaning belongs to
+Pricing. Tax amounts, delivery charges and payment-provider charges are separate owner facts.
+_Avoid_: Tax, shipping charge, payment fee.
+
+**Pricing Quotation** — Explicit bounded guarantee of declared pre-Tax Pricing terms for one exact
+whole purchase candidate and validity period. It is not a cached Current Price, Tax guarantee,
+Availability guarantee or Order acceptance.
+_Avoid_: cached price, Tax quotation, reservation.
+
+**Pricing Commercial Total** — Named pre-Tax whole-candidate Monetary Amount published by Pricing
+under one declared calculation meaning. It excludes Tax and is not the final payable amount.
 
 **Inventory** — Domain owning stock and reservations when the Customer Configuration owns those
 lifecycles. Inventory maps exact Catalog selections to explicitly owned stock requirements without
