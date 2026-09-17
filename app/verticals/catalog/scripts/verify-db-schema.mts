@@ -27,6 +27,7 @@ const pointersAreCurrent = (pointers: {
   axis_mismatch: number;
   brand_mismatch: number;
   category_mismatch: number;
+  configuration_activation_mismatch: number;
   configuration_definition_mismatch: number;
   controlled_value_mismatch: number;
   counter_mismatch: number;
@@ -130,7 +131,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 61 ||
+    row.trigger_count !== 62 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -148,6 +149,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         axis_mismatch: number;
         brand_mismatch: number;
         category_mismatch: number;
+        configuration_activation_mismatch: number;
         configuration_definition_mismatch: number;
         controlled_value_mismatch: number;
         counter_mismatch: number;
@@ -180,6 +182,20 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and r.product_id=d.product_id and r.revision=d.current_revision)
         or d.current_revision <> (select max(r.revision) from catalog.product_configuration_definition_revisions r
           where r.tenant_id=d.tenant_id and r.definition_id=d.definition_id)) configuration_definition_mismatch,
+      (select count(*)::integer from (
+        select a.tenant_id, a.definition_id, a.revision, a.superseded_revision, a.effective_at,
+          lag(a.revision) over (partition by a.tenant_id, a.definition_id order by a.effective_at) expected_predecessor
+        from catalog.product_configuration_revision_activations a
+      ) timeline
+        join catalog.product_configuration_definition_revisions r
+          on r.tenant_id=timeline.tenant_id and r.definition_id=timeline.definition_id
+          and r.revision=timeline.revision
+        where timeline.superseded_revision is distinct from timeline.expected_predecessor
+          or timeline.effective_at <> r.effective_from)
+      + (select count(*)::integer from catalog.product_configuration_definition_revisions r
+        where not exists (select 1 from catalog.product_configuration_revision_activations a
+          where a.tenant_id=r.tenant_id and a.definition_id=r.definition_id
+            and a.revision=r.revision)) configuration_activation_mismatch,
       (select count(*)::integer from catalog.product_brand_assignments a where not exists
         (select 1 from catalog.product_brand_assignment_revisions r where r.tenant_id=a.tenant_id
           and r.product_id=a.product_id and r.revision=a.current_revision and r.claim_kind=a.claim_kind

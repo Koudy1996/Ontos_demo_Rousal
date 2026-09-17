@@ -28,6 +28,7 @@ import {
   productConfigurationDefinitions,
   productConfigurationMeasuredRules,
   productConfigurationOptionAllowances,
+  productConfigurationRevisionActivations,
   manufacturerRelationRevisions,
   manufacturerRelations,
   packageContentRevisions,
@@ -70,7 +71,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns sixty tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns sixty-one tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -114,6 +115,7 @@ it('owns sixty tenant-scoped Catalog tables with RLS and immutable history', () 
     'product_configuration_definitions',
     'product_configuration_measured_rules',
     'product_configuration_option_allowances',
+    'product_configuration_revision_activations',
     'product_lifecycle_events',
     'product_localized_fact_revisions',
     'product_localized_facts',
@@ -179,6 +181,13 @@ it('keeps Product Configuration definitions and exact rules revision-scoped', ()
     'catalog_configuration_allowances_variant_uk',
     'catalog_configuration_allowances_package_uk',
   ]);
+  expect(getTableConfig(productConfigurationRevisionActivations).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_configuration_revision_activations_revision_fk',
+    'catalog_configuration_revision_activations_predecessor_fk',
+  ]);
+  expect(getTableConfig(productConfigurationRevisionActivations).uniqueConstraints.map((key) => key.name)).toContain(
+    'catalog_configuration_revision_activations_time_uk',
+  );
 });
 
 it('persists Product-local Size order and only evidenced, scoped equivalence', () => {
@@ -516,6 +525,7 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_configuration_definition_revisions_append_only');
   expect(combined).toContain('catalog_configuration_choices_append_only');
   expect(combined).toContain('catalog_configuration_option_allowances_append_only');
+  expect(combined).toContain('catalog_configuration_revision_activations_append_only');
   expect(combined).toContain('catalog_configuration_definitions_identity_immutable');
   expect(combined).toContain('catalog_product_lifecycle_events_append_only');
   expect(combined).toContain('catalog_products_identity_immutable');

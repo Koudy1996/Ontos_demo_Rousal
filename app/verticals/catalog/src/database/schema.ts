@@ -54,6 +54,7 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_configuration_definitions',
   'product_configuration_measured_rules',
   'product_configuration_option_allowances',
+  'product_configuration_revision_activations',
   'product_lifecycle_events',
   'product_localized_fact_revisions',
   'product_localized_facts',
@@ -2547,6 +2548,62 @@ export const productConfigurationDefinitionRevisions = catalogSchema.table.withR
   ],
 );
 
+/** Append-only effectiveness timeline: an event explicitly supersedes its predecessor. */
+export const productConfigurationRevisionActivations = catalogSchema.table.withRLS(
+  'product_configuration_revision_activations',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    revision: integer('revision').notNull(),
+    supersededRevision: integer('superseded_revision'),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.definitionId, table.revision],
+      name: 'catalog_configuration_revision_activations_pk',
+    }),
+    unique('catalog_configuration_revision_activations_time_uk').on(
+      table.tenantId,
+      table.definitionId,
+      table.effectiveAt,
+    ),
+    unique('catalog_configuration_revision_activations_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.revision],
+      foreignColumns: [
+        productConfigurationDefinitionRevisions.tenantId,
+        productConfigurationDefinitionRevisions.definitionId,
+        productConfigurationDefinitionRevisions.revision,
+      ],
+      name: 'catalog_configuration_revision_activations_revision_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.supersededRevision],
+      foreignColumns: [
+        productConfigurationDefinitionRevisions.tenantId,
+        productConfigurationDefinitionRevisions.definitionId,
+        productConfigurationDefinitionRevisions.revision,
+      ],
+      name: 'catalog_configuration_revision_activations_predecessor_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_configuration_revision_activations_predecessor_ck',
+      sql`${table.supersededRevision} is null or ${table.supersededRevision} <> ${table.revision}`,
+    ),
+    check(
+      'catalog_configuration_revision_activations_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_revision_activations_tenant', table.tenantId),
+  ],
+);
+
 /** Choice keys are stable semantic identities across revisions, not display labels. */
 export const productConfigurationChoices = catalogSchema.table.withRLS(
   'product_configuration_choices',
@@ -2895,6 +2952,7 @@ const catalogDatabaseSchema = {
   productConfigurationChoiceOptions,
   productConfigurationMeasuredRules,
   productConfigurationOptionAllowances,
+  productConfigurationRevisionActivations,
   productConfigurationCompatibilityRules,
   catalogMediaAssignmentRevisions,
   catalogMediaAssignments,
@@ -2958,6 +3016,7 @@ export const CATALOG_TABLES = [
   productConfigurationChoiceOptions,
   productConfigurationMeasuredRules,
   productConfigurationOptionAllowances,
+  productConfigurationRevisionActivations,
   productConfigurationCompatibilityRules,
   catalogMediaAssignmentRevisions,
   catalogMediaAssignments,
