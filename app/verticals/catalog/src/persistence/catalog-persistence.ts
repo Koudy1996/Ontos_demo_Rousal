@@ -539,7 +539,11 @@ export const catalogPersistenceForScope = (
     ) {
       return { _tag: 'variant_conflict' as const, product: existing };
     }
-    const variantActivationChanges = activatingVariant?.lifecycle === 'WORK_IN_PROGRESS';
+    if (activatingVariant?.lifecycle === 'WORK_IN_PROGRESS') {
+      // Product updates have no authoritative effective-axis/value proof or canonical combination
+      // signature. An ACTIVE row requires both fields; never promote a draft by lifecycle alone.
+      return yield* unavailable();
+    }
     const candidate = {
       lifecycle,
       ...(input.name === undefined
@@ -547,11 +551,7 @@ export const catalogPersistenceForScope = (
           ? {}
           : { name: existing.name }
         : { name: input.name }),
-      variants: existing.variants.map((variant) =>
-        variantActivationChanges && variant.variantId === input.activateVariantId
-          ? { ...variant, lifecycle: 'ACTIVE' as const }
-          : variant,
-      ),
+      variants: existing.variants,
     } as const;
     if (lifecycle === 'ACTIVE') {
       const readiness = catalogReadiness(candidate);
@@ -559,11 +559,7 @@ export const catalogPersistenceForScope = (
         return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
       }
     }
-    const changed =
-      input.name !== undefined ||
-      input.description !== undefined ||
-      lifecycle !== existing.lifecycle ||
-      variantActivationChanges;
+    const changed = input.name !== undefined || input.description !== undefined || lifecycle !== existing.lifecycle;
     if (!changed) {
       return { _tag: 'updated' as const, changed: false, product: existing };
     }
@@ -595,24 +591,6 @@ export const catalogPersistenceForScope = (
         _tag: 'revision_conflict' as const,
         actualRevision: latest?.currentRevision ?? input.expectedRevision,
       };
-    }
-    if (variantActivationChanges && input.activateVariantId !== undefined) {
-      const [activated] = yield* transaction
-        .update(productVariants)
-        .set({ lifecycleState: 'ACTIVE', updatedAt: now })
-        .where(
-          and(
-            eq(productVariants.tenantId, tenantId),
-            eq(productVariants.productId, input.productId),
-            eq(productVariants.variantId, input.activateVariantId),
-            eq(productVariants.lifecycleState, 'WORK_IN_PROGRESS'),
-          ),
-        )
-        .returning()
-        .pipe(Effect.mapError(unavailable));
-      if (activated === undefined) {
-        return yield* conflict('REVISION', 'Variant activation changed concurrently');
-      }
     }
     yield* insertRevision(transaction, {
       actionInvocationId: input.actionInvocationId,
