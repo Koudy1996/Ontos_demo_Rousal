@@ -2,7 +2,13 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { productRevisions, productVariantRevisions, productVariants, products } from '../../src/database/schema.ts';
+import {
+  productLocalizedFacts,
+  productRevisions,
+  productVariantRevisions,
+  productVariants,
+  products,
+} from '../../src/database/schema.ts';
 import { catalogPersistenceForScope } from '../../src/persistence/catalog-persistence.ts';
 
 /* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type, sonarjs/no-nested-functions -- The Drizzle transaction mock records heterogeneous table inserts and only implements Product creation's exercised query chains. expires: 2027-03-31. */
@@ -35,16 +41,21 @@ describe('Product create initial Variant history', () => {
         }),
         select: () => ({
           from: (table: unknown) => ({
-            where: () => ({
-              limit: () => {
-                expect(table).toBe(products);
-                return Effect.succeed([{ ...writes[0]?.[1], createdAt: now, currentRevision: 1, updatedAt: now }]);
-              },
-              orderBy: () => {
-                expect(table).toBe(productVariants);
-                return Effect.succeed([{ ...writes[1]?.[1], createdAt: now }]);
-              },
-            }),
+            where: () =>
+              table === productLocalizedFacts
+                ? Effect.succeed([])
+                : {
+                    limit: () => {
+                      expect(table).toBe(products);
+                      return Effect.succeed([
+                        { ...writes[0]?.[1], createdAt: now, currentRevision: 1, updatedAt: now },
+                      ]);
+                    },
+                    orderBy: () => {
+                      expect(table).toBe(productVariants);
+                      return Effect.succeed([{ ...writes[1]?.[1], createdAt: now }]);
+                    },
+                  },
           }),
         }),
       };

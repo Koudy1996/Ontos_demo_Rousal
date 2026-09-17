@@ -210,7 +210,9 @@ describe('Catalog Product Action contracts', () => {
   it('separates Product Editor from Product lifecycle authority', () => {
     expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain(createProductAction.descriptor.actionKey);
     expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain(correctProductAction.descriptor.actionKey);
-    for (const lifecycleAction of [updateProductAction, retireProductAction, reactivateProductAction]) {
+    expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain(updateProductAction.descriptor.actionKey);
+    expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).not.toContain(updateProductAction.descriptor.actionKey);
+    for (const lifecycleAction of [retireProductAction, reactivateProductAction]) {
       expect(catalogAuthorityBundles.PRODUCT_EDITOR).not.toContain(lifecycleAction.descriptor.actionKey);
       expect(catalogAuthorityBundles.CATALOG_LIFECYCLE_MANAGER).toContain(lifecycleAction.descriptor.actionKey);
     }
