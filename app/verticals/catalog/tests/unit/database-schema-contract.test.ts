@@ -177,6 +177,11 @@ it('reserves SKU across exact target kinds and keeps assignment provenance separ
   expect(getTableConfig(commercialSkuAssignmentRevisions).foreignKeys.map((key) => key.getName())).toContain(
     'catalog_sku_assignment_revisions_reservation_fk',
   );
+  expect(
+    getTableConfig(commercialSkuAssignmentRevisions)
+      .uniqueConstraints.find((key) => key.name === 'catalog_sku_assignment_revisions_invocation_uk')
+      ?.columns.map((column) => column.name),
+  ).toEqual(['tenant_id', 'normalized_code', 'action_invocation_id']);
   expect(getTableConfig(commercialGtinAssignments).checks.map((item) => item.name)).toContain(
     'catalog_gtin_assignments_digits_ck',
   );

@@ -1196,7 +1196,11 @@ export const commercialSkuAssignmentRevisions = catalogSchema.table.withRLS(
       columns: [table.tenantId, table.normalizedCode, table.revision],
       name: 'catalog_sku_assignment_revisions_pk',
     }),
-    unique('catalog_sku_assignment_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    unique('catalog_sku_assignment_revisions_invocation_uk').on(
+      table.tenantId,
+      table.normalizedCode,
+      table.actionInvocationId,
+    ),
     foreignKey({
       columns: [table.tenantId, table.normalizedCode],
       foreignColumns: [commercialSkuReservations.tenantId, commercialSkuReservations.normalizedCode],
