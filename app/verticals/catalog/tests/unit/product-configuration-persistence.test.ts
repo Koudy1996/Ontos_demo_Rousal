@@ -1,5 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Exit, Schema } from 'effect';
+import { Effect, Exit, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
@@ -231,6 +231,66 @@ describe('Product Configuration private publication', () => {
         productConfigurationMeasuredRules,
         productConfigurationCompatibilityRules,
       ]);
+    }),
+  );
+});
+
+const statefulFixture = () => {
+  const rows = new Map<Table, WriteValue[]>();
+  const loaded = (table: Table) =>
+    Effect.succeed(table === products ? [{ lifecycleState: 'ACTIVE' }] : (rows.get(table) ?? []));
+  const filter = (table: Table) =>
+    Object.assign(loaded(table), {
+      for: () => ({ limit: () => loaded(table) }),
+      limit: () => loaded(table),
+    });
+  return {
+    rows,
+    transaction: {
+      insert: (table: Table) => ({
+        values: (value: WriteValue | readonly WriteValue[]) => {
+          rows.set(table, [...(rows.get(table) ?? []), ...(Array.isArray(value) ? value : [value])]);
+          return empty;
+        },
+      }),
+      select: () => ({ from: (table: Table) => ({ where: () => filter(table) }) }),
+    },
+  };
+};
+
+describe('Product Configuration effectiveness timeline', () => {
+  it.effect('keeps a future publication non-Current until inclusive effectiveFrom and replays exactly', () =>
+    Effect.gen(function* futureAndReplay() {
+      const state = statefulFixture();
+      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
+        verify: () => Effect.succeed(true),
+      });
+      const first = yield* service.publish(input);
+      expect('revision' in first ? first.revision : null).toBe(1);
+      const before = yield* service.readCurrent({
+        at: new Date('2026-09-17T23:59:59.999Z'),
+        definitionId: input.definitionId,
+        productId: input.productId,
+      });
+      expect(Option.isNone(before)).toBe(true);
+      const atStart = yield* service.readCurrent({
+        at: input.effectiveFrom,
+        definitionId: input.definitionId,
+        productId: input.productId,
+      });
+      expect(Option.isSome(atStart)).toBe(true);
+      if (Option.isSome(atStart)) {
+        expect(atStart.value.ruleCombination).toBe('CONJUNCTION_ONLY');
+      }
+      const replay = yield* service.publish(input);
+      expect('revision' in replay ? replay.revision : null).toBe(1);
+      expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(1);
+      const conflict = yield* service.publish({
+        ...input,
+        choices: [{ ...input.choices[0], label: 'New label' }, input.choices[1]],
+      });
+      expect('reason' in conflict ? conflict.reason : null).toContain('different Configuration rule snapshot');
     }),
   );
 });
