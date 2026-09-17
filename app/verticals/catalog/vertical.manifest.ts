@@ -15,13 +15,14 @@ import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.t
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
+import { CreateProductRecoveryApi } from './shared/apis/create-product-recovery.ts';
 import { ProductDetailApi } from './shared/apis/product-detail.ts';
 import { ProductHistoryApi } from './shared/apis/product-history.ts';
 import { productResourceDescriptor } from './shared/resources/product.ts';
-import { variantResourceDescriptor } from './shared/resources/variant.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
+import { variantResourceDescriptor } from './shared/resources/variant.ts';
 // </generated-module-manifest-imports>
 
 type NavigationContributionInput = typeof ShellNavigationContributionSchema.Encoded;
@@ -67,6 +68,7 @@ export const catalogManifest = defineOntosModuleManifest({
     ],
     api: {
       // <generated-module-manifest-apis>
+      'create-product-recovery': CreateProductRecoveryApi,
       'product-detail': ProductDetailApi,
       'product-history': ProductHistoryApi,
       // </generated-module-manifest-apis>

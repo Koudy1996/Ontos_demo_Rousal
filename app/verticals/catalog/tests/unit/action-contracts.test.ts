@@ -135,7 +135,7 @@ describe('Catalog Product Action contracts', () => {
     expect(staleIntent.status).toBe(409);
     expect(persistenceUnavailable.status).toBe(503);
     expect(indeterminate).toMatchObject({
-      resolution: 'RESOLVE_COMMIT',
+      resolution: 'RECOVER_CREATE_PRODUCT',
       retryCommand: false,
       status: 503,
     });

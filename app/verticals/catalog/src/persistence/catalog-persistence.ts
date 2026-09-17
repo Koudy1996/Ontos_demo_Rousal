@@ -17,6 +17,8 @@ import {
   type ProductVariant,
 } from '../../shared/domain/product.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
+import { CreateProductResultSchema } from '../../shared/actions/create-product.ts';
+import type { CreateProductResult } from '../../shared/actions/create-product.ts';
 import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
 import { productLifecycleEvents, productRevisions, productVariants, products } from '../database/schema.ts';
@@ -336,6 +338,10 @@ const insertLifecycleEvent = (
     .pipe(Effect.mapError(mapCatalogWriteError));
 
 export interface CatalogPersistence {
+  readonly getCreatedByInvocation: (
+    invocationId: string,
+    principalId: string,
+  ) => Effect.Effect<Option.Option<CreateProductResult>, CatalogPersistenceUnavailable>;
   readonly correct: (
     input: CorrectProductPersistenceInput,
   ) => Effect.Effect<CorrectProductPersistenceOutcome, CatalogPersistenceConflict | CatalogPersistenceUnavailable>;
@@ -362,6 +368,69 @@ export const catalogPersistenceForScope = (
   scope: OperationalScope,
 ): Effect.Effect<CatalogPersistence> => {
   const tenantId = scope.tenantId;
+
+  const getCreatedByInvocation: CatalogPersistence['getCreatedByInvocation'] = Effect.fn(
+    'CatalogPersistence.getCreatedByInvocation',
+  )(function* getCreatedByInvocation(invocationId, principalId) {
+    const [created] = yield* transaction
+      .select()
+      .from(products)
+      .where(
+        and(
+          eq(products.tenantId, tenantId),
+          eq(products.createdByActionInvocationId, invocationId),
+          eq(products.createdByPrincipalId, principalId),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (created === undefined) return Option.none<CreateProductResult>();
+    const [revision] = yield* transaction
+      .select()
+      .from(productRevisions)
+      .where(
+        and(
+          eq(productRevisions.tenantId, tenantId),
+          eq(productRevisions.productId, created.productId),
+          eq(productRevisions.actionInvocationId, invocationId),
+          eq(productRevisions.revision, 1),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    const [variant] = yield* transaction
+      .select()
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.tenantId, tenantId),
+          eq(productVariants.productId, created.productId),
+          eq(productVariants.createdByActionInvocationId, invocationId),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (revision?.changeKind !== 'CREATED' || variant === undefined) {
+      return yield* unavailable();
+    }
+    const initialVariant = toVariant({ ...variant, lifecycleState: 'WORK_IN_PROGRESS' });
+    const product = {
+      catalogReady: false,
+      createdAt: created.createdAt.toISOString(),
+      ...(revision.description === null ? {} : { description: revision.description }),
+      lifecycle: 'DRAFT' as const,
+      ...(revision.name === null ? {} : { name: revision.name }),
+      productRef: productRef(tenantId, created.productId),
+      revision: 1,
+      updatedAt: created.createdAt.toISOString(),
+      variants: [initialVariant],
+    };
+    const result = yield* Schema.decodeEffect(CreateProductResultSchema)({
+      product,
+      variantId: variant.variantId,
+    }).pipe(Effect.mapError(unavailable));
+    return Option.some(result);
+  });
 
   const getCurrent: CatalogPersistence['getCurrent'] = Effect.fn('CatalogPersistence.getCurrent')(
     function* getCurrent(productId) {
@@ -838,6 +907,7 @@ export const catalogPersistenceForScope = (
       correct,
       create,
       getCurrent,
+      getCreatedByInvocation,
       getHistory,
       reactivate,
       retire,

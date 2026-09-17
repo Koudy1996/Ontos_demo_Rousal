@@ -27,6 +27,7 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 // <generated-governed-http-handler-imports>
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
 import { createProductActionApiLive } from './create-product-action-server.ts';
+import { createProductRecoveryReadApiLive } from './create-product-recovery-read-server.ts';
 import { productDetailReadApiLive } from './product-detail-read-server.ts';
 import { productHistoryReadApiLive } from './product-history-read-server.ts';
 import { reactivateProductActionApiLive } from './reactivate-product-action-server.ts';
@@ -128,6 +129,7 @@ export const makeCatalogApiRuntime = (
     // <generated-governed-http-handler-layers>
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createProductRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productDetailReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reactivateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

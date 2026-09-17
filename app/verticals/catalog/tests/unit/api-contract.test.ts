@@ -56,6 +56,7 @@ it.effect('rejects a foreign Product before resolving tenant-local persistence',
     const services: CatalogPersistence = {
       correct: () => Effect.die('unused'),
       create: () => Effect.die('unused'),
+      getCreatedByInvocation: () => Effect.die('unused'),
       getCurrent: () => {
         currentReads += 1;
         return Effect.die('foreign Product was read');
@@ -98,7 +99,7 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   }
   expect(catalogAuthorityBundles.CATALOG_DEFINITION_MANAGER).toEqual([]);
   // #411B/#481 Definition Manager, importer, and overrides are deferred.
-  expect(contracts).toHaveLength(7);
+  expect(contracts).toHaveLength(8);
   const bundlePermissions = Object.values(catalogAuthorityBundles).flat();
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
   expect(bundlePermissions).toHaveLength(contracts.length);

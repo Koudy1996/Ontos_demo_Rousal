@@ -10,6 +10,7 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 // <generated-governed-http-api-imports>
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
 import { CreateProductActionApi } from './apis/create-product-action.ts';
+import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
 import { ProductDetailApi } from './apis/product-detail.ts';
 import { ProductHistoryApi } from './apis/product-history.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
@@ -41,6 +42,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   // <generated-governed-http-api-additions>
   .addHttpApi(CorrectProductActionApi)
   .addHttpApi(CreateProductActionApi)
+  .addHttpApi(CreateProductRecoveryApi)
   .addHttpApi(ProductDetailApi)
   .addHttpApi(ProductHistoryApi)
   .addHttpApi(ReactivateProductActionApi)
@@ -76,6 +78,14 @@ export const catalogApiContract = {
  * #411B/#481 and are deliberately absent from this inventory.
  */
 export const catalogPublicOperationContracts = {
+  'commerce.catalog.api.create-product-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.create-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.product-detail': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
@@ -141,7 +151,11 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.retire-product',
     'commerce.catalog.update-product',
   ],
-  CATALOG_READER: ['commerce.catalog.read.product-detail', 'commerce.catalog.read.product-history'],
+  CATALOG_READER: [
+    'commerce.catalog.read.create-product-recovery',
+    'commerce.catalog.read.product-detail',
+    'commerce.catalog.read.product-history',
+  ],
   PRODUCT_EDITOR: ['commerce.catalog.create-product', 'commerce.catalog.correct-product'],
 } as const;
 

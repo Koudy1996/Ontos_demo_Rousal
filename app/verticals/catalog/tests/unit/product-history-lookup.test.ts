@@ -40,6 +40,7 @@ const services: CatalogPersistence = {
   correct: () => Effect.die('unused'),
   create: () => Effect.die('unused'),
   getCurrent: () => Effect.die('unused'),
+  getCreatedByInvocation: () => Effect.die('unused'),
   getHistory: () => Effect.succeed(Option.some(history)),
   reactivate: () => Effect.die('unused'),
   retire: () => Effect.die('unused'),
