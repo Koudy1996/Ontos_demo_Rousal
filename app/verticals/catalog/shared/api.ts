@@ -13,6 +13,7 @@ import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
 import { CreateAttributeDefinitionActionApi } from './apis/create-attribute-definition-action.ts';
 import { CreateControlledAttributeValueActionApi } from './apis/create-controlled-attribute-value-action.ts';
+import { CreatePackageDefinitionActionApi } from './apis/create-package-definition-action.ts';
 import { CreateProductActionApi } from './apis/create-product-action.ts';
 import { CreateProductCategoryActionApi } from './apis/create-product-category-action.ts';
 import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
@@ -31,9 +32,11 @@ import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-defi
 import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
 import { RenameProductCategoryActionApi } from './apis/rename-product-category-action.ts';
 import { RetireControlledAttributeValueActionApi } from './apis/retire-controlled-attribute-value-action.ts';
+import { RetirePackageDefinitionActionApi } from './apis/retire-package-definition-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
 import { RetireVariantActionApi } from './apis/retire-variant-action.ts';
+import { RevisePackageDefinitionActionApi } from './apis/revise-package-definition-action.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
 import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
@@ -66,6 +69,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CorrectProductActionApi)
   .addHttpApi(CreateAttributeDefinitionActionApi)
   .addHttpApi(CreateControlledAttributeValueActionApi)
+  .addHttpApi(CreatePackageDefinitionActionApi)
   .addHttpApi(CreateProductActionApi)
   .addHttpApi(CreateProductCategoryActionApi)
   .addHttpApi(CreateProductRecoveryApi)
@@ -84,9 +88,11 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RenameControlledAttributeValueActionApi)
   .addHttpApi(RenameProductCategoryActionApi)
   .addHttpApi(RetireControlledAttributeValueActionApi)
+  .addHttpApi(RetirePackageDefinitionActionApi)
   .addHttpApi(RetireProductActionApi)
   .addHttpApi(RetireProductCategoryActionApi)
   .addHttpApi(RetireVariantActionApi)
+  .addHttpApi(RevisePackageDefinitionActionApi)
   .addHttpApi(ReviseProductTypeActionApi)
   .addHttpApi(SetProductTypeActionApi)
   .addHttpApi(UpdateProductActionApi)
@@ -122,6 +128,7 @@ export const catalogApiContract = {
 const productCategoryBusinessTarget = 'product-category';
 const attributeDefinitionBusinessTarget = 'attribute-definition';
 const controlledAttributeValueBusinessTarget = 'controlled-attribute-value';
+const packageDefinitionBusinessTarget = 'package-definition';
 
 export const catalogPublicOperationContracts = {
   'commerce.catalog.add-product-category-assignment': {
@@ -200,6 +207,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: controlledAttributeValueBusinessTarget,
     permission: 'commerce.catalog.create-controlled-attribute-value',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.create-package-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.create-package-definition',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -308,6 +323,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.retire-package-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.retire-package-definition',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.retire-product': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'product',
@@ -328,6 +351,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'variant',
     permission: 'commerce.catalog.retire-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.revise-package-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.revise-package-definition',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -362,6 +393,7 @@ export const catalogAuthorityBundles = {
   CATALOG_DEFINITION_MANAGER: [
     'commerce.catalog.create-attribute-definition',
     'commerce.catalog.create-controlled-attribute-value',
+    'commerce.catalog.create-package-definition',
     'commerce.catalog.create-product-category',
     'commerce.catalog.create-product-type',
     'commerce.catalog.move-product-category',
@@ -370,7 +402,9 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.rename-controlled-attribute-value',
     'commerce.catalog.rename-product-category',
     'commerce.catalog.retire-controlled-attribute-value',
+    'commerce.catalog.retire-package-definition',
     'commerce.catalog.retire-product-category',
+    'commerce.catalog.revise-package-definition',
     'commerce.catalog.revise-product-type',
   ],
   CATALOG_LIFECYCLE_MANAGER: [

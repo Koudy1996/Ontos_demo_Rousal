@@ -758,7 +758,7 @@ Options:
 Generate one public Effect Schema-backed ResourceRef and register its conservative descriptor.
 
 Required flags:
-  --vertical <vertical>  Existing generated vertical folder (lower-kebab-case)
+  --vertical <vertical>  Existing generated vertical folder or core for Core-owned references
   --resource <resource>  Stable resource name (lower-kebab-case)
 
 Options:

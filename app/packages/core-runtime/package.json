@@ -14,6 +14,7 @@
     "./http/principal-authentication": "./src/http/principal-authentication.ts",
     "./install/stage-context-bootstrap": "./src/install/stage-context-bootstrap.ts",
     "./outbox/worker": "./src/outbox/worker-entrypoint.ts",
+    "./resources/legal-entity": "./src/resources/legal-entity.ts",
     "./testing/actions": "./src/testing/actions.ts",
     "./workspace-environment": "./src/environment/workspace-environment.ts"
   },
