@@ -12,8 +12,10 @@ import {
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
+import { attributeDefinitionResourceDescriptor } from './shared/resources/attribute-definition.ts';
 import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.ts';
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
+import { controlledAttributeValueResourceDescriptor } from './shared/resources/controlled-attribute-value.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
 import { createProductCategoryAction } from './src/actions/create-product-category.action.ts';
@@ -113,7 +115,9 @@ export const catalogManifest = defineOntosModuleManifest({
     ],
     resourceTypes: [
       // <generated-module-manifest-resources>
+      attributeDefinitionResourceDescriptor,
       catalogRootResourceDescriptor,
+      controlledAttributeValueResourceDescriptor,
       productCategoryResourceDescriptor,
       productResourceDescriptor,
       productTypeResourceDescriptor,
