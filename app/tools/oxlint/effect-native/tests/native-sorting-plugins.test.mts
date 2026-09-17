@@ -1,14 +1,16 @@
+import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { it, expect } from 'effect-rstest';
 
-import { appRoot, runOxlint } from './oxlint.mts';
+import { appRoot, parseOxlintOutput, runOxlint } from './oxlint.mts';
 import { withTemporaryWorkspace } from './temporary-workspace.mts';
 
 const applicationRequire = createRequire(path.join(appRoot, 'package.json'));
 const plugin = applicationRequire.resolve('eslint-plugin-perfectionist');
+const oxlint = path.join(path.dirname(applicationRequire.resolve('oxlint/package.json')), 'bin/oxlint');
 const cases = [
   {
     invalid: 'enum Status { Alpha = 20, Zulu = 1 }',
@@ -44,8 +46,48 @@ const cases = [
   },
 ];
 
-it('native sorting integration does not resolve the ESLint runner', () => {
-  expect(() => applicationRequire.resolve('eslint')).toThrow(/Cannot find module 'eslint'/u);
+it('native sorting integration runs without loading the ESLint runner', () => {
+  withTemporaryWorkspace((directory) => {
+    const guard = path.join(directory, 'block-eslint.mjs');
+    writeFileSync(
+      guard,
+      `import { registerHooks } from 'node:module';
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === 'eslint' || specifier.startsWith('eslint/')) {
+      throw new Error('Native sorting loaded the ESLint runner: ' + specifier);
+    }
+    return nextResolve(specifier, context);
+  },
+});
+`,
+    );
+    const config = path.join(directory, 'oxlint.json');
+    writeFileSync(
+      config,
+      JSON.stringify({
+        categories: { correctness: 'off' },
+        jsPlugins: [{ name: 'perfectionist', specifier: plugin }],
+        rules: { 'perfectionist/sort-objects': 'error' },
+      }),
+    );
+    const source = path.join(directory, 'fixture.ts');
+    writeFileSync(source, 'const view = { zebra: 1, alpha: 2 };');
+    const result = spawnSync(
+      process.execPath,
+      [oxlint, '-c', config, '--format=json', '--disable-nested-config', source],
+      {
+        cwd: directory,
+        encoding: 'utf8',
+        timeout: 120_000,
+        env: { ...process.env, NODE_OPTIONS: `--import=${guard}` },
+      },
+    );
+    if (result.error) throw result.error;
+    const report = parseOxlintOutput(result.stdout ?? '', result.stderr ?? '', result.status);
+    expect(report.exitCode).toBe(1);
+    expect(report.diagnostics.some(({ code }) => code === 'perfectionist(sort-objects)')).toBeTruthy();
+  });
 });
 
 for (const fixture of cases) {
