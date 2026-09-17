@@ -46,8 +46,37 @@ export type ProductTypeReadinessEvaluation =
 
 const sameRef = (left: ProductRef | VariantRef, right: ProductRef | VariantRef): boolean =>
   left.tenantId === right.tenantId && left.resourceId === right.resourceId;
+const catalogModuleId = 'commerce.catalog';
+const definitionResourceType = 'commerce.catalog.attribute-definition';
+
+const effectiveSourceProblem = (
+  result: Extract<EffectiveAttributeValuesResult, { readonly status: 'CURRENT' }>,
+  productRef: ProductRef,
+  variantRef: VariantRef,
+): string | null => {
+  const effectiveSource = result.source;
+  if (effectiveSource === undefined) {
+    return null;
+  }
+  if (!sameRef(effectiveSource.productRef, productRef)) {
+    return 'Effective value belongs to another Product';
+  }
+  const sourceVariantRef = effectiveSource.variantRef;
+  if (sourceVariantRef !== undefined && !sameRef(sourceVariantRef, variantRef)) {
+    return 'Effective value belongs to another Variant';
+  }
+  if (
+    effectiveSource.level === 'PRODUCT'
+      ? sourceVariantRef !== undefined || effectiveSource.revision !== result.productRevision
+      : sourceVariantRef === undefined || effectiveSource.revision !== result.variantRevision
+  ) {
+    return 'Effective value source revision is inconsistent';
+  }
+  return null;
+};
 
 const snapshotProblem = ({
+  productValues,
   productValueSource,
   source,
   variantRefs,
@@ -60,13 +89,41 @@ const snapshotProblem = ({
   ) {
     return 'Complete Current Product value source is unavailable';
   }
+  const productValueIds = new Set<string>();
+  for (const value of productValues) {
+    const ref = value.attributeDefinitionRef;
+    if (
+      ref.tenantId !== source.productRef.tenantId ||
+      ref.moduleId !== catalogModuleId ||
+      ref.resourceType !== definitionResourceType
+    ) {
+      return 'Product value inventory contains a foreign Attribute Definition';
+    }
+    if (productValueIds.has(ref.resourceId)) {
+      return 'Product value inventory contains a duplicate Attribute Definition';
+    }
+    productValueIds.add(ref.resourceId);
+  }
+  if (
+    variantRefs.some(
+      (variant) =>
+        variant.tenantId !== source.productRef.tenantId ||
+        variant.moduleId !== catalogModuleId ||
+        variant.resourceType !== 'commerce.catalog.variant',
+    )
+  ) {
+    return 'Current Variant inventory contains a foreign Variant';
+  }
   const variantIds = new Set(variantRefs.map((variant) => variant.resourceId));
   if (
     variantIds.size !== variantRefs.length ||
     variants.length !== variantRefs.length ||
     variants.some(
       (variant) =>
-        variant.variantRef.tenantId !== source.productRef.tenantId || !variantIds.has(variant.variantRef.resourceId),
+        variant.variantRef.tenantId !== source.productRef.tenantId ||
+        variant.variantRef.moduleId !== catalogModuleId ||
+        variant.variantRef.resourceType !== 'commerce.catalog.variant' ||
+        !variantIds.has(variant.variantRef.resourceId),
     ) ||
     new Set(variants.map((variant) => variant.variantRef.resourceId)).size !== variants.length
   ) {
@@ -105,6 +162,9 @@ export const evaluateCurrentProductTypeReadiness = (
       : { reason: 'Untyped Product snapshot is malformed', status: 'INDETERMINATE' };
   }
   const { basis, rulesRevision } = source;
+  if (!Number.isSafeInteger(source.assignmentRevision) || source.assignmentRevision < 1) {
+    return { reason: 'Current Product Type assignment revision is invalid', status: 'INDETERMINATE' };
+  }
   const valueRevisions: {
     attributeDefinitionId: string;
     productRevision?: number | undefined;
@@ -121,14 +181,31 @@ export const evaluateCurrentProductTypeReadiness = (
       }
       seen.add(value.attributeDefinitionId);
       const { result } = value;
+      if (
+        !rulesRevision.rules.some(
+          (rule) => rule.level === 'VARIANT' && rule.attributeDefinitionRef.resourceId === value.attributeDefinitionId,
+        )
+      ) {
+        return { reason: 'Effective Variant inventory contains a foreign rule', status: 'INDETERMINATE' };
+      }
+      if (result.status === 'INVALID_VALUE') {
+        values.push({
+          attributeDefinitionRef: {
+            moduleId: catalogModuleId,
+            resourceId: value.attributeDefinitionId,
+            resourceType: definitionResourceType,
+            tenantId: source.productRef.tenantId,
+          },
+          valid: false,
+        });
+        continue;
+      }
       if (result.status !== 'CURRENT') {
         return { reason: `Effective value is ${result.status}`, status: 'INDETERMINATE' };
       }
-      if (result.source !== undefined && !sameRef(result.source.productRef, source.productRef)) {
-        return { reason: 'Effective value belongs to another Product', status: 'INDETERMINATE' };
-      }
-      if (result.source?.variantRef !== undefined && !sameRef(result.source.variantRef, variant.variantRef)) {
-        return { reason: 'Effective value belongs to another Variant', status: 'INDETERMINATE' };
+      const sourceProblem = effectiveSourceProblem(result, source.productRef, variant.variantRef);
+      if (sourceProblem !== null) {
+        return { reason: sourceProblem, status: 'INDETERMINATE' };
       }
       valueRevisions.push({
         attributeDefinitionId: value.attributeDefinitionId,
@@ -139,9 +216,9 @@ export const evaluateCurrentProductTypeReadiness = (
       if (result.values.length > 0) {
         values.push({
           attributeDefinitionRef: {
-            moduleId: 'commerce.catalog',
+            moduleId: catalogModuleId,
             resourceId: value.attributeDefinitionId,
-            resourceType: 'commerce.catalog.attribute-definition',
+            resourceType: definitionResourceType,
             tenantId: source.productRef.tenantId,
           },
           valid: true,

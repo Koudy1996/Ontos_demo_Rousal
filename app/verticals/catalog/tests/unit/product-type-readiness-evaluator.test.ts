@@ -100,4 +100,100 @@ describe('private Product Type readiness evaluation', () => {
       }).status,
     ).toBe('UNTYPED_PARTIAL');
   });
+
+  it('rejects duplicate and foreign Product value inventories', () => {
+    const value = { attributeDefinitionRef: definitionRef, valid: true };
+    const base = {
+      productValueSource: { complete: true as const, revision: 1 },
+      source,
+      variantRefs: [],
+      variants: [],
+    };
+    expect(evaluateCurrentProductTypeReadiness({ ...base, productValues: [value, value] }).status).toBe(
+      'INDETERMINATE',
+    );
+    expect(
+      evaluateCurrentProductTypeReadiness({
+        ...base,
+        productValues: [
+          { ...value, attributeDefinitionRef: { ...definitionRef, tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } },
+        ],
+      }).status,
+    ).toBe('INDETERMINATE');
+  });
+
+  it('rejects foreign or incomplete Variant inventories', () => {
+    const base = { productValues: [], productValueSource: { complete: true as const, revision: 1 }, source };
+    expect(
+      evaluateCurrentProductTypeReadiness({
+        ...base,
+        variantRefs: [{ ...variantRef, tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
+        variants: [],
+      }).status,
+    ).toBe('INDETERMINATE');
+    expect(
+      evaluateCurrentProductTypeReadiness({
+        ...base,
+        variantRefs: [variantRef],
+        variants: [{ effectiveValues: [], variantRef }],
+      }).status,
+    ).toBe('INDETERMINATE');
+  });
+
+  it('fails an invalid optional effective value rather than treating it as absent', () => {
+    const optionalSource = {
+      ...source,
+      rulesRevision: {
+        ...source.rulesRevision,
+        rules: [{ attributeDefinitionRef: definitionRef, level: 'VARIANT' as const, required: false }],
+      },
+    };
+    const result = evaluateCurrentProductTypeReadiness({
+      productValues: [],
+      productValueSource: { complete: true, revision: 2 },
+      source: optionalSource,
+      variantRefs: [variantRef],
+      variants: [
+        {
+          effectiveValues: [
+            {
+              attributeDefinitionId: definitionRef.resourceId,
+              result: { reasons: ['bad value'], status: 'INVALID_VALUE' },
+            },
+          ],
+          variantRef,
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      rules: { violations: [{ kind: 'INVALID', variantId: variantRef.resourceId }] },
+      status: 'INVALID',
+    });
+  });
+
+  it('rejects mismatched effective source revisions', () => {
+    const result = evaluateCurrentProductTypeReadiness({
+      productValues: [],
+      productValueSource: { complete: true, revision: 2 },
+      source,
+      variantRefs: [variantRef],
+      variants: [
+        {
+          effectiveValues: [
+            {
+              attributeDefinitionId: definitionRef.resourceId,
+              result: {
+                source: { level: 'VARIANT', productRef, revision: 4, variantRef },
+                status: 'CURRENT',
+                values: [],
+                variantRevision: 5,
+              },
+            },
+          ],
+          variantRef,
+        },
+      ],
+    });
+    expect(result.status).toBe('INDETERMINATE');
+  });
 });
