@@ -3,12 +3,15 @@ import { describe, expect, it } from 'effect-rstest';
 
 import { PackageDefinitionContentInputSchema } from '../../shared/actions/package-definition-contract.ts';
 import { packageContentBasisForTransaction } from '../../src/actions/package-definition-action-support.ts';
+import type { CurrentSetCompositionBasis } from '../../src/actions/package-definition-action-support.ts';
 import {
   packageDefinitions,
   productUnitRuleRevisions,
   productUnits,
   productVariants,
   products,
+  setCompositionRevisions,
+  setCompositions,
 } from '../../src/database/schema.ts';
 import type { packageContentRevisions } from '../../src/database/schema.ts';
 
@@ -18,6 +21,7 @@ const variantId = '44444444-4444-4444-8444-444444444444';
 const packageId = '55555555-5555-4555-8555-555555555555';
 const lowerId = '77777777-7777-4777-8777-777777777777';
 const unitId = '66666666-6666-4666-8666-666666666666';
+const compositionId = '88888888-8888-4888-8888-888888888888';
 const ref = (resourceType: string, resourceId: string) => ({
   moduleId: 'commerce.catalog',
   resourceId,
@@ -45,7 +49,16 @@ const lowerRow = {
   variantId,
 };
 interface Overrides {
-  readonly lower?: typeof lowerRow;
+  readonly composition?: { readonly currentRevision: number } | null;
+  readonly compositionRevision?: {
+    readonly effectiveFrom: Date;
+    readonly effectiveTo: Date | null;
+    readonly lifecycleState: string;
+  } | null;
+  readonly lower?: Omit<typeof lowerRow, 'setCompositionResourceId' | 'setCompositionRevision'> & {
+    readonly setCompositionResourceId: string | null;
+    readonly setCompositionRevision: number | null;
+  };
   readonly unit?: { readonly lifecycleState: string } | null;
 }
 type Table =
@@ -54,6 +67,8 @@ type Table =
   | typeof productUnits
   | typeof productUnitRuleRevisions
   | typeof packageDefinitions
+  | typeof setCompositions
+  | typeof setCompositionRevisions
   | typeof packageContentRevisions;
 const rowsForTable = (table: Table, overrides: Overrides) => {
   if (table === products || table === productVariants) {
@@ -68,6 +83,20 @@ const rowsForTable = (table: Table, overrides: Overrides) => {
   if (table === packageDefinitions) {
     return [{ productId, variantId }];
   }
+  if (table === setCompositions) {
+    return overrides.composition === null ? [] : [overrides.composition ?? { currentRevision: 1 }];
+  }
+  if (table === setCompositionRevisions) {
+    return overrides.compositionRevision === null
+      ? []
+      : [
+          overrides.compositionRevision ?? {
+            effectiveFrom: new Date('1900-01-01'),
+            effectiveTo: null,
+            lifecycleState: 'ACTIVE',
+          },
+        ];
+  }
   return [overrides.lower ?? lowerRow];
 };
 const query = (table: Table, overrides: Overrides) => ({
@@ -78,6 +107,11 @@ const transaction = (overrides: Overrides = {}) => ({
 });
 
 describe('Package Content Current basis', () => {
+  const setContent = Schema.decodeUnknownSync(PackageDefinitionContentInputSchema)({
+    ...content,
+    setComposition: { resourceRef: ref('set-composition', compositionId), revision: 1 },
+  });
+  const attested: CurrentSetCompositionBasis = { verifyComponents: () => Effect.succeed(true) };
   it.effect('accepts owned Unit and exact lower revision with matching conversion', () =>
     Effect.gen(function* acceptsExactLower() {
       // @ts-expect-error Mock implements only the exercised Drizzle read chain.
@@ -100,11 +134,52 @@ describe('Package Content Current basis', () => {
       }
       // @ts-expect-error Mock implements only the exercised Drizzle read chain.
       const basis = packageContentBasisForTransaction(transaction(), tenantId);
-      const setContent = Schema.decodeUnknownSync(PackageDefinitionContentInputSchema)({
-        ...content,
-        setComposition: { resourceRef: ref('set-composition', lowerId), revision: 1 },
-      });
       expect(yield* basis.verify({ content: setContent, definitionId: packageId, tenantId })).toBe(false);
+    }),
+  );
+
+  it.effect('accepts an exact Current Set revision only with owner-attested component proof', () =>
+    Effect.gen(function* acceptsAttestedSet() {
+      // @ts-expect-error Mock implements only the exercised Drizzle read chain.
+      const basis = packageContentBasisForTransaction(transaction(), tenantId, attested);
+      const matchingLower = { ...lowerRow, setCompositionResourceId: compositionId, setCompositionRevision: 1 };
+      const matchingBasis = packageContentBasisForTransaction(
+        // @ts-expect-error Mock implements only the exercised Drizzle read chain.
+        transaction({ lower: matchingLower }),
+        tenantId,
+        attested,
+      );
+      expect(yield* basis.verify({ content: setContent, definitionId: packageId, tenantId })).toBe(false);
+      expect(yield* matchingBasis.verify({ content: setContent, definitionId: packageId, tenantId })).toBe(true);
+    }),
+  );
+
+  it.effect('rejects stale, inactive, future, missing, or unattested Set composition', () =>
+    Effect.gen(function* rejectsUnverifiableSet() {
+      const matchingLower = { ...lowerRow, setCompositionResourceId: compositionId, setCompositionRevision: 1 };
+      const cases: readonly Overrides[] = [
+        { composition: null },
+        { composition: { currentRevision: 2 } },
+        { compositionRevision: null },
+        {
+          compositionRevision: { effectiveFrom: new Date('2020-01-01'), effectiveTo: null, lifecycleState: 'RETIRED' },
+        },
+        { compositionRevision: { effectiveFrom: new Date('2100-01-01'), effectiveTo: null, lifecycleState: 'ACTIVE' } },
+      ];
+      for (const overrides of cases) {
+        const basis = packageContentBasisForTransaction(
+          // @ts-expect-error Mock implements only the exercised Drizzle read chain.
+          transaction({ ...overrides, lower: matchingLower }),
+          tenantId,
+          attested,
+        );
+        expect(yield* basis.verify({ content: setContent, definitionId: packageId, tenantId })).toBe(false);
+      }
+      // @ts-expect-error Mock implements only the exercised Drizzle read chain.
+      const denied = packageContentBasisForTransaction(transaction({ lower: matchingLower }), tenantId, {
+        verifyComponents: () => Effect.succeed(false),
+      });
+      expect(yield* denied.verify({ content: setContent, definitionId: packageId, tenantId })).toBe(false);
     }),
   );
 });

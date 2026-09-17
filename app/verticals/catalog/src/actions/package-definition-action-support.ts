@@ -1,6 +1,6 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { Effect, Match, Option, Schema } from 'effect';
+import { DateTime, Effect, Match, Option, Schema } from 'effect';
 
 import { PackageDefinitionActionError } from '../../shared/actions/package-definition-contract.ts';
 import { resolvePackageContent } from '../../shared/domain/package-content.ts';
@@ -14,6 +14,8 @@ import {
   productUnits,
   productVariants,
   products,
+  setCompositionRevisions,
+  setCompositions,
 } from '../database/schema.ts';
 import type {
   PackageContentBasis,
@@ -26,6 +28,7 @@ type ScopedTransaction = Parameters<typeof packagePersistenceForScope>[0];
 const packageType = 'commerce.catalog.package-definition';
 const moduleId = 'commerce.catalog';
 const productUnitType = 'commerce.catalog.product-unit';
+const setCompositionType = 'commerce.catalog.set-composition';
 const unavailable = (cause?: unknown) => {
   const failure = new PackagePersistenceUnavailable({
     code: 'package_persistence_unavailable',
@@ -38,6 +41,100 @@ const unavailable = (cause?: unknown) => {
 };
 
 type Content = Parameters<PackageContentBasis['verify']>[0]['content'];
+const hasIncompleteSetReference = (row: typeof packageContentRevisions.$inferSelect): boolean =>
+  (row.setCompositionResourceId === null) !== (row.setCompositionRevision === null);
+
+const setCompositionFromRow = Effect.fn('PackageContentBasis.setCompositionFromRow')(function* decodeSetComposition(
+  row: typeof packageContentRevisions.$inferSelect,
+  tenantId: string,
+) {
+  if (row.setCompositionResourceId === null || row.setCompositionRevision === null) {
+    return Option.none();
+  }
+  return Option.some(
+    yield* Schema.decodeEffect(CatalogSelectionRevisionSchema)({
+      resourceRef: { moduleId, resourceId: row.setCompositionResourceId, resourceType: setCompositionType, tenantId },
+      revision: row.setCompositionRevision,
+    }),
+  );
+});
+/** Supplied by the Set owner only when component selections have authoritative Current proof in this transaction. */
+export interface CurrentSetCompositionBasis {
+  readonly verifyComponents: (input: {
+    readonly composition: CatalogSelectionRevision;
+    readonly productId: string;
+    readonly tenantId: string;
+    readonly transaction: ScopedTransaction;
+    readonly variantId: string;
+  }) => Effect.Effect<boolean, PackagePersistenceUnavailable>;
+}
+
+const currentSetComposition = Effect.fn('PackageContentBasis.currentSetComposition')(
+  function* currentSetCompositionRows(
+    transaction: ScopedTransaction,
+    content: Pick<Content, 'form' | 'setComposition'>,
+    tenantId: string,
+    basis: CurrentSetCompositionBasis | undefined,
+  ) {
+    const composition = content.setComposition;
+    if (composition === undefined) {
+      return true;
+    }
+    const { resourceRef, revision } = composition;
+    if (
+      basis === undefined ||
+      resourceRef.moduleId !== moduleId ||
+      resourceRef.resourceType !== setCompositionType ||
+      resourceRef.tenantId !== tenantId ||
+      composition.revisionId !== undefined
+    ) {
+      return false;
+    }
+    const productId = content.form.productRef.resourceId;
+    const variantId = content.form.variantRef.resourceId;
+    const [current] = yield* transaction
+      .select()
+      .from(setCompositions)
+      .where(
+        and(
+          eq(setCompositions.tenantId, tenantId),
+          eq(setCompositions.compositionId, resourceRef.resourceId),
+          eq(setCompositions.productId, productId),
+          eq(setCompositions.variantId, variantId),
+        ),
+      )
+      .for('update')
+      .limit(1);
+    if (current === undefined || current.currentRevision !== revision) {
+      return false;
+    }
+    const [issued] = yield* transaction
+      .select()
+      .from(setCompositionRevisions)
+      .where(
+        and(
+          eq(setCompositionRevisions.tenantId, tenantId),
+          eq(setCompositionRevisions.compositionId, resourceRef.resourceId),
+          eq(setCompositionRevisions.productId, productId),
+          eq(setCompositionRevisions.variantId, variantId),
+          eq(setCompositionRevisions.revision, revision),
+        ),
+      )
+      .for('update')
+      .limit(1);
+    const now = DateTime.toDateUtc(yield* DateTime.now);
+    if (
+      issued === undefined ||
+      issued.lifecycleState !== 'ACTIVE' ||
+      issued.effectiveFrom > now ||
+      (issued.effectiveTo !== null && issued.effectiveTo <= now)
+    ) {
+      return false;
+    }
+    return yield* basis.verifyComponents({ composition, productId, tenantId, transaction, variantId });
+  },
+  Effect.mapError(unavailable),
+);
 const currentSubject = Effect.fn('PackageContentBasis.currentSubject')(function* currentSubjectRows(
   transaction: ScopedTransaction,
   content: Content,
@@ -100,6 +197,7 @@ const loadLower: (
   tenantId: string,
   lower: CatalogSelectionRevision,
   seen: ReadonlySet<string>,
+  setBasis: CurrentSetCompositionBasis | undefined,
 ) => Effect.Effect<Option.Option<readonly PackageContentRevision[]>, PackagePersistenceUnavailable> = Effect.fn(
   'PackageContentBasis.loadLower',
 )(function* loadLowerRows(
@@ -108,6 +206,7 @@ const loadLower: (
   tenantId: string,
   lower: CatalogSelectionRevision,
   seen: ReadonlySet<string>,
+  setBasis: CurrentSetCompositionBasis | undefined,
 ) {
   const lowerId = lower.resourceRef.resourceId;
   if (lower.resourceRef.tenantId !== tenantId || lower.resourceRef.resourceType !== packageType || seen.has(lowerId)) {
@@ -142,8 +241,7 @@ const loadLower: (
     row === undefined ||
     row.productId !== definition.productId ||
     row.variantId !== definition.variantId ||
-    row.setCompositionResourceId !== null ||
-    row.setCompositionRevision !== null
+    hasIncompleteSetReference(row)
   ) {
     return Option.none();
   }
@@ -164,11 +262,16 @@ const loadLower: (
     unitRef: { moduleId, resourceId: row.unitResourceId, resourceType: row.unitResourceType, tenantId } as const,
   };
   const configured = row.configurationKey === null ? base : { ...base, configurationKey: row.configurationKey };
-  const revision: PackageContentRevision = next === undefined ? configured : { ...configured, lower: next };
+  const setComposition = yield* setCompositionFromRow(row, tenantId);
+  const withSet = Option.isNone(setComposition) ? configured : { ...configured, setComposition: setComposition.value };
+  const revision: PackageContentRevision = next === undefined ? withSet : { ...withSet, lower: next };
+  if (!(yield* currentSetComposition(transaction, revision, tenantId, setBasis))) {
+    return Option.none();
+  }
   if (next === undefined) {
     return Option.some([revision]);
   }
-  const tail = yield* loadLower(transaction, content, tenantId, next.revision, new Set([...seen, lowerId]));
+  const tail = yield* loadLower(transaction, content, tenantId, next.revision, new Set([...seen, lowerId]), setBasis);
   return Option.isNone(tail) ? Option.none() : Option.some([revision, ...tail.value]);
 }, Effect.mapError(unavailable));
 
@@ -176,11 +279,11 @@ const loadLower: (
 export const packageContentBasisForTransaction = (
   transaction: ScopedTransaction,
   trustedTenantId: string,
+  setBasis?: CurrentSetCompositionBasis,
 ): PackageContentBasis => ({
   verify: Effect.fn('PackageContentBasis.verify')(function* verify({ content, definitionId, tenantId }) {
     if (
       tenantId !== trustedTenantId ||
-      content.setComposition !== undefined ||
       content.form.productRef.tenantId !== tenantId ||
       content.form.variantRef.tenantId !== tenantId ||
       content.unitRef.tenantId !== tenantId ||
@@ -191,10 +294,20 @@ export const packageContentBasisForTransaction = (
     if (!(yield* currentSubject(transaction, content, tenantId))) {
       return false;
     }
+    if (!(yield* currentSetComposition(transaction, content, tenantId, setBasis))) {
+      return false;
+    }
     if (content.lower === undefined) {
       return true;
     }
-    const revisions = yield* loadLower(transaction, content, tenantId, content.lower.revision, new Set([definitionId]));
+    const revisions = yield* loadLower(
+      transaction,
+      content,
+      tenantId,
+      content.lower.revision,
+      new Set([definitionId]),
+      setBasis,
+    );
     if (Option.isNone(revisions)) {
       return false;
     }
@@ -208,8 +321,12 @@ export const packageContentBasisForTransaction = (
       }),
       unitRef: content.unitRef,
     };
-    const proposed: PackageContentRevision =
+    const withConfiguration =
       content.configurationKey === undefined ? base : { ...base, configurationKey: content.configurationKey };
+    const proposed: PackageContentRevision =
+      content.setComposition === undefined
+        ? withConfiguration
+        : { ...withConfiguration, setComposition: content.setComposition };
     return resolvePackageContent(proposed.reference, [proposed, ...revisions.value], '1').status === 'VALID';
   }, Effect.mapError(unavailable)),
 });
