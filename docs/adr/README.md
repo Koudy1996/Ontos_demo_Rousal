@@ -27,6 +27,7 @@ relevant to the task. An accepted ADR remains current unless a later ADR explici
 | [0020](0020-governed-application-composition.md)           | Governed runtime Application Composition                  | Accepted                          |
 | [0021](0021-attempt-bound-proofs-outside-order-acceptance-bundle.md) | Attempt-bound proofs stay outside the Order Acceptance Bundle | Accepted                       |
 | [0022](0022-optional-provider-neutral-email-delivery.md)    | Optional provider-neutral email delivery capability       | Accepted                          |
+| [0023](0023-inventory-reservation-authority-and-commitment-fence.md) | Inventory reservation authority and commitment fence | Accepted |
 
 ## Status meanings
 
@@ -34,7 +35,8 @@ relevant to the task. An accepted ADR remains current unless a later ADR explici
 - **Accepted** — current durable decision.
 - **Partially superseded** — named parts remain current; the ADR body identifies what a later ADR
   replaced.
-- **Superseded** — retained history; follow the named replacement.
+- **Superseded** — retained history; follow the named replacement without presenting
+  superseded details as current.
 - **Historical planning record** — preserved delivery rationale, not current architecture or
   sequencing guidance; current work belongs in GitHub.
 
