@@ -15,6 +15,8 @@ import {
   attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
+  packageContentRevisions,
+  packageDefinitions,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
@@ -33,7 +35,7 @@ import {
   products,
 } from '../../src/database/schema.ts';
 
-it('owns twenty-three tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns twenty-five tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -51,6 +53,8 @@ it('owns twenty-three tenant-scoped Catalog tables with RLS and immutable histor
     'attribute_value_sets',
     'controlled_attribute_value_revisions',
     'controlled_attribute_values',
+    'package_content_revisions',
+    'package_definitions',
     'product_categories',
     'product_category_assignments',
     'product_category_events',
@@ -76,6 +80,26 @@ it('owns twenty-three tenant-scoped Catalog tables with RLS and immutable histor
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('pins homogeneous Package content to one Variant and an exact lower revision', () => {
+  expect(getTableConfig(packageDefinitions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_package_definitions_variant_fk',
+  ]);
+  expect(getTableConfig(packageContentRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_package_content_revisions_definition_fk',
+    'catalog_package_content_revisions_lower_form_fk',
+    'catalog_package_content_revisions_lower_revision_fk',
+  ]);
+  expect(getTableConfig(packageContentRevisions).checks.map((key) => key.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_package_content_revisions_amount_ck',
+      'catalog_package_content_revisions_lower_ck',
+      'catalog_package_content_revisions_set_ck',
+      'catalog_package_content_revisions_unit_ck',
+    ]),
+  );
+  expect(getTableConfig(packageDefinitions).columns.map((column) => column.name)).toContain('option_state');
 });
 
 it('constrains Product Type revisions, rule levels, and a single current assignment', () => {
@@ -234,4 +258,6 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_variant_revisions_append_only');
   expect(combined).toContain('catalog_product_type_assignment_current_pointer');
   expect(combined).toContain('catalog_product_type_assignment_event_pointer');
+  expect(combined).toContain('catalog_package_content_revisions_append_only');
+  expect(combined).toContain('catalog_package_definitions_identity_immutable');
 });

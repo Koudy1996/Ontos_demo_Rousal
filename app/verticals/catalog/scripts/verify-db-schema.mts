@@ -28,6 +28,7 @@ const pointersAreCurrent = (pointers: {
   category_mismatch: number;
   controlled_value_mismatch: number;
   counter_mismatch: number;
+  package_mismatch: number;
   type_mismatch: number;
   variant_mismatch: number;
 }) => Object.values(pointers).every((count) => count === 0);
@@ -111,7 +112,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 21 ||
+    row.trigger_count !== 23 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
     yield* new CatalogSchemaVerificationError({
@@ -129,6 +130,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         category_mismatch: number;
         controlled_value_mismatch: number;
         counter_mismatch: number;
+        package_mismatch: number;
         type_mismatch: number;
         variant_mismatch: number;
       }>(`select
@@ -209,6 +211,13 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
           or c.current_revision <> (select max(e.category_revision) from catalog.product_category_events e
             where e.tenant_id=c.tenant_id and e.category_id=c.category_id
               and e.change_kind in ('CREATED','RENAMED','MOVED','RETIRED'))) category_mismatch,
+      (select count(*)::integer from catalog.package_definitions d
+        where not exists (select 1 from catalog.package_content_revisions r
+          where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id
+            and r.revision=d.current_revision and r.product_id=d.product_id and r.variant_id=d.variant_id
+            and r.lifecycle_state=d.lifecycle_state)
+          or d.current_revision <> (select max(r.revision) from catalog.package_content_revisions r
+            where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id)) package_mismatch,
       (select count(*)::integer from catalog.product_category_hierarchy_revisions h
         where h.hierarchy_revision <> coalesce((select max(e.hierarchy_revision)
           from catalog.product_category_events e where e.tenant_id=h.tenant_id

@@ -27,6 +27,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'attribute_value_sets',
   'controlled_attribute_value_revisions',
   'controlled_attribute_values',
+  'package_content_revisions',
+  'package_definitions',
   'product_categories',
   'product_category_assignments',
   'product_category_events',
@@ -173,6 +175,132 @@ export const productVariantRevisions = catalogSchema.table.withRLS(
       sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
     ),
     ...tenantRlsPolicies('catalog_product_variant_revisions_tenant', table.tenantId),
+  ],
+);
+
+/** A Package Option is a selectable role of this identity, never a second Resource. */
+export const packageDefinitions = catalogSchema.table.withRLS(
+  'package_definitions',
+  {
+    packageDefinitionId: uuid('package_definition_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    lifecycleState: text('lifecycle_state').default('DRAFT').notNull(),
+    optionState: text('option_state').default('NOT_SELECTABLE').notNull(),
+    currentRevision: integer('current_revision').default(1).notNull(),
+    createdByActionInvocationId: uuid('created_by_action_invocation_id').notNull(),
+    createdByPrincipalId: uuid('created_by_principal_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_package_definitions_scope_id_uk').on(table.tenantId, table.packageDefinitionId),
+    unique('catalog_package_definitions_form_id_uk').on(
+      table.tenantId,
+      table.productId,
+      table.variantId,
+      table.packageDefinitionId,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_package_definitions_variant_fk',
+    }).onDelete('restrict'),
+    index('catalog_package_definitions_variant_idx').on(table.tenantId, table.productId, table.variantId),
+    check('catalog_package_definitions_revision_ck', sql`${table.currentRevision} > 0`),
+    check('catalog_package_definitions_state_ck', sql`${table.lifecycleState} in ('DRAFT', 'ACTIVE', 'RETIRED')`),
+    check(
+      'catalog_package_definitions_option_ck',
+      sql`${table.optionState} in ('NOT_SELECTABLE', 'ACTIVE', 'RETIRED')`,
+    ),
+    ...tenantRlsPolicies('catalog_package_definitions_tenant', table.tenantId),
+  ],
+);
+
+/** The complete, immutable content basis; lower levels bind an exact revision, not latest. */
+export const packageContentRevisions = catalogSchema.table.withRLS(
+  'package_content_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    revision: integer('revision').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    amount: numeric('amount').notNull(),
+    unitResourceType: text('unit_resource_type').notNull(),
+    unitResourceId: uuid('unit_resource_id').notNull(),
+    configurationKey: text('configuration_key'),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    lowerPackageDefinitionId: uuid('lower_package_definition_id'),
+    lowerRevision: integer('lower_revision'),
+    lowerCount: numeric('lower_count'),
+    setCompositionResourceId: uuid('set_composition_resource_id'),
+    setCompositionRevision: integer('set_composition_revision'),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.packageDefinitionId, table.revision],
+      name: 'catalog_package_content_revisions_pk',
+    }),
+    unique('catalog_package_content_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_package_content_revisions_definition_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.lowerPackageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_package_content_revisions_lower_form_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.lowerPackageDefinitionId, table.lowerRevision],
+      foreignColumns: [table.tenantId, table.packageDefinitionId, table.revision],
+      name: 'catalog_package_content_revisions_lower_revision_fk',
+    }).onDelete('restrict'),
+    index('catalog_package_content_revisions_effective_idx').on(
+      table.tenantId,
+      table.packageDefinitionId,
+      table.effectiveAt,
+    ),
+    check('catalog_package_content_revisions_number_ck', sql`${table.revision} > 0`),
+    check('catalog_package_content_revisions_state_ck', sql`${table.lifecycleState} in ('DRAFT', 'ACTIVE', 'RETIRED')`),
+    check('catalog_package_content_revisions_amount_ck', sql`${table.amount} > 0`),
+    check('catalog_package_content_revisions_unit_ck', sql`${table.unitResourceType} = 'commerce.catalog.unit'`),
+    check(
+      'catalog_package_content_revisions_configuration_ck',
+      sql`${table.configurationKey} is null or (${table.configurationKey} = btrim(${table.configurationKey}) and length(${table.configurationKey}) between 1 and 300)`,
+    ),
+    check(
+      'catalog_package_content_revisions_lower_ck',
+      sql`(${table.lowerPackageDefinitionId} is null and ${table.lowerRevision} is null and ${table.lowerCount} is null) or (${table.lowerPackageDefinitionId} is not null and ${table.lowerRevision} is not null and ${table.lowerRevision} > 0 and ${table.lowerCount} is not null and ${table.lowerCount} > 0 and ${table.lowerCount} = trunc(${table.lowerCount}) and ${table.lowerPackageDefinitionId} <> ${table.packageDefinitionId})`,
+    ),
+    check(
+      'catalog_package_content_revisions_set_ck',
+      sql`(${table.setCompositionResourceId} is null and ${table.setCompositionRevision} is null) or (${table.setCompositionResourceId} is not null and ${table.setCompositionRevision} is not null and ${table.setCompositionRevision} > 0)`,
+    ),
+    check(
+      'catalog_package_content_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_package_content_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -1023,6 +1151,8 @@ const catalogDatabaseSchema = {
   attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
+  packageContentRevisions,
+  packageDefinitions,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
@@ -1049,6 +1179,8 @@ export const CATALOG_TABLES = [
   attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
+  packageContentRevisions,
+  packageDefinitions,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
