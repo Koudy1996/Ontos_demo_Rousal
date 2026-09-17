@@ -1,5 +1,7 @@
+import type { ActionHandlerContext } from '@app/core-runtime';
+import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
-import { Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 
 import {
   CreateAttributeDefinitionPayloadSchema,
@@ -9,7 +11,10 @@ import {
   RenameControlledAttributeValuePayloadSchema,
 } from '../../shared/actions/attribute-governance.ts';
 import { createAttributeDefinitionAction } from '../../src/actions/create-attribute-definition.action.ts';
-import { createControlledAttributeValueAction } from '../../src/actions/create-controlled-attribute-value.action.ts';
+import {
+  createControlledAttributeValueAction,
+  handleCreateControlledAttributeValue,
+} from '../../src/actions/create-controlled-attribute-value.action.ts';
 import { reactivateControlledAttributeValueAction } from '../../src/actions/reactivate-controlled-attribute-value.action.ts';
 import { renameAttributeDefinitionAction } from '../../src/actions/rename-attribute-definition.action.ts';
 import { renameControlledAttributeValueAction } from '../../src/actions/rename-controlled-attribute-value.action.ts';
@@ -18,6 +23,7 @@ import {
   AttributePersistenceConflict,
   AttributePersistenceNotFound,
 } from '../../src/persistence/attribute-persistence.ts';
+import type { AttributePersistence } from '../../src/persistence/attribute-persistence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const definitionRef = {
@@ -31,7 +37,8 @@ const controlledValueRef = {
   resourceId: '33333333-3333-4333-8333-333333333333',
   resourceType: 'commerce.catalog.controlled-attribute-value',
   tenantId,
-};
+} as const;
+const unexpected = () => Effect.die('Unexpected persistence method');
 
 describe('Catalog attribute governance Actions', () => {
   it('requires an explicit stable meaning and valid shape for a new definition', () => {
@@ -98,6 +105,61 @@ describe('Catalog attribute governance Actions', () => {
       }),
     ).toBe(false);
   });
+
+  it.effect('retains Color group, preview, and scoped swatch at the handler/service boundary', () =>
+    Effect.gen(function* colorMetadataHandoff() {
+      const payload = Schema.decodeUnknownSync(CreateControlledAttributeValuePayloadSchema)({
+        attributeDefinitionRef: definitionRef,
+        color: {
+          distinguishingEvidence: 'Supplier sample A documents this physical shade',
+          groupLabel: 'Grey',
+          previewHex: '#444444',
+          swatchCode: 'A-42',
+          swatchSystem: 'Supplier sample collection',
+        },
+        label: 'Anthracite',
+        meaning: 'Supplier shade A',
+        reason: 'Add documented Color',
+        specialization: 'COLOR',
+      });
+      const scope = {
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:attribute-actions:run:1',
+          authMethod: 'system',
+          principalId: '44444444-4444-4444-8444-444444444444',
+          tenantId,
+        }),
+        correlationId: 'attribute-color-handoff-test',
+      };
+      const services: AttributePersistence = {
+        createControlledValue: (input) =>
+          Effect.sync(() => {
+            expect(input.colorGroup).toBe('Grey');
+            expect(input.previewHex).toBe('#444444');
+            expect(input.swatchCode).toBe('A-42');
+            expect(input.swatchSystem).toBe('Supplier sample collection');
+            expect(input.evidenceRefs).toContain('Supplier sample A documents this physical shade');
+            return { controlledValueRef, revision: 1 };
+          }),
+        createDefinition: unexpected,
+        reactivateControlledValue: unexpected,
+        renameControlledValue: unexpected,
+        renameDefinition: unexpected,
+        retireControlledValue: unexpected,
+      };
+      const context: ActionHandlerContext<Readonly<Record<string, never>>, AttributePersistence> = {
+        actionInvocationId: '55555555-5555-4555-8555-555555555555',
+        addDomainEvent: () => Effect.succeed(Object.create(null)),
+        addOutboxMessage: () => Effect.void,
+        recordAuditEvidence: () => Effect.void,
+        recordDataAccess: () => Effect.void,
+        scope,
+        services,
+      };
+      const result = yield* handleCreateControlledAttributeValue(payload, context);
+      expect(result.controlledValueRef.resourceId).toBe(controlledValueRef.resourceId);
+    }),
+  );
 
   it('keeps every governed mutation tenant-scoped, explicit-permission and idempotent', () => {
     for (const action of [

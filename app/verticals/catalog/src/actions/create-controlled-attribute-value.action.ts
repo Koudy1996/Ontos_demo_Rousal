@@ -57,7 +57,12 @@ export const handleCreateControlledAttributeValue = Effect.fn('CreateControlledA
       specialization: payload.specialization,
     };
     if (payload.color !== undefined) {
-      Object.assign(input, { color: payload.color });
+      Object.assign(input, {
+        colorGroup: payload.color.groupLabel,
+        previewHex: payload.color.previewHex,
+        swatchCode: payload.color.swatchCode,
+        swatchSystem: payload.color.swatchSystem,
+      });
     }
     const result = yield* context.services.createControlledValue(input);
     yield* context.recordDataAccess({
