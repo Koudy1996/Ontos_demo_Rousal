@@ -4,57 +4,15 @@
 import { Effect, Schema } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import {
-  CatalogRevisionInstantSchema,
-  CatalogRevisionNumberSchema,
-} from '../../shared/domain/catalog-revision-reference.ts';
-import { ProductTypeAttributeRuleSchema } from '../../shared/domain/product-type-rules.ts';
-import { ProductRefSchema } from '../../shared/resources/product.ts';
-import { ProductTypeRefSchema } from '../../shared/resources/product-type.ts';
+  ReviseProductTypePayloadSchema,
+  ReviseProductTypeResultSchema,
+} from '../../shared/actions/revise-product-type.ts';
 
-const ImpactBasisTokenSchema = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
-
-/** A preview is an intent, not authority: the handler must reread and lock this exact basis. */
-export const ReviseProductTypePayloadSchema = Schema.Struct({
-  effectiveFrom: CatalogRevisionInstantSchema,
-  expectedCurrentRevision: CatalogRevisionNumberSchema,
-  impactBasisToken: ImpactBasisTokenSchema,
-  productTypeRef: ProductTypeRefSchema,
-  proposedRules: Schema.Array(ProductTypeAttributeRuleSchema),
-  /** Explicitly tracked debt; neither this list nor the preview waives Current validation. */
-  unresolvedProductRefs: Schema.Array(ProductRefSchema),
-}).check(
-  Schema.makeFilter(({ productTypeRef, proposedRules, unresolvedProductRefs }) => {
-    const violations: string[] = [];
-    const seenRules = new Set<string>();
-    for (const rule of proposedRules) {
-      if (rule.attributeDefinitionRef.tenantId !== productTypeRef.tenantId) {
-        violations.push('All rules must belong to the Product Type Tenant');
-      }
-      const key = `${rule.level}:${rule.attributeDefinitionRef.resourceId}`;
-      if (seenRules.has(key)) {
-        violations.push('A Product Type revision cannot repeat a rule at one level');
-      }
-      seenRules.add(key);
-    }
-    const seenProducts = new Set<string>();
-    for (const productRef of unresolvedProductRefs) {
-      if (productRef.tenantId !== productTypeRef.tenantId || seenProducts.has(productRef.resourceId)) {
-        violations.push('Unresolved Products must be unique and belong to the Product Type Tenant');
-      }
-      seenProducts.add(productRef.resourceId);
-    }
-    return violations[0];
-  }),
-);
-export type ReviseProductTypePayload = Schema.Schema.Type<typeof ReviseProductTypePayloadSchema>;
-
-export const ReviseProductTypeResultSchema = Schema.Struct({
-  effectiveFrom: CatalogRevisionInstantSchema,
-  productTypeRef: ProductTypeRefSchema,
-  revision: CatalogRevisionNumberSchema,
-  unresolvedProductRefs: Schema.Array(ProductRefSchema),
-});
-export type ReviseProductTypeResult = Schema.Schema.Type<typeof ReviseProductTypeResultSchema>;
+export {
+  ReviseProductTypePayloadSchema,
+  ReviseProductTypeResultSchema,
+} from '../../shared/actions/revise-product-type.ts';
+export type { ReviseProductTypePayload, ReviseProductTypeResult } from '../../shared/actions/revise-product-type.ts';
 
 /** Concurrent rule, population, or value change invalidates a prior impact review. */
 export const ReviseProductTypeStaleBasisSchema = Schema.TaggedStruct('ReviseProductTypeStaleBasis', {

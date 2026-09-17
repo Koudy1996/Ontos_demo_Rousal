@@ -3,33 +3,10 @@
 // @ontos-action-slug set-product-type
 import { Effect, Schema } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { ProductRefSchema } from '../../shared/resources/product.ts';
-import { ProductTypeRefSchema } from '../../shared/resources/product-type.ts';
-import { ProductRevisionSchema, ProductReasonSchema } from '../../shared/domain/product.ts';
+import { SetProductTypePayloadSchema, SetProductTypeResultSchema } from '../../shared/actions/set-product-type.ts';
 
-/** The preview token binds the exact inspected population and Current values. */
-export const SetProductTypePayloadSchema = Schema.Struct({
-  expectedProductRevision: ProductRevisionSchema,
-  impactBasis: Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(300)),
-  nextProductTypeRef: Schema.optionalKey(ProductTypeRefSchema),
-  productRef: ProductRefSchema,
-  reason: ProductReasonSchema,
-}).check(
-  Schema.makeFilter(({ nextProductTypeRef, productRef }) =>
-    nextProductTypeRef === undefined || nextProductTypeRef.tenantId === productRef.tenantId
-      ? undefined
-      : 'Product and next Product Type must belong to the same Tenant',
-  ),
-);
-export type SetProductTypePayload = Schema.Schema.Type<typeof SetProductTypePayloadSchema>;
-
-export const SetProductTypeResultSchema = Schema.Struct({
-  currentProductTypeRef: Schema.optionalKey(ProductTypeRefSchema),
-  productRef: ProductRefSchema,
-  revision: ProductRevisionSchema,
-  unresolvedProductRefs: Schema.Array(ProductRefSchema),
-});
-export type SetProductTypeResult = Schema.Schema.Type<typeof SetProductTypeResultSchema>;
+export { SetProductTypePayloadSchema, SetProductTypeResultSchema } from '../../shared/actions/set-product-type.ts';
+export type { SetProductTypePayload, SetProductTypeResult } from '../../shared/actions/set-product-type.ts';
 
 export class SetProductTypeFailure extends Schema.TaggedError<SetProductTypeFailure>()('SetProductTypeFailure', {
   code: Schema.Literals(['action_not_implemented', 'product_type_stale_impact_basis']),

@@ -5,10 +5,12 @@ import type { ActionHandlerContext } from '@app/core-runtime';
 import { DateTime, Effect, Schema } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
-import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revision-reference.ts';
-import { ProductAuditEvidenceSchema, ProductNameSchema, ProductReasonSchema } from '../../shared/domain/product.ts';
-import { ProductTypeAttributeRuleSchema } from '../../shared/domain/product-type-rules.ts';
-import { ProductTypeRefSchema } from '../../shared/resources/product-type.ts';
+import {
+  CreateProductTypePayloadSchema,
+  CreateProductTypeResultSchema,
+} from '../../shared/actions/create-product-type.ts';
+import type { CreateProductTypePayload } from '../../shared/actions/create-product-type.ts';
+import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import {
   ProductTypeCreateConflict,
@@ -16,19 +18,11 @@ import {
 } from '../persistence/product-type-create-persistence.ts';
 import type { ProductTypeCreatePersistence } from '../persistence/product-type-create-persistence.ts';
 
-/** The initial rules revision is explicit, including an intentionally empty rule set. */
-export const CreateProductTypePayloadSchema = Schema.Struct({
-  name: ProductNameSchema,
-  reason: ProductReasonSchema,
-  rules: Schema.Array(ProductTypeAttributeRuleSchema),
-});
-export type CreateProductTypePayload = Schema.Schema.Type<typeof CreateProductTypePayloadSchema>;
-
-export const CreateProductTypeResultSchema = Schema.Struct({
-  productTypeRef: ProductTypeRefSchema,
-  revision: CatalogRevisionNumberSchema,
-});
-export type CreateProductTypeResult = Schema.Schema.Type<typeof CreateProductTypeResultSchema>;
+export {
+  CreateProductTypePayloadSchema,
+  CreateProductTypeResultSchema,
+} from '../../shared/actions/create-product-type.ts';
+export type { CreateProductTypePayload, CreateProductTypeResult } from '../../shared/actions/create-product-type.ts';
 
 const domainEvents = {} as const;
 
