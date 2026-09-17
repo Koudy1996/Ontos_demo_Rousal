@@ -11,6 +11,7 @@ import { withTemporaryWorkspace } from './temporary-workspace.mts';
 const applicationRequire = createRequire(path.join(appRoot, 'package.json'));
 const plugin = applicationRequire.resolve('eslint-plugin-perfectionist');
 const oxlint = path.join(path.dirname(applicationRequire.resolve('oxlint/package.json')), 'bin/oxlint');
+const configFilename = 'oxlint.json';
 const cases = [
   {
     invalid: 'enum Status { Alpha = 20, Zulu = 1 }',
@@ -62,7 +63,7 @@ registerHooks({
 });
 `,
     );
-    const config = path.join(directory, 'oxlint.json');
+    const config = path.join(directory, configFilename);
     writeFileSync(
       config,
       JSON.stringify({
@@ -78,12 +79,14 @@ registerHooks({
       [oxlint, '-c', config, '--format=json', '--disable-nested-config', source],
       {
         cwd: directory,
-        encoding: 'utf8',
-        timeout: 120_000,
+        encoding: 'utf-8',
         env: { ...process.env, NODE_OPTIONS: `--import=${guard}` },
+        timeout: 120_000,
       },
     );
-    if (result.error) throw result.error;
+    if (result.error) {
+      throw result.error;
+    }
     const report = parseOxlintOutput(result.stdout ?? '', result.stderr ?? '', result.status);
     expect(report.exitCode).toBe(1);
     expect(report.diagnostics.some(({ code }) => code === 'perfectionist(sort-objects)')).toBeTruthy();
@@ -93,7 +96,7 @@ registerHooks({
 for (const fixture of cases) {
   it(`Oxlint executes ${fixture.rule} positives and negatives without ESLint`, () => {
     withTemporaryWorkspace((directory) => {
-      const config = path.join(directory, 'oxlint.json');
+      const config = path.join(directory, configFilename);
       writeFileSync(
         config,
         JSON.stringify({
@@ -120,7 +123,7 @@ for (const fixture of cases) {
 
 it('native enum and object sorting preserves explicit comment partitions', () => {
   withTemporaryWorkspace((directory) => {
-    const config = path.join(directory, 'oxlint.json');
+    const config = path.join(directory, configFilename);
     writeFileSync(
       config,
       JSON.stringify({
