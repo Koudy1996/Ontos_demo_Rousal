@@ -28,7 +28,9 @@ import { ProductHistoryApi } from './apis/product-history.ts';
 import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
 import { ReactivateVariantActionApi } from './apis/reactivate-variant-action.ts';
+import { RemoveProductAttributeValuesActionApi } from './apis/remove-product-attribute-values-action.ts';
 import { RemoveProductCategoryAssignmentActionApi } from './apis/remove-product-category-assignment-action.ts';
+import { RemoveVariantAttributeOverrideActionApi } from './apis/remove-variant-attribute-override-action.ts';
 import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-definition-action.ts';
 import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
 import { RenameProductCategoryActionApi } from './apis/rename-product-category-action.ts';
@@ -41,8 +43,10 @@ import { RetireVariantActionApi } from './apis/retire-variant-action.ts';
 import { RevisePackageDefinitionActionApi } from './apis/revise-package-definition-action.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
 import { ReviseProductUnitActionApi } from './apis/revise-product-unit-action.ts';
+import { SetProductAttributeValuesActionApi } from './apis/set-product-attribute-values-action.ts';
 import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
 import { SetProductUnitTargetDivisibilityActionApi } from './apis/set-product-unit-target-divisibility-action.ts';
+import { SetVariantAttributeOverrideActionApi } from './apis/set-variant-attribute-override-action.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
 // </generated-governed-http-api-imports>
 import { ProductActionInvocationIdSchema } from './domain/product.ts';
@@ -88,7 +92,9 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReactivateControlledAttributeValueActionApi)
   .addHttpApi(ReactivateProductActionApi)
   .addHttpApi(ReactivateVariantActionApi)
+  .addHttpApi(RemoveProductAttributeValuesActionApi)
   .addHttpApi(RemoveProductCategoryAssignmentActionApi)
+  .addHttpApi(RemoveVariantAttributeOverrideActionApi)
   .addHttpApi(RenameAttributeDefinitionActionApi)
   .addHttpApi(RenameControlledAttributeValueActionApi)
   .addHttpApi(RenameProductCategoryActionApi)
@@ -101,8 +107,10 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RevisePackageDefinitionActionApi)
   .addHttpApi(ReviseProductTypeActionApi)
   .addHttpApi(ReviseProductUnitActionApi)
+  .addHttpApi(SetProductAttributeValuesActionApi)
   .addHttpApi(SetProductTypeActionApi)
   .addHttpApi(SetProductUnitTargetDivisibilityActionApi)
+  .addHttpApi(SetVariantAttributeOverrideActionApi)
   .addHttpApi(UpdateProductActionApi)
   // </generated-governed-http-api-additions>
   .pipe(identity);
@@ -300,10 +308,26 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.remove-product-attribute-values': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.remove-product-attribute-values',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.remove-product-category-assignment': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.remove-product-category-assignment',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.remove-variant-attribute-override': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.remove-variant-attribute-override',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -404,6 +428,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.set-product-attribute-values': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.set-product-attribute-values',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.set-product-type': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
@@ -416,6 +448,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: productUnitBusinessTarget,
     permission: 'commerce.catalog.set-product-unit-target-divisibility',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.set-variant-attribute-override': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.set-variant-attribute-override',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -472,8 +512,12 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.create-product',
     'commerce.catalog.correct-product',
     'commerce.catalog.create-variant',
+    'commerce.catalog.remove-product-attribute-values',
     'commerce.catalog.remove-product-category-assignment',
+    'commerce.catalog.remove-variant-attribute-override',
+    'commerce.catalog.set-product-attribute-values',
     'commerce.catalog.set-product-type',
+    'commerce.catalog.set-variant-attribute-override',
   ],
 } as const;
 
