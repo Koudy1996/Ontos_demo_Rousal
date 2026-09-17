@@ -13,25 +13,26 @@ const ControlledValueRefSchema = CatalogResourceRefSchema.check(
   ),
 );
 const finiteNumber = Schema.Number.check(Schema.isFinite());
+const SpecialStateSchema = Schema.Literals(['UNKNOWN', 'NONE', 'NOT_APPLICABLE']);
 
 /** A shared definition asks one stable question; its label is not its identity. */
 export const AttributeDefinitionSchema = Schema.Struct({
-  ref: AttributeDefinitionRefSchema,
   label: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()),
-  meaning: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()),
   levels: Schema.Array(Schema.Literals(['PRODUCT', 'VARIANT'])),
-  multiplicity: Schema.Literals(['SINGLE', 'MULTIPLE']),
-  valueKind: Schema.Literals(['TEXT', 'CONTROLLED', 'MEASUREMENT']),
-  specialStates: Schema.Array(Schema.Literals(['UNKNOWN', 'NONE', 'NOT_APPLICABLE'])),
+  meaning: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()),
   measurement: Schema.optionalKey(
     Schema.Struct({
-      quantity: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()),
       canonicalUnit: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()),
-      minimum: Schema.optionalKey(finiteNumber),
+      decimalPlaces: Schema.Number.check(Schema.isInt(), Schema.isBetween({ maximum: 12, minimum: 0 })),
       maximum: Schema.optionalKey(finiteNumber),
-      decimalPlaces: Schema.Number.check(Schema.isInt(), Schema.isBetween({ minimum: 0, maximum: 12 })),
+      minimum: Schema.optionalKey(finiteNumber),
+      quantity: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()),
     }),
   ),
+  multiplicity: Schema.Literals(['SINGLE', 'MULTIPLE']),
+  ref: AttributeDefinitionRefSchema,
+  specialStates: Schema.Array(SpecialStateSchema),
+  valueKind: Schema.Literals(['TEXT', 'CONTROLLED', 'MEASUREMENT']),
 }).check(
   Schema.makeFilter((definition) => {
     if (definition.levels.length === 0 || new Set(definition.levels).size !== definition.levels.length) {
@@ -60,21 +61,21 @@ export const AttributeValueSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('TEXT'), text: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()) }),
   Schema.Struct({ kind: Schema.Literal('CONTROLLED'), valueRef: ControlledValueRefSchema }),
   Schema.Struct({
-    kind: Schema.Literal('MEASUREMENT'),
     amount: finiteNumber,
+    kind: Schema.Literal('MEASUREMENT'),
     unit: Schema.String.check(Schema.isNonEmpty(), Schema.isTrimmed()),
   }),
-  Schema.Struct({ kind: Schema.Literal('SPECIAL'), state: Schema.Literals(['UNKNOWN', 'NONE', 'NOT_APPLICABLE']) }),
+  Schema.Struct({ kind: Schema.Literal('SPECIAL'), state: SpecialStateSchema }),
 ]);
 export type AttributeValue = typeof AttributeValueSchema.Type;
 
 /** A proposed conversion; only owner-known exact relationships can authorize it. */
 export interface UnitConversion {
-  readonly from: string;
-  readonly to: string;
-  readonly quantity: string;
-  readonly numerator: number;
   readonly denominator: number;
+  readonly from: string;
+  readonly numerator: number;
+  readonly quantity: string;
+  readonly to: string;
 }
 
 // Catalog-owned exact relationships. Request payloads cannot establish unit semantics.
@@ -84,8 +85,8 @@ const trustedConversions: readonly UnitConversion[] = [
 ];
 
 interface Rational {
-  readonly numerator: bigint;
   readonly denominator: bigint;
+  readonly numerator: bigint;
 }
 
 /** Number.toString preserves the entered decimal value, including exponent notation. */
@@ -96,14 +97,137 @@ const decimalRatio = (value: number): Rational => {
   const fractionalDigits = mantissa.includes('.') ? mantissa.length - mantissa.indexOf('.') - 1 : 0;
   const exponent = Number(exponentText) - fractionalDigits;
   const signed = BigInt(digits) * (negative ? -1n : 1n);
-  return exponent >= 0
-    ? { numerator: signed * 10n ** BigInt(exponent), denominator: 1n }
-    : { numerator: signed, denominator: 10n ** BigInt(-exponent) };
+  if (exponent >= 0) {
+    return { denominator: 1n, numerator: signed * 10n ** BigInt(exponent) };
+  }
+  return { denominator: 10n ** BigInt(-exponent), numerator: signed };
 };
 
 const compareRatios = (left: Rational, right: Rational): number => {
   const difference = left.numerator * right.denominator - right.numerator * left.denominator;
-  return difference < 0n ? -1 : difference > 0n ? 1 : 0;
+  if (difference < 0n) {
+    return -1;
+  }
+  if (difference > 0n) {
+    return 1;
+  }
+  return 0;
+};
+
+interface AttributeValidation {
+  readonly normalized: readonly AttributeValue[];
+  readonly reasons: readonly string[];
+  readonly valid: boolean;
+}
+
+type ValueResult = { readonly reason: string } | { readonly normalized: AttributeValue; readonly reason?: string };
+
+const validatedConversion = (
+  unit: string,
+  rule: NonNullable<AttributeDefinition['measurement']>,
+  conversions: readonly UnitConversion[],
+): { readonly factor: Rational } | { readonly reason: string } => {
+  if (unit === rule.canonicalUnit) {
+    return { factor: { denominator: 1n, numerator: 1n } };
+  }
+  const conversion = conversions.find(
+    (item) => item.from === unit && item.to === rule.canonicalUnit && item.quantity === rule.quantity,
+  );
+  if (conversion === undefined) {
+    return { reason: 'No evidenced compatible unit conversion' };
+  }
+  if (
+    !Number.isFinite(conversion.numerator) ||
+    !Number.isFinite(conversion.denominator) ||
+    conversion.numerator <= 0 ||
+    conversion.denominator <= 0
+  ) {
+    return { reason: 'Invalid unit conversion' };
+  }
+  const numerator = decimalRatio(conversion.numerator);
+  const denominator = decimalRatio(conversion.denominator);
+  const factor = {
+    denominator: numerator.denominator * denominator.numerator,
+    numerator: numerator.numerator * denominator.denominator,
+  };
+  const trusted = trustedConversions.find(
+    (item) => item.from === conversion.from && item.to === conversion.to && item.quantity === conversion.quantity,
+  );
+  if (
+    trusted === undefined ||
+    compareRatios(factor, { denominator: BigInt(trusted.denominator), numerator: BigInt(trusted.numerator) }) !== 0
+  ) {
+    return { reason: 'No evidenced compatible unit conversion' };
+  }
+  return { factor };
+};
+
+const validateMeasurement = (
+  value: Extract<AttributeValue, { readonly kind: 'MEASUREMENT' }>,
+  rule: NonNullable<AttributeDefinition['measurement']>,
+  conversions: readonly UnitConversion[],
+): ValueResult => {
+  const conversion = validatedConversion(value.unit, rule, conversions);
+  if ('reason' in conversion) {
+    return conversion;
+  }
+  const source = decimalRatio(value.amount);
+  const amount = {
+    denominator: source.denominator * conversion.factor.denominator,
+    numerator: source.numerator * conversion.factor.numerator,
+  };
+  if (
+    (rule.minimum !== undefined && compareRatios(amount, decimalRatio(rule.minimum)) < 0) ||
+    (rule.maximum !== undefined && compareRatios(amount, decimalRatio(rule.maximum)) > 0)
+  ) {
+    return { reason: 'Measurement is outside its valid range' };
+  }
+  const scaled = amount.numerator * 10n ** BigInt(rule.decimalPlaces);
+  if (scaled % amount.denominator !== 0n) {
+    return { reason: 'Measurement loses required precision' };
+  }
+  const scaledInteger = scaled / amount.denominator;
+  if (scaledInteger > BigInt(Number.MAX_SAFE_INTEGER) || scaledInteger < BigInt(Number.MIN_SAFE_INTEGER)) {
+    return { reason: 'Measurement exceeds exact numeric precision' };
+  }
+  return {
+    normalized: {
+      amount: Number(scaledInteger) / 10 ** rule.decimalPlaces,
+      kind: 'MEASUREMENT',
+      unit: rule.canonicalUnit,
+    },
+  };
+};
+
+const validateValue = (
+  definition: AttributeDefinition,
+  value: AttributeValue,
+  specialStates: ReadonlySet<AttributeDefinition['specialStates'][number]>,
+  conversions: readonly UnitConversion[],
+): ValueResult => {
+  if (!Schema.is(AttributeValueSchema)(value)) {
+    return { reason: 'Malformed value' };
+  }
+  if (value.kind === 'SPECIAL') {
+    return specialStates.has(value.state)
+      ? { normalized: value }
+      : { normalized: value, reason: 'Special state is not allowed' };
+  }
+  if (value.kind !== definition.valueKind) {
+    return { reason: 'Value kind differs from definition' };
+  }
+  if (value.kind === 'CONTROLLED') {
+    return value.valueRef.tenantId === definition.ref.tenantId
+      ? { normalized: value }
+      : { normalized: value, reason: 'Controlled value belongs to another Tenant' };
+  }
+  if (value.kind === 'TEXT') {
+    return { normalized: value };
+  }
+  if (definition.measurement === undefined) {
+    return { reason: 'Measurement rules are missing' };
+  }
+  return validateMeasurement(value, definition.measurement, conversions);
 };
 
 /** Pure per-subject validation; Product Type owns required/optional and applicability. */
@@ -111,112 +235,27 @@ export const validateAttributeValues = (
   definition: AttributeDefinition,
   values: readonly AttributeValue[],
   conversions: readonly UnitConversion[] = [],
-): { readonly valid: boolean; readonly normalized: readonly AttributeValue[]; readonly reasons: readonly string[] } => {
+): AttributeValidation => {
   const reasons: string[] = [];
   const normalized: AttributeValue[] = [];
   if (!Schema.is(AttributeDefinitionSchema)(definition)) {
-    return { valid: false, normalized, reasons: ['Invalid definition'] };
+    return { normalized, reasons: ['Invalid definition'], valid: false };
   }
-  if (definition.multiplicity === 'SINGLE' && values.length > 1) reasons.push('Single attribute has multiple values');
+  if (definition.multiplicity === 'SINGLE' && values.length > 1) {
+    reasons.push('Single attribute has multiple values');
+  }
   if (values.some((value) => value.kind === 'SPECIAL') && values.length > 1) {
     reasons.push('A special state cannot coexist with another value');
   }
+  const specialStates = new Set(definition.specialStates);
   for (const value of values) {
-    if (!Schema.is(AttributeValueSchema)(value)) {
-      reasons.push('Malformed value');
-      continue;
+    const result = validateValue(definition, value, specialStates, conversions);
+    if ('reason' in result && result.reason !== undefined) {
+      reasons.push(result.reason);
     }
-    if (value.kind === 'SPECIAL') {
-      if (!definition.specialStates.includes(value.state)) reasons.push('Special state is not allowed');
-      normalized.push(value);
-      continue;
+    if ('normalized' in result) {
+      normalized.push(result.normalized);
     }
-    if (value.kind !== definition.valueKind) {
-      reasons.push('Value kind differs from definition');
-      continue;
-    }
-    if (value.kind === 'CONTROLLED') {
-      if (value.valueRef.tenantId !== definition.ref.tenantId)
-        reasons.push('Controlled value belongs to another Tenant');
-      normalized.push(value);
-      continue;
-    }
-    if (value.kind === 'TEXT') {
-      normalized.push(value);
-      continue;
-    }
-    const rule = definition.measurement;
-    if (rule === undefined) {
-      reasons.push('Measurement rules are missing');
-      continue;
-    }
-    const conversion =
-      value.unit === rule.canonicalUnit
-        ? undefined
-        : conversions.find(
-            (item) => item.from === value.unit && item.to === rule.canonicalUnit && item.quantity === rule.quantity,
-          );
-    if (value.unit !== rule.canonicalUnit && conversion === undefined) {
-      reasons.push('No evidenced compatible unit conversion');
-      continue;
-    }
-    if (
-      conversion !== undefined &&
-      (!Number.isFinite(conversion.numerator) ||
-        !Number.isFinite(conversion.denominator) ||
-        conversion.numerator <= 0 ||
-        conversion.denominator <= 0)
-    ) {
-      reasons.push('Invalid unit conversion');
-      continue;
-    }
-    if (conversion !== undefined) {
-      const trusted = trustedConversions.find(
-        (item) => item.from === conversion.from && item.to === conversion.to && item.quantity === conversion.quantity,
-      );
-      if (
-        trusted === undefined ||
-        compareRatios(
-          {
-            denominator:
-              decimalRatio(conversion.numerator).denominator * decimalRatio(conversion.denominator).numerator,
-            numerator: decimalRatio(conversion.numerator).numerator * decimalRatio(conversion.denominator).denominator,
-          },
-          { denominator: BigInt(trusted.denominator), numerator: BigInt(trusted.numerator) },
-        ) !== 0
-      ) {
-        reasons.push('No evidenced compatible unit conversion');
-        continue;
-      }
-    }
-    const source = decimalRatio(value.amount);
-    const numerator =
-      conversion === undefined ? { numerator: 1n, denominator: 1n } : decimalRatio(conversion.numerator);
-    const denominator =
-      conversion === undefined ? { numerator: 1n, denominator: 1n } : decimalRatio(conversion.denominator);
-    const amount = {
-      numerator: source.numerator * numerator.numerator * denominator.denominator,
-      denominator: source.denominator * numerator.denominator * denominator.numerator,
-    };
-    if (
-      (rule.minimum !== undefined && compareRatios(amount, decimalRatio(rule.minimum)) < 0) ||
-      (rule.maximum !== undefined && compareRatios(amount, decimalRatio(rule.maximum)) > 0)
-    ) {
-      reasons.push('Measurement is outside its valid range');
-      continue;
-    }
-    const scaled = amount.numerator * 10n ** BigInt(rule.decimalPlaces);
-    if (scaled % amount.denominator !== 0n) {
-      reasons.push('Measurement loses required precision');
-      continue;
-    }
-    const scaledInteger = scaled / amount.denominator;
-    if (scaledInteger > BigInt(Number.MAX_SAFE_INTEGER) || scaledInteger < BigInt(Number.MIN_SAFE_INTEGER)) {
-      reasons.push('Measurement exceeds exact numeric precision');
-      continue;
-    }
-    const canonicalAmount = Number(scaledInteger) / 10 ** rule.decimalPlaces;
-    normalized.push({ kind: 'MEASUREMENT', amount: canonicalAmount, unit: rule.canonicalUnit });
   }
-  return { valid: reasons.length === 0, normalized, reasons };
+  return { normalized, reasons, valid: reasons.length === 0 };
 };

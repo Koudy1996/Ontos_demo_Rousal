@@ -15,91 +15,119 @@ const ref = {
   tenantId,
 } as const;
 const definition = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
-  ref,
   label: 'Width',
-  meaning: 'Width of the product itself',
   levels: ['PRODUCT', 'VARIANT'],
+  meaning: 'Width of the product itself',
+  measurement: { canonicalUnit: 'mm', decimalPlaces: 2, maximum: 1000, minimum: 0, quantity: 'length' },
   multiplicity: 'SINGLE',
-  valueKind: 'MEASUREMENT',
+  ref,
   specialStates: ['UNKNOWN'],
-  measurement: { quantity: 'length', canonicalUnit: 'mm', minimum: 0, maximum: 1000, decimalPlaces: 2 },
+  valueKind: 'MEASUREMENT',
 });
-const centimeters = [{ from: 'cm', to: 'mm', quantity: 'length', numerator: 10, denominator: 1 }] as const;
+const centimeters = [{ denominator: 1, from: 'cm', numerator: 10, quantity: 'length', to: 'mm' }] as const;
 
 describe('Attribute Definition and per-subject values', () => {
   it('keeps identity distinct from label and measured meaning', () => {
     expect(Schema.is(AttributeDefinitionSchema)({ ...definition, label: 'Product width' })).toBe(true);
-    expect(Schema.is(AttributeDefinitionSchema)({ ...definition, measurement: undefined })).toBe(false);
+    expect(Schema.is(AttributeDefinitionSchema)({ ...definition, measurement: null })).toBe(false);
     expect(Schema.is(AttributeDefinitionSchema)({ ...definition, levels: [] })).toBe(false);
   });
 
   it('normalizes evidenced compatible units without silently changing magnitude', () => {
-    expect(validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 8, unit: 'cm' }], centimeters)).toEqual({
-      valid: true,
-      normalized: [{ kind: 'MEASUREMENT', amount: 80, unit: 'mm' }],
+    expect(validateAttributeValues(definition, [{ amount: 8, kind: 'MEASUREMENT', unit: 'cm' }], centimeters)).toEqual({
+      normalized: [{ amount: 80, kind: 'MEASUREMENT', unit: 'mm' }],
       reasons: [],
+      valid: true,
     });
     expect(
-      validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 80, unit: 'cm' }], centimeters).normalized,
-    ).toEqual([{ kind: 'MEASUREMENT', amount: 800, unit: 'mm' }]);
-    expect(validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 8, unit: 'cm' }]).valid).toBe(false);
+      validateAttributeValues(definition, [{ amount: 80, kind: 'MEASUREMENT', unit: 'cm' }], centimeters).normalized,
+    ).toEqual([{ amount: 800, kind: 'MEASUREMENT', unit: 'mm' }]);
+    expect(validateAttributeValues(definition, [{ amount: 8, kind: 'MEASUREMENT', unit: 'cm' }]).valid).toBe(false);
     expect(
       validateAttributeValues(
         definition,
-        [{ kind: 'MEASUREMENT', amount: 8, unit: 'cm' }],
+        [{ amount: 8, kind: 'MEASUREMENT', unit: 'cm' }],
         [{ ...centimeters[0], quantity: 'mass' }],
       ).valid,
     ).toBe(false);
     expect(
       validateAttributeValues(
         definition,
-        [{ kind: 'MEASUREMENT', amount: 8, unit: 'cm' }],
+        [{ amount: 8, kind: 'MEASUREMENT', unit: 'cm' }],
         [{ ...centimeters[0], numerator: 1 }],
       ).reasons,
     ).toContain('No evidenced compatible unit conversion');
     expect(
       validateAttributeValues(
         definition,
-        [{ kind: 'MEASUREMENT', amount: 8, unit: 'inch' }],
-        [{ from: 'inch', to: 'mm', quantity: 'length', numerator: 254, denominator: 10 }],
+        [{ amount: 8, kind: 'MEASUREMENT', unit: 'inch' }],
+        [{ denominator: 10, from: 'inch', numerator: 254, quantity: 'length', to: 'mm' }],
       ).valid,
     ).toBe(false);
   });
 
   it('checks exact range and decimal precision after conversion, without rounding', () => {
-    expect(validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 0.1, unit: 'mm' }]).valid).toBe(true);
+    expect(validateAttributeValues(definition, [{ amount: 0.1, kind: 'MEASUREMENT', unit: 'mm' }]).valid).toBe(true);
     expect(
-      validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 0.001, unit: 'cm' }], centimeters).valid,
+      validateAttributeValues(definition, [{ amount: 0.001, kind: 'MEASUREMENT', unit: 'cm' }], centimeters).valid,
     ).toBe(true);
-    expect(validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 0.001, unit: 'mm' }]).reasons).toContain(
+    expect(validateAttributeValues(definition, [{ amount: 0.001, kind: 'MEASUREMENT', unit: 'mm' }]).reasons).toContain(
       'Measurement loses required precision',
     );
     expect(
-      validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 1000.01, unit: 'mm' }]).reasons,
+      validateAttributeValues(definition, [{ amount: 1000.01, kind: 'MEASUREMENT', unit: 'mm' }]).reasons,
     ).toContain('Measurement is outside its valid range');
     expect(
       validateAttributeValues(
         definition,
-        [{ kind: 'MEASUREMENT', amount: 8, unit: 'cm' }],
+        [{ amount: 8, kind: 'MEASUREMENT', unit: 'cm' }],
         [{ ...centimeters[0], denominator: 0 }],
       ).reasons,
     ).toContain('Invalid unit conversion');
   });
 
+  it('accepts equivalent exact ratios and exponent input but rejects a nearby untrusted ratio', () => {
+    const equivalent = [{ ...centimeters[0], denominator: 2, numerator: 20 }];
+    expect(
+      validateAttributeValues(definition, [{ amount: 1e-3, kind: 'MEASUREMENT', unit: 'cm' }], equivalent),
+    ).toEqual({
+      normalized: [{ amount: 0.01, kind: 'MEASUREMENT', unit: 'mm' }],
+      reasons: [],
+      valid: true,
+    });
+    expect(
+      validateAttributeValues(
+        definition,
+        [{ amount: 1, kind: 'MEASUREMENT', unit: 'cm' }],
+        [{ ...centimeters[0], numerator: 10.000000000000002 }],
+      ).reasons,
+    ).toContain('No evidenced compatible unit conversion');
+  });
+
+  it('rejects exact decimal values that cannot be represented safely after scaling', () => {
+    const wideDefinition = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
+      ...definition,
+      measurement: { ...definition.measurement, maximum: 1e20 },
+    });
+    expect(
+      validateAttributeValues(wideDefinition, [{ amount: 1e14, kind: 'MEASUREMENT', unit: 'mm' }]).reasons,
+    ).toContain('Measurement exceeds exact numeric precision');
+  });
+
   it('distinguishes absence, explicit special state, zero, and incomplete measurements', () => {
     expect(validateAttributeValues(definition, []).valid).toBe(true);
-    expect(validateAttributeValues(definition, [{ kind: 'MEASUREMENT', amount: 0, unit: 'mm' }]).valid).toBe(true);
+    expect(validateAttributeValues(definition, [{ amount: 0, kind: 'MEASUREMENT', unit: 'mm' }]).valid).toBe(true);
     expect(validateAttributeValues(definition, [{ kind: 'SPECIAL', state: 'UNKNOWN' }]).valid).toBe(true);
     expect(validateAttributeValues(definition, [{ kind: 'SPECIAL', state: 'NONE' }]).valid).toBe(false);
-    expect(Schema.is(AttributeValueSchema)({ kind: 'MEASUREMENT', amount: 80 })).toBe(false);
-    expect(Schema.is(AttributeValueSchema)({ kind: 'MEASUREMENT', amount: 80, unit: '' })).toBe(false);
+    expect(Schema.is(AttributeValueSchema)({ amount: 80, kind: 'MEASUREMENT' })).toBe(false);
+    expect(Schema.is(AttributeValueSchema)({ amount: 80, kind: 'MEASUREMENT', unit: '' })).toBe(false);
     expect(Schema.is(AttributeValueSchema)({ kind: 'TEXT', text: '' })).toBe(false);
   });
 
   it('enforces single versus multiple values and never mixes a special state with facts', () => {
     const twoWidths = [
-      { kind: 'MEASUREMENT', amount: 80, unit: 'mm' },
-      { kind: 'MEASUREMENT', amount: 90, unit: 'mm' },
+      { amount: 80, kind: 'MEASUREMENT', unit: 'mm' },
+      { amount: 90, kind: 'MEASUREMENT', unit: 'mm' },
     ] as const;
     expect(validateAttributeValues(definition, twoWidths).reasons).toContain('Single attribute has multiple values');
     expect(validateAttributeValues({ ...definition, multiplicity: 'MULTIPLE' }, twoWidths).valid).toBe(true);
@@ -115,8 +143,8 @@ describe('Attribute Definition and per-subject values', () => {
     const { measurement: _measurement, ...withoutMeasurement } = definition;
     const material = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
       ...withoutMeasurement,
-      valueKind: 'CONTROLLED',
       multiplicity: 'MULTIPLE',
+      valueKind: 'CONTROLLED',
     });
     const first = {
       moduleId: 'commerce.catalog',
