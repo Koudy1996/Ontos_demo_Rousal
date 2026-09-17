@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { NodeServices } from '@effect/platform-node';
-import { Effect } from 'effect';
+import { Effect, Exit } from 'effect';
 import { expect, it } from 'effect-rstest';
 
 import { runScaffoldEffect } from '../cli.mts';
@@ -84,7 +84,7 @@ it.effect('Core READ mode rejects overwrite and traversal without partially chan
       yield* Effect.promise(() => writeFile(target, '// developer file\n'));
       const before = yield* Effect.all(roots.map((relative) => read(root, relative)));
       const rejected = yield* Effect.exit(run(root));
-      expect(rejected._tag).toBe('Failure');
+      expect(Exit.isFailure(rejected)).toBe(true);
       expect(yield* Effect.all(roots.map((relative) => read(root, relative)))).toEqual(before);
       const traversal = yield* Effect.exit(
         run(root, [
@@ -97,7 +97,7 @@ it.effect('Core READ mode rejects overwrite and traversal without partially chan
           'authenticated_principal',
         ]),
       );
-      expect(traversal._tag).toBe('Failure');
+      expect(Exit.isFailure(traversal)).toBe(true);
       expect(yield* Effect.all(roots.map((relative) => read(root, relative)))).toEqual(before);
     }),
   ),
@@ -110,9 +110,9 @@ it.effect('Core READ mode rejects contract drift and incompatible CLI ownership 
       const contractPath = path.join(root, SHELL_CONTRACT_PATH);
       yield* Effect.promise(() => writeFile(contractPath, '// developer contract\n'));
       const before = yield* Effect.all(roots.map((relative) => read(root, relative)));
-      expect((yield* Effect.exit(run(root)))._tag).toBe('Failure');
-      expect((yield* Effect.exit(run(root, [...coreFlags, '--vertical', 'catalog'])))._tag).toBe('Failure');
-      expect((yield* Effect.exit(run(root, [...coreFlags, '--core'])))._tag).toBe('Failure');
+      expect(Exit.isFailure(yield* Effect.exit(run(root)))).toBe(true);
+      expect(Exit.isFailure(yield* Effect.exit(run(root, [...coreFlags, '--vertical', 'catalog'])))).toBe(true);
+      expect(Exit.isFailure(yield* Effect.exit(run(root, [...coreFlags, '--core'])))).toBe(true);
       expect(yield* Effect.all(roots.map((relative) => read(root, relative)))).toEqual(before);
       expect(yield* Effect.promise(() => readFile(contractPath, 'utf-8'))).toBe('// developer contract\n');
     }),
@@ -154,7 +154,7 @@ it.effect('Core READ mode rejects a missing Shell registration slot before any w
         writeFile(serverPath, server.replace('// @ontos-codesmith-core-read-server-layers:start', '// slot removed')),
       );
       const before = yield* Effect.all(roots.map((relative) => read(root, relative)));
-      expect((yield* Effect.exit(run(root)))._tag).toBe('Failure');
+      expect(Exit.isFailure(yield* Effect.exit(run(root)))).toBe(true);
       expect(yield* Effect.all(roots.map((relative) => read(root, relative)))).toEqual(before);
     }),
   ),
