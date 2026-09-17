@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Schema } from 'effect';
 
-import { AttributePersistenceConflict, mapAttributeWriteError } from '../../src/persistence/attribute-persistence.ts';
+import {
+  AttributePersistenceConflict,
+  deriveAttributeImpact,
+  mapAttributeWriteError,
+} from '../../src/persistence/attribute-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 
 describe('Attribute persistence error boundary', () => {
@@ -35,5 +39,62 @@ describe('Attribute persistence error boundary', () => {
       expect(Schema.is(CatalogPersistenceUnavailable)(mapped)).toBe(true);
       expect(mapped.cause).toBe(error);
     }
+  });
+});
+
+describe('Attribute current impact', () => {
+  it('distinguishes direct Product and Variant references from inherited values', () => {
+    const sets = [
+      { attributeValueSetId: 'p1', currentState: 'SET', productId: 'product-1', variantId: null },
+      { attributeValueSetId: 'v2', currentState: 'SET', productId: 'product-1', variantId: 'variant-2' },
+      { attributeValueSetId: 'p2', currentState: 'SET', productId: 'product-2', variantId: null },
+      { attributeValueSetId: 'v4', currentState: 'REMOVED', productId: 'product-2', variantId: 'variant-4' },
+    ];
+    const impact = deriveAttributeImpact({
+      axisProductIds: ['product-1'],
+      controlledValueId: 'steel',
+      items: [
+        { attributeValueSetId: 'p1', controlledAttributeValueId: 'steel' },
+        { attributeValueSetId: 'v2', controlledAttributeValueId: 'aluminium' },
+        { attributeValueSetId: 'p2', controlledAttributeValueId: 'steel' },
+      ],
+      productTypeIds: ['type-1'],
+      sets,
+      variants: [
+        { productId: 'product-1', variantId: 'variant-1' },
+        { productId: 'product-1', variantId: 'variant-2' },
+        { productId: 'product-2', variantId: 'variant-3' },
+        { productId: 'product-2', variantId: 'variant-4' },
+      ],
+    });
+    expect(impact).toEqual({
+      directProducts: ['product-1', 'product-2'],
+      directVariants: [],
+      inheritedVariants: ['variant-1', 'variant-3', 'variant-4'],
+      productTypes: ['type-1'],
+      variantAxisProducts: ['product-1'],
+    });
+  });
+
+  it('includes direct variant facts for a definition without merging overridden inheritance', () => {
+    expect(
+      deriveAttributeImpact({
+        axisProductIds: [],
+        items: [],
+        productTypeIds: [],
+        sets: [
+          { attributeValueSetId: 'product-set', currentState: 'SET', productId: 'product', variantId: null },
+          { attributeValueSetId: 'variant-set', currentState: 'SET', productId: 'product', variantId: 'variant-2' },
+        ],
+        variants: [
+          { productId: 'product', variantId: 'variant-1' },
+          { productId: 'product', variantId: 'variant-2' },
+        ],
+      }),
+    ).toMatchObject({
+      directProducts: ['product'],
+      directVariants: ['variant-2'],
+      inheritedVariants: ['variant-1'],
+    });
   });
 });

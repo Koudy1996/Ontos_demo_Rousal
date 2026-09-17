@@ -9,8 +9,14 @@ import type { ControlledAttributeValueRef } from '../../shared/resources/control
 import {
   attributeDefinitionRevisions,
   attributeDefinitions,
+  attributeValueItems,
+  attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
+  productTypeRevisionAttributes,
+  productTypes,
+  productVariantAxes,
+  productVariants,
 } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 import { AttributePersistenceNotFound } from './attribute-persistence-not-found.ts';
@@ -148,10 +154,14 @@ const notFound = (resource: 'DEFINITION' | 'CONTROLLED_VALUE') =>
   });
 const validText = (value: string, max: number) => value === value.trim() && value.length > 0 && value.length <= max;
 const CATALOG_MODULE_ID = 'commerce.catalog';
-const validRef = (ref: AttributeDefinitionRef | ControlledAttributeValueRef, tenantId: string) =>
-  ref.tenantId === tenantId && ref.moduleId === CATALOG_MODULE_ID;
+const validRef = (ref: AttributeDefinitionRef | ControlledAttributeValueRef, tenantId: string, resourceType: string) =>
+  ref.tenantId === tenantId && ref.moduleId === CATALOG_MODULE_ID && ref.resourceType === resourceType;
+const validDefinitionRef = (ref: AttributeDefinitionRef, tenantId: string) =>
+  validRef(ref, tenantId, 'commerce.catalog.attribute-definition');
+const validControlledValueRef = (ref: ControlledAttributeValueRef, tenantId: string) =>
+  validRef(ref, tenantId, 'commerce.catalog.controlled-attribute-value');
 const validControlledInput = (input: CreateControlledAttributeValueInput, tenantId: string) =>
-  validRef(input.attributeDefinitionRef, tenantId) &&
+  validDefinitionRef(input.attributeDefinitionRef, tenantId) &&
   validText(input.name, 240) &&
   validText(input.meaning, 1000) &&
   validText(input.reason, 1000);
@@ -160,6 +170,194 @@ const hasColorMetadata = (input: CreateControlledAttributeValueInput) =>
   input.previewHex !== undefined ||
   input.swatchSystem !== undefined ||
   input.swatchCode !== undefined;
+
+export interface AttributeImpactSnapshot {
+  readonly directProducts: readonly string[];
+  readonly directVariants: readonly string[];
+  readonly inheritedVariants: readonly string[];
+  readonly productTypes: readonly string[];
+  readonly variantAxisProducts: readonly string[];
+}
+
+interface ImpactRows {
+  readonly axisProductIds: readonly string[];
+  readonly controlledValueId?: string | undefined;
+  readonly items: readonly Pick<
+    typeof attributeValueItems.$inferSelect,
+    'attributeValueSetId' | 'controlledAttributeValueId'
+  >[];
+  readonly productTypeIds: readonly string[];
+  readonly sets: readonly Pick<
+    typeof attributeValueSets.$inferSelect,
+    'attributeValueSetId' | 'productId' | 'variantId' | 'currentState'
+  >[];
+  readonly variants: readonly Pick<typeof productVariants.$inferSelect, 'productId' | 'variantId'>[];
+}
+
+/** A current impact is derived from live sets only; revision rows are never rewritten or counted as current. */
+export const deriveAttributeImpact = (rows: ImpactRows): AttributeImpactSnapshot => {
+  const matchingSetIds = new Set<string>();
+  if (rows.controlledValueId !== undefined) {
+    for (const item of rows.items) {
+      if (item.controlledAttributeValueId === rows.controlledValueId) {
+        matchingSetIds.add(item.attributeValueSetId);
+      }
+    }
+  }
+  const productSources = new Set<string>();
+  const overriddenVariants = new Set<string>();
+  const directVariants = new Set<string>();
+  for (const set of rows.sets) {
+    if (set.currentState !== 'SET') {
+      continue;
+    }
+    const matches = rows.controlledValueId === undefined || matchingSetIds.has(set.attributeValueSetId);
+    if (set.variantId === null) {
+      if (matches) {
+        productSources.add(set.productId);
+      }
+    } else {
+      overriddenVariants.add(set.variantId);
+      if (matches) {
+        directVariants.add(set.variantId);
+      }
+    }
+  }
+  const inheritedVariants: string[] = [];
+  for (const variant of rows.variants) {
+    if (productSources.has(variant.productId) && !overriddenVariants.has(variant.variantId)) {
+      inheritedVariants.push(variant.variantId);
+    }
+  }
+  return {
+    directProducts: [...productSources].toSorted(),
+    directVariants: [...directVariants].toSorted(),
+    inheritedVariants: inheritedVariants.toSorted(),
+    productTypes: [...new Set(rows.productTypeIds)].toSorted(),
+    variantAxisProducts: [...new Set(rows.axisProductIds)].toSorted(),
+  };
+};
+
+/** Transaction-scoped current impact for a future #479 attestation; open selections require a separate authority. */
+export const inspectAttributeImpactForScope = Effect.fn('AttributePersistence.inspectAttributeImpactForScope')(
+  function* inspectAttributeImpact(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    attributeDefinitionRef: AttributeDefinitionRef,
+    controlledValueRef?: ControlledAttributeValueRef,
+  ) {
+    const { tenantId } = scope;
+    if (
+      !validDefinitionRef(attributeDefinitionRef, tenantId) ||
+      (controlledValueRef !== undefined && !validControlledValueRef(controlledValueRef, tenantId))
+    ) {
+      return yield* conflict('INVALID_INPUT', 'Attribute impact reference is outside the trusted Tenant');
+    }
+    const definitionId = attributeDefinitionRef.resourceId;
+    const [definition] = yield* transaction
+      .select({ attributeDefinitionId: attributeDefinitions.attributeDefinitionId })
+      .from(attributeDefinitions)
+      .where(
+        and(eq(attributeDefinitions.tenantId, tenantId), eq(attributeDefinitions.attributeDefinitionId, definitionId)),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (definition === undefined) {
+      return yield* notFound('DEFINITION');
+    }
+    if (controlledValueRef !== undefined) {
+      const [value] = yield* transaction
+        .select({ attributeDefinitionId: controlledAttributeValues.attributeDefinitionId })
+        .from(controlledAttributeValues)
+        .where(
+          and(
+            eq(controlledAttributeValues.tenantId, tenantId),
+            eq(controlledAttributeValues.controlledAttributeValueId, controlledValueRef.resourceId),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (value === undefined || value.attributeDefinitionId !== definitionId) {
+        return yield* notFound('CONTROLLED_VALUE');
+      }
+    }
+    const { axes, items, sets, typeRules, types, variants } = yield* Effect.all(
+      {
+        axes: transaction
+          .select({ productId: productVariantAxes.productId })
+          .from(productVariantAxes)
+          .where(
+            and(eq(productVariantAxes.tenantId, tenantId), eq(productVariantAxes.attributeDefinitionId, definitionId)),
+          )
+          .pipe(Effect.mapError(unavailable)),
+        items: transaction
+          .select({
+            attributeValueSetId: attributeValueItems.attributeValueSetId,
+            controlledAttributeValueId: attributeValueItems.controlledAttributeValueId,
+          })
+          .from(attributeValueItems)
+          .where(
+            and(
+              eq(attributeValueItems.tenantId, tenantId),
+              eq(attributeValueItems.attributeDefinitionId, definitionId),
+            ),
+          )
+          .pipe(Effect.mapError(unavailable)),
+        sets: transaction
+          .select({
+            attributeValueSetId: attributeValueSets.attributeValueSetId,
+            currentState: attributeValueSets.currentState,
+            productId: attributeValueSets.productId,
+            variantId: attributeValueSets.variantId,
+          })
+          .from(attributeValueSets)
+          .where(
+            and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.attributeDefinitionId, definitionId)),
+          )
+          .pipe(Effect.mapError(unavailable)),
+        typeRules: transaction
+          .select({
+            productTypeId: productTypeRevisionAttributes.productTypeId,
+            revision: productTypeRevisionAttributes.revision,
+          })
+          .from(productTypeRevisionAttributes)
+          .where(
+            and(
+              eq(productTypeRevisionAttributes.tenantId, tenantId),
+              eq(productTypeRevisionAttributes.attributeDefinitionId, definitionId),
+            ),
+          )
+          .pipe(Effect.mapError(unavailable)),
+        types: transaction
+          .select({ currentRevision: productTypes.currentRevision, productTypeId: productTypes.productTypeId })
+          .from(productTypes)
+          .where(eq(productTypes.tenantId, tenantId))
+          .pipe(Effect.mapError(unavailable)),
+        variants: transaction
+          .select({ productId: productVariants.productId, variantId: productVariants.variantId })
+          .from(productVariants)
+          .where(eq(productVariants.tenantId, tenantId))
+          .pipe(Effect.mapError(unavailable)),
+      },
+      { concurrency: 6 },
+    );
+    const currentTypeRevisions = new Set(types.map((type) => `${type.productTypeId}:${type.currentRevision}`));
+    const productTypeIds: string[] = [];
+    for (const rule of typeRules) {
+      if (currentTypeRevisions.has(`${rule.productTypeId}:${rule.revision}`)) {
+        productTypeIds.push(rule.productTypeId);
+      }
+    }
+    return deriveAttributeImpact({
+      axisProductIds: axes.map((axis) => axis.productId),
+      controlledValueId: controlledValueRef?.resourceId,
+      items,
+      productTypeIds,
+      sets,
+      variants,
+    });
+  },
+);
 
 /** All methods run only on the Core-owned, tenant-scoped Action transaction. */
 export const attributePersistenceForScope = (transaction: ScopedTransaction, scope: OperationalScope) => {
@@ -238,7 +436,7 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
   const renameDefinition = Effect.fn('AttributePersistence.renameDefinition')(function* renameDefinition(
     input: RenameAttributeDefinitionInput,
   ) {
-    if (!validRef(input.attributeDefinitionRef, tenantId)) {
+    if (!validDefinitionRef(input.attributeDefinitionRef, tenantId)) {
       return yield* conflict('INVALID_INPUT', 'Attribute reference is outside the trusted Tenant');
     }
     if (
@@ -397,7 +595,7 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     change: { lifecycleState?: 'ACTIVE' | 'RETIRED'; name?: string },
   ) {
     if (
-      !validRef(input.controlledValueRef, tenantId) ||
+      !validControlledValueRef(input.controlledValueRef, tenantId) ||
       !validText(input.evidence, 1000) ||
       !validText(input.reason, 1000)
     ) {
