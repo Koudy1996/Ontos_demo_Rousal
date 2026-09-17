@@ -23,7 +23,10 @@ import {
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 type UnitRow = typeof productUnits.$inferSelect;
-type Evidence = { readonly actionInvocationId: string; readonly principalId: string };
+interface Evidence {
+  readonly actionInvocationId: string;
+  readonly principalId: string;
+}
 type Input<Payload> = Evidence & { readonly payload: Payload };
 type Target = SetProductUnitTargetDivisibilityPayload['target'];
 type ExpectedSources = SetProductUnitTargetDivisibilityPayload['expectedSources'];
@@ -34,26 +37,42 @@ export class ProductUnitPersistenceUnavailable extends Schema.TaggedError<Produc
   { code: Schema.Literal('product_unit_persistence_unavailable'), reason: Schema.String },
 ) {}
 
-export type ProductUnitMutationOutcome =
-  | {
-      readonly _tag: 'created' | 'revised' | 'retired' | 'divisibility_set';
-      readonly unit: typeof ProductUnitRefSchema.Type;
-      readonly ruleRevision: typeof ProductUnitRuleRevisionSchema.Type;
-      readonly targetDivisibility?: typeof ProductUnitTargetDivisibilitySchema.Type;
-    }
-  | { readonly _tag: 'invalid'; readonly reason: string }
-  | { readonly _tag: 'not_found' }
-  | { readonly _tag: 'stale'; readonly actualRevision: number };
+const ProductUnitMutationOutcomeSchema = Schema.Union([
+  Schema.TaggedStruct('created', {
+    ruleRevision: ProductUnitRuleRevisionSchema,
+    targetDivisibility: Schema.optionalKey(ProductUnitTargetDivisibilitySchema),
+    unit: ProductUnitRefSchema,
+  }),
+  Schema.TaggedStruct('revised', {
+    ruleRevision: ProductUnitRuleRevisionSchema,
+    targetDivisibility: Schema.optionalKey(ProductUnitTargetDivisibilitySchema),
+    unit: ProductUnitRefSchema,
+  }),
+  Schema.TaggedStruct('retired', {
+    ruleRevision: ProductUnitRuleRevisionSchema,
+    targetDivisibility: Schema.optionalKey(ProductUnitTargetDivisibilitySchema),
+    unit: ProductUnitRefSchema,
+  }),
+  Schema.TaggedStruct('divisibility_set', {
+    ruleRevision: ProductUnitRuleRevisionSchema,
+    targetDivisibility: ProductUnitTargetDivisibilitySchema,
+    unit: ProductUnitRefSchema,
+  }),
+  Schema.TaggedStruct('invalid', { reason: Schema.String }),
+  Schema.TaggedStruct('not_found', {}),
+  Schema.TaggedStruct('stale', { actualRevision: Schema.Finite }),
+]);
+export type ProductUnitMutationOutcome = typeof ProductUnitMutationOutcomeSchema.Type;
 
 export interface ProductUnitPersistence {
   readonly create: (
     input: Input<CreateProductUnitPayload>,
   ) => Effect.Effect<ProductUnitMutationOutcome, ProductUnitPersistenceUnavailable>;
-  readonly revise: (
-    input: Input<ReviseProductUnitPayload>,
-  ) => Effect.Effect<ProductUnitMutationOutcome, ProductUnitPersistenceUnavailable>;
   readonly retire: (
     input: Input<RetireProductUnitPayload>,
+  ) => Effect.Effect<ProductUnitMutationOutcome, ProductUnitPersistenceUnavailable>;
+  readonly revise: (
+    input: Input<ReviseProductUnitPayload>,
   ) => Effect.Effect<ProductUnitMutationOutcome, ProductUnitPersistenceUnavailable>;
   readonly setTargetDivisibility: (
     input: Input<SetProductUnitTargetDivisibilityPayload>,
@@ -73,7 +92,9 @@ const unavailable = (cause?: unknown) => {
     code: 'product_unit_persistence_unavailable',
     reason: 'Authoritative Product Unit basis or persistence is unavailable',
   });
-  if (cause !== undefined) Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  if (cause !== undefined) {
+    Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  }
   return failure;
 };
 
@@ -83,8 +104,10 @@ const validRef = (ref: typeof ProductUnitRefSchema.Type, tenantId: string) =>
   ref.resourceType === unitType &&
   ref.tenantId === tenantId;
 
+const validRounding = Schema.is(Schema.Literals(['UP', 'DOWN', 'HALF_UP']));
+
 const validEvidence = (
-  input: Evidence & { readonly payload: { readonly reason: string; readonly evidenceRefs: readonly string[] } },
+  input: Evidence & { readonly payload: { readonly evidenceRefs: readonly string[]; readonly reason: string } },
 ) =>
   input.payload.reason.length > 0 &&
   input.payload.reason.length <= 1000 &&
@@ -92,12 +115,33 @@ const validEvidence = (
   input.payload.evidenceRefs.length > 0 &&
   input.payload.evidenceRefs.every((ref) => ref.length > 0 && ref.length <= 300 && ref === ref.trim());
 
-const makeResult = Effect.fn('ProductUnitPersistence.makeResult')(function* makeResult(
-  tag: 'created' | 'revised' | 'retired' | 'divisibility_set',
-  row: UnitRow,
-  rule: { readonly revision: number; readonly step: string; readonly rounding: 'UP' | 'DOWN' | 'HALF_UP' },
-  targetDivisibility?: typeof ProductUnitTargetDivisibilitySchema.Type,
-) {
+const validTargetInput = (input: Input<SetProductUnitTargetDivisibilityPayload>, tenantId: string) =>
+  validRef(input.payload.target.unit, tenantId) && input.payload.target.tenantId === tenantId && validEvidence(input);
+
+const targetCurrentConflict = (
+  current: { readonly currentRevision: number; readonly unitId: string } | undefined,
+  expectedCurrentRevision: number | undefined,
+  unitId: string,
+): ProductUnitMutationOutcome | undefined => {
+  if (current === undefined && expectedCurrentRevision !== undefined) {
+    return { _tag: 'stale', actualRevision: 0 };
+  }
+  if (current !== undefined && expectedCurrentRevision !== current.currentRevision) {
+    return { _tag: 'stale', actualRevision: current.currentRevision };
+  }
+  if (current !== undefined && current.unitId !== unitId) {
+    return { _tag: 'invalid', reason: 'Target Unit identity cannot be silently reassigned' };
+  }
+  return undefined;
+};
+
+const makeResult = Effect.fn('ProductUnitPersistence.makeResult')(function* makeResult(input: {
+  readonly row: UnitRow;
+  readonly rule: { readonly revision: number; readonly rounding: 'UP' | 'DOWN' | 'HALF_UP'; readonly step: string };
+  readonly tag: 'created' | 'revised' | 'retired' | 'divisibility_set';
+  readonly targetDivisibility?: typeof ProductUnitTargetDivisibilitySchema.Type;
+}) {
+  const { row, rule, tag, targetDivisibility } = input;
   const unit = yield* Schema.decodeEffect(ProductUnitRefSchema)({
     moduleId: 'commerce.catalog',
     resourceId: row.unitId,
@@ -110,9 +154,13 @@ const makeResult = Effect.fn('ProductUnitPersistence.makeResult')(function* make
     step: rule.step,
     unit,
   });
-  return targetDivisibility === undefined
-    ? { _tag: tag, ruleRevision, unit }
-    : { _tag: tag, ruleRevision, targetDivisibility, unit };
+  if (tag === 'divisibility_set') {
+    if (targetDivisibility === undefined) {
+      return yield* unavailable();
+    }
+    return { _tag: tag, ruleRevision, targetDivisibility, unit };
+  }
+  return { _tag: tag, ruleRevision, unit };
 }, Effect.mapError(unavailable));
 
 /** Core owns transaction, scope verification and RLS setting; every query also predicates tenant. */
@@ -145,29 +193,29 @@ export const productUnitPersistenceForScope = (
       .pipe(Effect.mapError(unavailable));
   const appendRule = (
     row: UnitRow,
-    input: Evidence & { readonly payload: { readonly reason: string; readonly evidenceRefs: readonly string[] } },
-    rule: { readonly step: string; readonly rounding: 'UP' | 'DOWN' | 'HALF_UP' },
+    input: Evidence & { readonly payload: { readonly evidenceRefs: readonly string[]; readonly reason: string } },
+    rule: { readonly rounding: 'UP' | 'DOWN' | 'HALF_UP'; readonly step: string },
     changeKind: string,
   ) =>
     transaction
       .insert(productUnitRuleRevisions)
       .values({
+        actingPrincipalId: input.principalId,
+        actionInvocationId: input.actionInvocationId,
+        changeKind,
+        evidenceRefs: [...input.payload.evidenceRefs],
+        lifecycleState: row.lifecycleState,
+        reason: input.payload.reason,
+        revision: row.currentRuleRevision,
+        rounding: rule.rounding,
+        step: rule.step,
         tenantId,
         unitId: row.unitId,
-        revision: row.currentRuleRevision,
-        step: rule.step,
-        rounding: rule.rounding,
-        lifecycleState: row.lifecycleState,
-        changeKind,
-        reason: input.payload.reason,
-        evidenceRefs: [...input.payload.evidenceRefs],
-        actionInvocationId: input.actionInvocationId,
-        actingPrincipalId: input.principalId,
       })
       .pipe(Effect.mapError(unavailable));
 
   const create: ProductUnitPersistence['create'] = Effect.fn('ProductUnitPersistence.create')(function* create(input) {
-    const { unitRef, code, label, rule } = input.payload;
+    const { code, label, rule, unitRef } = input.payload;
     if (
       !validRef(unitRef, tenantId) ||
       !validEvidence(input) ||
@@ -182,15 +230,19 @@ export const productUnitPersistenceForScope = (
       return { _tag: 'invalid', reason: 'Product Unit meaning, rule or evidence is invalid' };
     }
     const [existing] = yield* getUnit(unitRef.resourceId);
-    if (existing !== undefined) return { _tag: 'invalid', reason: 'Product Unit identity already exists' };
+    if (existing !== undefined) {
+      return { _tag: 'invalid', reason: 'Product Unit identity already exists' };
+    }
     const [row] = yield* transaction
       .insert(productUnits)
-      .values({ tenantId, unitId: unitRef.resourceId, code, label, lifecycleState: 'ACTIVE', currentRuleRevision: 1 })
+      .values({ code, currentRuleRevision: 1, label, lifecycleState: 'ACTIVE', tenantId, unitId: unitRef.resourceId })
       .returning()
       .pipe(Effect.mapError(unavailable));
-    if (row === undefined) return yield* unavailable();
+    if (row === undefined) {
+      return yield* unavailable();
+    }
     yield* appendRule(row, input, rule, 'CREATED');
-    return yield* makeResult('created', row, { revision: 1, ...rule });
+    return yield* makeResult({ row, rule: { revision: 1, ...rule }, tag: 'created' });
   });
 
   const revise: ProductUnitPersistence['revise'] = Effect.fn('ProductUnitPersistence.revise')(function* revise(input) {
@@ -199,15 +251,23 @@ export const productUnitPersistenceForScope = (
       !validRef(expectedCurrent.unit, tenantId) ||
       !validEvidence(input) ||
       !Schema.is(ProductUnitRuleInputSchema)(rule)
-    )
+    ) {
       return { _tag: 'invalid', reason: 'Product Unit rule or evidence is invalid' };
+    }
     const [row] = yield* getUnit(expectedCurrent.unit.resourceId);
-    if (row === undefined) return { _tag: 'not_found' };
-    if (row.currentRuleRevision !== expectedCurrent.revision)
+    if (row === undefined) {
+      return { _tag: 'not_found' };
+    }
+    if (row.currentRuleRevision !== expectedCurrent.revision) {
       return { _tag: 'stale', actualRevision: row.currentRuleRevision };
-    if (row.lifecycleState !== 'ACTIVE') return { _tag: 'invalid', reason: 'Retired Product Unit cannot be revised' };
+    }
+    if (row.lifecycleState !== 'ACTIVE') {
+      return { _tag: 'invalid', reason: 'Retired Product Unit cannot be revised' };
+    }
     const [prior] = yield* getRule(row.unitId, row.currentRuleRevision);
-    if (prior === undefined) return yield* unavailable();
+    if (prior === undefined) {
+      return yield* unavailable();
+    }
     const [updated] = yield* transaction
       .update(productUnits)
       .set({ currentRuleRevision: row.currentRuleRevision + 1 })
@@ -221,22 +281,36 @@ export const productUnitPersistenceForScope = (
       )
       .returning()
       .pipe(Effect.mapError(unavailable));
-    if (updated === undefined) return { _tag: 'stale', actualRevision: row.currentRuleRevision };
+    if (updated === undefined) {
+      return { _tag: 'stale', actualRevision: row.currentRuleRevision };
+    }
     yield* appendRule(updated, input, rule, 'REVISED');
-    return yield* makeResult('revised', updated, { revision: updated.currentRuleRevision, ...rule });
+    return yield* makeResult({
+      row: updated,
+      rule: { revision: updated.currentRuleRevision, ...rule },
+      tag: 'revised',
+    });
   });
 
   const retire: ProductUnitPersistence['retire'] = Effect.fn('ProductUnitPersistence.retire')(function* retire(input) {
     const { expectedCurrent } = input.payload;
-    if (!validRef(expectedCurrent.unit, tenantId) || !validEvidence(input))
+    if (!validRef(expectedCurrent.unit, tenantId) || !validEvidence(input)) {
       return { _tag: 'invalid', reason: 'Product Unit reference or evidence is invalid' };
+    }
     const [row] = yield* getUnit(expectedCurrent.unit.resourceId);
-    if (row === undefined) return { _tag: 'not_found' };
-    if (row.currentRuleRevision !== expectedCurrent.revision)
+    if (row === undefined) {
+      return { _tag: 'not_found' };
+    }
+    if (row.currentRuleRevision !== expectedCurrent.revision) {
       return { _tag: 'stale', actualRevision: row.currentRuleRevision };
-    if (row.lifecycleState !== 'ACTIVE') return { _tag: 'invalid', reason: 'Product Unit is already retired' };
+    }
+    if (row.lifecycleState !== 'ACTIVE') {
+      return { _tag: 'invalid', reason: 'Product Unit is already retired' };
+    }
     const [prior] = yield* getRule(row.unitId, row.currentRuleRevision);
-    if (prior === undefined) return yield* unavailable();
+    if (prior === undefined) {
+      return yield* unavailable();
+    }
     const [updated] = yield* transaction
       .update(productUnits)
       .set({ currentRuleRevision: row.currentRuleRevision + 1, lifecycleState: 'RETIRED' })
@@ -250,35 +324,140 @@ export const productUnitPersistenceForScope = (
       )
       .returning()
       .pipe(Effect.mapError(unavailable));
-    if (updated === undefined) return { _tag: 'stale', actualRevision: row.currentRuleRevision };
-    if (prior.rounding !== 'UP' && prior.rounding !== 'DOWN' && prior.rounding !== 'HALF_UP')
+    if (updated === undefined) {
+      return { _tag: 'stale', actualRevision: row.currentRuleRevision };
+    }
+    if (prior.rounding !== 'UP' && prior.rounding !== 'DOWN' && prior.rounding !== 'HALF_UP') {
       return yield* unavailable();
-    yield* appendRule(updated, input, { step: prior.step, rounding: prior.rounding }, 'RETIRED');
-    return yield* makeResult('retired', updated, {
-      revision: updated.currentRuleRevision,
-      step: prior.step,
-      rounding: prior.rounding,
+    }
+    yield* appendRule(updated, input, { rounding: prior.rounding, step: prior.step }, 'RETIRED');
+    return yield* makeResult({
+      row: updated,
+      rule: {
+        revision: updated.currentRuleRevision,
+        rounding: prior.rounding,
+        step: prior.step,
+      },
+      tag: 'retired',
     });
   });
+
+  const writeTargetRevision = Effect.fn('ProductUnitPersistence.writeTargetRevision')(
+    function* writeTargetRevision(input: {
+      readonly action: Input<SetProductUnitTargetDivisibilityPayload>;
+      readonly current: { readonly currentRevision: number } | undefined;
+      readonly revision: number;
+      readonly unit: UnitRow;
+    }) {
+      const { action, current, revision, unit } = input;
+      const { divisible, target } = action.payload;
+      if (target.targetType === 'commerce.catalog.variant') {
+        if (current === undefined) {
+          yield* transaction.insert(variantUnitDivisibility).values({
+            currentRevision: revision,
+            divisible,
+            tenantId,
+            unitId: unit.unitId,
+            variantId: target.targetId,
+          });
+        } else {
+          const [updated] = yield* transaction
+            .update(variantUnitDivisibility)
+            .set({ currentRevision: revision, divisible })
+            .where(
+              and(
+                eq(variantUnitDivisibility.tenantId, tenantId),
+                eq(variantUnitDivisibility.variantId, target.targetId),
+                eq(variantUnitDivisibility.currentRevision, current.currentRevision),
+              ),
+            )
+            .returning();
+          if (updated === undefined) {
+            return false;
+          }
+        }
+        yield* transaction.insert(variantUnitDivisibilityRevisions).values({
+          actingPrincipalId: action.principalId,
+          actionInvocationId: action.actionInvocationId,
+          divisible,
+          evidenceRefs: [...action.payload.evidenceRefs],
+          reason: action.payload.reason,
+          revision,
+          tenantId,
+          unitId: unit.unitId,
+          variantId: target.targetId,
+        });
+      } else {
+        if (current === undefined) {
+          yield* transaction.insert(packageUnitDivisibility).values({
+            currentRevision: revision,
+            divisible,
+            packageDefinitionId: target.targetId,
+            tenantId,
+            unitId: unit.unitId,
+          });
+        } else {
+          const [updated] = yield* transaction
+            .update(packageUnitDivisibility)
+            .set({ currentRevision: revision, divisible })
+            .where(
+              and(
+                eq(packageUnitDivisibility.tenantId, tenantId),
+                eq(packageUnitDivisibility.packageDefinitionId, target.targetId),
+                eq(packageUnitDivisibility.currentRevision, current.currentRevision),
+              ),
+            )
+            .returning();
+          if (updated === undefined) {
+            return false;
+          }
+        }
+        yield* transaction.insert(packageUnitDivisibilityRevisions).values({
+          actingPrincipalId: action.principalId,
+          actionInvocationId: action.actionInvocationId,
+          divisible,
+          evidenceRefs: [...action.payload.evidenceRefs],
+          packageDefinitionId: target.targetId,
+          reason: action.payload.reason,
+          revision,
+          tenantId,
+          unitId: unit.unitId,
+        });
+      }
+      return true;
+    },
+    Effect.mapError(unavailable),
+  );
 
   const setTargetDivisibility: ProductUnitPersistence['setTargetDivisibility'] = Effect.fn(
     'ProductUnitPersistence.setTargetDivisibility',
   )(function* setTargetDivisibility(input) {
-    const { target, divisible, expectedCurrentRevision, expectedSources } = input.payload;
-    if (!validRef(target.unit, tenantId) || target.tenantId !== tenantId || !validEvidence(input))
+    const { divisible, expectedCurrentRevision, expectedSources, target } = input.payload;
+    if (!validTargetInput(input, tenantId)) {
       return { _tag: 'invalid', reason: 'Product Unit target or evidence is invalid' };
+    }
     const [unit] = yield* getUnit(target.unit.resourceId);
-    if (unit === undefined) return { _tag: 'not_found' };
-    if (unit.lifecycleState !== 'ACTIVE') return { _tag: 'invalid', reason: 'Retired Product Unit cannot be assigned' };
+    if (unit === undefined) {
+      return { _tag: 'not_found' };
+    }
+    if (unit.lifecycleState !== 'ACTIVE') {
+      return { _tag: 'invalid', reason: 'Retired Product Unit cannot be assigned' };
+    }
     const [rule] = yield* getRule(unit.unitId, unit.currentRuleRevision);
-    if (rule === undefined || (rule.rounding !== 'UP' && rule.rounding !== 'DOWN' && rule.rounding !== 'HALF_UP'))
+    if (rule === undefined || !validRounding(rule.rounding)) {
       return yield* unavailable();
+    }
     const currentRounding = rule.rounding;
-    if (basis === undefined) return yield* unavailable();
+    if (basis === undefined) {
+      return yield* unavailable();
+    }
     const basisResult = yield* basis.verify(target, expectedSources);
-    if (basisResult === 'invalid')
+    if (basisResult === 'invalid') {
       return { _tag: 'invalid', reason: 'Product Unit target is not an active Tenant-owned purchase target' };
-    if (basisResult === 'stale') return { _tag: 'stale', actualRevision: 0 };
+    }
+    if (basisResult === 'stale') {
+      return { _tag: 'stale', actualRevision: 0 };
+    }
     const variant = target.targetType === 'commerce.catalog.variant';
     const currentTable = variant ? variantUnitDivisibility : packageUnitDivisibility;
     const targetColumn = variant ? variantUnitDivisibility.variantId : packageUnitDivisibility.packageDefinitionId;
@@ -289,103 +468,28 @@ export const productUnitPersistenceForScope = (
       .for('update')
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-    if (current === undefined && expectedCurrentRevision !== undefined) return { _tag: 'stale', actualRevision: 0 };
-    if (current !== undefined && expectedCurrentRevision !== current.currentRevision)
-      return { _tag: 'stale', actualRevision: current.currentRevision };
-    if (current !== undefined && current.unitId !== unit.unitId)
-      return { _tag: 'invalid', reason: 'Target Unit identity cannot be silently reassigned' };
+    const conflict = targetCurrentConflict(current, expectedCurrentRevision, unit.unitId);
+    if (conflict !== undefined) {
+      return conflict;
+    }
     const revision = (current?.currentRevision ?? 0) + 1;
-    if (variant) {
-      if (current === undefined)
-        yield* transaction
-          .insert(variantUnitDivisibility)
-          .values({ tenantId, variantId: target.targetId, unitId: unit.unitId, currentRevision: revision, divisible })
-          .pipe(Effect.mapError(unavailable));
-      else {
-        const [updated] = yield* transaction
-          .update(variantUnitDivisibility)
-          .set({ currentRevision: revision, divisible })
-          .where(
-            and(
-              eq(variantUnitDivisibility.tenantId, tenantId),
-              eq(variantUnitDivisibility.variantId, target.targetId),
-              eq(variantUnitDivisibility.currentRevision, current.currentRevision),
-            ),
-          )
-          .returning()
-          .pipe(Effect.mapError(unavailable));
-        if (updated === undefined) return { _tag: 'stale', actualRevision: current.currentRevision };
-      }
-      yield* transaction
-        .insert(variantUnitDivisibilityRevisions)
-        .values({
-          tenantId,
-          variantId: target.targetId,
-          revision,
-          unitId: unit.unitId,
-          divisible,
-          reason: input.payload.reason,
-          evidenceRefs: [...input.payload.evidenceRefs],
-          actionInvocationId: input.actionInvocationId,
-          actingPrincipalId: input.principalId,
-        })
-        .pipe(Effect.mapError(unavailable));
-    } else {
-      if (current === undefined)
-        yield* transaction
-          .insert(packageUnitDivisibility)
-          .values({
-            tenantId,
-            packageDefinitionId: target.targetId,
-            unitId: unit.unitId,
-            currentRevision: revision,
-            divisible,
-          })
-          .pipe(Effect.mapError(unavailable));
-      else {
-        const [updated] = yield* transaction
-          .update(packageUnitDivisibility)
-          .set({ currentRevision: revision, divisible })
-          .where(
-            and(
-              eq(packageUnitDivisibility.tenantId, tenantId),
-              eq(packageUnitDivisibility.packageDefinitionId, target.targetId),
-              eq(packageUnitDivisibility.currentRevision, current.currentRevision),
-            ),
-          )
-          .returning()
-          .pipe(Effect.mapError(unavailable));
-        if (updated === undefined) return { _tag: 'stale', actualRevision: current.currentRevision };
-      }
-      yield* transaction
-        .insert(packageUnitDivisibilityRevisions)
-        .values({
-          tenantId,
-          packageDefinitionId: target.targetId,
-          revision,
-          unitId: unit.unitId,
-          divisible,
-          reason: input.payload.reason,
-          evidenceRefs: [...input.payload.evidenceRefs],
-          actionInvocationId: input.actionInvocationId,
-          actingPrincipalId: input.principalId,
-        })
-        .pipe(Effect.mapError(unavailable));
+    if (!(yield* writeTargetRevision({ action: input, current, revision, unit }))) {
+      return { _tag: 'stale', actualRevision: current?.currentRevision ?? 0 };
     }
     const targetDivisibility = yield* Schema.decodeEffect(ProductUnitTargetDivisibilitySchema)({
-      tenantId,
+      divisible,
+      revision,
       targetId: target.targetId,
       targetType: target.targetType,
+      tenantId,
       unit: target.unit,
-      revision,
-      divisible,
     }).pipe(Effect.mapError(unavailable));
-    return yield* makeResult(
-      'divisibility_set',
-      unit,
-      { revision: rule.revision, step: rule.step, rounding: currentRounding },
+    return yield* makeResult({
+      row: unit,
+      rule: { revision: rule.revision, rounding: currentRounding, step: rule.step },
+      tag: 'divisibility_set',
       targetDivisibility,
-    );
+    });
   });
-  return { create, revise, retire, setTargetDivisibility };
+  return { create, retire, revise, setTargetDivisibility };
 };
