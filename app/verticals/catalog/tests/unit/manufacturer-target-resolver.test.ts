@@ -19,6 +19,15 @@ const partyRef = (resourceId: string, tenant = tenantId) => ({
   tenantId: tenant,
 });
 const target = { kind: 'PARTY' as const, partyRef: partyRef('maker-alias') };
+const managedTarget = {
+  kind: 'LEGAL_ENTITY' as const,
+  legalEntityRef: {
+    moduleId: 'core.identity' as const,
+    resourceId: '44444444-4444-4444-8444-444444444444',
+    resourceType: 'core.identity.legal-entity' as const,
+    tenantId,
+  },
+};
 const scope = { requestId: 'catalog-read-1', tenantId };
 
 const detail = (kind: 'ALIAS' | 'DIRECT' = 'ALIAS', archivedAt: string | null = null) =>
@@ -71,7 +80,7 @@ describe('Manufacturer owner target resolution', () => {
       });
       const resolved = yield* resolver.resolve(target, scope);
       expect(resolved.state).toBe('ARCHIVED');
-      expect(resolved.ownerRevision).toBe(4);
+      expect(resolved).toMatchObject({ ownerRevision: 4 });
     }),
   );
 
@@ -116,21 +125,58 @@ describe('Manufacturer owner target resolution', () => {
       });
       const contradiction = yield* Effect.flip(resolver.resolve(target, scope));
       expect(Schema.is(ManufacturerTargetUnavailable)(contradiction)).toBe(true);
-      const managed = yield* Effect.flip(
-        resolver.resolve(
-          {
-            kind: 'LEGAL_ENTITY',
-            legalEntityRef: {
-              moduleId: 'core.identity',
-              resourceId: '44444444-4444-4444-8444-444444444444',
-              resourceType: 'core.identity.legal-entity',
-              tenantId,
-            },
-          },
-          scope,
-        ),
-      );
+      const managed = yield* Effect.flip(resolver.resolve(managedTarget, scope));
       expect(Schema.is(ManufacturerTargetUnavailable)(managed)).toBe(true);
+    }),
+  );
+
+  it.effect('accepts exact governed managed identity and retains owner lifecycle', () =>
+    Effect.gen(function* testManaged() {
+      for (const [status, state] of [
+        ['active', 'CURRENT'],
+        ['suspended', 'SUSPENDED'],
+        ['archived', 'ARCHIVED'],
+      ] as const) {
+        const resolver = makeManufacturerTargetResolver({
+          readManagedLegalEntity: ({ legalEntityRef }) => Effect.succeed({ legalEntityRef, status }),
+          readPartyDetail: () => Effect.fail({ _tag: 'PartyDetailUnavailableProblem' }),
+        });
+        const resolved = yield* resolver.resolve(managedTarget, scope);
+        expect(resolved).toMatchObject({
+          canonicalTarget: managedTarget,
+          kind: 'LEGAL_ENTITY',
+          lifecycleStatus: status,
+          requestedTarget: managedTarget,
+          state,
+        });
+      }
+    }),
+  );
+
+  it.effect('rejects contradictory managed identity and maps governed read failures distinctly', () =>
+    Effect.gen(function* testManagedFailures() {
+      const contradictory = makeManufacturerTargetResolver({
+        readManagedLegalEntity: () =>
+          Effect.succeed({
+            legalEntityRef: { ...managedTarget.legalEntityRef, resourceId: '55555555-5555-4555-8555-555555555555' },
+            status: 'active',
+          }),
+        readPartyDetail: () => Effect.fail({ _tag: 'PartyDetailUnavailableProblem' }),
+      });
+      const contradiction = yield* Effect.flip(contradictory.resolve(managedTarget, scope));
+      expect(Schema.is(ManufacturerTargetUnavailable)(contradiction)).toBe(true);
+      for (const [ownerTag, expected] of [
+        ['ShellTargetNotFoundProblem', ManufacturerTargetAbsent],
+        ['ShellTargetForbiddenProblem', ManufacturerTargetForbidden],
+        ['ShellCapabilityUnavailableProblem', ManufacturerTargetUnavailable],
+      ] as const) {
+        const resolver = makeManufacturerTargetResolver({
+          readManagedLegalEntity: () => Effect.fail({ _tag: ownerTag }),
+          readPartyDetail: () => Effect.fail({ _tag: 'PartyDetailUnavailableProblem' }),
+        });
+        const failure = yield* Effect.flip(resolver.resolve(managedTarget, scope));
+        expect(Schema.is(expected)(failure)).toBe(true);
+      }
     }),
   );
 });
