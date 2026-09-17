@@ -1,8 +1,8 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { and, eq, isNull } from 'drizzle-orm';
-import { Effect, Option, Schema } from 'effect';
+import { and, eq } from 'drizzle-orm';
+import { DateTime, Effect, Match, Option, Schema } from 'effect';
 
-import type { AttributeValue } from '../../shared/domain/attribute-values.ts';
+import type { AttributeDefinition, AttributeValue } from '../../shared/domain/attribute-values.ts';
 import { AttributeDefinitionSchema, AttributeValueSchema } from '../../shared/domain/attribute-values.ts';
 import type {
   EffectiveAttributeValuesResult,
@@ -55,8 +55,8 @@ const ref = (tenantId: string, resourceId: string, resourceType: string) => ({
   tenantId,
 });
 const invalid = (reason: string): EffectiveAttributeValuesResult => ({
-  status: 'INVALID_AUTHORITY',
   reasons: [reason],
+  status: 'INVALID_AUTHORITY',
 });
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   const error = new CatalogPersistenceUnavailable({
@@ -67,273 +67,330 @@ const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   return error;
 };
 
+type DefinitionRow = typeof attributeDefinitions.$inferSelect;
+type ValueItemRow = typeof attributeValueItems.$inferSelect;
+type ValueSetRow = typeof attributeValueSets.$inferSelect;
+
+const decodeDefinition = (
+  row: DefinitionRow,
+  definitionRef: AttributeDefinitionRef,
+): Option.Option<AttributeDefinition> => {
+  const measurement =
+    row.valueKind === 'MEASUREMENT'
+      ? {
+          canonicalUnit: row.canonicalUnit,
+          decimalPlaces: row.decimalPlaces,
+          maximum: row.maximumValue === null ? undefined : Number(row.maximumValue),
+          minimum: row.minimumValue === null ? undefined : Number(row.minimumValue),
+          quantity: row.measuredQuantity,
+        }
+      : undefined;
+  const definition = {
+    label: row.name,
+    levels: row.applicableLevels,
+    meaning: row.meaning,
+    multiplicity: row.multiplicity,
+    ref: definitionRef,
+    specialStates: [
+      ...(row.allowsUnknown === 1 ? ['UNKNOWN'] : []),
+      ...(row.allowsNone === 1 ? ['NONE'] : []),
+      ...(row.allowsNotApplicable === 1 ? ['NOT_APPLICABLE'] : []),
+    ],
+    valueKind: row.valueKind,
+  };
+  return Schema.decodeUnknownOption(AttributeDefinitionSchema)(
+    measurement === undefined ? definition : { ...definition, measurement },
+  );
+};
+
+const decodePlainItem = (item: ValueItemRow): Option.Option<AttributeValue> =>
+  Match.value(item.valueKind).pipe(
+    Match.when('TEXT', () => Schema.decodeUnknownOption(AttributeValueSchema)({ kind: 'TEXT', text: item.textValue })),
+    Match.when('MEASUREMENT', () =>
+      Schema.decodeUnknownOption(AttributeValueSchema)({
+        amount: Number(item.numericValue),
+        kind: 'MEASUREMENT',
+        unit: item.unit,
+      }),
+    ),
+    Match.when('SPECIAL', () =>
+      Schema.decodeUnknownOption(AttributeValueSchema)({ kind: 'SPECIAL', state: item.specialState }),
+    ),
+    Match.orElse(() => Option.none()),
+  );
+
+const decodeItem = Effect.fn('EffectiveAttributeValueReads.decodeItem')(function* decodeItem(
+  transaction: ScopedTransaction,
+  tenantId: string,
+  definitionId: string,
+  controlledKind: string | null,
+  item: ValueItemRow,
+) {
+  if (item.valueKind !== 'CONTROLLED') {
+    return decodePlainItem(item);
+  }
+  if (item.controlledAttributeValueId === null) {
+    return Option.none<AttributeValue>();
+  }
+  const [controlled] = yield* transaction
+    .select()
+    .from(controlledAttributeValues)
+    .where(
+      and(
+        eq(controlledAttributeValues.tenantId, tenantId),
+        eq(controlledAttributeValues.attributeDefinitionId, definitionId),
+        eq(controlledAttributeValues.controlledAttributeValueId, item.controlledAttributeValueId),
+      ),
+    )
+    .limit(1)
+    .pipe(Effect.mapError(unavailable));
+  if (controlled === undefined || controlled.specialization !== controlledKind) {
+    return Option.none<AttributeValue>();
+  }
+  return Schema.decodeUnknownOption(AttributeValueSchema)({
+    kind: 'CONTROLLED',
+    valueRef: ref(tenantId, controlled.controlledAttributeValueId, 'commerce.catalog.controlled-attribute-value'),
+  });
+});
+
 /** Private owner service; Core supplies the already scoped read transaction and authorizes its caller. */
 export const effectiveAttributeValueReadsForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
 ): Effect.Effect<EffectiveAttributeValueReads> =>
   Effect.succeed({
-    resolveVariant: (input) =>
-      Effect.gen(function* () {
-        const tenantId = scope.tenantId;
-        if (
-          !Schema.is(ProductRefSchema)(input.productRef) ||
-          !Schema.is(VariantRefSchema)(input.variantRef) ||
-          !Schema.is(AttributeDefinitionRefSchema)(input.attributeDefinitionRef) ||
-          input.productRef.tenantId !== tenantId ||
-          input.variantRef.tenantId !== tenantId ||
-          input.attributeDefinitionRef.tenantId !== tenantId
-        )
-          return invalid('Malformed or foreign Catalog reference');
-        const productId = input.productRef.resourceId;
-        const variantId = input.variantRef.resourceId;
-        const definitionId = input.attributeDefinitionRef.resourceId;
-        const query = <A, E>(effect: Effect.Effect<A, E>) => effect.pipe(Effect.mapError(unavailable));
-        const [product] = yield* query(
-          transaction
-            .select()
-            .from(products)
-            .where(and(eq(products.tenantId, tenantId), eq(products.productId, productId)))
-            .limit(1),
-        );
-        const [variant] = yield* query(
-          transaction
-            .select()
-            .from(productVariants)
-            .where(
-              and(
-                eq(productVariants.tenantId, tenantId),
-                eq(productVariants.productId, productId),
-                eq(productVariants.variantId, variantId),
-              ),
-            )
-            .limit(1),
-        );
-        const [definition] = yield* query(
-          transaction
-            .select()
-            .from(attributeDefinitions)
-            .where(
-              and(
-                eq(attributeDefinitions.tenantId, tenantId),
-                eq(attributeDefinitions.attributeDefinitionId, definitionId),
-              ),
-            )
-            .limit(1),
-        );
-        if (
-          product === undefined ||
-          variant === undefined ||
-          definition === undefined ||
-          product.lifecycleState === 'RETIRED' ||
-          variant.lifecycleState === 'RETIRED'
-        )
-          return invalid('Product, Variant, or definition is missing or retired');
-        const [assignment] = yield* query(
-          transaction
-            .select()
-            .from(productTypeAssignments)
-            .where(and(eq(productTypeAssignments.tenantId, tenantId), eq(productTypeAssignments.productId, productId)))
-            .limit(1),
-        );
-        if (assignment === undefined) return invalid('Current Product Type assignment is missing');
-        const [productType] = yield* query(
-          transaction
-            .select()
-            .from(productTypes)
-            .where(and(eq(productTypes.tenantId, tenantId), eq(productTypes.productTypeId, assignment.productTypeId)))
-            .limit(1),
-        );
-        if (productType === undefined) return invalid('Current Product Type is missing');
-        const [revision] = yield* query(
-          transaction
-            .select()
-            .from(productTypeRevisions)
-            .where(
-              and(
-                eq(productTypeRevisions.tenantId, tenantId),
-                eq(productTypeRevisions.productTypeId, assignment.productTypeId),
-                eq(productTypeRevisions.revision, productType.currentRevision),
-              ),
-            )
-            .limit(1),
-        );
-        if (revision === undefined) return invalid('Current Product Type revision is missing');
-        const rules = yield* query(
-          transaction
-            .select()
-            .from(productTypeRevisionAttributes)
-            .where(
-              and(
-                eq(productTypeRevisionAttributes.tenantId, tenantId),
-                eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
-                eq(productTypeRevisionAttributes.revision, productType.currentRevision),
-                eq(productTypeRevisionAttributes.attributeDefinitionId, definitionId),
-              ),
-            ),
-        );
-        const domainDefinition = {
-          ref: input.attributeDefinitionRef,
-          label: definition.name,
-          meaning: definition.meaning,
-          levels: definition.applicableLevels,
-          multiplicity: definition.multiplicity,
-          valueKind: definition.valueKind,
-          specialStates: [
-            ...(definition.allowsUnknown === 1 ? ['UNKNOWN'] : []),
-            ...(definition.allowsNone === 1 ? ['NONE'] : []),
-            ...(definition.allowsNotApplicable === 1 ? ['NOT_APPLICABLE'] : []),
-          ],
-          ...(definition.valueKind === 'MEASUREMENT'
-            ? {
-                measurement: {
-                  quantity: definition.measuredQuantity,
-                  canonicalUnit: definition.canonicalUnit,
-                  decimalPlaces: definition.decimalPlaces,
-                  ...(definition.minimumValue === null ? {} : { minimum: Number(definition.minimumValue) }),
-                  ...(definition.maximumValue === null ? {} : { maximum: Number(definition.maximumValue) }),
-                },
-              }
-            : {}),
-        };
-        const decodedDefinition = Schema.decodeUnknownOption(AttributeDefinitionSchema)(domainDefinition);
-        if (Option.isNone(decodedDefinition)) return invalid('Current Attribute Definition is malformed');
-        const typeRef = ref(tenantId, assignment.productTypeId, 'commerce.catalog.product-type');
-      const effectiveFrom = revision.effectiveAt.toISOString();
-        const basis = Schema.decodeUnknownOption(ProductTypeCurrentBasisSchema)({
-          productTypeRef: typeRef,
-          revision: revision.revision,
-          currentRevision: productType.currentRevision,
-          revisionId: revision.productTypeRevisionId,
-          effectiveFrom,
-        evaluatedAt: new Date().toISOString(),
-        });
-        const rulesRevision = Schema.decodeUnknownOption(ProductTypeCurrentRulesRevisionSchema)({
-          productTypeRef: typeRef,
-          revision: revision.revision,
-          revisionId: revision.productTypeRevisionId,
-          effectiveFrom,
-          rules: rules.map((rule) => ({
-            attributeDefinitionRef: input.attributeDefinitionRef,
-            level: rule.level,
-            required: rule.requirement === 'REQUIRED',
-          })),
-        });
-        if (Option.isNone(basis) || Option.isNone(rulesRevision))
-          return invalid('Current Product Type basis is malformed');
-        const sets = yield* query(
-          transaction
-            .select()
-            .from(attributeValueSets)
-            .where(
-              and(
-                eq(attributeValueSets.tenantId, tenantId),
-                eq(attributeValueSets.productId, productId),
-                eq(attributeValueSets.attributeDefinitionId, definitionId),
-              ),
-            ),
-        );
-        const loadSet = Effect.fn('EffectiveAttributeValueReads.loadSet')(function* (
-          set: (typeof sets)[number] | undefined,
-        ) {
-          if (set === undefined) return { valid: true as const, snapshot: null };
-          const [record] = yield* query(
+    resolveVariant: Effect.fn('EffectiveAttributeValueReads.resolveVariant')(function* resolveVariant(input) {
+      const { tenantId } = scope;
+      if (
+        !Schema.is(ProductRefSchema)(input.productRef) ||
+        !Schema.is(VariantRefSchema)(input.variantRef) ||
+        !Schema.is(AttributeDefinitionRefSchema)(input.attributeDefinitionRef) ||
+        input.productRef.tenantId !== tenantId ||
+        input.variantRef.tenantId !== tenantId ||
+        input.attributeDefinitionRef.tenantId !== tenantId
+      ) {
+        return invalid('Malformed or foreign Catalog reference');
+      }
+      const productId = input.productRef.resourceId;
+      const variantId = input.variantRef.resourceId;
+      const definitionId = input.attributeDefinitionRef.resourceId;
+      const query = <A, E>(effect: Effect.Effect<A, E>) => effect.pipe(Effect.mapError(unavailable));
+      const [[product], [variant], [definition]] = yield* Effect.all(
+        [
+          query(
             transaction
               .select()
-              .from(attributeValueRevisions)
+              .from(products)
+              .where(and(eq(products.tenantId, tenantId), eq(products.productId, productId)))
+              .limit(1),
+          ),
+          query(
+            transaction
+              .select()
+              .from(productVariants)
               .where(
                 and(
-                  eq(attributeValueRevisions.tenantId, tenantId),
-                  eq(attributeValueRevisions.attributeValueSetId, set.attributeValueSetId),
-                  eq(attributeValueRevisions.revision, set.currentRevision),
+                  eq(productVariants.tenantId, tenantId),
+                  eq(productVariants.productId, productId),
+                  eq(productVariants.variantId, variantId),
                 ),
               )
               .limit(1),
-          );
-          const items = yield* query(
+          ),
+          query(
             transaction
               .select()
-              .from(attributeValueItems)
+              .from(attributeDefinitions)
               .where(
                 and(
-                  eq(attributeValueItems.tenantId, tenantId),
-                  eq(attributeValueItems.attributeValueSetId, set.attributeValueSetId),
+                  eq(attributeDefinitions.tenantId, tenantId),
+                  eq(attributeDefinitions.attributeDefinitionId, definitionId),
                 ),
               )
-              .orderBy(attributeValueItems.ordinal),
-          );
-          if (
-            record === undefined ||
-            record.changeKind !== set.currentState ||
-            items.some((item, index) => item.ordinal !== index || item.attributeDefinitionId !== definitionId)
+              .limit(1),
+          ),
+        ],
+        { concurrency: 3 },
+      );
+      if (
+        product === undefined ||
+        variant === undefined ||
+        definition === undefined ||
+        product.lifecycleState === 'RETIRED' ||
+        variant.lifecycleState === 'RETIRED'
+      ) {
+        return invalid('Product, Variant, or definition is missing or retired');
+      }
+      const [assignment] = yield* query(
+        transaction
+          .select()
+          .from(productTypeAssignments)
+          .where(and(eq(productTypeAssignments.tenantId, tenantId), eq(productTypeAssignments.productId, productId)))
+          .limit(1),
+      );
+      if (assignment === undefined) {
+        return invalid('Current Product Type assignment is missing');
+      }
+      const [productType] = yield* query(
+        transaction
+          .select()
+          .from(productTypes)
+          .where(and(eq(productTypes.tenantId, tenantId), eq(productTypes.productTypeId, assignment.productTypeId)))
+          .limit(1),
+      );
+      if (productType === undefined) {
+        return invalid('Current Product Type is missing');
+      }
+      const [revision] = yield* query(
+        transaction
+          .select()
+          .from(productTypeRevisions)
+          .where(
+            and(
+              eq(productTypeRevisions.tenantId, tenantId),
+              eq(productTypeRevisions.productTypeId, assignment.productTypeId),
+              eq(productTypeRevisions.revision, productType.currentRevision),
+            ),
           )
-            return { valid: false as const, snapshot: null };
-          const values: AttributeValue[] = [];
-          for (const item of items) {
-            let candidate: unknown;
-            switch (item.valueKind) {
-              case 'TEXT':
-                candidate = { kind: 'TEXT', text: item.textValue };
-                break;
-              case 'MEASUREMENT':
-                candidate = { kind: 'MEASUREMENT', amount: Number(item.numericValue), unit: item.unit };
-                break;
-              case 'SPECIAL':
-                candidate = { kind: 'SPECIAL', state: item.specialState };
-                break;
-              case 'CONTROLLED': {
-                if (item.controlledAttributeValueId === null) return { valid: false as const, snapshot: null };
-                const [controlled] = yield* query(
-                  transaction
-                    .select()
-                    .from(controlledAttributeValues)
-                    .where(
-                      and(
-                        eq(controlledAttributeValues.tenantId, tenantId),
-                        eq(controlledAttributeValues.attributeDefinitionId, definitionId),
-                        eq(controlledAttributeValues.controlledAttributeValueId, item.controlledAttributeValueId),
-                      ),
-                    )
-                    .limit(1),
-                );
-                if (controlled === undefined || controlled.specialization !== definition.controlledValueKind)
-                  return { valid: false as const, snapshot: null };
-                candidate = {
-                  kind: 'CONTROLLED',
-                  valueRef: ref(
-                    tenantId,
-                    controlled.controlledAttributeValueId,
-                    'commerce.catalog.controlled-attribute-value',
+          .limit(1),
+      );
+      if (revision === undefined) {
+        return invalid('Current Product Type revision is missing');
+      }
+      const rules = yield* query(
+        transaction
+          .select()
+          .from(productTypeRevisionAttributes)
+          .where(
+            and(
+              eq(productTypeRevisionAttributes.tenantId, tenantId),
+              eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
+              eq(productTypeRevisionAttributes.revision, productType.currentRevision),
+              eq(productTypeRevisionAttributes.attributeDefinitionId, definitionId),
+            ),
+          ),
+      );
+      const decodedDefinition = decodeDefinition(definition, input.attributeDefinitionRef);
+      if (Option.isNone(decodedDefinition)) {
+        return invalid('Current Attribute Definition is malformed');
+      }
+      const typeRef = ref(tenantId, assignment.productTypeId, 'commerce.catalog.product-type');
+      const effectiveFrom = revision.effectiveAt.toISOString();
+      const basis = Schema.decodeUnknownOption(ProductTypeCurrentBasisSchema)({
+        currentRevision: productType.currentRevision,
+        effectiveFrom,
+        evaluatedAt: DateTime.formatIso(yield* DateTime.now),
+        productTypeRef: typeRef,
+        revision: revision.revision,
+        revisionId: revision.productTypeRevisionId,
+      });
+      const rulesRevision = Schema.decodeUnknownOption(ProductTypeCurrentRulesRevisionSchema)({
+        effectiveFrom,
+        productTypeRef: typeRef,
+        revision: revision.revision,
+        revisionId: revision.productTypeRevisionId,
+        rules: rules.map((rule) => ({
+          attributeDefinitionRef: input.attributeDefinitionRef,
+          level: rule.level,
+          required: rule.requirement === 'REQUIRED',
+        })),
+      });
+      if (Option.isNone(basis) || Option.isNone(rulesRevision)) {
+        return invalid('Current Product Type basis is malformed');
+      }
+      const sets = yield* query(
+        transaction
+          .select()
+          .from(attributeValueSets)
+          .where(
+            and(
+              eq(attributeValueSets.tenantId, tenantId),
+              eq(attributeValueSets.productId, productId),
+              eq(attributeValueSets.attributeDefinitionId, definitionId),
+            ),
+          ),
+      );
+      const loadSet = Effect.fn('EffectiveAttributeValueReads.loadSet')(function* loadSet(
+        set: ValueSetRow | undefined,
+      ) {
+        if (set === undefined) {
+          return { snapshot: null, valid: true };
+        }
+        const [[record], items] = yield* Effect.all(
+          [
+            query(
+              transaction
+                .select()
+                .from(attributeValueRevisions)
+                .where(
+                  and(
+                    eq(attributeValueRevisions.tenantId, tenantId),
+                    eq(attributeValueRevisions.attributeValueSetId, set.attributeValueSetId),
+                    eq(attributeValueRevisions.revision, set.currentRevision),
                   ),
-                };
-                break;
-              }
-              default:
-                return { valid: false as const, snapshot: null };
-            }
-            const decoded = Schema.decodeUnknownOption(AttributeValueSchema)(candidate);
-            if (Option.isNone(decoded)) return { valid: false as const, snapshot: null };
-            values.push(decoded.value);
-          }
-          const snapshot: AttributeValueSetSnapshot = {
-            state: set.currentState as 'SET' | 'REMOVED',
-            revision: set.currentRevision,
-            values,
-          };
-          return { valid: true as const, snapshot };
-        });
-        const productSet = yield* loadSet(sets.find((set) => set.variantId === null));
-        const variantSet = yield* loadSet(sets.find((set) => set.variantId === variantId));
-        if (!productSet.valid || !variantSet.valid) return invalid('Current attribute value snapshot is malformed');
-        return resolveEffectiveAttributeValues({
-          basis: basis.value,
-          definition: decodedDefinition.value,
-          productRef: input.productRef,
-          variantProductRef: input.productRef,
-          productSet: productSet.snapshot,
-          rulesRevision: rulesRevision.value,
-          variantRef: input.variantRef,
-          variantSet: variantSet.snapshot,
-        });
-      }),
+                )
+                .limit(1),
+            ),
+            query(
+              transaction
+                .select()
+                .from(attributeValueItems)
+                .where(
+                  and(
+                    eq(attributeValueItems.tenantId, tenantId),
+                    eq(attributeValueItems.attributeValueSetId, set.attributeValueSetId),
+                  ),
+                )
+                .orderBy(attributeValueItems.ordinal),
+            ),
+          ],
+          { concurrency: 2 },
+        );
+        if (
+          record === undefined ||
+          record.changeKind !== set.currentState ||
+          items.some((item, index) => item.ordinal !== index || item.attributeDefinitionId !== definitionId)
+        ) {
+          return { snapshot: null, valid: false };
+        }
+        const decoded = yield* Effect.forEach(
+          items,
+          (item) => decodeItem(transaction, tenantId, definitionId, definition.controlledValueKind, item),
+          { concurrency: 1 },
+        );
+        if (decoded.some(Option.isNone)) {
+          return { snapshot: null, valid: false };
+        }
+        const values = Option.all(decoded);
+        if (Option.isNone(values)) {
+          return { snapshot: null, valid: false };
+        }
+        if (set.currentState !== 'SET' && set.currentState !== 'REMOVED') {
+          return { snapshot: null, valid: false };
+        }
+        const snapshot: AttributeValueSetSnapshot = {
+          revision: set.currentRevision,
+          state: set.currentState,
+          values: values.value,
+        };
+        return { snapshot, valid: true };
+      });
+      const [productSet, variantSet] = yield* Effect.all(
+        [loadSet(sets.find((set) => set.variantId === null)), loadSet(sets.find((set) => set.variantId === variantId))],
+        { concurrency: 2 },
+      );
+      if (!productSet.valid || !variantSet.valid) {
+        return invalid('Current attribute value snapshot is malformed');
+      }
+      return resolveEffectiveAttributeValues({
+        basis: basis.value,
+        definition: decodedDefinition.value,
+        productRef: input.productRef,
+        productSet: productSet.snapshot,
+        rulesRevision: rulesRevision.value,
+        variantProductRef: input.productRef,
+        variantRef: input.variantRef,
+        variantSet: variantSet.snapshot,
+      });
+    }),
   });
