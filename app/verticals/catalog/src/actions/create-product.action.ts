@@ -119,7 +119,7 @@ export const createProductAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.create-product.access.v1',
     },
-    actionKey: ACTION_KEY,
+    actionKey: 'commerce.catalog.create-product',
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductActionErrorSchema,
