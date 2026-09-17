@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Schema } from 'effect';
+import { DateTime, Schema } from 'effect';
 
 import {
   ControlledAttributeValueSchema,
@@ -37,9 +37,9 @@ describe('Catalog controlled attribute vocabulary', () => {
     const value = Schema.decodeUnknownSync(ControlledAttributeValueSchema)(base);
     const correction = Schema.decodeUnknownSync(ControlledValueRenameDecisionSchema)({
       current: value,
+      evidence: 'Reviewed typo/translation',
       proposedLabel: 'Medium',
       sameMeaning: true,
-      evidence: 'Reviewed typo/translation',
     });
     expect(mayRenameControlledValue(correction)).toBe(true);
     expect(correction.current.ref).toEqual(valueRef);
@@ -57,9 +57,9 @@ describe('Catalog controlled attribute vocabulary', () => {
     expect(retired.ref).toEqual(value.ref);
     expect(mayAssignControlledValue({ ref: { ...definitionRef, tenantId: otherTenantId } }, value)).toBe(false);
     const review = Schema.decodeUnknownSync(ControlledValueReactivationDecisionSchema)({
-      value: retired,
       currentMeaningConfirmed: true,
       evidence: 'Current review',
+      value: retired,
     });
     expect(mayReactivateControlledValue(review)).toBe(true);
     expect(mayReactivateControlledValue({ ...review, currentMeaningConfirmed: false })).toBe(false);
@@ -68,15 +68,15 @@ describe('Catalog controlled attribute vocabulary', () => {
   it('does not merge Color identity from shared labels, group, or preview', () => {
     const color = {
       ...base,
+      color: { distinguishingEvidence: 'Physical shade A', groupLabel: 'Grey', previewHex: '#333333' },
       label: 'Anthracite',
       specialization: 'COLOR' as const,
-      color: { groupLabel: 'Grey', previewHex: '#333333', distinguishingEvidence: 'Physical shade A' },
     };
     const first = Schema.decodeUnknownSync(ControlledAttributeValueSchema)(color);
     const second = Schema.decodeUnknownSync(ControlledAttributeValueSchema)({
       ...color,
-      ref: anotherValueRef,
       color: { ...color.color, distinguishingEvidence: 'Physical shade B' },
+      ref: anotherValueRef,
     });
     expect(first.ref).not.toEqual(second.ref);
     expect(first.color?.previewHex).toBe(second.color?.previewHex);
@@ -98,36 +98,48 @@ describe('Catalog controlled attribute vocabulary', () => {
     const numeric = Schema.decodeUnknownSync(ControlledAttributeValueSchema)({ ...base, label: '80' });
     expect(numeric).not.toHaveProperty('measurement');
     const first = Schema.decodeUnknownSync(SizeUsageListSchema)({
-      productRef,
       orderedSizeRefs: [valueRef, anotherValueRef],
+      productRef,
     });
     const second = Schema.decodeUnknownSync(SizeUsageListSchema)({
-      productRef: { ...productRef, resourceId: '66666666-6666-4666-8666-666666666666' },
       orderedSizeRefs: [anotherValueRef, valueRef],
+      productRef: { ...productRef, resourceId: '66666666-6666-4666-8666-666666666666' },
     });
     expect(first.orderedSizeRefs[0]).toEqual(valueRef);
     expect(second.orderedSizeRefs[1]).toEqual(valueRef);
     expect(() =>
-      Schema.decodeUnknownSync(SizeUsageListSchema)({ productRef, orderedSizeRefs: [valueRef, valueRef] }),
+      Schema.decodeUnknownSync(SizeUsageListSchema)({ orderedSizeRefs: [valueRef, valueRef], productRef }),
     ).toThrow();
   });
 
   it('requires scoped evidence to assert Size equivalence', () => {
     expect(() =>
       Schema.decodeUnknownSync(SizeEquivalenceAssertionSchema)({
+        evidence: 'Conversion chart',
         leftSizeRef: valueRef,
         rightSizeRef: anotherValueRef,
         scope: ' ',
-        evidence: 'Conversion chart',
       }),
     ).toThrow();
     const assertion = Schema.decodeUnknownSync(SizeEquivalenceAssertionSchema)({
+      evidence: 'Published chart',
       leftSizeRef: valueRef,
       rightSizeRef: anotherValueRef,
       scope: 'Manufacturer A, 2026 line',
-      evidence: 'Published chart',
     });
     expect(assertion.scope).toBe('Manufacturer A, 2026 line');
+    const bounded = Schema.decodeUnknownSync(SizeEquivalenceAssertionSchema)({
+      ...assertion,
+      validFrom: DateTime.makeUnsafe('2026-01-01T00:00:00.000Z'),
+      validUntil: DateTime.makeUnsafe('2026-12-31T23:59:59.000Z'),
+    });
+    expect(bounded.validFrom).toBeDefined();
+    expect(() =>
+      Schema.decodeUnknownSync(SizeEquivalenceAssertionSchema)({
+        ...assertion,
+        validUntil: '2026-12-31',
+      }),
+    ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(SizeEquivalenceAssertionSchema)({
         ...assertion,
