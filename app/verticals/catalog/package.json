@@ -13,6 +13,7 @@
     "./resources/attribute-definition": "./shared/resources/attribute-definition.ts",
     "./resources/catalog-root": "./shared/resources/catalog-root.ts",
     "./resources/controlled-attribute-value": "./shared/resources/controlled-attribute-value.ts",
+    "./resources/package-definition": "./shared/resources/package-definition.ts",
     "./resources/product": "./shared/resources/product.ts",
     "./resources/product-category": "./shared/resources/product-category.ts",
     "./resources/product-type": "./shared/resources/product-type.ts",
