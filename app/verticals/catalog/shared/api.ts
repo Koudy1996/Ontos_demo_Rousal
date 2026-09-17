@@ -10,6 +10,8 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 // <generated-governed-http-api-imports>
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
 import { AssignCatalogMediaActionApi } from './apis/assign-catalog-media-action.ts';
+import { BrandCurrentApi } from './apis/brand-current.ts';
+import { BrandHistoryApi } from './apis/brand-history.ts';
 import { ChangeProductManufacturerActionApi } from './apis/change-product-manufacturer-action.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
 import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
@@ -25,7 +27,10 @@ import { CreateProductRelationshipActionApi } from './apis/create-product-relati
 import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
+import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
 import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
+import { ProductBrandCurrentApi } from './apis/product-brand-current.ts';
+import { ProductBrandHistoryApi } from './apis/product-brand-history.ts';
 import { ProductCategoryClassificationApi } from './apis/product-category-classification.ts';
 import { ProductCategoryHistoryApi } from './apis/product-category-history.ts';
 import { ProductDetailApi } from './apis/product-detail.ts';
@@ -94,6 +99,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   // <generated-governed-http-api-additions>
   .addHttpApi(AddProductCategoryAssignmentActionApi)
   .addHttpApi(AssignCatalogMediaActionApi)
+  .addHttpApi(BrandCurrentApi)
+  .addHttpApi(BrandHistoryApi)
   .addHttpApi(ChangeProductManufacturerActionApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
   .addHttpApi(ChangeVariantActionApi)
@@ -109,7 +116,10 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductTypeActionApi)
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateVariantActionApi)
+  .addHttpApi(ManufacturerRelationHistoryApi)
   .addHttpApi(MoveProductCategoryActionApi)
+  .addHttpApi(ProductBrandCurrentApi)
+  .addHttpApi(ProductBrandHistoryApi)
   .addHttpApi(ProductCategoryClassificationApi)
   .addHttpApi(ProductCategoryHistoryApi)
   .addHttpApi(ProductDetailApi)

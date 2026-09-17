@@ -27,6 +27,8 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 // <generated-governed-http-handler-imports>
 import { addProductCategoryAssignmentActionApiLive } from './add-product-category-assignment-action-server.ts';
 import { assignCatalogMediaActionApiLive } from './assign-catalog-media-action-server.ts';
+import { brandCurrentReadApiLive } from './brand-current-read-server.ts';
+import { brandHistoryReadApiLive } from './brand-history-read-server.ts';
 import { changeProductManufacturerActionApiLive } from './change-product-manufacturer-action-server.ts';
 import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
 import { changeVariantActionApiLive } from './change-variant-action-server.ts';
@@ -42,7 +44,10 @@ import { createProductRelationshipActionApiLive } from './create-product-relatio
 import { createProductTypeActionApiLive } from './create-product-type-action-server.ts';
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
+import { manufacturerRelationHistoryReadApiLive } from './manufacturer-relation-history-read-server.ts';
 import { moveProductCategoryActionApiLive } from './move-product-category-action-server.ts';
+import { productBrandCurrentReadApiLive } from './product-brand-current-read-server.ts';
+import { productBrandHistoryReadApiLive } from './product-brand-history-read-server.ts';
 import { productCategoryClassificationReadApiLive } from './product-category-classification-read-server.ts';
 import { productCategoryHistoryReadApiLive } from './product-category-history-read-server.ts';
 import { productDetailReadApiLive } from './product-detail-read-server.ts';
@@ -182,6 +187,8 @@ export const makeCatalogApiRuntime = (
     // <generated-governed-http-handler-layers>
     addProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     assignCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    brandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    brandHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -200,7 +207,10 @@ export const makeCatalogApiRuntime = (
     createProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    manufacturerRelationHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     moveProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    productBrandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    productBrandHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productCategoryClassificationReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productCategoryHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productDetailReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
