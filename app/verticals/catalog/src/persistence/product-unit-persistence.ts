@@ -61,7 +61,7 @@ export interface ProductUnitPersistence {
 
 /** Supplied by an owner-local Current-basis service; request metadata never proves Current. */
 export interface ProductUnitTargetBasis {
-  readonly verify: (target: Target) => Effect.Effect<boolean, ProductUnitPersistenceUnavailable>;
+  readonly verify: (target: Target) => Effect.Effect<'valid' | 'invalid', ProductUnitPersistenceUnavailable>;
 }
 
 const unavailable = (cause?: unknown) => {
@@ -270,7 +270,9 @@ export const productUnitPersistenceForScope = (
     if (rule === undefined || (rule.rounding !== 'UP' && rule.rounding !== 'DOWN' && rule.rounding !== 'HALF_UP'))
       return yield* unavailable();
     const currentRounding = rule.rounding;
-    if (basis === undefined || !(yield* basis.verify(target))) return yield* unavailable();
+    if (basis === undefined) return yield* unavailable();
+    if ((yield* basis.verify(target)) === 'invalid')
+      return { _tag: 'invalid', reason: 'Product Unit target is not an active Tenant-owned purchase target' };
     const variant = target.targetType === 'commerce.catalog.variant';
     const currentTable = variant ? variantUnitDivisibility : packageUnitDivisibility;
     const targetColumn = variant ? variantUnitDivisibility.variantId : packageUnitDivisibility.packageDefinitionId;

@@ -210,4 +210,40 @@ describe('Product Unit persistence', () => {
       expect(Schema.is(ProductUnitPersistenceUnavailable)(error)).toBe(true);
     }),
   );
+
+  it.effect('classifies a definitely invalid target basis without writing', () =>
+    Effect.gen(function* () {
+      const transaction = {
+        select: () => ({
+          from: (table: unknown) => ({
+            where: () =>
+              table === productUnits
+                ? {
+                    for: () => ({
+                      limit: () =>
+                        Effect.succeed([{ unitId, tenantId, currentRuleRevision: 1, lifecycleState: 'ACTIVE' }]),
+                    }),
+                  }
+                : { limit: () => Effect.succeed([{ unitId, tenantId, revision: 1, step: '0.01', rounding: 'UP' }]) },
+          }),
+        }),
+        insert: () => {
+          throw new Error('must not write');
+        },
+        update: () => {
+          throw new Error('must not write');
+        },
+      };
+      const payload = Schema.decodeUnknownSync(SetProductUnitTargetDivisibilityPayloadSchema)({
+        target: { targetId: variantId, targetType: 'commerce.catalog.variant', tenantId, unit: unitRef },
+        divisible: true,
+        reason: 'Verified variant divisibility',
+        evidenceRefs: ['record:3'],
+      });
+      // @ts-expect-error Mock implements only the exercised Drizzle chains.
+      const service = productUnitPersistenceForScope(transaction, scope, { verify: () => Effect.succeed('invalid') });
+      const result = yield* service.setTargetDivisibility({ ...evidence, payload });
+      expect(result._tag).toBe('invalid');
+    }),
+  );
 });
