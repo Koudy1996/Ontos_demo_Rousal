@@ -2,12 +2,8 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Match, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import {
-  manufacturerRelations,
-  productVariantRevisions,
-  productVariants,
-  products,
-} from '../../src/database/schema.ts';
+import { productVariantRevisions, productVariants, products } from '../../src/database/schema.ts';
+import type { manufacturerRelations } from '../../src/database/schema.ts';
 import {
   variantPersistenceForScope,
   VariantCurrentBasisUnavailable,
@@ -55,6 +51,15 @@ const row = {
 };
 const lockedRow = <T>(value: T) => ({ where: () => ({ for: () => ({ limit: () => Effect.succeed([value]) }) }) });
 const returnedRow = <T>(value: T) => ({ where: () => ({ returning: () => Effect.succeed([value]) }) });
+const noManufacturerRelations = () => ({ where: () => ({ for: () => ({ pipe: () => Effect.succeed([]) }) }) });
+const confirmedManufacturerRelations = () => ({
+  where: () => ({
+    for: () => ({
+      pipe: () =>
+        Effect.succeed([{ disposition: 'CONFIRMED', effectiveTo: null, productId, tenantId, variantId: null }]),
+    }),
+  }),
+});
 
 describe('Variant persistence', () => {
   it.effect('creates a draft with an immutable initial revision, never an invented Current combination', () =>
@@ -69,9 +74,7 @@ describe('Variant persistence', () => {
         }),
         select: () => ({
           from: (table: typeof products | typeof manufacturerRelations) =>
-            table === products
-              ? lockedRow({ ...row, currentRevision: 4 })
-              : { where: () => ({ for: () => ({ pipe: () => Effect.succeed([]) }) }) },
+            table === products ? lockedRow({ ...row, currentRevision: 4 }) : noManufacturerRelations(),
         }),
       };
       // @ts-expect-error Only the exercised Drizzle query chains are mocked.
@@ -108,24 +111,18 @@ describe('Variant persistence', () => {
         },
         select: () => ({
           from: (table: typeof products | typeof manufacturerRelations) =>
-            table === products
-              ? lockedRow({ ...row, currentRevision: 4 })
-              : {
-                  where: () => ({
-                    for: () => ({
-                      pipe: () =>
-                        Effect.succeed([
-                          { disposition: 'CONFIRMED', effectiveTo: null, productId, tenantId, variantId: null },
-                        ]),
-                    }),
-                  }),
-                },
+            table === products ? lockedRow({ ...row, currentRevision: 4 }) : confirmedManufacturerRelations(),
         }),
       };
       // @ts-expect-error Only the exercised Drizzle query chains are mocked.
       const service = variantPersistenceForScope(transaction, scope);
       const outcome = yield* service.create({ ...evidence, expectedProductRevision: 4, productRef, variantRef });
-      expect(outcome).toEqual({ _tag: 'identity_conflict' });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('identity_conflict', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
     }),
   );
 

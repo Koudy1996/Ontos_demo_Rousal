@@ -32,12 +32,10 @@ describe('Catalog Product domain', () => {
   it('keeps one Product identity while allowing Catalog readiness to be derived', () => {
     const draft = {
       lifecycle: 'DRAFT',
-      name: '  ',
       variants: [{ lifecycle: 'WORK_IN_PROGRESS', productRef, variantId, variantRef }],
     } as const;
     const active = {
       lifecycle: 'ACTIVE',
-      name: 'Standard Product',
       variants: [{ lifecycle: 'ACTIVE', productRef, variantId, variantRef }],
     } as const;
 
@@ -54,7 +52,7 @@ describe('Catalog Product domain', () => {
       catalogReady: false,
       reasons: ['Product needs a current localized Catalog name'],
     });
-    expect(catalogReadiness({ ...active, name: undefined }, ['Police Alfa'])).toEqual({
+    expect(catalogReadiness(active, ['Police Alfa'])).toEqual({
       catalogReady: true,
       reasons: [],
     });
@@ -66,7 +64,6 @@ describe('Catalog Product domain', () => {
     const readiness = catalogReadiness(
       {
         lifecycle: 'ACTIVE',
-        name: 'Standard Product',
         variants: [{ lifecycle: 'RETIRED', productRef, variantId, variantRef }],
       },
       ['Standard Product'],
@@ -80,7 +77,6 @@ describe('Catalog Product domain', () => {
       catalogReadiness(
         {
           lifecycle: 'ACTIVE',
-          name: 'Standard Product',
           variants: [{ lifecycle: 'WORK_IN_PROGRESS', productRef, variantId, variantRef }],
         },
         ['Standard Product'],

@@ -63,10 +63,10 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) =>
         {
           applicableLevels: ['VARIANT'],
           attributeDefinitionId: definitionId,
-          tenantId,
           controlledValueKind: 'COLOR',
           currentRevision: 3,
           multiplicity: 'SINGLE',
+          tenantId,
           valueKind: 'CONTROLLED',
         },
       ],

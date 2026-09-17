@@ -4,6 +4,7 @@ import { Schema } from 'effect';
 import { prepareCatalogQuantityHandoff } from '../../shared/domain/catalog-quantity-handoff.ts';
 import {
   CatalogSelectionSchema,
+  CatalogSelectionEvidenceSchema,
   PackageDefinitionSelectionRevisionSchema,
   VariantSelectionRevisionSchema,
 } from '../../shared/domain/catalog-selection-evidence.ts';
@@ -34,9 +35,13 @@ const variantRevision = Schema.decodeUnknownSync(VariantSelectionRevisionSchema)
   resourceRef: variantRef,
   revision: 1,
 });
-const evidence: CatalogSelectionEvidence = {
+const evidence: CatalogSelectionEvidence = Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema)({
   assessedAt: '2026-09-17T12:00:00.000Z',
-  basis: [{ role: 'VARIANT', source: variantRevision }],
+  basis: [
+    { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
+    { role: 'VARIANT', source: variantRevision },
+    { role: 'PACKAGE_CONTENT', source: pinnedRevision },
+  ],
   membership: {
     attestationId: '99999999-9999-4999-8999-999999999999',
     observedAt: '2026-09-17T12:00:00.000Z',
@@ -47,7 +52,7 @@ const evidence: CatalogSelectionEvidence = {
   purpose: 'purchase',
   selection,
   status: 'VALID',
-};
+});
 const quantity: QuantityNormalization = {
   changed: false,
   notice: null,
