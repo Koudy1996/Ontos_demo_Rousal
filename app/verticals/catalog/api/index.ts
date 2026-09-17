@@ -35,6 +35,7 @@ import { createProductActionApiLive } from './create-product-action-server.ts';
 import { createProductCategoryActionApiLive } from './create-product-category-action-server.ts';
 import { createProductRecoveryReadApiLive } from './create-product-recovery-read-server.ts';
 import { createProductTypeActionApiLive } from './create-product-type-action-server.ts';
+import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
 import { moveProductCategoryActionApiLive } from './move-product-category-action-server.ts';
 import { productCategoryClassificationReadApiLive } from './product-category-classification-read-server.ts';
@@ -52,10 +53,13 @@ import { retireControlledAttributeValueActionApiLive } from './retire-controlled
 import { retirePackageDefinitionActionApiLive } from './retire-package-definition-action-server.ts';
 import { retireProductActionApiLive } from './retire-product-action-server.ts';
 import { retireProductCategoryActionApiLive } from './retire-product-category-action-server.ts';
+import { retireProductUnitActionApiLive } from './retire-product-unit-action-server.ts';
 import { retireVariantActionApiLive } from './retire-variant-action-server.ts';
 import { revisePackageDefinitionActionApiLive } from './revise-package-definition-action-server.ts';
 import { reviseProductTypeActionApiLive } from './revise-product-type-action-server.ts';
+import { reviseProductUnitActionApiLive } from './revise-product-unit-action-server.ts';
 import { setProductTypeActionApiLive } from './set-product-type-action-server.ts';
+import { setProductUnitTargetDivisibilityActionApiLive } from './set-product-unit-target-divisibility-action-server.ts';
 import { updateProductActionApiLive } from './update-product-action-server.ts';
 // </generated-governed-http-handler-imports>
 
@@ -164,6 +168,7 @@ export const makeCatalogApiRuntime = (
       Layer.provide(governedActionRuntimeLive),
     ),
     createProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     moveProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     productCategoryClassificationReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
@@ -181,10 +186,13 @@ export const makeCatalogApiRuntime = (
     retirePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     revisePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setProductUnitTargetDivisibilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     updateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     // </generated-governed-http-handler-layers>
   ).pipe(Layer.provide(Layer.mergeAll(actionPrincipalVerifierLive, gatewayAssertionRedemption)));

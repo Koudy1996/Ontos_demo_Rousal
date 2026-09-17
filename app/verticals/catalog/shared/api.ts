@@ -18,6 +18,7 @@ import { CreateProductActionApi } from './apis/create-product-action.ts';
 import { CreateProductCategoryActionApi } from './apis/create-product-category-action.ts';
 import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
 import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
+import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
 import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
 import { ProductCategoryClassificationApi } from './apis/product-category-classification.ts';
@@ -35,10 +36,13 @@ import { RetireControlledAttributeValueActionApi } from './apis/retire-controlle
 import { RetirePackageDefinitionActionApi } from './apis/retire-package-definition-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
+import { RetireProductUnitActionApi } from './apis/retire-product-unit-action.ts';
 import { RetireVariantActionApi } from './apis/retire-variant-action.ts';
 import { RevisePackageDefinitionActionApi } from './apis/revise-package-definition-action.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
+import { ReviseProductUnitActionApi } from './apis/revise-product-unit-action.ts';
 import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
+import { SetProductUnitTargetDivisibilityActionApi } from './apis/set-product-unit-target-divisibility-action.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
 // </generated-governed-http-api-imports>
 import { ProductActionInvocationIdSchema } from './domain/product.ts';
@@ -74,6 +78,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductCategoryActionApi)
   .addHttpApi(CreateProductRecoveryApi)
   .addHttpApi(CreateProductTypeActionApi)
+  .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateVariantActionApi)
   .addHttpApi(MoveProductCategoryActionApi)
   .addHttpApi(ProductCategoryClassificationApi)
@@ -91,10 +96,13 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RetirePackageDefinitionActionApi)
   .addHttpApi(RetireProductActionApi)
   .addHttpApi(RetireProductCategoryActionApi)
+  .addHttpApi(RetireProductUnitActionApi)
   .addHttpApi(RetireVariantActionApi)
   .addHttpApi(RevisePackageDefinitionActionApi)
   .addHttpApi(ReviseProductTypeActionApi)
+  .addHttpApi(ReviseProductUnitActionApi)
   .addHttpApi(SetProductTypeActionApi)
+  .addHttpApi(SetProductUnitTargetDivisibilityActionApi)
   .addHttpApi(UpdateProductActionApi)
   // </generated-governed-http-api-additions>
   .pipe(identity);
@@ -129,6 +137,7 @@ const productCategoryBusinessTarget = 'product-category';
 const attributeDefinitionBusinessTarget = 'attribute-definition';
 const controlledAttributeValueBusinessTarget = 'controlled-attribute-value';
 const packageDefinitionBusinessTarget = 'package-definition';
+const productUnitBusinessTarget = 'product-unit';
 
 export const catalogPublicOperationContracts = {
   'commerce.catalog.add-product-category-assignment': {
@@ -243,6 +252,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.create-product-unit': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productUnitBusinessTarget,
+    permission: 'commerce.catalog.create-product-unit',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.create-variant': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'variant',
@@ -347,6 +364,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.retire-product-unit': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productUnitBusinessTarget,
+    permission: 'commerce.catalog.retire-product-unit',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.retire-variant': {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'variant',
@@ -371,10 +396,26 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.revise-product-unit': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productUnitBusinessTarget,
+    permission: 'commerce.catalog.revise-product-unit',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.set-product-type': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.set-product-type',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.set-product-unit-target-divisibility': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: productUnitBusinessTarget,
+    permission: 'commerce.catalog.set-product-unit-target-divisibility',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -396,6 +437,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.create-package-definition',
     'commerce.catalog.create-product-category',
     'commerce.catalog.create-product-type',
+    'commerce.catalog.create-product-unit',
     'commerce.catalog.move-product-category',
     'commerce.catalog.reactivate-controlled-attribute-value',
     'commerce.catalog.rename-attribute-definition',
@@ -404,8 +446,11 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.retire-controlled-attribute-value',
     'commerce.catalog.retire-package-definition',
     'commerce.catalog.retire-product-category',
+    'commerce.catalog.retire-product-unit',
     'commerce.catalog.revise-package-definition',
     'commerce.catalog.revise-product-type',
+    'commerce.catalog.revise-product-unit',
+    'commerce.catalog.set-product-unit-target-divisibility',
   ],
   CATALOG_LIFECYCLE_MANAGER: [
     'commerce.catalog.reactivate-product',
