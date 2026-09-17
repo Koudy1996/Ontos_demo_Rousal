@@ -60,14 +60,14 @@ const context = (overrides: Partial<SizeUsagePersistence> = {}) => {
 
 describe('governed Size Actions', () => {
   it.effect('preserves local order and revision CAS with trusted actor and evidence', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* replaceSizes() {
       const payload = Schema.decodeUnknownSync(ReplaceProductSizesPayloadSchema)({
         evidenceRefs: ['catalog-range-2026'],
         expectedRevision: 2,
-        list: { productRef, orderedSizeRefs: [size42, sizeM] },
+        list: { orderedSizeRefs: [size42, sizeM], productRef },
         reason: 'Product range confirmed',
       });
-      const { handler, audits, accesses } = context({
+      const { accesses, audits, handler } = context({
         replace: (input) =>
           Effect.sync(() => {
             expect(input.actionInvocationId).toBe(handler.actionInvocationId);
@@ -87,17 +87,17 @@ describe('governed Size Actions', () => {
   );
 
   it.effect('passes only evidenced scoped assertions through persistence', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* assertEquivalence() {
       const payload = Schema.decodeUnknownSync(AssertSizeEquivalencePayloadSchema)({
         assertion: {
+          evidence: 'manufacturer-chart-2026',
           leftSizeRef: sizeM,
           rightSizeRef: size42,
           scope: 'Line A, 2026',
-          evidence: 'manufacturer-chart-2026',
         },
         reason: 'Manufacturer chart reviewed',
       });
-      const { handler, audits } = context({
+      const { audits, handler } = context({
         assertEquivalence: (input) =>
           Effect.sync(() => {
             expect(input.actionInvocationId).toBe(handler.actionInvocationId);
@@ -114,22 +114,22 @@ describe('governed Size Actions', () => {
   );
 
   it.effect('rejects cross-tenant references before persistence and preserves typed CAS failures', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* rejectInvalidSizes() {
       const foreign = Schema.decodeUnknownSync(ReplaceProductSizesPayloadSchema)({
         evidenceRefs: [],
         expectedRevision: 0,
         list: {
-          productRef: ref('commerce.catalog.product', productRef.resourceId, otherTenantId),
           orderedSizeRefs: [],
+          productRef: ref('commerce.catalog.product', productRef.resourceId, otherTenantId),
         },
         reason: 'Range reviewed',
       });
       const invalid = yield* handleReplaceProductSizes(foreign, context().handler).pipe(Effect.flip);
-      expect(invalid.conflict).toBe('INVALID_INPUT');
+      expect(invalid).toMatchObject({ conflict: 'INVALID_INPUT' });
       const valid = Schema.decodeUnknownSync(ReplaceProductSizesPayloadSchema)({
         evidenceRefs: [],
         expectedRevision: 1,
-        list: { productRef, orderedSizeRefs: [sizeM] },
+        list: { orderedSizeRefs: [sizeM], productRef },
         reason: 'Range reviewed',
       });
       const stale = yield* handleReplaceProductSizes(
@@ -145,14 +145,14 @@ describe('governed Size Actions', () => {
             ),
         }).handler,
       ).pipe(Effect.flip);
-      expect(stale.conflict).toBe('REVISION');
+      expect(stale).toMatchObject({ conflict: 'REVISION' });
     }),
   );
 
   it('requires explicit evidence, scoped equivalence, and protected idempotent entrypoints', () => {
     expect(() =>
       Schema.decodeUnknownSync(AssertSizeEquivalencePayloadSchema)({
-        assertion: { leftSizeRef: sizeM, rightSizeRef: size42, scope: '', evidence: '' },
+        assertion: { evidence: '', leftSizeRef: sizeM, rightSizeRef: size42, scope: '' },
         reason: 'Reviewed',
       }),
     ).toThrow();
@@ -160,7 +160,7 @@ describe('governed Size Actions', () => {
       Schema.decodeUnknownSync(ReplaceProductSizesPayloadSchema)({
         evidenceRefs: [],
         expectedRevision: 0,
-        list: { productRef, orderedSizeRefs: [sizeM, sizeM] },
+        list: { orderedSizeRefs: [sizeM, sizeM], productRef },
         reason: 'Reviewed',
       }),
     ).toThrow();
