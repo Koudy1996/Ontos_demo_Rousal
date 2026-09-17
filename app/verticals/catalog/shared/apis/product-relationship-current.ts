@@ -4,6 +4,12 @@ import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { ProductRelationshipEndpointSchema, ProductRelationshipSchema } from '../domain/product-relationship.ts';
 
+const checkedRelationshipId = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
+const RelationshipIdSchema = checkedRelationshipId.pipe(
+  Schema.brand('CatalogProductRelationshipId'),
+  Schema.decodeTo(checkedRelationshipId),
+);
+
 export const ProductRelationshipCurrentRequestSchema = Schema.Struct({
   direction: Schema.Literals(['forward', 'reverse']),
   endpoint: ProductRelationshipEndpointSchema,
@@ -12,9 +18,9 @@ export type ProductRelationshipCurrentRequest = typeof ProductRelationshipCurren
 export const ProductRelationshipCurrentResponseSchema = Schema.Struct({
   relationships: Schema.Array(
     Schema.Struct({
-      relationshipId: Schema.String,
-      revision: Schema.Int,
       relationship: ProductRelationshipSchema,
+      relationshipId: RelationshipIdSchema,
+      revision: Schema.Int,
     }),
   ),
 });

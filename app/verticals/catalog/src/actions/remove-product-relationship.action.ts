@@ -28,6 +28,7 @@ export type RemoveProductRelationshipResult = typeof RemoveProductRelationshipRe
 const domainEvents = {
   'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
 } as const;
+const catalogModuleKey = 'commerce.catalog';
 
 export const handleRemoveProductRelationship = Effect.fn('RemoveProductRelationshipAction.handle')(
   function* handleRemoveProductRelationship(
@@ -71,8 +72,8 @@ export const handleRemoveProductRelationship = Effect.fn('RemoveProductRelations
     const event = yield* context.addDomainEvent({
       eventType: 'commerce.catalog.product-relationship-changed.v1',
       payloadJson: eventPayload,
-      producerModuleKey: 'commerce.catalog',
-      subjectModuleKey: 'commerce.catalog',
+      producerModuleKey: catalogModuleKey,
+      subjectModuleKey: catalogModuleKey,
       subjectResourceId: result.relationshipId,
       subjectResourceType: 'commerce.catalog.product-relationship',
     });
@@ -99,12 +100,12 @@ export const removeProductRelationshipAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.remove-product-relationship',
-      moduleKey: 'commerce.catalog',
+      moduleKey: catalogModuleKey,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: catalogModuleKey,
     payloadSchema: RemoveProductRelationshipPayloadSchema,
     policies: [],
     resultSchema: RemoveProductRelationshipResultSchema,

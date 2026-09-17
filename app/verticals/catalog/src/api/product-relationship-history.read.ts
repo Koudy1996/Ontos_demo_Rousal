@@ -18,11 +18,14 @@ import type {
 import type { ProductRelationshipReads } from '../persistence/product-relationship-reads.ts';
 import { productRelationshipReadsForScope } from '../persistence/product-relationship-reads.ts';
 
+const historyReadKey = 'commerce.catalog.api.product-relationship-history';
+const catalogModuleKey = 'commerce.catalog';
+
 export const productRelationshipHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-relationship-history' },
-  entrypointKey: 'commerce.catalog.api.product-relationship-history',
-  moduleKey: 'commerce.catalog',
+  entrypointKey: historyReadKey,
+  moduleKey: catalogModuleKey,
   role: 'api',
 });
 
@@ -35,31 +38,41 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
-export const readProductRelationshipHistory = Effect.fn('ProductRelationshipHistoryRead.read')(function* (
-  input: ProductRelationshipHistoryRequest,
-  services: ProductRelationshipReads,
-): Effect.fn.Return<ProductRelationshipHistoryResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
-  const rows = yield* services.history(input.relationshipId).pipe(Effect.mapError(unavailable));
-  if (rows.length === 0) {
-    return yield* new ReadHandlerNotFound({
-      code: 'read_handler_not_found',
-      reason: 'The relationship history does not exist',
-    });
-  }
-  return {
-    revisions: rows.map(
-      ({ actingPrincipalId, actionInvocationId, changeKind, recordedAt, relationship, relationshipId, revision }) => ({
-        actingPrincipalId,
-        actionInvocationId,
-        changeKind,
-        recordedAt,
-        relationship,
-        relationshipId,
-        revision,
-      }),
-    ),
-  };
-});
+export const readProductRelationshipHistory = Effect.fn('ProductRelationshipHistoryRead.read')(
+  function* readProductRelationshipHistoryEffect(
+    input: ProductRelationshipHistoryRequest,
+    services: ProductRelationshipReads,
+  ): Effect.fn.Return<ProductRelationshipHistoryResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
+    const rows = yield* services.history(input.relationshipId).pipe(Effect.mapError(unavailable));
+    if (rows.length === 0) {
+      return yield* new ReadHandlerNotFound({
+        code: 'read_handler_not_found',
+        reason: 'The relationship history does not exist',
+      });
+    }
+    return {
+      revisions: rows.map(
+        ({
+          actingPrincipalId,
+          actionInvocationId,
+          changeKind,
+          recordedAt,
+          relationship,
+          relationshipId,
+          revision,
+        }) => ({
+          actingPrincipalId,
+          actionInvocationId,
+          changeKind,
+          recordedAt,
+          relationship,
+          relationshipId,
+          revision,
+        }),
+      ),
+    };
+  },
+);
 
 export const productRelationshipHistoryRead = defineRead(
   {
@@ -71,10 +84,10 @@ export const productRelationshipHistoryRead = defineRead(
     },
     inputSchema: ProductRelationshipHistoryRequestSchema,
     legalEntityScope: 'required',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: catalogModuleKey,
     permissionTarget: 'module',
     policies: [],
-    readKey: 'commerce.catalog.api.product-relationship-history',
+    readKey: historyReadKey,
     resultSchema: ProductRelationshipHistoryResponseSchema,
     schemaVersion: '1',
   },
@@ -83,6 +96,6 @@ export const productRelationshipHistoryRead = defineRead(
       Effect.map((result) => ({ evidence: { resultCount: result.revisions.length }, result })),
     ),
   (transaction, scope) => Effect.succeed(productRelationshipReadsForScope(transaction, scope)),
-  () => ({ kind: 'module', moduleId: 'commerce.catalog' }),
+  () => ({ kind: 'module', moduleId: catalogModuleKey }),
   ({ revisions }) => revisions.flatMap(({ relationship }) => [relationship.source, relationship.target]),
 );

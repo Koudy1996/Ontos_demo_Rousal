@@ -59,8 +59,8 @@ const context = <Events extends DomainEventContractMap>(
   overrides: Partial<ProductRelationshipPersistence>,
   domainEvents: Events,
 ) => {
-  const events: Array<{ eventType: string; payloadJson: unknown; subjectResourceId: string }> = [];
-  const outbox: Array<{ event: unknown; message: unknown }> = [];
+  const events: { eventType: string; payloadJson: unknown; subjectResourceId: string }[] = [];
+  const outbox: { event: unknown; message: unknown }[] = [];
   const reads: string[] = [];
   const services: ProductRelationshipPersistence = {
     change: unexpected,
@@ -167,8 +167,8 @@ describe('Product relationship Action contracts and handlers', () => {
       expect(run.events).toMatchObject([
         {
           eventType: 'commerce.catalog.product-relationship-changed.v1',
-          subjectResourceId: relationshipId,
           payloadJson: { changeKind: 'CREATED', relationshipId, revision: 1, tenantId },
+          subjectResourceId: relationshipId,
         },
       ]);
       expect(run.events[0]?.payloadJson).not.toHaveProperty('reason');

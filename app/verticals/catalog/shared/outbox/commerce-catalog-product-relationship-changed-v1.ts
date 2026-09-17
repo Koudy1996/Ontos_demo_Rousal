@@ -8,14 +8,21 @@ import {
   ProductRelationshipTypeSchema,
 } from '../domain/product-relationship.ts';
 
+const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
+const RelationshipIdSchema = checkedUuid.pipe(
+  Schema.brand('CatalogProductRelationshipId'),
+  Schema.decodeTo(checkedUuid),
+);
+const TenantIdSchema = checkedUuid.pipe(Schema.brand('CatalogTenantId'), Schema.decodeTo(checkedUuid));
+
 export const OutboxPayloadSchema = Schema.Struct({
   changeKind: Schema.Literals(['CREATED', 'CORRECTED', 'ENDED']),
   effectivePeriod: ProductRelationshipEffectivePeriodSchema,
-  relationshipId: Schema.String,
+  relationshipId: RelationshipIdSchema,
   revision: Schema.Int,
   source: ProductRelationshipEndpointSchema,
   target: ProductRelationshipEndpointSchema,
-  tenantId: Schema.String,
+  tenantId: TenantIdSchema,
   type: ProductRelationshipTypeSchema,
 }).check(
   Schema.makeFilter(({ source, target, tenantId }) =>

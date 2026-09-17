@@ -3,19 +3,30 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { ProductRelationshipSchema } from '../domain/product-relationship.ts';
+import { ProductActionInvocationIdSchema } from '../domain/product.ts';
 
-export const ProductRelationshipHistoryRequestSchema = Schema.Struct({ relationshipId: Schema.NonEmptyString });
+const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
+const RelationshipIdSchema = checkedUuid.pipe(
+  Schema.brand('CatalogProductRelationshipId'),
+  Schema.decodeTo(checkedUuid),
+);
+const ActingPrincipalIdSchema = checkedUuid.pipe(
+  Schema.brand('CatalogRelationshipActingPrincipalId'),
+  Schema.decodeTo(checkedUuid),
+);
+
+export const ProductRelationshipHistoryRequestSchema = Schema.Struct({ relationshipId: RelationshipIdSchema });
 export type ProductRelationshipHistoryRequest = typeof ProductRelationshipHistoryRequestSchema.Type;
 export const ProductRelationshipHistoryResponseSchema = Schema.Struct({
   revisions: Schema.Array(
     Schema.Struct({
-      relationshipId: Schema.String,
-      revision: Schema.Int,
+      actingPrincipalId: ActingPrincipalIdSchema,
+      actionInvocationId: ProductActionInvocationIdSchema,
       changeKind: Schema.Literals(['CREATED', 'CORRECTED', 'ENDED']),
       recordedAt: Schema.DateTimeUtc,
-      actingPrincipalId: Schema.String,
-      actionInvocationId: Schema.String,
       relationship: ProductRelationshipSchema,
+      relationshipId: RelationshipIdSchema,
+      revision: Schema.Int,
     }),
   ),
 });
