@@ -1,29 +1,29 @@
 import { describe, expect, it } from 'effect-rstest';
+import { Schema } from 'effect';
 
 import {
-  type CategoryIdentity,
-  type CategoryNode,
+  CategoryValidSchema,
   validateCategoryMove,
   validateCategoryRetirement,
 } from '../../shared/domain/category-hierarchy.ts';
+import type { CategoryIdentity, CategoryNode } from '../../shared/domain/category-hierarchy.ts';
 
 const ref = (resourceId: string, tenantId = 'tenant-a'): CategoryIdentity => ({ resourceId, tenantId });
 const node = (
   resourceId: string,
   parentRef?: CategoryIdentity,
   lifecycle: CategoryNode['lifecycle'] = 'ACTIVE',
-): CategoryNode => ({
-  categoryRef: ref(resourceId),
-  lifecycle,
-  ...(parentRef ? { parentRef } : {}),
-});
+): CategoryNode =>
+  parentRef === undefined
+    ? { categoryRef: ref(resourceId), lifecycle }
+    : { categoryRef: ref(resourceId), lifecycle, parentRef };
 
 describe('Catalog category hierarchy', () => {
   const tree = [node('home'), node('shelves', ref('home')), node('wall', ref('shelves')), node('workshop')] as const;
 
   it('allows a root and moving a subtree without changing its identity or direct descendants', () => {
-    expect(validateCategoryMove(tree, ref('shelves'))).toEqual({ _tag: 'Valid' });
-    expect(validateCategoryMove(tree, ref('shelves'), ref('workshop'))).toEqual({ _tag: 'Valid' });
+    expect(Schema.is(CategoryValidSchema)(validateCategoryMove(tree, ref('shelves')))).toBe(true);
+    expect(Schema.is(CategoryValidSchema)(validateCategoryMove(tree, ref('shelves'), ref('workshop')))).toBe(true);
     expect(tree[1]?.parentRef).toEqual(ref('home'));
     expect(tree[2]?.parentRef).toEqual(ref('shelves'));
   });
@@ -44,6 +44,9 @@ describe('Catalog category hierarchy', () => {
     expect(
       validateCategoryMove([node('a'), node('b', ref('c')), node('c', ref('b'))], ref('a'), ref('b')),
     ).toMatchObject({ reason: 'INCONSISTENT_HIERARCHY' });
+    expect(validateCategoryMove([node('a'), node('b', ref('c')), node('c', ref('b'))], ref('a'))).toMatchObject({
+      reason: 'INCONSISTENT_HIERARCHY',
+    });
   });
 
   it('blocks retirement for current direct children or assignments, then permits it after explicit resolution', () => {
@@ -51,6 +54,6 @@ describe('Catalog category hierarchy', () => {
     expect(validateCategoryRetirement([node('home')], ref('home'), 1)).toMatchObject({
       reason: 'DIRECT_ASSIGNMENTS_REMAIN',
     });
-    expect(validateCategoryRetirement([node('home')], ref('home'), 0)).toEqual({ _tag: 'Valid' });
+    expect(Schema.is(CategoryValidSchema)(validateCategoryRetirement([node('home')], ref('home'), 0))).toBe(true);
   });
 });

@@ -3,17 +3,17 @@
 // @ontos-action-slug move-product-category
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 
-import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
+import {
+  MoveProductCategoryPayloadSchema,
+  MoveProductCategoryResultSchema,
+} from '../../shared/actions/move-product-category.ts';
+import type { MoveProductCategoryPayload } from '../../shared/actions/move-product-category.ts';
 import type { CategoryPersistence } from '../persistence/category-persistence.ts';
 import {
   CategoryActionErrorSchema,
   CategoryAuditEvidenceSchema,
-  CategoryMutationResultSchema,
-  CategoryNameSchema,
-  CategoryReasonSchema,
-  CategoryRevisionSchema,
   categoryEventPayload,
   categoryPersistenceServiceFactory,
   crossTenantFailure,
@@ -22,16 +22,14 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export const MoveProductCategoryPayloadSchema = Schema.Struct({
-  categoryRef: ProductCategoryRefSchema,
-  expectedRevision: CategoryRevisionSchema,
-  parentRef: Schema.optionalKey(ProductCategoryRefSchema),
-  reason: CategoryReasonSchema,
-});
-export type MoveProductCategoryPayload = typeof MoveProductCategoryPayloadSchema.Type;
-
-export const MoveProductCategoryResultSchema = CategoryMutationResultSchema;
-export type MoveProductCategoryResult = typeof MoveProductCategoryResultSchema.Type;
+export {
+  MoveProductCategoryPayloadSchema,
+  MoveProductCategoryResultSchema,
+} from '../../shared/actions/move-product-category.ts';
+export type {
+  MoveProductCategoryPayload,
+  MoveProductCategoryResult,
+} from '../../shared/actions/move-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-moved.v1': MoveProductCategoryResultSchema } as const;
 
@@ -40,19 +38,29 @@ export const handleMoveProductCategory = Effect.fn('MoveProductCategoryAction.ha
     payload: MoveProductCategoryPayload,
     context: ActionHandlerContext<typeof domainEvents, CategoryPersistence>,
   ) {
-    if (payload.categoryRef.tenantId !== context.scope.tenantId) return yield* crossTenantFailure();
-    if (payload.parentRef !== undefined && payload.parentRef.tenantId !== context.scope.tenantId)
+    if (payload.categoryRef.tenantId !== context.scope.tenantId) {
       return yield* crossTenantFailure();
-    const outcome = yield* context.services.moveCategory({
+    }
+    if (payload.parentRef !== undefined && payload.parentRef.tenantId !== context.scope.tenantId) {
+      return yield* crossTenantFailure();
+    }
+    const input = {
       actionInvocationId: context.actionInvocationId,
       categoryId: payload.categoryRef.resourceId,
+      expectedRevision: payload.expectedRevision,
       principalId: context.scope.principalId,
       reason: payload.reason,
       tenantId: context.scope.tenantId,
-      expectedRevision: payload.expectedRevision,
-      ...(payload.parentRef === undefined ? {} : { parentCategoryId: payload.parentRef.resourceId }),
-    });
-    if (!('category' in outcome)) return yield* mutationFailure(outcome);
+    };
+    const outcome = yield* context.services.moveCategory(
+      payload.parentRef === undefined ? input : { ...input, parentCategoryId: payload.parentRef.resourceId },
+    );
+    if (!('category' in outcome)) {
+      return yield* mutationFailure(outcome, {
+        categoryRef: payload.categoryRef,
+        expectedRevision: payload.expectedRevision,
+      });
+    }
     const result = {
       category: outcome.category,
       changed: outcome.changed,
@@ -60,13 +68,14 @@ export const handleMoveProductCategory = Effect.fn('MoveProductCategoryAction.ha
     };
     yield* context.recordAuditEvidence({ reason: payload.reason });
     yield* recordCategoryAccess(context, outcome.category.categoryRef.resourceId);
-    if (outcome.changed)
+    if (outcome.changed) {
       yield* recordCategoryEvent(
         context,
         'commerce.catalog.product-category-moved.v1',
         outcome.category.categoryRef.resourceId,
         categoryEventPayload(result),
       );
+    }
     return result;
   },
 );

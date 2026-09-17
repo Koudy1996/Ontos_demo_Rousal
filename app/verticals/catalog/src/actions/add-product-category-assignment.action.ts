@@ -3,16 +3,17 @@
 // @ontos-action-slug add-product-category-assignment
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Match } from 'effect';
 
-import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
-import { ProductRefSchema } from '../../shared/resources/product.ts';
+import {
+  AddProductCategoryAssignmentPayloadSchema,
+  AddProductCategoryAssignmentResultSchema,
+} from '../../shared/actions/add-product-category-assignment.ts';
+import type { AddProductCategoryAssignmentPayload } from '../../shared/actions/add-product-category-assignment.ts';
 import type { CategoryPersistence } from '../persistence/category-persistence.ts';
 import {
   CategoryActionErrorSchema,
-  CategoryAssignmentResultSchema,
   CategoryAuditEvidenceSchema,
-  CategoryReasonSchema,
   assignmentFailure,
   categoryEventPayload,
   categoryPersistenceServiceFactory,
@@ -21,15 +22,14 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export const AddProductCategoryAssignmentPayloadSchema = Schema.Struct({
-  categoryRef: ProductCategoryRefSchema,
-  productRef: ProductRefSchema,
-  reason: CategoryReasonSchema,
-});
-export type AddProductCategoryAssignmentPayload = typeof AddProductCategoryAssignmentPayloadSchema.Type;
-
-export const AddProductCategoryAssignmentResultSchema = CategoryAssignmentResultSchema;
-export type AddProductCategoryAssignmentResult = typeof AddProductCategoryAssignmentResultSchema.Type;
+export {
+  AddProductCategoryAssignmentPayloadSchema,
+  AddProductCategoryAssignmentResultSchema,
+} from '../../shared/actions/add-product-category-assignment.ts';
+export type {
+  AddProductCategoryAssignmentPayload,
+  AddProductCategoryAssignmentResult,
+} from '../../shared/actions/add-product-category-assignment.ts';
 
 const domainEvents = {
   'commerce.catalog.product-category-assignment-added.v1': AddProductCategoryAssignmentResultSchema,
@@ -43,8 +43,9 @@ export const handleAddProductCategoryAssignment = Effect.fn('AddProductCategoryA
     if (
       payload.categoryRef.tenantId !== context.scope.tenantId ||
       payload.productRef.tenantId !== context.scope.tenantId
-    )
+    ) {
       return yield* crossTenantFailure();
+    }
     const outcome = yield* context.services.addAssignment({
       actionInvocationId: context.actionInvocationId,
       categoryId: payload.categoryRef.resourceId,
@@ -53,23 +54,29 @@ export const handleAddProductCategoryAssignment = Effect.fn('AddProductCategoryA
       reason: payload.reason,
       tenantId: context.scope.tenantId,
     });
-    if (!('categoryRef' in outcome)) return yield* assignmentFailure(outcome);
+    if (!('categoryRef' in outcome)) {
+      return yield* assignmentFailure(outcome);
+    }
     const result = {
       assignmentRevision: outcome.assignmentRevision,
       categoryRef: outcome.categoryRef,
-      changed: outcome._tag === 'added',
+      changed: Match.value(outcome).pipe(
+        Match.tag('added', () => true),
+        Match.orElse(() => false),
+      ),
       productRef: outcome.productRef,
     };
     yield* context.recordAuditEvidence({ reason: payload.reason });
     yield* recordCategoryAccess(context, outcome.categoryRef.resourceId);
     yield* recordCategoryAccess(context, outcome.productRef.resourceId, 'commerce.catalog.product');
-    if (result.changed)
+    if (result.changed) {
       yield* recordCategoryEvent(
         context,
         'commerce.catalog.product-category-assignment-added.v1',
         outcome.categoryRef.resourceId,
         categoryEventPayload(result),
       );
+    }
     return result;
   },
 );

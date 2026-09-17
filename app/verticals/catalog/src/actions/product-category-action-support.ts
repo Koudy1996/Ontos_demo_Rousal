@@ -1,8 +1,10 @@
 import type { ActionHandlerContext, DomainEventContractMap } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 
-import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
-import { ProductRefSchema } from '../../shared/resources/product.ts';
+import type { ProductCategoryRef } from '../../shared/resources/product-category.ts';
+import { CategoryRevisionConflict, CategoryReasonSchema } from '../../shared/actions/create-product-category.ts';
+import type { CreateProductCategoryResultSchema as CategoryMutationResultSchema } from '../../shared/actions/create-product-category.ts';
+import type { AddProductCategoryAssignmentResultSchema as CategoryAssignmentResultSchema } from '../../shared/actions/add-product-category-assignment.ts';
 import type {
   CategoryAssignmentOutcome,
   CategoryMutationOutcome,
@@ -10,38 +12,14 @@ import type {
 } from '../persistence/category-persistence.ts';
 import { CategoryPersistenceUnavailable } from '../persistence/category-persistence.ts';
 
-const uuid = Schema.String.check(Schema.isUUID());
-export const CategoryIdSchema = uuid;
-export const CategoryNameSchema = Schema.String.check(
-  Schema.isMinLength(1),
-  Schema.isMaxLength(240),
-  Schema.isTrimmed(),
-);
-export const CategoryReasonSchema = Schema.String.check(
-  Schema.isMinLength(1),
-  Schema.isMaxLength(1000),
-  Schema.isTrimmed(),
-);
-export const CategoryRevisionSchema = Schema.Finite.check(Schema.isInt(), Schema.isGreaterThan(0));
-export const CategoryCounterSchema = Schema.Finite.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0));
-export const CategoryRecordSchema = Schema.Struct({
-  categoryRef: ProductCategoryRefSchema,
-  lifecycle: Schema.Literals(['ACTIVE', 'RETIRED']),
-  name: CategoryNameSchema,
-  parentRef: Schema.optionalKey(ProductCategoryRefSchema),
-  revision: CategoryRevisionSchema,
-});
-export const CategoryMutationResultSchema = Schema.Struct({
-  category: CategoryRecordSchema,
-  changed: Schema.Boolean,
-  hierarchyRevision: CategoryCounterSchema,
-});
-export const CategoryAssignmentResultSchema = Schema.Struct({
-  assignmentRevision: CategoryCounterSchema,
-  categoryRef: ProductCategoryRefSchema,
-  changed: Schema.Boolean,
-  productRef: ProductRefSchema,
-});
+export {
+  CategoryNameSchema,
+  CategoryReasonSchema,
+  CategoryRevisionSchema,
+} from '../../shared/actions/create-product-category.ts';
+export { CreateProductCategoryResultSchema as CategoryMutationResultSchema } from '../../shared/actions/create-product-category.ts';
+export { AddProductCategoryAssignmentResultSchema as CategoryAssignmentResultSchema } from '../../shared/actions/add-product-category-assignment.ts';
+
 export const CategoryAuditEvidenceSchema = Schema.Struct({ reason: CategoryReasonSchema });
 
 export class CategoryActionRejected extends Schema.TaggedError<CategoryActionRejected>()('CategoryActionRejected', {
@@ -54,7 +32,13 @@ export class CategoryActionRejected extends Schema.TaggedError<CategoryActionRej
   reason: Schema.String,
 }) {}
 
-export const CategoryActionErrorSchema = Schema.Union([CategoryActionRejected, CategoryPersistenceUnavailable]);
+export { CategoryRevisionConflict } from '../../shared/actions/create-product-category.ts';
+
+export const CategoryActionErrorSchema = Schema.Union([
+  CategoryActionRejected,
+  CategoryRevisionConflict,
+  CategoryPersistenceUnavailable,
+]);
 
 /** Build a JSON value without leaking an absent parent as `undefined`. */
 export const categoryEventPayload = (
@@ -62,14 +46,16 @@ export const categoryEventPayload = (
 ): Schema.Schema.Type<typeof Schema.Json> => {
   if ('category' in result) {
     const { category } = result;
+    const categoryJson = {
+      categoryRef: { ...category.categoryRef },
+      lifecycle: category.lifecycle,
+      name: category.name,
+      revision: category.revision,
+    };
+    const categoryWithParent =
+      category.parentRef === undefined ? categoryJson : { ...categoryJson, parentRef: { ...category.parentRef } };
     return {
-      category: {
-        categoryRef: { ...category.categoryRef },
-        lifecycle: category.lifecycle,
-        name: category.name,
-        ...(category.parentRef === undefined ? {} : { parentRef: { ...category.parentRef } }),
-        revision: category.revision,
-      },
+      category: categoryWithParent,
       changed: result.changed,
       hierarchyRevision: result.hierarchyRevision,
     };
@@ -82,39 +68,54 @@ export const categoryEventPayload = (
   };
 };
 
+const notFound = () =>
+  new CategoryActionRejected({
+    code: 'category_not_found',
+    reason: 'The category was not found in the trusted tenant',
+  });
+const conflict = () =>
+  new CategoryActionRejected({
+    code: 'category_conflict',
+    reason: 'The category operation conflicts with current Catalog state',
+  });
+const referenceConflict = () =>
+  new CategoryActionRejected({
+    code: 'category_reference_conflict',
+    reason: 'The category reference conflicts with current Catalog state',
+  });
+
 export const mutationFailure = (
   outcome: Exclude<CategoryMutationOutcome, { readonly category: unknown }>,
-): CategoryActionRejected =>
-  new CategoryActionRejected({
-    code:
-      outcome._tag === 'not_found'
-        ? 'category_not_found'
-        : outcome._tag === 'revision_conflict'
-          ? 'category_revision_conflict'
-          : outcome._tag === 'reference_conflict'
-            ? 'category_reference_conflict'
-            : 'category_conflict',
-    reason:
-      outcome._tag === 'not_found'
-        ? 'The category was not found in the trusted tenant'
-        : 'The category operation conflicts with current Catalog state',
-  });
+  basis?: Readonly<{ categoryRef: ProductCategoryRef; expectedRevision: number }>,
+): CategoryActionRejected | CategoryRevisionConflict =>
+  Match.value(outcome).pipe(
+    Match.tag('not_found', notFound),
+    Match.tag('lifecycle_conflict', conflict),
+    Match.tag('hierarchy_conflict', conflict),
+    Match.tag('reference_conflict', referenceConflict),
+    Match.tag('revision_conflict', ({ actualRevision }) =>
+      basis === undefined
+        ? conflict()
+        : new CategoryRevisionConflict({
+            actualRevision,
+            categoryRef: basis.categoryRef,
+            code: 'category_revision_conflict',
+            expectedRevision: basis.expectedRevision,
+            reason: 'The category changed before this Action committed',
+          }),
+    ),
+    Match.exhaustive,
+  );
 
 export const assignmentFailure = (
   outcome: Exclude<CategoryAssignmentOutcome, { readonly categoryRef: unknown }>,
 ): CategoryActionRejected =>
-  new CategoryActionRejected({
-    code:
-      outcome._tag === 'not_found'
-        ? 'category_not_found'
-        : outcome._tag === 'reference_conflict'
-          ? 'category_reference_conflict'
-          : 'category_conflict',
-    reason:
-      outcome._tag === 'not_found'
-        ? 'The Product or category was not found in the trusted tenant'
-        : 'The assignment conflicts with current Catalog state',
-  });
+  Match.value(outcome).pipe(
+    Match.tag('not_found', notFound),
+    Match.tag('lifecycle_conflict', conflict),
+    Match.tag('reference_conflict', referenceConflict),
+    Match.exhaustive,
+  );
 
 export const crossTenantFailure = (): CategoryActionRejected =>
   new CategoryActionRejected({
@@ -124,15 +125,18 @@ export const crossTenantFailure = (): CategoryActionRejected =>
 
 export type CategoryContext<Events extends DomainEventContractMap> = ActionHandlerContext<Events, CategoryPersistence>;
 
+const MODULE_KEY = 'commerce.catalog' as const;
+const CATEGORY_RESOURCE_TYPE = 'commerce.catalog.product-category' as const;
+
 export const recordCategoryAccess = Effect.fn('CategoryAction.recordAccess')(function* recordCategoryAccess<
   Events extends DomainEventContractMap,
->(context: CategoryContext<Events>, resourceId: string, resourceType = 'commerce.catalog.product-category') {
+>(context: CategoryContext<Events>, resourceId: string, resourceType: string = CATEGORY_RESOURCE_TYPE) {
   yield* context.recordDataAccess({
     accessKind: 'read',
     queryHash: `catalog-category:${resourceId}`,
     resultCount: 1,
-    servingModuleKey: 'commerce.catalog',
-    targetModuleKey: 'commerce.catalog',
+    servingModuleKey: MODULE_KEY,
+    targetModuleKey: MODULE_KEY,
     targetResourceId: resourceId,
     targetResourceType: resourceType,
   });
@@ -149,10 +153,10 @@ export const recordCategoryEvent = Effect.fn('CategoryAction.recordEvent')(funct
   yield* context.addDomainEvent({
     eventType,
     payloadJson,
-    producerModuleKey: 'commerce.catalog',
-    subjectModuleKey: 'commerce.catalog',
+    producerModuleKey: MODULE_KEY,
+    subjectModuleKey: MODULE_KEY,
     subjectResourceId: resourceId,
-    subjectResourceType: 'commerce.catalog.product-category',
+    subjectResourceType: CATEGORY_RESOURCE_TYPE,
   });
 });
 

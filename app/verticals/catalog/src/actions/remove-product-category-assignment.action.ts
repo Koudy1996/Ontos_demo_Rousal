@@ -3,16 +3,17 @@
 // @ontos-action-slug remove-product-category-assignment
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Match } from 'effect';
 
-import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
-import { ProductRefSchema } from '../../shared/resources/product.ts';
+import {
+  RemoveProductCategoryAssignmentPayloadSchema,
+  RemoveProductCategoryAssignmentResultSchema,
+} from '../../shared/actions/remove-product-category-assignment.ts';
+import type { RemoveProductCategoryAssignmentPayload } from '../../shared/actions/remove-product-category-assignment.ts';
 import type { CategoryPersistence } from '../persistence/category-persistence.ts';
 import {
   CategoryActionErrorSchema,
-  CategoryAssignmentResultSchema,
   CategoryAuditEvidenceSchema,
-  CategoryReasonSchema,
   assignmentFailure,
   categoryEventPayload,
   categoryPersistenceServiceFactory,
@@ -21,15 +22,14 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export const RemoveProductCategoryAssignmentPayloadSchema = Schema.Struct({
-  categoryRef: ProductCategoryRefSchema,
-  productRef: ProductRefSchema,
-  reason: CategoryReasonSchema,
-});
-export type RemoveProductCategoryAssignmentPayload = typeof RemoveProductCategoryAssignmentPayloadSchema.Type;
-
-export const RemoveProductCategoryAssignmentResultSchema = CategoryAssignmentResultSchema;
-export type RemoveProductCategoryAssignmentResult = typeof RemoveProductCategoryAssignmentResultSchema.Type;
+export {
+  RemoveProductCategoryAssignmentPayloadSchema,
+  RemoveProductCategoryAssignmentResultSchema,
+} from '../../shared/actions/remove-product-category-assignment.ts';
+export type {
+  RemoveProductCategoryAssignmentPayload,
+  RemoveProductCategoryAssignmentResult,
+} from '../../shared/actions/remove-product-category-assignment.ts';
 
 const domainEvents = {
   'commerce.catalog.product-category-assignment-removed.v1': RemoveProductCategoryAssignmentResultSchema,
@@ -43,8 +43,9 @@ export const handleRemoveProductCategoryAssignment = Effect.fn('RemoveProductCat
     if (
       payload.categoryRef.tenantId !== context.scope.tenantId ||
       payload.productRef.tenantId !== context.scope.tenantId
-    )
+    ) {
       return yield* crossTenantFailure();
+    }
     const outcome = yield* context.services.removeAssignment({
       actionInvocationId: context.actionInvocationId,
       categoryId: payload.categoryRef.resourceId,
@@ -53,23 +54,29 @@ export const handleRemoveProductCategoryAssignment = Effect.fn('RemoveProductCat
       reason: payload.reason,
       tenantId: context.scope.tenantId,
     });
-    if (!('categoryRef' in outcome)) return yield* assignmentFailure(outcome);
+    if (!('categoryRef' in outcome)) {
+      return yield* assignmentFailure(outcome);
+    }
     const result = {
       assignmentRevision: outcome.assignmentRevision,
       categoryRef: outcome.categoryRef,
-      changed: outcome._tag === 'removed',
+      changed: Match.value(outcome).pipe(
+        Match.tag('removed', () => true),
+        Match.orElse(() => false),
+      ),
       productRef: outcome.productRef,
     };
     yield* context.recordAuditEvidence({ reason: payload.reason });
     yield* recordCategoryAccess(context, outcome.categoryRef.resourceId);
     yield* recordCategoryAccess(context, outcome.productRef.resourceId, 'commerce.catalog.product');
-    if (result.changed)
+    if (result.changed) {
       yield* recordCategoryEvent(
         context,
         'commerce.catalog.product-category-assignment-removed.v1',
         outcome.categoryRef.resourceId,
         categoryEventPayload(result),
       );
+    }
     return result;
   },
 );

@@ -3,17 +3,17 @@
 // @ontos-action-slug rename-product-category
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 
-import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
+import {
+  RenameProductCategoryPayloadSchema,
+  RenameProductCategoryResultSchema,
+} from '../../shared/actions/rename-product-category.ts';
+import type { RenameProductCategoryPayload } from '../../shared/actions/rename-product-category.ts';
 import type { CategoryPersistence } from '../persistence/category-persistence.ts';
 import {
   CategoryActionErrorSchema,
   CategoryAuditEvidenceSchema,
-  CategoryMutationResultSchema,
-  CategoryNameSchema,
-  CategoryReasonSchema,
-  CategoryRevisionSchema,
   categoryEventPayload,
   categoryPersistenceServiceFactory,
   crossTenantFailure,
@@ -22,16 +22,14 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export const RenameProductCategoryPayloadSchema = Schema.Struct({
-  categoryRef: ProductCategoryRefSchema,
-  expectedRevision: CategoryRevisionSchema,
-  name: CategoryNameSchema,
-  reason: CategoryReasonSchema,
-});
-export type RenameProductCategoryPayload = typeof RenameProductCategoryPayloadSchema.Type;
-
-export const RenameProductCategoryResultSchema = CategoryMutationResultSchema;
-export type RenameProductCategoryResult = typeof RenameProductCategoryResultSchema.Type;
+export {
+  RenameProductCategoryPayloadSchema,
+  RenameProductCategoryResultSchema,
+} from '../../shared/actions/rename-product-category.ts';
+export type {
+  RenameProductCategoryPayload,
+  RenameProductCategoryResult,
+} from '../../shared/actions/rename-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-renamed.v1': RenameProductCategoryResultSchema } as const;
 
@@ -40,17 +38,24 @@ export const handleRenameProductCategory = Effect.fn('RenameProductCategoryActio
     payload: RenameProductCategoryPayload,
     context: ActionHandlerContext<typeof domainEvents, CategoryPersistence>,
   ) {
-    if (payload.categoryRef.tenantId !== context.scope.tenantId) return yield* crossTenantFailure();
+    if (payload.categoryRef.tenantId !== context.scope.tenantId) {
+      return yield* crossTenantFailure();
+    }
     const outcome = yield* context.services.renameCategory({
       actionInvocationId: context.actionInvocationId,
       categoryId: payload.categoryRef.resourceId,
+      expectedRevision: payload.expectedRevision,
+      name: payload.name,
       principalId: context.scope.principalId,
       reason: payload.reason,
       tenantId: context.scope.tenantId,
-      expectedRevision: payload.expectedRevision,
-      name: payload.name,
     });
-    if (!('category' in outcome)) return yield* mutationFailure(outcome);
+    if (!('category' in outcome)) {
+      return yield* mutationFailure(outcome, {
+        categoryRef: payload.categoryRef,
+        expectedRevision: payload.expectedRevision,
+      });
+    }
     const result = {
       category: outcome.category,
       changed: outcome.changed,
@@ -58,13 +63,14 @@ export const handleRenameProductCategory = Effect.fn('RenameProductCategoryActio
     };
     yield* context.recordAuditEvidence({ reason: payload.reason });
     yield* recordCategoryAccess(context, outcome.category.categoryRef.resourceId);
-    if (outcome.changed)
+    if (outcome.changed) {
       yield* recordCategoryEvent(
         context,
         'commerce.catalog.product-category-renamed.v1',
         outcome.category.categoryRef.resourceId,
         categoryEventPayload(result),
       );
+    }
     return result;
   },
 );

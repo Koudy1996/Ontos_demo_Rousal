@@ -3,18 +3,18 @@
 // @ontos-action-slug create-product-category
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 import { randomUUID } from 'node:crypto';
 
-import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
+import {
+  CreateProductCategoryPayloadSchema,
+  CreateProductCategoryResultSchema,
+} from '../../shared/actions/create-product-category.ts';
+import type { CreateProductCategoryPayload } from '../../shared/actions/create-product-category.ts';
 import type { CategoryPersistence } from '../persistence/category-persistence.ts';
 import {
   CategoryActionErrorSchema,
   CategoryAuditEvidenceSchema,
-  CategoryMutationResultSchema,
-  CategoryNameSchema,
-  CategoryReasonSchema,
-  CategoryRevisionSchema,
   categoryEventPayload,
   categoryPersistenceServiceFactory,
   crossTenantFailure,
@@ -23,15 +23,14 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export const CreateProductCategoryPayloadSchema = Schema.Struct({
-  name: CategoryNameSchema,
-  parentRef: Schema.optionalKey(ProductCategoryRefSchema),
-  reason: CategoryReasonSchema,
-});
-export type CreateProductCategoryPayload = typeof CreateProductCategoryPayloadSchema.Type;
-
-export const CreateProductCategoryResultSchema = CategoryMutationResultSchema;
-export type CreateProductCategoryResult = typeof CreateProductCategoryResultSchema.Type;
+export {
+  CreateProductCategoryPayloadSchema,
+  CreateProductCategoryResultSchema,
+} from '../../shared/actions/create-product-category.ts';
+export type {
+  CreateProductCategoryPayload,
+  CreateProductCategoryResult,
+} from '../../shared/actions/create-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-created.v1': CreateProductCategoryResultSchema } as const;
 
@@ -40,19 +39,24 @@ export const handleCreateProductCategory = Effect.fn('CreateProductCategoryActio
     payload: CreateProductCategoryPayload,
     context: ActionHandlerContext<typeof domainEvents, CategoryPersistence>,
   ) {
-    if (payload.parentRef !== undefined && payload.parentRef.tenantId !== context.scope.tenantId)
+    if (payload.parentRef !== undefined && payload.parentRef.tenantId !== context.scope.tenantId) {
       return yield* crossTenantFailure();
+    }
     const categoryId = randomUUID();
-    const outcome = yield* context.services.createCategory({
+    const input = {
       actionInvocationId: context.actionInvocationId,
-      categoryId: categoryId,
+      categoryId,
+      name: payload.name,
       principalId: context.scope.principalId,
       reason: payload.reason,
       tenantId: context.scope.tenantId,
-      name: payload.name,
-      ...(payload.parentRef === undefined ? {} : { parentCategoryId: payload.parentRef.resourceId }),
-    });
-    if (!('category' in outcome)) return yield* mutationFailure(outcome);
+    };
+    const outcome = yield* context.services.createCategory(
+      payload.parentRef === undefined ? input : { ...input, parentCategoryId: payload.parentRef.resourceId },
+    );
+    if (!('category' in outcome)) {
+      return yield* mutationFailure(outcome);
+    }
     const result = {
       category: outcome.category,
       changed: outcome.changed,
@@ -60,13 +64,14 @@ export const handleCreateProductCategory = Effect.fn('CreateProductCategoryActio
     };
     yield* context.recordAuditEvidence({ reason: payload.reason });
     yield* recordCategoryAccess(context, outcome.category.categoryRef.resourceId);
-    if (outcome.changed)
+    if (outcome.changed) {
       yield* recordCategoryEvent(
         context,
         'commerce.catalog.product-category-created.v1',
         outcome.category.categoryRef.resourceId,
         categoryEventPayload(result),
       );
+    }
     return result;
   },
 );

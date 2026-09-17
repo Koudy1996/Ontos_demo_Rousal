@@ -3,17 +3,17 @@
 // @ontos-action-slug retire-product-category
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect } from 'effect';
 
-import { ProductCategoryRefSchema } from '../../shared/resources/product-category.ts';
+import {
+  RetireProductCategoryPayloadSchema,
+  RetireProductCategoryResultSchema,
+} from '../../shared/actions/retire-product-category.ts';
+import type { RetireProductCategoryPayload } from '../../shared/actions/retire-product-category.ts';
 import type { CategoryPersistence } from '../persistence/category-persistence.ts';
 import {
   CategoryActionErrorSchema,
   CategoryAuditEvidenceSchema,
-  CategoryMutationResultSchema,
-  CategoryNameSchema,
-  CategoryReasonSchema,
-  CategoryRevisionSchema,
   categoryEventPayload,
   categoryPersistenceServiceFactory,
   crossTenantFailure,
@@ -22,15 +22,14 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export const RetireProductCategoryPayloadSchema = Schema.Struct({
-  categoryRef: ProductCategoryRefSchema,
-  expectedRevision: CategoryRevisionSchema,
-  reason: CategoryReasonSchema,
-});
-export type RetireProductCategoryPayload = typeof RetireProductCategoryPayloadSchema.Type;
-
-export const RetireProductCategoryResultSchema = CategoryMutationResultSchema;
-export type RetireProductCategoryResult = typeof RetireProductCategoryResultSchema.Type;
+export {
+  RetireProductCategoryPayloadSchema,
+  RetireProductCategoryResultSchema,
+} from '../../shared/actions/retire-product-category.ts';
+export type {
+  RetireProductCategoryPayload,
+  RetireProductCategoryResult,
+} from '../../shared/actions/retire-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-retired.v1': RetireProductCategoryResultSchema } as const;
 
@@ -39,16 +38,23 @@ export const handleRetireProductCategory = Effect.fn('RetireProductCategoryActio
     payload: RetireProductCategoryPayload,
     context: ActionHandlerContext<typeof domainEvents, CategoryPersistence>,
   ) {
-    if (payload.categoryRef.tenantId !== context.scope.tenantId) return yield* crossTenantFailure();
+    if (payload.categoryRef.tenantId !== context.scope.tenantId) {
+      return yield* crossTenantFailure();
+    }
     const outcome = yield* context.services.retireCategory({
       actionInvocationId: context.actionInvocationId,
       categoryId: payload.categoryRef.resourceId,
+      expectedRevision: payload.expectedRevision,
       principalId: context.scope.principalId,
       reason: payload.reason,
       tenantId: context.scope.tenantId,
-      expectedRevision: payload.expectedRevision,
     });
-    if (!('category' in outcome)) return yield* mutationFailure(outcome);
+    if (!('category' in outcome)) {
+      return yield* mutationFailure(outcome, {
+        categoryRef: payload.categoryRef,
+        expectedRevision: payload.expectedRevision,
+      });
+    }
     const result = {
       category: outcome.category,
       changed: outcome.changed,
@@ -56,13 +62,14 @@ export const handleRetireProductCategory = Effect.fn('RetireProductCategoryActio
     };
     yield* context.recordAuditEvidence({ reason: payload.reason });
     yield* recordCategoryAccess(context, outcome.category.categoryRef.resourceId);
-    if (outcome.changed)
+    if (outcome.changed) {
       yield* recordCategoryEvent(
         context,
         'commerce.catalog.product-category-retired.v1',
         outcome.category.categoryRef.resourceId,
         categoryEventPayload(result),
       );
+    }
     return result;
   },
 );
