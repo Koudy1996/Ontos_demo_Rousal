@@ -5,6 +5,7 @@ import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
 import { catalogManifest } from './vertical.manifest.ts';
 // <generated-module-registration-imports>
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
+import { assertSizeEquivalenceAction } from './src/actions/assert-size-equivalence.action.ts';
 import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
@@ -38,6 +39,7 @@ import { renameBrandAction } from './src/actions/rename-brand.action.ts';
 import { renameControlledAttributeValueAction } from './src/actions/rename-controlled-attribute-value.action.ts';
 import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
 import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.action.ts';
+import { replaceProductSizesAction } from './src/actions/replace-product-sizes.action.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
 import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
@@ -63,6 +65,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
   actions: [
     // <generated-module-registration-actions>
     addProductCategoryAssignmentAction,
+    assertSizeEquivalenceAction,
     assignCatalogMediaAction,
     changeProductManufacturerAction,
     changeProductRelationshipAction,
@@ -96,6 +99,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     renameControlledAttributeValueAction,
     renameProductCategoryAction,
     reorderCatalogMediaAction,
+    replaceProductSizesAction,
     retireBrandAction,
     retireControlledAttributeValueAction,
     retirePackageDefinitionAction,
