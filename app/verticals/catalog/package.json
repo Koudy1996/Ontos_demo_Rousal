@@ -17,6 +17,7 @@
     "./resources/product": "./shared/resources/product.ts",
     "./resources/product-category": "./shared/resources/product-category.ts",
     "./resources/product-type": "./shared/resources/product-type.ts",
+    "./resources/product-unit": "./shared/resources/product-unit.ts",
     "./resources/variant": "./shared/resources/variant.ts",
     "./Route": "./src/federation-entry.tsx",
     "./Widget": "./src/components/catalog-widget.tsx"
@@ -40,6 +41,7 @@
   "dependencies": {
     "@app/core-runtime": "workspace:*",
     "@app/gateway-principal-verifier": "workspace:*",
+    "@app/party-registry": "workspace:*",
     "@app/shared-contracts": "workspace:*",
     "@app/shared-design-tokens": "workspace:*",
     "@effect/opentelemetry": "4.0.0-rc.112",
