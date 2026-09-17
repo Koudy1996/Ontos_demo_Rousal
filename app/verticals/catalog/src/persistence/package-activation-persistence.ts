@@ -31,11 +31,13 @@ export interface PackageActivationInput {
   readonly reason: string;
 }
 
-export type PackageActivationOutcome =
-  | { readonly _tag: 'activated'; readonly revision: number }
-  | { readonly _tag: 'invalid'; readonly reason: string }
-  | { readonly _tag: 'not_found' }
-  | { readonly _tag: 'stale'; readonly actualRevision: number };
+const PackageActivationOutcomeSchema = Schema.Union([
+  Schema.TaggedStruct('activated', { revision: Schema.Int }),
+  Schema.TaggedStruct('invalid', { reason: Schema.String }),
+  Schema.TaggedStruct('not_found', {}),
+  Schema.TaggedStruct('stale', { actualRevision: Schema.Int }),
+]);
+export type PackageActivationOutcome = typeof PackageActivationOutcomeSchema.Type;
 
 const unavailable = (cause?: unknown): PackageActivationUnavailable => {
   const failure = new PackageActivationUnavailable({
@@ -58,6 +60,119 @@ const validEvidence = (input: PackageActivationInput): boolean =>
   input.reason === input.reason.trim() &&
   input.evidenceRefs.length > 0 &&
   input.evidenceRefs.every((ref) => ref.length > 0 && ref.length <= 300 && ref === ref.trim());
+
+type Definition = typeof packageDefinitions.$inferSelect;
+type Content = typeof packageContentRevisions.$inferSelect;
+const validDraftContent = (content: Content, definition: Definition): boolean =>
+  content.lifecycleState === 'DRAFT' &&
+  content.productId === definition.productId &&
+  content.variantId === definition.variantId &&
+  content.unitResourceType === 'commerce.catalog.product-unit' &&
+  (content.lowerPackageDefinitionId === null) === (content.lowerRevision === null) &&
+  (content.lowerPackageDefinitionId === null) === (content.lowerCount === null);
+const ref = (tenantId: string, resourceType: string, resourceId: string) => ({
+  moduleId: 'commerce.catalog',
+  resourceId,
+  resourceType: `commerce.catalog.${resourceType}`,
+  tenantId,
+});
+const decodeContent = (content: Content, definition: Definition) => {
+  const { tenantId } = definition;
+  const raw = {
+    amount: content.amount,
+    effectiveAt: content.effectiveAt.toISOString(),
+    form: {
+      productRef: ref(tenantId, 'product', definition.productId),
+      variantRef: ref(tenantId, 'variant', definition.variantId),
+    },
+    unitRef: ref(tenantId, 'product-unit', content.unitResourceId),
+  };
+  const withConfiguration =
+    content.configurationKey === null ? raw : { ...raw, configurationKey: content.configurationKey };
+  const withLower =
+    content.lowerPackageDefinitionId === null
+      ? withConfiguration
+      : {
+          ...withConfiguration,
+          lower: {
+            count: content.lowerCount,
+            revision: {
+              resourceRef: ref(tenantId, 'package-definition', content.lowerPackageDefinitionId),
+              revision: content.lowerRevision,
+            },
+          },
+        };
+  const withSet =
+    content.setCompositionResourceId === null
+      ? withLower
+      : {
+          ...withLower,
+          setComposition: {
+            resourceRef: ref(tenantId, 'set-composition', content.setCompositionResourceId),
+            revision: content.setCompositionRevision,
+          },
+        };
+  return Schema.decodeUnknownEffect(PackageDefinitionContentInputSchema)(withSet).pipe(Effect.mapError(unavailable));
+};
+
+const pinnedLowerActive = (
+  transaction: ScopedTransaction,
+  definition: Definition,
+  lowerId: string | null,
+  lowerRevision: number | null,
+  seen: ReadonlySet<string>,
+): Effect.Effect<boolean, PackageActivationUnavailable> =>
+  Effect.suspend(() =>
+    Effect.gen(function* pinnedLowerActiveStep() {
+      if (lowerId === null && lowerRevision === null) {
+        return true;
+      }
+      if (lowerId === null || lowerRevision === null || seen.has(lowerId)) {
+        return false;
+      }
+      const { tenantId } = definition;
+      const [[lowerDefinition], [lowerContent]] = yield* Effect.all(
+        [
+          transaction
+            .select()
+            .from(packageDefinitions)
+            .where(and(eq(packageDefinitions.tenantId, tenantId), eq(packageDefinitions.packageDefinitionId, lowerId)))
+            .for('update')
+            .limit(1),
+          transaction
+            .select()
+            .from(packageContentRevisions)
+            .where(
+              and(
+                eq(packageContentRevisions.tenantId, tenantId),
+                eq(packageContentRevisions.packageDefinitionId, lowerId),
+                eq(packageContentRevisions.revision, lowerRevision),
+              ),
+            )
+            .for('update')
+            .limit(1),
+        ] as const,
+        { concurrency: 1 },
+      ).pipe(Effect.mapError(unavailable));
+      if (
+        lowerDefinition?.lifecycleState !== 'ACTIVE' ||
+        lowerContent?.lifecycleState !== 'ACTIVE' ||
+        lowerDefinition.productId !== definition.productId ||
+        lowerDefinition.variantId !== definition.variantId ||
+        lowerContent.productId !== definition.productId ||
+        lowerContent.variantId !== definition.variantId
+      ) {
+        return false;
+      }
+      return yield* pinnedLowerActive(
+        transaction,
+        definition,
+        lowerContent.lowerPackageDefinitionId,
+        lowerContent.lowerRevision,
+        new Set([...seen, lowerId]),
+      );
+    }).pipe(Effect.withSpan('PackageActivationPersistence.pinnedLowerActive')),
+  );
 
 /** Core supplies the scoped transaction; this service never opens or commits one. */
 export const packageActivationPersistenceForScope = (
@@ -108,57 +223,22 @@ export const packageActivationPersistenceForScope = (
       .for('update')
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-    if (
-      content === undefined ||
-      content.lifecycleState !== 'DRAFT' ||
-      content.productId !== definition.productId ||
-      content.variantId !== definition.variantId ||
-      content.unitResourceType !== 'commerce.catalog.product-unit' ||
-      (content.lowerPackageDefinitionId === null) !== (content.lowerRevision === null) ||
-      (content.lowerPackageDefinitionId === null) !== (content.lowerCount === null)
-    ) {
+    if (content === undefined || !validDraftContent(content, definition)) {
       return yield* unavailable();
     }
-    const seen = new Set([definition.packageDefinitionId]);
-    let lowerId = content.lowerPackageDefinitionId;
-    let lowerRevision = content.lowerRevision;
-    while (lowerId !== null && lowerRevision !== null) {
-      if (seen.has(lowerId)) {
-        return { _tag: 'invalid', reason: 'Package content has a lower-level cycle' } as const;
-      }
-      seen.add(lowerId);
-      const [lowerDefinition] = yield* transaction
-        .select()
-        .from(packageDefinitions)
-        .where(and(eq(packageDefinitions.tenantId, tenantId), eq(packageDefinitions.packageDefinitionId, lowerId)))
-        .for('update')
-        .limit(1)
-        .pipe(Effect.mapError(unavailable));
-      const [lowerContent] = yield* transaction
-        .select()
-        .from(packageContentRevisions)
-        .where(
-          and(
-            eq(packageContentRevisions.tenantId, tenantId),
-            eq(packageContentRevisions.packageDefinitionId, lowerId),
-            eq(packageContentRevisions.revision, lowerRevision),
-          ),
-        )
-        .for('update')
-        .limit(1)
-        .pipe(Effect.mapError(unavailable));
-      if (
-        lowerDefinition?.lifecycleState !== 'ACTIVE' ||
-        lowerContent?.lifecycleState !== 'ACTIVE' ||
-        lowerDefinition.productId !== definition.productId ||
-        lowerDefinition.variantId !== definition.variantId ||
-        lowerContent.productId !== definition.productId ||
-        lowerContent.variantId !== definition.variantId
-      ) {
-        return { _tag: 'invalid', reason: 'Pinned lower content must be Current, active, and homogeneous' } as const;
-      }
-      lowerId = lowerContent.lowerPackageDefinitionId;
-      lowerRevision = lowerContent.lowerRevision;
+    if (
+      !(yield* pinnedLowerActive(
+        transaction,
+        definition,
+        content.lowerPackageDefinitionId,
+        content.lowerRevision,
+        new Set([definition.packageDefinitionId]),
+      ))
+    ) {
+      return {
+        _tag: 'invalid',
+        reason: 'Pinned lower content must be Current, active, homogeneous, and acyclic',
+      } as const;
     }
     const [[product], [variant]] = yield* Effect.all(
       [
@@ -186,38 +266,7 @@ export const packageActivationPersistenceForScope = (
     if (product?.lifecycleState !== 'ACTIVE' || variant?.lifecycleState !== 'ACTIVE') {
       return { _tag: 'invalid', reason: 'Product and Variant must both be Current and active' } as const;
     }
-    const ref = (resourceType: string, resourceId: string) => ({
-      moduleId: 'commerce.catalog',
-      resourceId,
-      resourceType: `commerce.catalog.${resourceType}`,
-      tenantId,
-    });
-    const candidate = yield* Schema.decodeUnknownEffect(PackageDefinitionContentInputSchema)({
-      amount: content.amount,
-      ...(content.configurationKey === null ? {} : { configurationKey: content.configurationKey }),
-      effectiveAt: content.effectiveAt.toISOString(),
-      form: { productRef: ref('product', definition.productId), variantRef: ref('variant', definition.variantId) },
-      ...(content.lowerPackageDefinitionId === null
-        ? {}
-        : {
-            lower: {
-              count: content.lowerCount,
-              revision: {
-                resourceRef: ref('package-definition', content.lowerPackageDefinitionId),
-                revision: content.lowerRevision,
-              },
-            },
-          }),
-      ...(content.setCompositionResourceId === null
-        ? {}
-        : {
-            setComposition: {
-              resourceRef: ref('set-composition', content.setCompositionResourceId),
-              revision: content.setCompositionRevision,
-            },
-          }),
-      unitRef: ref('product-unit', content.unitResourceId),
-    }).pipe(Effect.mapError(unavailable));
+    const candidate = yield* decodeContent(content, definition);
     if (
       !(yield* contentBasis
         .verify({ content: candidate, definitionId: definition.packageDefinitionId, tenantId })

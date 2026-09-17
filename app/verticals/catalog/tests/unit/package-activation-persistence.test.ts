@@ -1,8 +1,9 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { packageContentRevisions, packageDefinitions, productVariants, products } from '../../src/database/schema.ts';
+import { packageContentRevisions, packageDefinitions } from '../../src/database/schema.ts';
+import type { productVariants, products } from '../../src/database/schema.ts';
 import {
   packageActivationPersistenceForScope,
   PackageActivationUnavailable,
@@ -55,39 +56,37 @@ const content = {
   variantId,
 };
 type Table = typeof packageDefinitions | typeof packageContentRevisions | typeof products | typeof productVariants;
-const fixture = (writes: unknown[], overrides: { definition?: typeof definition; content?: typeof content } = {}) => ({
-  select: () => ({
-    from: (table: Table) => ({
-      where: () => ({
-        for: () => ({
-          limit: () =>
-            Effect.succeed(
-              table === packageDefinitions
-                ? [overrides.definition ?? definition]
-                : table === packageContentRevisions
-                  ? [overrides.content ?? content]
-                  : [{ lifecycleState: 'ACTIVE' }],
-            ),
-        }),
-      }),
-    }),
-  }),
-  update: (table: Table) => ({
-    set: (value: unknown) => ({
-      where: () => ({
-        returning: () => {
-          writes.push([table, value]);
-          return Effect.succeed([{ ...definition, currentRevision: 2 }]);
-        },
-      }),
-    }),
-  }),
+type WriteValue = Partial<typeof packageDefinitions.$inferInsert> | typeof packageContentRevisions.$inferInsert;
+const rows = (table: Table, overrides: { content?: typeof content; definition?: typeof definition }) => {
+  if (table === packageDefinitions) {
+    return [overrides.definition ?? definition];
+  }
+  if (table === packageContentRevisions) {
+    return [overrides.content ?? content];
+  }
+  return [{ lifecycleState: 'ACTIVE' }];
+};
+const readLimit = (table: Table, overrides: { content?: typeof content; definition?: typeof definition }) =>
+  Effect.succeed(rows(table, overrides));
+const writeUpdate = (table: Table, writes: unknown[], value: WriteValue) => {
+  writes.push([table, value]);
+  return Effect.succeed([{ ...definition, currentRevision: 2 }]);
+};
+const queryFor = (table: Table, overrides: { content?: typeof content; definition?: typeof definition }) => ({
+  where: () => ({ for: () => ({ limit: () => readLimit(table, overrides) }) }),
+});
+const updateFor = (table: Table, writes: unknown[]) => ({
+  set: (value: WriteValue) => ({ where: () => ({ returning: () => writeUpdate(table, writes, value) }) }),
+});
+const fixture = (writes: unknown[], overrides: { content?: typeof content; definition?: typeof definition } = {}) => ({
   insert: (table: Table) => ({
-    values: (value: unknown) => {
+    values: (value: WriteValue) => {
       writes.push([table, value]);
       return Effect.succeed([]);
     },
   }),
+  select: () => ({ from: (table: Table) => queryFor(table, overrides) }),
+  update: (table: Table) => updateFor(table, writes),
 });
 
 describe('Package Definition activation persistence', () => {
@@ -114,12 +113,17 @@ describe('Package Definition activation persistence', () => {
         { verify: () => Effect.succeed(true) },
         { verify: () => Effect.succeed(true) },
       );
-      expect(yield* service.activate(input)).toEqual({ _tag: 'activated', revision: 2 });
+      expect(
+        Match.value(yield* service.activate(input)).pipe(
+          Match.tag('activated', ({ revision }) => revision),
+          Match.orElse(() => null),
+        ),
+      ).toBe(2);
       expect(writes).toEqual([
-        [packageDefinitions, expect.objectContaining({ lifecycleState: 'ACTIVE', currentRevision: 2 })],
+        [packageDefinitions, expect.objectContaining({ currentRevision: 2, lifecycleState: 'ACTIVE' })],
         [
           packageContentRevisions,
-          expect.objectContaining({ amount: '10', lifecycleState: 'ACTIVE', revision: 2, lowerRevision: null }),
+          expect.objectContaining({ amount: '10', lifecycleState: 'ACTIVE', lowerRevision: null, revision: 2 }),
         ],
       ]);
       expect(writes[0]).not.toEqual(expect.objectContaining({ optionState: 'ACTIVE' }));
@@ -129,15 +133,25 @@ describe('Package Definition activation persistence', () => {
   it.effect('rejects stale, retired-parent, and unsafe-selection states without writes', () =>
     Effect.gen(function* rejects() {
       const writes: unknown[] = [];
-      // @ts-expect-error Mock covers only the exercised Drizzle chain.
       const service = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
         fixture(writes),
         scope,
         { verify: () => Effect.succeed(true) },
         { verify: () => Effect.succeed(false) },
       );
-      expect((yield* service.activate({ ...input, expectedRevision: 2 }))._tag).toBe('stale');
-      expect((yield* service.activate(input))._tag).toBe('invalid');
+      expect(
+        Match.value(yield* service.activate({ ...input, expectedRevision: 2 })).pipe(
+          Match.tag('stale', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+      expect(
+        Match.value(yield* service.activate(input)).pipe(
+          Match.tag('invalid', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
       expect(writes).toEqual([]);
     }),
   );
@@ -158,7 +172,12 @@ describe('Package Definition activation persistence', () => {
         { verify: () => Effect.succeed(true) },
         { verify: () => Effect.succeed(true) },
       );
-      expect((yield* service.activate(input))._tag).toBe('invalid');
+      expect(
+        Match.value(yield* service.activate(input)).pipe(
+          Match.tag('invalid', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
       expect(writes).toEqual([]);
     }),
   );
