@@ -3,19 +3,21 @@ import type { ReadHandlerContext } from '@app/core-runtime';
 import {
   ReadHandlerNotFound,
   ReadHandlerUnavailable,
+  ReadPermissionDenied,
+  ReadRuntime,
   defineRead,
   defineReadResourcePermission,
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
-import { DateTime, Effect, Option } from 'effect';
+import { DateTime, Effect } from 'effect';
 import {
   ManufacturerRelationCurrentRequestSchema,
   ManufacturerRelationCurrentResponseSchema,
 } from '../../shared/apis/manufacturer-relation-current.ts';
 import type { ManufacturerRelationCurrentRequest } from '../../shared/apis/manufacturer-relation-current.ts';
-import { currentManufacturerRelation } from '../../shared/domain/manufacturer-relation.ts';
-import type { ManufacturerPersistence } from '../persistence/manufacturer-persistence.ts';
-import { manufacturerPersistenceForScope } from '../persistence/manufacturer-persistence.ts';
+import type { ManufacturerCurrentReads } from '../persistence/manufacturer-current-reads.ts';
+import { manufacturerCurrentReadsForScope } from '../persistence/manufacturer-current-reads.ts';
+import { manufacturerTargetResolverForCoreRead } from '../persistence/manufacturer-target-resolver.ts';
 
 const notFound = () =>
   new ReadHandlerNotFound({ code: 'read_handler_not_found', reason: 'Current Manufacturer relation was not found' });
@@ -27,7 +29,13 @@ const unavailable = (cause: unknown) => {
   Object.defineProperty(error, 'cause', { configurable: true, value: cause });
   return error;
 };
+const forbidden = () =>
+  new ReadPermissionDenied({ code: 'read_permission_denied', reason: 'Manufacturer identity is not readable' });
 const moduleKey = 'commerce.catalog';
+interface ManufacturerWirePeriod {
+  effectiveFrom?: string;
+  effectiveTo?: string;
+}
 
 export const manufacturerRelationCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
@@ -60,21 +68,75 @@ export const manufacturerRelationCurrentRead = defineRead(
   },
   Effect.fn('ManufacturerRelationCurrentRead.read')(function* read(
     input: ManufacturerRelationCurrentRequest,
-    context: ReadHandlerContext<ManufacturerPersistence>,
+    context: ReadHandlerContext<ManufacturerCurrentReads>,
   ) {
     if (input.subject.tenantId !== context.scope.tenantId) {
       return yield* notFound();
     }
-    const history = yield* context.services.history(input.relationId, input.subject).pipe(Effect.mapError(unavailable));
-    if (Option.isNone(history)) {
+    const outcome = yield* context.services.effective(input.subject, DateTime.formatIso(yield* DateTime.now)).pipe(
+      Effect.catchTags({
+        // oxlint-disable sonarjs/function-name -- catchTags keys are schema-owned error tags.
+        ManufacturerPersistenceUnavailable: (failure) => Effect.fail(unavailable(failure)),
+        ManufacturerTargetAbsent: () => Effect.fail(notFound()),
+        ManufacturerTargetForbidden: () => Effect.fail(forbidden()),
+        ManufacturerTargetInvalid: (failure) => Effect.fail(unavailable(failure)),
+        ManufacturerTargetUnavailable: (failure) => Effect.fail(unavailable(failure)),
+        // oxlint-enable sonarjs/function-name
+      }),
+    );
+    if (outcome.kind === 'ABSENT') {
       return yield* notFound();
     }
-    const relation = currentManufacturerRelation(history.value, DateTime.formatIso(yield* DateTime.now));
-    if (relation === undefined) {
-      return yield* notFound();
+    const {
+      effectiveFrom,
+      effectiveTo,
+      evidenceRefs,
+      owner,
+      reason,
+      recordedAt,
+      relationId,
+      revision,
+      subject,
+      target,
+    } = outcome.claim;
+    const period: ManufacturerWirePeriod = {};
+    if (effectiveFrom !== undefined) {
+      period.effectiveFrom = effectiveFrom;
     }
-    return { evidence: { resultCount: 1 }, result: { relation } };
+    if (effectiveTo !== undefined) {
+      period.effectiveTo = effectiveTo;
+    }
+    const ownerProjection =
+      owner.kind === 'PARTY'
+        ? {
+            canonicalTarget: owner.canonicalTarget,
+            kind: owner.kind,
+            ownerRevision: owner.ownerRevision,
+            state: owner.state,
+          }
+        : { canonicalTarget: owner.canonicalTarget, kind: owner.kind, state: owner.state };
+    return {
+      evidence: { resultCount: 1 },
+      result: {
+        claim: {
+          ...period,
+          evidenceRefs,
+          reason,
+          recordedAt: recordedAt.toISOString(),
+          relationId,
+          revision,
+          subject,
+          target,
+        },
+        owner: ownerProjection,
+      },
+    };
   }),
-  (transaction, scope) => Effect.succeed(manufacturerPersistenceForScope(transaction, scope)),
+  Effect.fn('ManufacturerRelationCurrentRead.services')(function* services(transaction, scope) {
+    const readRuntime = yield* ReadRuntime;
+    return manufacturerCurrentReadsForScope(transaction, scope, {
+      targetResolver: manufacturerTargetResolverForCoreRead(readRuntime, scope),
+    });
+  }),
   () => ({ kind: 'module', moduleId: moduleKey }),
 );

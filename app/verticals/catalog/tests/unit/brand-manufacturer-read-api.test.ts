@@ -74,8 +74,6 @@ describe('Brand and Manufacturer governed read contracts', () => {
     expect(Schema.is(ManufacturerRelationHistoryRequestSchema)({ relationId: resourceId, subject: productRef })).toBe(
       true,
     );
-    expect(Schema.is(ManufacturerRelationCurrentRequestSchema)({ relationId: resourceId, subject: productRef })).toBe(
-      true,
-    );
+    expect(Schema.is(ManufacturerRelationCurrentRequestSchema)({ subject: productRef })).toBe(true);
   });
 });

@@ -2,17 +2,40 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { ManufacturerRelationRevisionSchema, ManufacturerSubjectSchema } from '../domain/manufacturer-relation.ts';
+import { ManufacturerSubjectSchema, ManufacturerTargetSchema } from '../domain/manufacturer-relation.ts';
+import { ProductInstantSchema } from '../domain/product.ts';
+
+const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
 
 export const ManufacturerRelationCurrentRequestSchema = Schema.Struct({
-  relationId: Schema.String.check(Schema.isUUID(), Schema.isTrimmed()).pipe(
-    Schema.brand('CatalogManufacturerRelationId'),
-  ),
   subject: ManufacturerSubjectSchema,
 });
 export type ManufacturerRelationCurrentRequest = typeof ManufacturerRelationCurrentRequestSchema.Type;
 export const ManufacturerRelationCurrentResponseSchema = Schema.Struct({
-  relation: ManufacturerRelationRevisionSchema,
+  claim: Schema.Struct({
+    effectiveFrom: Schema.optionalKey(ProductInstantSchema),
+    effectiveTo: Schema.optionalKey(ProductInstantSchema),
+    evidenceRefs: Schema.Array(Schema.NonEmptyString),
+    reason: Schema.NonEmptyString,
+    recordedAt: ProductInstantSchema,
+    relationId: checkedUuid.pipe(Schema.brand('CatalogManufacturerRelationId'), Schema.decodeTo(checkedUuid)),
+    revision: Schema.Int,
+    subject: ManufacturerSubjectSchema,
+    target: ManufacturerTargetSchema,
+  }),
+  owner: Schema.Union([
+    Schema.Struct({
+      canonicalTarget: ManufacturerTargetSchema,
+      kind: Schema.Literal('PARTY'),
+      ownerRevision: Schema.Int,
+      state: Schema.Literals(['CURRENT', 'ALIAS', 'ARCHIVED']),
+    }),
+    Schema.Struct({
+      canonicalTarget: ManufacturerTargetSchema,
+      kind: Schema.Literal('LEGAL_ENTITY'),
+      state: Schema.Literals(['CURRENT', 'SUSPENDED', 'ARCHIVED']),
+    }),
+  ]),
 });
 export type ManufacturerRelationCurrentResponse = typeof ManufacturerRelationCurrentResponseSchema.Type;
 
