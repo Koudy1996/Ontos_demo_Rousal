@@ -1351,9 +1351,10 @@ export const commercialSkuReservations = catalogSchema.table.withRLS(
     uniqueIndex('catalog_sku_reservations_current_package_uk')
       .on(table.tenantId, table.packageDefinitionId)
       .where(sql`${table.state} = 'CURRENT' and ${table.packageDefinitionId} is not null`),
+    uniqueIndex('catalog_sku_reservations_binary_code_uk').on(table.tenantId, sql.raw('"normalized_code" COLLATE "C"')),
     check(
       'catalog_sku_reservations_code_ck',
-      sql`${table.normalizedCode} = upper(btrim(${table.displayCode})) and length(${table.normalizedCode}) between 1 and 240`,
+      sql`${table.normalizedCode} = btrim(${table.normalizedCode}) and length(${table.normalizedCode}) between 1 and 240`,
     ),
     check('catalog_sku_reservations_state_ck', sql`${table.state} in ('CURRENT', 'HISTORICAL', 'UNRESOLVED')`),
     check('catalog_sku_reservations_revision_ck', sql`${table.currentRevision} > 0`),
@@ -1412,7 +1413,7 @@ export const commercialSkuAssignmentRevisions = catalogSchema.table.withRLS(
     }).onDelete('restrict'),
     check(
       'catalog_sku_assignment_revisions_code_ck',
-      sql`${table.normalizedCode} = upper(btrim(${table.displayCode}))`,
+      sql`${table.normalizedCode} = btrim(${table.normalizedCode}) and length(${table.normalizedCode}) between 1 and 240`,
     ),
     check('catalog_sku_assignment_revisions_revision_ck', sql`${table.revision} > 0`),
     check('catalog_sku_assignment_revisions_state_ck', sql`${table.state} in ('CURRENT', 'HISTORICAL', 'UNRESOLVED')`),

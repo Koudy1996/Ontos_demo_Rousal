@@ -173,6 +173,7 @@ it('reserves SKU across exact target kinds and keeps assignment provenance separ
   expect(sku.primaryKeys.map((key) => key.getName())).toContain('catalog_sku_reservations_pk');
   expect(sku.indexes.map((item) => item.config.name)).toEqual(
     expect.arrayContaining([
+      'catalog_sku_reservations_binary_code_uk',
       'catalog_sku_reservations_current_variant_uk',
       'catalog_sku_reservations_current_package_uk',
     ]),
@@ -194,6 +195,13 @@ it('reserves SKU across exact target kinds and keeps assignment provenance separ
   expect(getTableConfig(commercialGtinAssignmentRevisions).columns.map((column) => column.name)).toContain(
     'attribution_evidence_ref',
   );
+  const migration = readFileSync(
+    new URL('../../drizzle/20260917100849_elite_moondragon/migration.sql', import.meta.url),
+    'utf-8',
+  );
+  expect(migration).toContain('UNIQUE INDEX "catalog_sku_reservations_binary_code_uk"');
+  expect(migration).toContain('"normalized_code" COLLATE "C"');
+  expect(migration).not.toContain('upper(btrim("display_code"))');
 });
 
 it('keeps Product Configuration definitions and exact rules revision-scoped', () => {

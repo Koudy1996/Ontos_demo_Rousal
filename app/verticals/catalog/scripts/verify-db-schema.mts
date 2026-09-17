@@ -142,6 +142,35 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
       reason: 'Catalog RLS, journal, trigger, or foreign-key inventory differs from its migration',
     });
   }
+  const skuIndex = yield* Effect.tryPromise({
+    catch: () => new CatalogSchemaVerificationError({ reason: 'Unable to inspect Catalog SKU uniqueness' }),
+    try: async () =>
+      await client.query<{ index_definition: string }>(`select pg_get_indexdef(i.indexrelid) index_definition
+        from pg_index i join pg_class c on c.oid=i.indexrelid
+        join pg_namespace n on n.oid=c.relnamespace
+        where n.nspname='catalog' and c.relname='catalog_sku_reservations_binary_code_uk' and i.indisunique and i.indisvalid`),
+  });
+  if (
+    skuIndex.rows.length !== 1 ||
+    !skuIndex.rows[0]?.index_definition.includes('(tenant_id, normalized_code COLLATE "C")')
+  ) {
+    yield* new CatalogSchemaVerificationError({ reason: 'Catalog SKU tenant-wide binary uniqueness is absent' });
+  }
+  const skuCodes = yield* Effect.tryPromise({
+    catch: () => new CatalogSchemaVerificationError({ reason: 'Unable to inspect Catalog SKU normalization' }),
+    try: async () =>
+      await client.query<{ display_code: string; normalized_code: string }>(`select display_code, normalized_code
+        from catalog.commercial_sku_reservations
+        union all
+        select display_code, normalized_code from catalog.commercial_sku_assignment_revisions`),
+  });
+  if (
+    skuCodes.rows.some(({ display_code, normalized_code }) => display_code.trim().toUpperCase() !== normalized_code)
+  ) {
+    yield* new CatalogSchemaVerificationError({
+      reason: 'Catalog SKU normalization differs from the application rule',
+    });
+  }
   const currentPointers = yield* Effect.tryPromise({
     catch: () => new CatalogSchemaVerificationError({ reason: 'Unable to inspect Catalog revision pointers' }),
     try: async () =>
