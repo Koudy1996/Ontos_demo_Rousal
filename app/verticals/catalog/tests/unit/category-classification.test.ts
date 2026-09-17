@@ -1,0 +1,89 @@
+import { describe, expect, it } from '@rstest/core';
+
+import {
+  addDirectCategory,
+  deriveClassification,
+  matchesCategory,
+  removeDirectCategory,
+} from '../../shared/domain/category-classification.ts';
+
+const tenantId = 'tenant-a';
+const ref = (resourceId: string) => ({ resourceId, tenantId });
+const otherTenant = { resourceId: 'foreign', tenantId: 'tenant-b' };
+const productRef = ref('product');
+const parent = ref('shelves');
+const child = ref('wall-shelves');
+const second = ref('spares');
+const hierarchy = [{ categoryRef: parent }, { categoryRef: child, parentRef: parent }, { categoryRef: second }];
+const revision = { assignments: 3, hierarchy: 7 };
+
+describe('Product category classification', () => {
+  it('permits zero or many independent direct assignments without a primary category', () => {
+    const empty = deriveClassification(productRef, [], hierarchy, revision);
+    expect(empty).toEqual({ ancestors: [], directCategories: [], revision, status: 'AVAILABLE' });
+
+    const first = addDirectCategory([], productRef, child);
+    expect(first.status).toBe('ADDED');
+    if (!('assignments' in first)) return;
+    const again = addDirectCategory(first.assignments, productRef, child);
+    expect(again).toEqual({ assignments: first.assignments, status: 'UNCHANGED' });
+    const two = addDirectCategory(first.assignments, productRef, second);
+    expect(two.status).toBe('ADDED');
+    if (!('assignments' in two)) return;
+    expect(two.assignments).toHaveLength(2);
+    expect(Object.keys(two.assignments[0] ?? {})).toEqual(['categoryRef', 'productRef']);
+  });
+
+  it('derives explainable ancestors but never adds inferred direct links', () => {
+    const assignments = [{ categoryRef: child, productRef }];
+    const result = deriveClassification(productRef, assignments, hierarchy, revision);
+    expect(result).toEqual({
+      ancestors: [{ ancestorRef: parent, viaDirectCategories: [child] }],
+      directCategories: [child],
+      revision,
+      status: 'AVAILABLE',
+    });
+    expect(matchesCategory(result, parent, 'DIRECT')).toBe(false);
+    expect(matchesCategory(result, parent, 'SUBTREE')).toBe(true);
+  });
+
+  it('preserves independent and explicit ancestor links on single-link removal', () => {
+    const assignments = [
+      { categoryRef: child, productRef },
+      { categoryRef: parent, productRef },
+      { categoryRef: second, productRef },
+    ];
+    const removed = removeDirectCategory(assignments, productRef, child);
+    expect(removed.status).toBe('REMOVED');
+    if (!('assignments' in removed)) return;
+    expect(removed.assignments.map(({ categoryRef }) => categoryRef)).toEqual([parent, second]);
+    const result = deriveClassification(productRef, removed.assignments, hierarchy, revision);
+    expect(matchesCategory(result, parent, 'DIRECT')).toBe(true);
+    expect(matchesCategory(result, child, 'DIRECT')).toBe(false);
+  });
+
+  it('recomputes ancestors after a move while retaining the same direct assignment', () => {
+    const assignments = [{ categoryRef: child, productRef }];
+    const moved = deriveClassification(
+      productRef,
+      assignments,
+      [{ categoryRef: parent }, { categoryRef: child, parentRef: second }, { categoryRef: second }],
+      { assignments: 3, hierarchy: 8 },
+    );
+    expect(moved.status).toBe('AVAILABLE');
+    expect(matchesCategory(moved, parent, 'SUBTREE')).toBe(false);
+    expect(matchesCategory(moved, second, 'SUBTREE')).toBe(true);
+    if (moved.status === 'AVAILABLE') expect(moved.directCategories).toEqual([child]);
+  });
+
+  it('keeps unavailable classification distinct from a known empty assignment', () => {
+    const unavailable = deriveClassification(productRef, undefined, hierarchy, revision);
+    expect(unavailable).toEqual({ status: 'UNAVAILABLE' });
+    expect(matchesCategory(unavailable, parent, 'SUBTREE')).toBeUndefined();
+  });
+
+  it('rejects cross-Tenant links', () => {
+    expect(addDirectCategory([], productRef, otherTenant)).toEqual({ status: 'TENANT_MISMATCH' });
+    expect(removeDirectCategory([], productRef, otherTenant)).toEqual({ status: 'TENANT_MISMATCH' });
+  });
+});
