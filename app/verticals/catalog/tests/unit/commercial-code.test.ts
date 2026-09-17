@@ -4,6 +4,7 @@ import {
   assessGtinAssignment,
   assessSkuAssignment,
   assessSkuCorrection,
+  isValidSkuCode,
   normalizeSku,
   skuUniquenessKey,
   validateGtin,
@@ -23,6 +24,11 @@ describe('Catalog commercial codes', () => {
     expect(skuUniquenessKey('tenant-a', 'A B')).not.toBe(skuUniquenessKey('tenant-a', 'AB'));
     expect(skuUniquenessKey('tenant-a', 'AB-12')).not.toBe(skuUniquenessKey('tenant-b', 'AB-12'));
     expect(current.code).toBe('AB-12');
+    expect(normalizeSku('\u00A0straße\u00A0')).toBe('STRASSE');
+    expect(skuUniquenessKey('tenant-a', 'straße')).toBe(skuUniquenessKey('tenant-a', 'STRASSE'));
+    expect(skuUniquenessKey('tenant-a', '😀a')).toBe(skuUniquenessKey('tenant-a', '😀A'));
+    expect(isValidSkuCode('😀'.repeat(240))).toBe(true);
+    expect(isValidSkuCode('😀'.repeat(241))).toBe(false);
   });
 
   it('uses ECMAScript whitespace trimming and Unicode uppercase for every SKU key', () => {

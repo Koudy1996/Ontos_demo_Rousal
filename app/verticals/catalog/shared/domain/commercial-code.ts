@@ -37,6 +37,13 @@ export type CodeDecision =
  */
 export const normalizeSku = (code: string): string => code.trim().toUpperCase();
 
+/** PostgreSQL length(text) counts Unicode code points, not UTF-16 code units. */
+export const isValidSkuCode = (code: string): boolean => {
+  const normalized = normalizeSku(code);
+  const length = normalized.match(/[\s\S]/gu)?.length ?? 0;
+  return length >= 1 && length <= 240;
+};
+
 /** Stable, collision-safe tenant/namespace key; callers must enforce it atomically at persistence. */
 export const skuUniquenessKey = (tenantId: string, code: string): string => {
   const normalized = normalizeSku(code);
@@ -65,7 +72,7 @@ export const assessSkuAssignment = (
   retained: readonly SkuAssignment[],
 ): CodeDecision => {
   if (
-    normalizeSku(candidate.code).length === 0 ||
+    !isValidSkuCode(candidate.code) ||
     candidate.target.tenantId.trim().length === 0 ||
     !hasTargetId(candidate.target)
   ) {
