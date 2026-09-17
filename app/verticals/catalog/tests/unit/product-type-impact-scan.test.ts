@@ -14,7 +14,16 @@ const basis = {
       axisRevisions: [],
       productId: 'p1',
       productRevision: 3,
-      valueSetRevisions: [],
+      valueSetRevisions: [
+        {
+          attributeDefinitionId: 'capacity',
+          revision: 2,
+          state: 'SET',
+          valid: true,
+          validitySourceRevisionToken: 'definition-3:value-2',
+          variantId: null,
+        },
+      ],
       variantRevisions: [{ revision: 1, variantId: 'v1' }],
     },
   ],
@@ -24,6 +33,7 @@ const basis = {
   selectionRevisionToken: 'selection-current-1',
   sourceRevision: 4,
   sourceRevisionId: 'r4',
+  tenantId: 'tenant-1',
 };
 
 describe('Product Type impact scan basis', () => {
@@ -39,6 +49,24 @@ describe('Product Type impact scan basis', () => {
       token,
     );
     expect(productTypeImpactRevisionToken({ ...basis, selectionRevisionToken: 'selection-current-2' })).not.toBe(token);
+    expect(productTypeImpactRevisionToken({ ...basis, tenantId: 'tenant-2' })).not.toBe(token);
+    const [set] = firstEvidence.valueSetRevisions;
+    if (set === undefined) {
+      throw new Error('Test fixture requires a value set');
+    }
+    for (const changed of [
+      { ...set, valid: false },
+      { ...set, validitySourceRevisionToken: 'definition-4:value-2' },
+      { ...set, revision: 3 },
+      { ...set, variantId: 'v1' },
+    ]) {
+      expect(
+        productTypeImpactRevisionToken({
+          ...basis,
+          evidence: [{ ...firstEvidence, valueSetRevisions: [changed] }],
+        }),
+      ).not.toBe(token);
+    }
   });
 
   it('declares unknown #479 evidence as a typed incomplete outcome', () => {

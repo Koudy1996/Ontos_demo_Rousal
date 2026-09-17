@@ -30,6 +30,21 @@ export interface OpenSelectionBasis {
   readonly revisionToken: string;
 }
 
+export interface ValueSetValidityBasis {
+  /** Complete #402 owner-side assessment from this transaction, not a request assertion. */
+  readonly complete: true;
+  readonly entries: readonly {
+    readonly attributeDefinitionId: string;
+    readonly attributeValueSetId: string;
+    readonly productId: string;
+    readonly revision: number;
+    readonly sourceRevisionToken: string;
+    readonly valid: boolean;
+    readonly variantId: string | null;
+  }[];
+  readonly tenantId: string;
+}
+
 export interface ProductTypeImpactEvidence {
   readonly assignmentRevision: number;
   readonly axisRevisions: readonly { readonly attributeDefinitionId: string; readonly revision: number }[];
@@ -39,6 +54,8 @@ export interface ProductTypeImpactEvidence {
     readonly attributeDefinitionId: string;
     readonly revision: number;
     readonly state: string;
+    readonly valid: boolean | null;
+    readonly validitySourceRevisionToken: string | null;
     readonly variantId: string | null;
   }[];
   readonly variantRevisions: readonly { readonly revision: number; readonly variantId: string }[];
@@ -71,21 +88,9 @@ const append = <T>(map: Map<string, T[]>, key: string, value: T) => {
   current.push(value);
   map.set(key, current);
 };
-const allowedIds = (rules: readonly ProductTypeImpactRule[] | null, level: ProductTypeImpactRule['level']) => {
-  const ids = new Set<string>();
-  for (const rule of rules ?? []) {
-    if (rule.level === level) {
-      ids.add(rule.attributeDefinitionId);
-    }
-  }
-  return ids;
-};
 const variantValuesFor = (
   sets: readonly (typeof attributeValueSets.$inferSelect)[],
-  productValues: readonly { readonly attributeDefinitionId: string; readonly valid: boolean }[],
   validity: ReadonlyMap<string, boolean>,
-  productAllowed: ReadonlySet<string>,
-  variantAllowed: ReadonlySet<string>,
 ) => {
   const values = [];
   for (const set of sets) {
@@ -96,26 +101,59 @@ const variantValuesFor = (
       });
     }
   }
-  const directIds = new Set(values.map((value) => value.attributeDefinitionId));
-  for (const value of productValues) {
-    if (
-      productAllowed.has(value.attributeDefinitionId) &&
-      variantAllowed.has(value.attributeDefinitionId) &&
-      !directIds.has(value.attributeDefinitionId)
-    ) {
-      values.push(value);
+  return values;
+};
+
+const verifiedValidityFor = (
+  sets: readonly (typeof attributeValueSets.$inferSelect)[],
+  basis: ValueSetValidityBasis,
+  tenantId: string,
+) => {
+  const entries = new Map(basis.entries.map((entry) => [entry.attributeValueSetId, entry]));
+  const setIds = new Set(sets.map((set) => set.attributeValueSetId));
+  if (
+    !basis.complete ||
+    basis.tenantId !== tenantId ||
+    entries.size !== basis.entries.length ||
+    entries.size !== sets.length ||
+    basis.entries.some((entry) => !setIds.has(entry.attributeValueSetId)) ||
+    sets.some((set) => {
+      const entry = entries.get(set.attributeValueSetId);
+      return (
+        entry === undefined ||
+        entry.productId !== set.productId ||
+        entry.variantId !== set.variantId ||
+        entry.attributeDefinitionId !== set.attributeDefinitionId ||
+        entry.revision !== set.currentRevision ||
+        entry.sourceRevisionToken.length === 0
+      );
+    })
+  ) {
+    return null;
+  }
+  return {
+    validity: new Map(basis.entries.map((entry) => [entry.attributeValueSetId, entry.valid])),
+    validitySources: new Map(basis.entries.map((entry) => [entry.attributeValueSetId, entry.sourceRevisionToken])),
+  };
+};
+
+const needsInheritanceEvidence = (rules: readonly ProductTypeImpactRule[] | null) => {
+  const productIds = new Set<string>();
+  for (const rule of rules ?? []) {
+    if (rule.level === 'PRODUCT') {
+      productIds.add(rule.attributeDefinitionId);
     }
   }
-  return values;
+  return (rules ?? []).some((rule) => rule.level === 'VARIANT' && productIds.has(rule.attributeDefinitionId));
 };
 
 const assemblePopulation = (rows: {
   readonly assignments: readonly (typeof productTypeAssignments.$inferSelect)[];
   readonly axes: readonly (typeof productVariantAxes.$inferSelect)[];
-  readonly candidateRules: readonly ProductTypeImpactRule[] | null;
   readonly products: readonly (typeof products.$inferSelect)[];
   readonly sets: readonly (typeof attributeValueSets.$inferSelect)[];
   readonly validity: ReadonlyMap<string, boolean>;
+  readonly validitySources: ReadonlyMap<string, string>;
   readonly variants: readonly (typeof productVariants.$inferSelect)[];
 }) => {
   const assignmentByProduct = new Map(rows.assignments.map((row) => [row.productId, row]));
@@ -137,8 +175,6 @@ const assemblePopulation = (rows: {
   }
   const evidence: ProductTypeImpactEvidence[] = [];
   const population = [];
-  const productAllowed = allowedIds(rows.candidateRules, 'PRODUCT');
-  const variantAllowed = allowedIds(rows.candidateRules, 'VARIANT');
   for (const product of rows.products.toSorted((a, b) => byId(a.productId, b.productId))) {
     const { productId } = product;
     const productAxes = axesByProduct.get(productId) ?? [];
@@ -156,6 +192,8 @@ const assemblePopulation = (rows: {
           attributeDefinitionId: set.attributeDefinitionId,
           revision: set.currentRevision,
           state: set.currentState,
+          valid: set.currentState === 'SET' ? (rows.validity.get(set.attributeValueSetId) ?? null) : null,
+          validitySourceRevisionToken: rows.validitySources.get(set.attributeValueSetId) ?? null,
           variantId: set.variantId,
         }))
         .toSorted((a, b) =>
@@ -177,13 +215,7 @@ const assemblePopulation = (rows: {
     const variantImpacts = [];
     for (const variant of productVariantRows) {
       variantImpacts.push({
-        values: variantValuesFor(
-          setsByVariant.get(variant.variantId) ?? [],
-          values,
-          rows.validity,
-          productAllowed,
-          variantAllowed,
-        ),
+        values: variantValuesFor(setsByVariant.get(variant.variantId) ?? [], rows.validity),
         variantId: variant.variantId,
       });
     }
@@ -201,13 +233,15 @@ const assemblePopulation = (rows: {
 export const productTypeImpactRevisionToken = (
   input: Omit<ProductTypeImpactSnapshot, 'token'> & {
     readonly selectionRevisionToken: string;
+    readonly tenantId: string;
   },
 ): string => {
   const hash = createHash('sha256');
   const write = (value: string) => {
     hash.update(`${Buffer.byteLength(value)}:`).update(value);
   };
-  write('product-type-impact-v1');
+  write('product-type-impact-v2');
+  write(input.tenantId);
   write(input.productTypeId);
   write(String(input.sourceRevision));
   write(input.sourceRevisionId);
@@ -237,6 +271,8 @@ export const productTypeImpactRevisionToken = (
       write(set.attributeDefinitionId);
       write(String(set.revision));
       write(set.state);
+      write(set.valid === null ? 'NOT_SET' : String(set.valid));
+      write(set.validitySourceRevisionToken ?? 'NO_VALIDITY_SOURCE');
     }
     write(`variants:${row.variantRevisions.length}`);
     for (const variant of row.variantRevisions.toSorted((a, b) => byId(a.variantId, b.variantId))) {
@@ -279,7 +315,7 @@ export const productTypeImpactScanForScope = (
   authoritativeBasis: {
     /** Must be read inside this same Core-owned transaction; absent until #479 provides a reader. */
     readonly openSelections?: OpenSelectionBasis;
-    readonly valueSetValidity?: ReadonlyMap<string, boolean>;
+    readonly valueSetValidity?: ValueSetValidityBasis;
   } = {},
 ) => ({
   scan: Effect.fn('ProductTypeImpactScan.scan')(function* scan(input: {
@@ -362,25 +398,32 @@ export const productTypeImpactScanForScope = (
             .from(attributeValueSets)
             .where(and(eq(attributeValueSets.tenantId, tenantId), inArray(attributeValueSets.productId, ids)))
             .pipe(Effect.mapError(unavailable));
-    const validity = authoritativeBasis.valueSetValidity;
-    if (sets.some((set) => set.currentState === 'SET' && !validity.has(set.attributeValueSetId))) {
-      return yield* incomplete('Current Attribute Value validity is unknown');
+    const verifiedValidity = verifiedValidityFor(sets, authoritativeBasis.valueSetValidity, tenantId);
+    if (verifiedValidity === null) {
+      return yield* incomplete('Current Attribute Value validity evidence is incomplete or foreign');
     }
     const selections = authoritativeBasis.openSelections;
     if (!selections.complete || selections.revisionToken.length === 0) {
       return yield* incomplete('Open Catalog Selection population is unknown');
     }
     const idSet = new Set(ids);
-    if (selections.refs.some((ref) => !idSet.has(ref.productId))) {
+    const variantOwners = new Map(variants.map((variant) => [variant.variantId, variant.productId]));
+    if (
+      selections.refs.some((ref) => !idSet.has(ref.productId) || variantOwners.get(ref.variantId) !== ref.productId) ||
+      new Set(selections.refs.map((ref) => ref.selectionId)).size !== selections.refs.length
+    ) {
       return yield* incomplete('Open Catalog Selection basis contains an unrelated Product');
+    }
+    if (needsInheritanceEvidence(input.candidateRules)) {
+      return yield* incomplete('Variant inheritance requires authoritative #430 effective-value evidence');
     }
     const { evidence, population } = assemblePopulation({
       assignments,
       axes,
-      candidateRules: input.candidateRules,
       products: productRows,
       sets,
-      validity,
+      validity: verifiedValidity.validity,
+      validitySources: verifiedValidity.validitySources,
       variants,
     });
     const openSelectionRefs = selections.refs.toSorted((a, b) => byId(a.selectionId, b.selectionId));
@@ -395,7 +438,7 @@ export const productTypeImpactScanForScope = (
     };
     return {
       ...base,
-      token: productTypeImpactRevisionToken({ ...base, selectionRevisionToken: selections.revisionToken }),
+      token: productTypeImpactRevisionToken({ ...base, selectionRevisionToken: selections.revisionToken, tenantId }),
     } satisfies ProductTypeImpactSnapshot;
   }),
 });
