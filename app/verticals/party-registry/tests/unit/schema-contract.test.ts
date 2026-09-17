@@ -635,7 +635,7 @@ it.layer(NodeFileSystem.layer)('schema-contract', (suite) => {
           fileURLToPath(new URL('../../../../scripts/verify-application-db-schema.mts', import.meta.url)),
         ),
       );
-      expect(bootstrap).toMatch(/\['core', 'auth', 'contacts', 'party'\]/u);
+      expect(bootstrap).toMatch(/\['core', 'auth', 'contacts', 'party', 'catalog'\]/u);
       expect(verifier).toMatch(
         /const EXPECTED_APPLICATION_SCHEMAS = \[\s*'auth',\s*'catalog',\s*'commerce_customer_context',\s*'contacts',\s*'core',\s*'party',\s*'payment_term_catalog',\s*\]/u,
       );
