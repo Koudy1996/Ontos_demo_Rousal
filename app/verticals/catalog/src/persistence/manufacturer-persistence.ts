@@ -145,6 +145,13 @@ export const manufacturerPersistenceForScope = (
       .for('update')
       .limit(1)
       .pipe(Effect.mapError(unavailable));
+  const read = (id: string) =>
+    transaction
+      .select()
+      .from(manufacturerRelations)
+      .where(and(eq(manufacturerRelations.tenantId, tenantId), eq(manufacturerRelations.relationId, id)))
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
   // Product lock serializes both Product-wide and Variant-level assertions for its exact form family.
   const lock = Effect.fn('ManufacturerPersistence.lock')(function* lock(subject: ManufacturerSubject) {
     let productId = subject.resourceId;
@@ -379,7 +386,7 @@ export const manufacturerPersistenceForScope = (
       if (!validSubject(subject, tenantId)) {
         return yield* unavailable();
       }
-      const [relation] = yield* get(id);
+      const [relation] = yield* read(id);
       if (relation === undefined || !sameSubject(relation, subject)) {
         return Option.none();
       }

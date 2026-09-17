@@ -1,5 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
@@ -73,6 +73,18 @@ const changePayload = Schema.decodeUnknownSync(ChangeProductManufacturerPayloadS
 const query = <A>(rows: readonly A[]) => {
   const builder = {
     for: () => builder,
+    limit: () => Effect.succeed(rows),
+    orderBy: () => builder,
+    pipe: () => Effect.succeed(rows),
+    where: () => builder,
+  };
+  return builder;
+};
+const readonlyQuery = <A>(rows: readonly A[]) => {
+  const builder = {
+    for: () => {
+      throw new Error('history must not acquire a row lock');
+    },
     limit: () => Effect.succeed(rows),
     orderBy: () => builder,
     pipe: () => Effect.succeed(rows),
@@ -276,6 +288,42 @@ describe('Manufacturer persistence owner verification', () => {
       expect(Schema.is(Schema.TaggedStruct('invalid_change', {}))(invalidOutcome)).toBe(true);
       const denial = yield* Effect.flip(forbiddenService.set({ ...evidence, payload: partyPayload }));
       expect(Schema.is(ManufacturerTargetForbidden)(denial)).toBe(true);
+    }),
+  );
+
+  it.effect('reads exact history without row locks or a Current fallback', () =>
+    Effect.gen(function* testLockFreeExactHistory() {
+      const relation = { currentRevision: 1, productId: subject.resourceId, variantId: null };
+      const revision = {
+        disposition: 'CONFIRMED',
+        effectiveFrom: null,
+        effectiveTo: null,
+        evidenceRefs: ['manufacturer-declaration'],
+        reason: 'Source declaration verified',
+        recordedAt: new Date('2026-09-17T00:00:00.000Z'),
+        relationId,
+        revision: 1,
+        targetId: 'canonical-maker-id',
+        targetKind: 'PARTY',
+        tenantId,
+      };
+      const transaction = {
+        select: () => ({
+          from: (table: TestTable) =>
+            table === manufacturerRelations ? readonlyQuery([relation]) : readonlyQuery([revision]),
+        }),
+      };
+      // @ts-expect-error Minimal read-only transaction double exercises only the history query shape.
+      const service = manufacturerPersistenceForScope(transaction, scope);
+      const value = yield* service.history(relationId, subject);
+      expect(Option.isSome(value)).toBe(true);
+      if (Option.isSome(value)) {
+        expect(value.value[0]?.target).toMatchObject({ kind: 'PARTY', partyRef: { resourceId: 'canonical-maker-id' } });
+        expect(value.value[0]?.revision).toBe(1);
+      }
+      relation.currentRevision = 2;
+      const failure = yield* Effect.flip(service.history(relationId, subject));
+      expect(Schema.is(ManufacturerPersistenceUnavailable)(failure)).toBe(true);
     }),
   );
 });
