@@ -81,6 +81,9 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_variant_revisions',
   'product_variants',
   'products',
+  'set_composition_components',
+  'set_composition_revisions',
+  'set_compositions',
   'size_equivalence_assertions',
   'variant_localized_fact_revisions',
   'variant_localized_facts',
@@ -527,6 +530,107 @@ export const productVariants = catalogSchema.table.withRLS(
       sql`${table.lifecycleState} in ('WORK_IN_PROGRESS', 'ACTIVE', 'RETIRED')`,
     ),
     ...tenantRlsPolicies('catalog_product_variants_tenant', table.tenantId),
+  ],
+);
+
+/** One composition Resource belongs to exactly one ordinary Product Variant. */
+export const setCompositions = catalogSchema.table.withRLS(
+  'set_compositions',
+  {
+    compositionId: uuid('composition_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_set_compositions_scope_id_uk').on(table.tenantId, table.compositionId),
+    unique('catalog_set_compositions_variant_uk').on(table.tenantId, table.productId, table.variantId),
+    unique('catalog_set_compositions_target_uk').on(
+      table.tenantId,
+      table.productId,
+      table.variantId,
+      table.compositionId,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_set_compositions_variant_fk',
+    }).onDelete('restrict'),
+    check('catalog_set_compositions_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_set_compositions_tenant', table.tenantId),
+  ],
+);
+
+/** Immutable content authority; a correction also appends a new numbered revision. */
+export const setCompositionRevisions = catalogSchema.table.withRLS(
+  'set_composition_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    compositionId: uuid('composition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    revision: integer('revision').notNull(),
+    predecessorRevision: integer('predecessor_revision'),
+    lifecycleState: text('lifecycle_state').notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    changeKind: text('change_kind').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.compositionId, table.revision],
+      name: 'catalog_set_composition_revisions_pk',
+    }),
+    unique('catalog_set_composition_revisions_target_uk').on(
+      table.tenantId,
+      table.productId,
+      table.variantId,
+      table.compositionId,
+      table.revision,
+    ),
+    unique('catalog_set_composition_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.compositionId],
+      foreignColumns: [
+        setCompositions.tenantId,
+        setCompositions.productId,
+        setCompositions.variantId,
+        setCompositions.compositionId,
+      ],
+      name: 'catalog_set_composition_revisions_composition_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.compositionId, table.predecessorRevision],
+      foreignColumns: [table.tenantId, table.compositionId, table.revision],
+      name: 'catalog_set_composition_revisions_predecessor_fk',
+    }).onDelete('restrict'),
+    check('catalog_set_composition_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_set_composition_revisions_predecessor_ck',
+      sql`(${table.revision} = 1 and ${table.predecessorRevision} is null) or (${table.revision} > 1 and ${table.predecessorRevision} = ${table.revision} - 1)`,
+    ),
+    check(
+      'catalog_set_composition_revisions_period_ck',
+      sql`${table.effectiveTo} is null or ${table.effectiveTo} > ${table.effectiveFrom}`,
+    ),
+    check('catalog_set_composition_revisions_state_ck', sql`${table.lifecycleState} in ('DRAFT', 'ACTIVE', 'RETIRED')`),
+    check(
+      'catalog_set_composition_revisions_kind_ck',
+      sql`${table.changeKind} in ('INITIAL', 'MATERIAL_CHANGE', 'EVIDENCE_CORRECTION')`,
+    ),
+    check(
+      'catalog_set_composition_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_set_composition_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -1092,6 +1196,23 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
       foreignColumns: [table.tenantId, table.packageDefinitionId, table.revision],
       name: 'catalog_package_content_revisions_lower_revision_fk',
     }).onDelete('restrict'),
+    foreignKey({
+      columns: [
+        table.tenantId,
+        table.productId,
+        table.variantId,
+        table.setCompositionResourceId,
+        table.setCompositionRevision,
+      ],
+      foreignColumns: [
+        setCompositionRevisions.tenantId,
+        setCompositionRevisions.productId,
+        setCompositionRevisions.variantId,
+        setCompositionRevisions.compositionId,
+        setCompositionRevisions.revision,
+      ],
+      name: 'catalog_package_content_revisions_set_revision_fk',
+    }).onDelete('restrict'),
     index('catalog_package_content_revisions_effective_idx').on(
       table.tenantId,
       table.packageDefinitionId,
@@ -1121,6 +1242,74 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
       sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
     ),
     ...tenantRlsPolicies('catalog_package_content_revisions_tenant', table.tenantId),
+  ],
+);
+
+/** Stable need IDs may recur across revisions; every row fixes one exact non-Set selection. */
+export const setCompositionComponents = catalogSchema.table.withRLS(
+  'set_composition_components',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    compositionId: uuid('composition_id').notNull(),
+    revision: integer('revision').notNull(),
+    componentId: uuid('component_id').notNull(),
+    componentProductId: uuid('component_product_id').notNull(),
+    componentVariantId: uuid('component_variant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id'),
+    packageContentRevision: integer('package_content_revision'),
+    configuration: jsonb('configuration'),
+    quantityAmount: numeric('quantity_amount').notNull(),
+    quantityUnitId: uuid('quantity_unit_id').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.compositionId, table.revision, table.componentId],
+      name: 'catalog_set_composition_components_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.compositionId, table.revision],
+      foreignColumns: [
+        setCompositionRevisions.tenantId,
+        setCompositionRevisions.compositionId,
+        setCompositionRevisions.revision,
+      ],
+      name: 'catalog_set_composition_components_revision_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.componentProductId, table.componentVariantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_set_composition_components_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.componentProductId, table.componentVariantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_set_composition_components_package_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.packageDefinitionId, table.packageContentRevision],
+      foreignColumns: [
+        packageContentRevisions.tenantId,
+        packageContentRevisions.packageDefinitionId,
+        packageContentRevisions.revision,
+      ],
+      name: 'catalog_set_composition_components_package_revision_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.quantityUnitId],
+      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      name: 'catalog_set_composition_components_unit_fk',
+    }).onDelete('restrict'),
+    check('catalog_set_composition_components_quantity_ck', sql`${table.quantityAmount} > 0`),
+    check(
+      'catalog_set_composition_components_package_pair_ck',
+      sql`(${table.packageDefinitionId} is null and ${table.packageContentRevision} is null) or (${table.packageDefinitionId} is not null and ${table.packageContentRevision} > 0)`,
+    ),
+    ...tenantRlsPolicies('catalog_set_composition_components_tenant', table.tenantId),
   ],
 );
 
@@ -3193,6 +3382,9 @@ const catalogDatabaseSchema = {
   productRelationshipRevisions,
   productRelationships,
   productRevisions,
+  setCompositionComponents,
+  setCompositionRevisions,
+  setCompositions,
   productSizeUsageItems,
   productSizeUsageRevisionItems,
   productSizeUsageRevisions,
@@ -3261,6 +3453,9 @@ export const CATALOG_TABLES = [
   productRelationshipRevisions,
   productRelationships,
   productRevisions,
+  setCompositionComponents,
+  setCompositionRevisions,
+  setCompositions,
   productSizeUsageItems,
   productSizeUsageRevisionItems,
   productSizeUsageRevisions,

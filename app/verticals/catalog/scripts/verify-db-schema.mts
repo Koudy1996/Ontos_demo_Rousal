@@ -44,6 +44,7 @@ const pointersAreCurrent = (pointers: {
   product_locale_mismatch: number;
   product_size_usage_mismatch: number;
   relationship_mismatch: number;
+  set_composition_mismatch: number;
   type_mismatch: number;
   unit_rule_mismatch: number;
   variant_axis_integrity_mismatch: number;
@@ -133,7 +134,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     row?.forced_rls !== CATALOG_TABLES.length ||
     row.journal_count !== 1 ||
     row.policy_count !== expectedPolicyCount ||
-    row.trigger_count !== 64 ||
+    row.trigger_count !== 70 ||
     row.validated_combination_count !== 1 ||
     row.foreign_key_count !== expectedForeignKeyCount
   ) {
@@ -168,6 +169,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         product_locale_mismatch: number;
         product_size_usage_mismatch: number;
         relationship_mismatch: number;
+        set_composition_mismatch: number;
         type_mismatch: number;
         unit_rule_mismatch: number;
         variant_axis_integrity_mismatch: number;
@@ -295,6 +297,18 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and r.effective_to is not distinct from p.effective_to)
           or p.current_revision <> (select max(r.revision) from catalog.product_relationship_revisions r
             where r.tenant_id=p.tenant_id and r.relationship_id=p.relationship_id)) relationship_mismatch,
+      (select count(*)::integer from catalog.set_compositions s
+        where not exists (select 1 from catalog.set_composition_revisions r
+          where r.tenant_id=s.tenant_id and r.composition_id=s.composition_id
+            and r.product_id=s.product_id and r.variant_id=s.variant_id
+            and r.revision=s.current_revision and r.effective_from <= now()
+            and (r.effective_to is null or r.effective_to > now()))
+          or exists (select 1 from catalog.set_composition_revisions r
+            where r.tenant_id=s.tenant_id and r.composition_id=s.composition_id
+              and r.revision=s.current_revision and r.lifecycle_state='ACTIVE'
+              and (select count(*) from catalog.set_composition_components c
+                where c.tenant_id=r.tenant_id and c.composition_id=r.composition_id
+                  and c.revision=r.revision) < 2)) set_composition_mismatch,
       (select count(*)::integer from catalog.product_variants v
         where not exists (select 1 from catalog.product_variant_revisions r
           where r.tenant_id=v.tenant_id and r.variant_id=v.variant_id and r.revision=v.current_revision

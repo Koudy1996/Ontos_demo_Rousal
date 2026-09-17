@@ -71,11 +71,14 @@ import {
   productVariantAxisEvents,
   productVariantRevisions,
   products,
+  setCompositionComponents,
+  setCompositionRevisions,
+  setCompositions,
   variantLocalizedFactRevisions,
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns sixty-five tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns sixty-eight tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -146,6 +149,9 @@ it('owns sixty-five tenant-scoped Catalog tables with RLS and immutable history'
     'product_variant_revisions',
     'product_variants',
     'products',
+    'set_composition_components',
+    'set_composition_revisions',
+    'set_compositions',
     'size_equivalence_assertions',
     'variant_localized_fact_revisions',
     'variant_localized_facts',
@@ -327,6 +333,7 @@ it('pins homogeneous Package content to one Variant and an exact lower revision'
     'catalog_package_content_revisions_unit_fk',
     'catalog_package_content_revisions_lower_form_fk',
     'catalog_package_content_revisions_lower_revision_fk',
+    'catalog_package_content_revisions_set_revision_fk',
   ]);
   expect(getTableConfig(packageContentRevisions).checks.map((key) => key.name)).toEqual(
     expect.arrayContaining([
@@ -348,6 +355,29 @@ it('pins homogeneous Package content to one Variant and an exact lower revision'
       'catalog_package_option_role_revisions_reason_ck',
       'catalog_package_option_role_revisions_evidence_ck',
     ]),
+  );
+});
+
+it('pins each Set Composition Resource and immutable component need to exact same-tenant identities', () => {
+  expect(getTableConfig(setCompositions).uniqueConstraints.map((key) => key.name)).toContain(
+    'catalog_set_compositions_variant_uk',
+  );
+  expect(getTableConfig(setCompositions).foreignKeys.map((key) => key.getName())).toContain(
+    'catalog_set_compositions_variant_fk',
+  );
+  expect(getTableConfig(setCompositionRevisions).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_set_composition_revisions_composition_fk',
+    'catalog_set_composition_revisions_predecessor_fk',
+  ]);
+  expect(getTableConfig(setCompositionComponents).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_set_composition_components_revision_fk',
+    'catalog_set_composition_components_variant_fk',
+    'catalog_set_composition_components_package_fk',
+    'catalog_set_composition_components_package_revision_fk',
+    'catalog_set_composition_components_unit_fk',
+  ]);
+  expect(getTableConfig(setCompositionComponents).checks.map((key) => key.name)).toContain(
+    'catalog_set_composition_components_quantity_ck',
   );
 });
 
@@ -602,6 +632,12 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_relationship_revisions_append_only');
   expect(combined).toContain('catalog_product_relationships_identity_immutable');
   expect(combined).toContain('catalog_product_relationships_exact_uk" UNIQUE NULLS NOT DISTINCT');
+  expect(combined).toContain('catalog_set_composition_revisions_append_only');
+  expect(combined).toContain('catalog_set_composition_components_append_only');
+  expect(combined).toContain('catalog_set_compositions_identity_immutable');
+  expect(combined).toContain('catalog_set_compositions_current_revision_valid');
+  expect(combined).toContain('catalog_set_composition_components_no_nested_set');
+  expect(combined).toContain('catalog_set_compositions_no_nested_set');
   expect(combined).toContain('ALTER COLUMN "target_id" SET DATA TYPE text USING "target_id"::text');
   for (const trigger of [
     'catalog_product_localized_fact_revisions_append_only',
