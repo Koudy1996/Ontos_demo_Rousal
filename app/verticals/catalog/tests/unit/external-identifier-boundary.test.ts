@@ -10,16 +10,16 @@ import {
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const otherTenantId = '99999999-9999-4999-8999-999999999999';
 const source = {
-  tenantId,
-  issuerKind: 'EXTERNAL_BUSINESS_SYSTEM',
   issuerId: 'erp-a',
-  recordNamespace: 'product',
+  issuerKind: 'EXTERNAL_BUSINESS_SYSTEM',
   recordId: '784',
+  recordNamespace: 'product',
+  tenantId,
 } as const;
 const product = {
   moduleId: 'commerce.catalog',
-  resourceType: 'commerce.catalog.product',
   resourceId: '22222222-2222-4222-8222-222222222222',
+  resourceType: 'commerce.catalog.product',
   tenantId,
 } as const;
 
@@ -39,13 +39,13 @@ describe('Catalog external source references', () => {
 
   it('retains exact Catalog target kind and rejects cross-Tenant evidence', () => {
     const decode = Schema.decodeUnknownSync(CatalogExternalSourceEvidenceSchema, { onExcessProperty: 'error' });
-    expect(decode({ sourceRecord: source, observedTarget: product }).observedTarget).toEqual(product);
-    expect(() => decode({ sourceRecord: source, observedTarget: { ...product, tenantId: otherTenantId } })).toThrow();
+    expect(decode({ observedTarget: product, sourceRecord: source }).observedTarget).toEqual(product);
+    expect(() => decode({ observedTarget: { ...product, tenantId: otherTenantId }, sourceRecord: source })).toThrow();
     expect(() =>
       decode({
-        sourceRecord: source,
         observedTarget: { ...product, resourceType: 'commerce.catalog.variant' },
         sku: '784',
+        sourceRecord: source,
       }),
     ).toThrow();
   });
