@@ -83,6 +83,7 @@ it('publishes authentication, identity lifecycle, and gateway operations', () =>
     changePrincipalStatus: '/auth/identity/principal-status',
     createNonHumanPrincipal: '/auth/identity/principals',
     currentSession: '/auth/session',
+    executeLegalEntityDetail: '/core/reads/legal-entity-detail',
     issueApiKeyGatewayContext: '/auth/api-key/gateway-context',
     issueGatewayContext: '/auth/gateway-context',
     issueManagedApiKey: '/auth/identity/api-keys/managed',
