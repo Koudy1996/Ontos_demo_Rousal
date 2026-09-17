@@ -97,7 +97,18 @@ const setIsProven = (quantity: ReadyQuantity, setComposition: SetCompositionRevi
 
 const configurationIsProven = (quantity: ReadyQuantity): boolean => {
   const selected = quantity.selection.configuration;
-  return selected === undefined || hasBasis(quantity.evidence.basis, 'CONFIGURATION_DEFINITION', selected.definition);
+  if (selected === undefined) {
+    return true;
+  }
+  const { basis } = quantity.evidence;
+  return (
+    hasBasis(basis, 'CONFIGURATION_DEFINITION', selected.definition) &&
+    selected.choices.every(
+      (choice) =>
+        hasBasis(basis, 'ATTRIBUTE_DEFINITION', choice.attributeDefinition) &&
+        (choice.unit === undefined || hasBasis(basis, 'UNIT', choice.unit)),
+    )
+  );
 };
 
 /** Requires owner-issued exact facts already prepared for acceptance; never resolves Current or substitutes successors. */
@@ -139,7 +150,10 @@ export const prepareCatalogAcceptedSelectionHandoff = (input: HandoffInput): Cat
     return { reason: 'Exact Set Composition, components, and owner basis are required', status: 'UNVERIFIABLE' };
   }
   if (!configurationIsProven(quantity)) {
-    return { reason: 'Configuration Definition owner basis is required', status: 'UNVERIFIABLE' };
+    return {
+      reason: 'Exact Configuration Definition, Attribute Definition, and Unit owner basis are required',
+      status: 'UNVERIFIABLE',
+    };
   }
   const handoff: CatalogAcceptedSelectionHandoff = {
     acceptedAt: input.acceptedAt,

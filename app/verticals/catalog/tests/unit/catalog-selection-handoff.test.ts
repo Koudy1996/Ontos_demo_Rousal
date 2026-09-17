@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 
 import { prepareCatalogAcceptedSelectionHandoff } from '../../shared/domain/catalog-selection-handoff.ts';
 import {
+  CatalogSelectionBasisSchema,
   CatalogSelectionEvidenceSchema,
   CatalogSelectionSchema,
 } from '../../shared/domain/catalog-selection-evidence.ts';
@@ -119,6 +120,60 @@ describe('Catalog accepted Selection historical handoff', () => {
           reference: { ...variant.reference, revision: 3 },
         }),
       }).status,
+    ).toBe('UNVERIFIABLE');
+  });
+
+  it('requires exact Attribute Definition and selected Unit basis for every configuration choice', () => {
+    const definition = {
+      resourceRef: ref('commerce.catalog.configuration-definition', '77777777-7777-4777-8777-777777777777'),
+      revision: 1,
+    };
+    const attribute = {
+      resourceRef: ref('commerce.catalog.attribute-definition', '88888888-8888-4888-8888-888888888888'),
+      revision: 3,
+    };
+    const choiceUnit = { resourceRef: unitRef, revision: 4 };
+    const configured = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+      configuration: {
+        choices: [{ attributeDefinition: attribute, choiceKey: 'length', unit: choiceUnit, value: '83' }],
+        definition,
+        productRef,
+        variantRef,
+      },
+      productRef,
+      variantRef,
+    });
+    const basis = [
+      ...evidence.basis,
+      Schema.decodeUnknownSync(CatalogSelectionBasisSchema)({ role: 'CONFIGURATION_DEFINITION', source: definition }),
+      Schema.decodeUnknownSync(CatalogSelectionBasisSchema)({ role: 'ATTRIBUTE_DEFINITION', source: attribute }),
+      Schema.decodeUnknownSync(CatalogSelectionBasisSchema)({ role: 'UNIT', source: choiceUnit }),
+    ];
+    const resultWith = (chosenBasis: typeof basis) => {
+      const configuredEvidence = {
+        ...evidence,
+        basis: chosenBasis,
+        selection: configured,
+      };
+      return prepareCatalogAcceptedSelectionHandoff({
+        ...input(),
+        quantity: { ...quantity, evidence: configuredEvidence, selection: configured },
+      });
+    };
+    expect(resultWith(basis).status).toBe('ACCEPTED');
+    expect(resultWith(basis.filter((item) => item.role !== 'ATTRIBUTE_DEFINITION')).status).toBe('UNVERIFIABLE');
+    expect(resultWith(basis.filter((item) => item.role !== 'UNIT')).status).toBe('UNVERIFIABLE');
+    expect(
+      resultWith(
+        basis.map((item) =>
+          item.role === 'ATTRIBUTE_DEFINITION'
+            ? Schema.decodeUnknownSync(CatalogSelectionBasisSchema)({
+                role: 'ATTRIBUTE_DEFINITION',
+                source: { ...attribute, revision: 4 },
+              })
+            : item,
+        ),
+      ).status,
     ).toBe('UNVERIFIABLE');
   });
 });
