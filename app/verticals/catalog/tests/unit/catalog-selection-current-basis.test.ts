@@ -2,8 +2,9 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { products } from '../../src/database/schema.ts';
-import type { productVariants } from '../../src/database/schema.ts';
+import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
+import { productVariants, products } from '../../src/database/schema.ts';
+import type { productConfigurationDefinitions, setCompositions } from '../../src/database/schema.ts';
 import { catalogSelectionCurrentBasisForScope } from '../../src/persistence/catalog-selection-current-basis.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -32,7 +33,9 @@ const selection = {
     tenantId,
   },
 } as const;
-const selected = (rows: readonly object[]) => ({ where: () => ({ limit: () => Effect.succeed(rows) }) });
+const selected = (rows: readonly object[]) => ({
+  where: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
+});
 
 describe('Catalog Selection Current basis', () => {
   it.effect('never queries a foreign tenant selection', () =>
@@ -97,6 +100,65 @@ describe('Catalog Selection Current basis', () => {
       const result = yield* reader.read({ purpose: 'PURCHASE_ACCEPTANCE', selection });
       expect(result.status).toBe('INVALID');
       expect(result.basis.map(({ role }) => role)).toEqual(['PRODUCT']);
+    }),
+  );
+
+  it.effect('does not promote a missing Configuration or Set revision to Current', () =>
+    Effect.gen(function* missingSelectedRevision() {
+      const transaction = {
+        select: () => ({
+          from: (
+            table:
+              | typeof products
+              | typeof productVariants
+              | typeof productConfigurationDefinitions
+              | typeof setCompositions,
+          ) => {
+            if (table === products) {
+              return selected([{ lifecycleState: 'ACTIVE', revision: 4 }]);
+            }
+            if (table === productVariants) {
+              return selected([{ lifecycleState: 'ACTIVE', productId, revision: 7 }]);
+            }
+            return selected([]);
+          },
+        }),
+      };
+      // @ts-expect-error Only the exercised Drizzle read chains are mocked.
+      const reader = catalogSelectionCurrentBasisForScope(transaction, scope);
+      const definitionRef = {
+        moduleId: 'commerce.catalog',
+        resourceId: '77777777-7777-4777-8777-777777777777',
+        resourceType: 'commerce.catalog.configuration-definition',
+        tenantId,
+      };
+      const configuration = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        configuration: {
+          choices: [],
+          definition: { resourceRef: definitionRef, revision: 1 },
+          productRef: selection.productRef,
+          variantRef: selection.variantRef,
+        },
+      });
+      const configResult = yield* reader.read({ purpose: 'PURCHASE_ACCEPTANCE', selection: configuration });
+      expect(configResult.status).toBe('INDETERMINATE');
+      expect(configResult.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT']);
+      const setSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        setComposition: {
+          resourceRef: {
+            moduleId: 'commerce.catalog',
+            resourceId: '88888888-8888-4888-8888-888888888888',
+            resourceType: 'commerce.catalog.set-composition',
+            tenantId,
+          },
+          revision: 1,
+        },
+      });
+      const setResult = yield* reader.read({ purpose: 'PURCHASE_ACCEPTANCE', selection: setSelection });
+      expect(setResult.status).toBe('INDETERMINATE');
+      expect(setResult.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT']);
     }),
   );
 });

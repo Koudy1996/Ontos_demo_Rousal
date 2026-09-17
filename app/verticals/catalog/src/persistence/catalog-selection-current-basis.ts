@@ -1,12 +1,14 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Option, Schema } from 'effect';
 
 import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
 import { productVariants, products } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
+import { productConfigurationPersistenceForScope } from './product-configuration-persistence.ts';
+import { setCompositionPersistenceForScope } from './set-composition-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
@@ -35,6 +37,59 @@ const validRequest = (selection: CatalogSelection, purpose: string, tenantId: st
   purpose.length > 0 &&
   purpose === purpose.trim();
 
+/** Only exact effective revisions may enter the basis; component and choice validity is still separate. */
+const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSelectedDependencies')(
+  function* readSelectedDependencies(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    selection: CatalogSelection,
+    at: Date,
+  ) {
+    const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+    if (selection.configuration !== undefined) {
+      const selected = selection.configuration.definition;
+      const current = yield* productConfigurationPersistenceForScope(transaction, scope)
+        .readCurrent({
+          at,
+          definitionId: selected.resourceRef.resourceId,
+          productId: selection.productRef.resourceId,
+        })
+        .pipe(Effect.catchTag('ProductConfigurationPersistenceUnavailable', () => Effect.succeedNone));
+      if (Option.isNone(current)) {
+        return { basis, reason: 'Configuration Current revision is unavailable or missing' };
+      }
+      if (current.value.revision !== selected.revision) {
+        return { basis, reason: 'Selected Configuration revision is not Current' };
+      }
+      basis.push({ role: 'CONFIGURATION_DEFINITION', source: selected });
+    }
+    if (selection.setComposition !== undefined) {
+      const selected = selection.setComposition;
+      const current = yield* setCompositionPersistenceForScope(transaction, scope)
+        .readCurrent({
+          at,
+          compositionId: selected.resourceRef.resourceId,
+        })
+        .pipe(Effect.catchTag('SetCompositionPersistenceUnavailable', () => Effect.succeedNone));
+      if (Option.isNone(current)) {
+        return { basis, reason: 'Set Composition Current revision is unavailable or missing' };
+      }
+      const { effectiveFrom, effectiveTo, revision } = current.value;
+      if (
+        revision.reference.revision !== selected.revision ||
+        revision.productRef.resourceId !== selection.productRef.resourceId ||
+        revision.variantRef.resourceId !== selection.variantRef.resourceId ||
+        effectiveFrom > at ||
+        (effectiveTo !== undefined && at >= effectiveTo)
+      ) {
+        return { basis, reason: 'Selected Set Composition is not Current for this exact target' };
+      }
+      basis.push({ role: 'SET_COMPOSITION', source: selected });
+    }
+    return { basis, reason: null };
+  },
+);
+
 /**
  * Core supplies one tenant-scoped transaction. The reader deliberately does not promote
  * Product/Variant rows to owner-issued membership or complete dependent-fact proof.
@@ -45,7 +100,8 @@ export const catalogSelectionCurrentBasisForScope = (transaction: ScopedTransact
     readonly selection: CatalogSelection;
   }) {
     const { purpose, selection } = input;
-    const assessedAt = DateTime.formatIso(yield* DateTime.now);
+    const now = yield* DateTime.now;
+    const assessedAt = DateTime.formatIso(now);
     const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
     const result = (status: 'INDETERMINATE' | 'INVALID', reason: string): CatalogSelectionCurrentFacts => ({
       assessedAt,
@@ -126,6 +182,11 @@ export const catalogSelectionCurrentBasisForScope = (transaction: ScopedTransact
     }
     if (product.lifecycleState !== 'ACTIVE' || variant.lifecycleState !== 'ACTIVE') {
       return result('INVALID', 'Selected Product or Variant is not active');
+    }
+    const dependent = yield* readSelectedDependencies(transaction, scope, selection, DateTime.toDateUtc(now));
+    basis.push(...dependent.basis);
+    if (dependent.reason !== null) {
+      return result('INDETERMINATE', dependent.reason);
     }
     return result('INDETERMINATE', 'Indirect Catalog facts and exact dependent revisions are not yet attested');
   }),
