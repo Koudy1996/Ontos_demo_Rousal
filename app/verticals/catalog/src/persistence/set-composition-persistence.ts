@@ -63,7 +63,7 @@ export interface PublishSetCompositionInput {
   readonly effectiveFrom: Date;
   readonly effectiveTo?: Date;
   readonly expectedRevision: number;
-  readonly lifecycleState: 'DRAFT' | 'ACTIVE';
+  readonly lifecycleState: 'DRAFT' | 'ACTIVE' | 'RETIRED';
   readonly revision: SetCompositionRevision;
 }
 
@@ -141,6 +141,7 @@ const validPublishInput = (input: PublishSetCompositionInput, tenantId: string):
     revision.predecessor?.revisionId === undefined &&
     Number.isSafeInteger(input.expectedRevision) &&
     input.expectedRevision >= 0 &&
+    (input.lifecycleState !== 'RETIRED' || input.expectedRevision > 0) &&
     revision.reference.revision === input.expectedRevision + 1 &&
     validDate(input.effectiveFrom) &&
     (input.effectiveTo === undefined || (validDate(input.effectiveTo) && input.effectiveTo > input.effectiveFrom)) &&
@@ -388,6 +389,7 @@ export const setCompositionPersistenceForScope = (
         const same = Schema.toEquivalence(SetCompositionRevisionSchema)(retained.value.revision, revision);
         if (
           !same ||
+          priorInvocation.actingPrincipalId !== input.actingPrincipalId ||
           !sameInstant(retained.value.effectiveFrom, input.effectiveFrom) ||
           !sameInstant(retained.value.effectiveTo, input.effectiveTo) ||
           retained.value.lifecycleState !== input.lifecycleState

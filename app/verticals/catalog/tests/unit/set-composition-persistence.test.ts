@@ -256,6 +256,16 @@ describe('Set composition persistence', () => {
           Match.orElse(() => 0),
         ),
       ).toBe(1);
+      const changedPrincipal = yield* service.publish({
+        ...input,
+        actingPrincipalId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      });
+      expect(
+        Match.value(changedPrincipal).pipe(
+          Match.tag('invalid', ({ reason }) => reason),
+          Match.orElse(() => ''),
+        ),
+      ).toBe('Action invocation payload differs from retained Set revision');
     }),
   );
 
@@ -379,6 +389,52 @@ describe('Set composition persistence', () => {
       expect(Option.isSome(historical) && historical.value.revision).toEqual(revision);
     }),
   );
+  it.effect('retirement is a new immutable successor and ends Current only from its effective instant', () =>
+    Effect.gen(function* retirement() {
+      const retiredAt = new Date('2026-10-01T00:00:00.000Z');
+      const retiredRevision = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+        ...revision,
+        predecessor: revision.reference,
+        provenance: { changeKind: 'EVIDENCE_CORRECTION', evidenceRefs: ['catalog:retired'], reason: 'Retire Set' },
+        reference: { resourceRef: revision.reference.resourceRef, revision: 2 },
+      });
+      const owner = { compositionId, currentRevision: 2, productId, variantId };
+      const rows = [revision, retiredRevision].map((item, index) => ({
+        actionInvocationId: index === 0 ? input.actionInvocationId : 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        changeKind: item.provenance.changeKind,
+        compositionId,
+        effectiveFrom: index === 0 ? input.effectiveFrom : retiredAt,
+        effectiveTo: null,
+        evidenceRefs: [...item.provenance.evidenceRefs],
+        lifecycleState: index === 0 ? 'ACTIVE' : 'RETIRED',
+        predecessorRevision: index === 0 ? null : 1,
+        productId,
+        reason: item.provenance.reason,
+        revision: item.reference.revision,
+        tenantId,
+        variantId,
+      }));
+      const componentRows = [revision, retiredRevision].map((item) =>
+        item.components.map((component) => ({
+          componentId: component.componentId,
+          componentProductId: component.selection.productRef.resourceId,
+          componentVariantId: component.selection.variantRef.resourceId,
+          configuration: null,
+          packageContentRevision: null,
+          packageDefinitionId: null,
+          quantityAmount: component.quantity.amount,
+          quantityUnitId: component.quantity.unitRef.resourceId,
+        })),
+      );
+      const transaction = futureHistoryTransaction(owner, rows, componentRows);
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = setCompositionPersistenceForScope(transaction, scope);
+      const before = yield* service.readCurrent({ at: new Date(retiredAt.getTime() - 1), compositionId });
+      const after = yield* service.readCurrent({ at: retiredAt, compositionId });
+      expect(Option.isSome(before) && before.value.revision.reference.revision).toBe(1);
+      expect(Option.isNone(after)).toBe(true);
+    }),
+  );
   it.effect('fails closed without the owner Current-basis proof before any query or write', () =>
     Effect.gen(function* noProof() {
       const transaction = {
@@ -415,6 +471,25 @@ describe('Set composition persistence', () => {
           },
         },
       });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('invalid', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('does not allow a retired composition to be issued as its initial revision', () =>
+    Effect.gen(function* initiallyRetired() {
+      const transaction = {
+        select: () => {
+          throw new Error('Invalid initial retirement must not query');
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = setCompositionPersistenceForScope(transaction, scope, { verify: () => Effect.succeed(true) });
+      const outcome = yield* service.publish({ ...input, lifecycleState: 'RETIRED' });
       expect(
         Match.value(outcome).pipe(
           Match.tag('invalid', () => true),
