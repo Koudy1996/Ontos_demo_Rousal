@@ -9,8 +9,6 @@ import { SkuActionStale } from './sku-action-stale.ts';
 
 export { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 export { SkuActionConflict } from './sku-action-conflict.ts';
-export { SkuActionInvalid } from './sku-action-invalid.ts';
-export { SkuActionNotFound } from './sku-action-not-found.ts';
 export { SkuActionStale } from './sku-action-stale.ts';
 export const skuServicesForScope = (...args: Parameters<typeof skuPersistenceForScope>) =>
   Effect.succeed(skuPersistenceForScope(...args));

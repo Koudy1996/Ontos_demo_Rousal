@@ -8,7 +8,7 @@ export const gtinServicesForScope = (...args: Parameters<typeof gtinPersistenceF
   Effect.succeed(gtinPersistenceForScope(...args));
 export type GtinServices = ReturnType<typeof gtinPersistenceForScope>;
 
-export class GtinActionConflict extends Schema.TaggedError<GtinActionConflict>()('GtinActionConflict', {
+class GtinActionConflict extends Schema.TaggedError<GtinActionConflict>()('GtinActionConflict', {
   code: Schema.Literal('gtin_action_conflict'),
   reason: Schema.String,
 }) {}
@@ -20,7 +20,7 @@ export class GtinActionInvalid extends Schema.TaggedError<GtinActionInvalid>()('
   code: Schema.Literal('gtin_action_invalid'),
   reason: Schema.String,
 }) {}
-export class GtinActionNotFound extends Schema.TaggedError<GtinActionNotFound>()('GtinActionNotFound', {
+class GtinActionNotFound extends Schema.TaggedError<GtinActionNotFound>()('GtinActionNotFound', {
   code: Schema.Literal('gtin_action_not_found'),
   reason: Schema.String,
 }) {}

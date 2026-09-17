@@ -30,7 +30,7 @@ export type {
 
 const domainEvents = {} as const;
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
-export const handleRenameControlledAttributeValue = Effect.fn('RenameControlledAttributeValueAction.handle')(
+const handleRenameControlledAttributeValue = Effect.fn('RenameControlledAttributeValueAction.handle')(
   function* handleRenameControlledAttributeValue(
     payload: RenameControlledAttributeValuePayload,
     context: ActionHandlerContext<typeof domainEvents, AttributePersistence>,

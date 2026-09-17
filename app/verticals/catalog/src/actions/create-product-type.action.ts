@@ -27,7 +27,7 @@ export type { CreateProductTypePayload, CreateProductTypeResult } from '../../sh
 const domainEvents = {} as const;
 
 /** Core supplies the transaction, tenant, principal, permission and idempotency boundary. */
-export const handleCreateProductType = Effect.fn('CreateProductTypeAction.handle')(function* handleCreateProductType(
+const handleCreateProductType = Effect.fn('CreateProductTypeAction.handle')(function* handleCreateProductType(
   payload: CreateProductTypePayload,
   context: ActionHandlerContext<typeof domainEvents, ProductTypeCreatePersistence>,
 ) {

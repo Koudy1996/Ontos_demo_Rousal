@@ -69,7 +69,7 @@ export const mapCreateProductPersistenceConflict = (error: CatalogPersistenceCon
       })
     : error;
 
-export const handleCreateProduct = Effect.fn('CreateProductAction.handle')(function* handleCreateProduct(
+const handleCreateProduct = Effect.fn('CreateProductAction.handle')(function* handleCreateProduct(
   payload: CreateProductPayload,
   context: ActionHandlerContext<typeof domainEvents, CreateProductServices>,
 ) {

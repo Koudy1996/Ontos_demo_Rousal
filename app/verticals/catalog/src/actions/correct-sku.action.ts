@@ -17,7 +17,7 @@ import type { SkuServices } from './sku-action-support.ts';
 export { CorrectSkuPayloadSchema, CorrectSkuResultSchema } from '../../shared/actions/correct-sku.ts';
 export type { CorrectSkuPayload, CorrectSkuResult } from '../../shared/actions/correct-sku.ts';
 
-export const handleCorrectSku = Effect.fn('CorrectSkuAction.handle')(function* handleCorrectSku(
+const handleCorrectSku = Effect.fn('CorrectSkuAction.handle')(function* handleCorrectSku(
   payload: CorrectSkuPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, SkuServices>,
 ) {

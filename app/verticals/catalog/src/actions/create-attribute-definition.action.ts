@@ -25,7 +25,7 @@ export type { CreateAttributeDefinitionPayload } from '../../shared/actions/attr
 const domainEvents = {} as const;
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 const ATTRIBUTE_DEFINITION_RESOURCE_TYPE = 'commerce.catalog.attribute-definition' as const;
-export const handleCreateAttributeDefinition = Effect.fn('CreateAttributeDefinitionAction.handle')(
+const handleCreateAttributeDefinition = Effect.fn('CreateAttributeDefinitionAction.handle')(
   function* handleCreateAttributeDefinition(
     payload: CreateAttributeDefinitionPayload,
     context: ActionHandlerContext<typeof domainEvents, AttributePersistence>,

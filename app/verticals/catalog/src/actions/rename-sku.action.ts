@@ -17,7 +17,7 @@ import type { SkuServices } from './sku-action-support.ts';
 export { RenameSkuPayloadSchema, RenameSkuResultSchema } from '../../shared/actions/rename-sku.ts';
 export type { RenameSkuPayload, RenameSkuResult } from '../../shared/actions/rename-sku.ts';
 
-export const handleRenameSku = Effect.fn('RenameSkuAction.handle')(function* handleRenameSku(
+const handleRenameSku = Effect.fn('RenameSkuAction.handle')(function* handleRenameSku(
   payload: RenameSkuPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, SkuServices>,
 ) {

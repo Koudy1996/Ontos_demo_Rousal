@@ -18,7 +18,7 @@ import type { GtinServices } from './gtin-action-support.ts';
 export { ConfirmGtinPayloadSchema, ConfirmGtinResultSchema } from '../../shared/actions/confirm-gtin.ts';
 export type { ConfirmGtinPayload, ConfirmGtinResult } from '../../shared/actions/confirm-gtin.ts';
 
-export const handleConfirmGtin = Effect.fn('ConfirmGtinAction.handle')(function* handleConfirmGtin(
+const handleConfirmGtin = Effect.fn('ConfirmGtinAction.handle')(function* handleConfirmGtin(
   payload: ConfirmGtinPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, GtinServices>,
 ) {

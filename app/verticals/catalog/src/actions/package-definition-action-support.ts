@@ -339,7 +339,7 @@ export const packageDefinitionPersistenceServiceFactory = (
     packagePersistenceForScope(transaction, scope, packageContentBasisForTransaction(transaction, scope.tenantId)),
   );
 
-export const packageDefinitionUnavailable = () =>
+const packageDefinitionUnavailable = () =>
   new PackageDefinitionActionError({
     code: 'package_definition_unavailable',
     reason: 'Authoritative Package Definition persistence or Current basis is unavailable',

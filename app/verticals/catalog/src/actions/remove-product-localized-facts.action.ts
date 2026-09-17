@@ -23,7 +23,7 @@ import {
 export { RemoveProductLocalizedFactsPayloadSchema } from '../../shared/actions/localized-facts.ts';
 export type { RemoveProductLocalizedFactsPayload } from '../../shared/actions/localized-facts.ts';
 
-export const handleRemoveProductLocalizedFacts = Effect.fn('RemoveProductLocalizedFactsAction.handle')(
+const handleRemoveProductLocalizedFacts = Effect.fn('RemoveProductLocalizedFactsAction.handle')(
   function* handleRemoveProductLocalizedFacts(
     payload: RemoveProductLocalizedFactsPayload,
     context: ActionHandlerContext<

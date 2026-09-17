@@ -18,7 +18,7 @@ import type { GtinServices } from './gtin-action-support.ts';
 export { CorrectGtinPayloadSchema, CorrectGtinResultSchema } from '../../shared/actions/correct-gtin.ts';
 export type { CorrectGtinPayload, CorrectGtinResult } from '../../shared/actions/correct-gtin.ts';
 
-export const handleCorrectGtin = Effect.fn('CorrectGtinAction.handle')(function* handleCorrectGtin(
+const handleCorrectGtin = Effect.fn('CorrectGtinAction.handle')(function* handleCorrectGtin(
   payload: CorrectGtinPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, GtinServices>,
 ) {

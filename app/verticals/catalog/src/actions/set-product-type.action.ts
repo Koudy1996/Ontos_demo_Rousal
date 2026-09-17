@@ -20,7 +20,7 @@ export type { SetProductTypePayload, SetProductTypeResult } from '../../shared/a
 const domainEvents = {} as const;
 const moduleKey = 'commerce.catalog' as const;
 
-export const handleSetProductType = Effect.fn('SetProductTypeAction.handle')(function* handleSetProductType(
+const handleSetProductType = Effect.fn('SetProductTypeAction.handle')(function* handleSetProductType(
   payload: SetProductTypePayload,
   context: ActionHandlerContext<typeof domainEvents, ProductTypeAssignmentPersistence>,
 ) {

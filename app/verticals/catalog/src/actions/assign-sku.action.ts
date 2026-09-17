@@ -17,7 +17,7 @@ import type { SkuServices } from './sku-action-support.ts';
 export { AssignSkuPayloadSchema, AssignSkuResultSchema } from '../../shared/actions/assign-sku.ts';
 export type { AssignSkuPayload, AssignSkuResult } from '../../shared/actions/assign-sku.ts';
 
-export const handleAssignSku = Effect.fn('AssignSkuAction.handle')(function* handleAssignSku(
+const handleAssignSku = Effect.fn('AssignSkuAction.handle')(function* handleAssignSku(
   payload: AssignSkuPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, SkuServices>,
 ) {

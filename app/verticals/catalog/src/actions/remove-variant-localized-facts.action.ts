@@ -23,7 +23,7 @@ import {
 export { RemoveVariantLocalizedFactsPayloadSchema } from '../../shared/actions/localized-facts.ts';
 export type { RemoveVariantLocalizedFactsPayload } from '../../shared/actions/localized-facts.ts';
 
-export const handleRemoveVariantLocalizedFacts = Effect.fn('RemoveVariantLocalizedFactsAction.handle')(
+const handleRemoveVariantLocalizedFacts = Effect.fn('RemoveVariantLocalizedFactsAction.handle')(
   function* handleRemoveVariantLocalizedFacts(
     payload: RemoveVariantLocalizedFactsPayload,
     context: ActionHandlerContext<
