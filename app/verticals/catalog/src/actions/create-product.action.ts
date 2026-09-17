@@ -3,12 +3,13 @@
 // @ontos-action-slug create-product
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 
 import { CreateProductPayloadSchema, CreateProductResultSchema } from '../../shared/actions/create-product.ts';
 import type { CreateProductPayload } from '../../shared/actions/create-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { ProductPersistenceConflict } from '../../shared/domain/product-errors.ts';
+import { CatalogPersistenceConflict } from '../persistence/errors.ts';
 import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
@@ -25,19 +26,34 @@ const domainEvents = {
   'commerce.catalog.product-created.v1': CreateProductResultSchema,
 } as const;
 
+export const mapCreateProductPersistenceConflict = (error: CatalogPersistenceConflict) =>
+  error.conflict === 'PRODUCT_ID' || error.conflict === 'VARIANT_ID'
+    ? new ProductPersistenceConflict({
+        code: 'product_persistence_conflict',
+        conflict: error.conflict,
+        reason: error.conflict === 'PRODUCT_ID' ? 'Product identity already exists' : 'Variant identity already exists',
+      })
+    : error;
+
 export const handleCreateProduct = Effect.fn('CreateProductAction.handle')(function* handleCreateProduct(
   payload: CreateProductPayload,
   context: ActionHandlerContext<typeof domainEvents, CatalogPersistence>,
 ) {
-  const outcome = yield* context.services.create({
-    actionInvocationId: context.actionInvocationId,
-    description: payload.description,
-    name: payload.name,
-    principalId: context.scope.principalId,
-    reason: payload.reason,
-    tenantId: context.scope.tenantId,
-    variantId: payload.variantId,
-  });
+  const outcome = yield* context.services
+    .create({
+      actionInvocationId: context.actionInvocationId,
+      description: payload.description,
+      name: payload.name,
+      principalId: context.scope.principalId,
+      reason: payload.reason,
+      tenantId: context.scope.tenantId,
+      variantId: payload.variantId,
+    })
+    .pipe(
+      Effect.mapError((error) =>
+        Schema.is(CatalogPersistenceConflict)(error) ? mapCreateProductPersistenceConflict(error) : error,
+      ),
+    );
   const result = yield* Match.value(outcome).pipe(
     Match.tag('conflict', () =>
       Effect.fail(

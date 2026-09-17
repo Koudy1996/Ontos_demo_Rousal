@@ -45,7 +45,7 @@ export class ProductPersistenceConflict extends Schema.TaggedError<ProductPersis
   'ProductPersistenceConflict',
   {
     code: Schema.Literal('product_persistence_conflict'),
-    conflict: Schema.Literals(['PRODUCT_ID', 'ACTION_INVOCATION_ID', 'REVISION']),
+    conflict: Schema.Literals(['PRODUCT_ID', 'VARIANT_ID', 'ACTION_INVOCATION_ID', 'REVISION']),
     reason: Schema.String,
   },
 ) {}

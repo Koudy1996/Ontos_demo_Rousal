@@ -18,7 +18,11 @@ import { ProductSelectionRevalidationRequiredSchema } from '../../shared/actions
 import { catalogAuthorityBundles } from '../../shared/api.ts';
 import { ProductPersistenceConflict } from '../../shared/domain/product-errors.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
-import { CreateProductPayloadSchema, createProductAction } from '../../src/actions/create-product.action.ts';
+import {
+  CreateProductPayloadSchema,
+  createProductAction,
+  mapCreateProductPersistenceConflict,
+} from '../../src/actions/create-product.action.ts';
 import {
   ReactivateProductPayloadSchema,
   reactivateProductAction,
@@ -48,6 +52,32 @@ const classification = {
 } as const;
 
 describe('Catalog Product Action contracts', () => {
+  it('preserves exact Variant identity conflicts through the create Action and redacted API problem', () => {
+    const diagnostic = 'secret driver constraint and tenant identifier';
+    const variantCollision = mapCreateProductPersistenceConflict(
+      new CatalogPersistenceConflict({
+        code: 'catalog_persistence_conflict',
+        conflict: 'VARIANT_ID',
+        reason: diagnostic,
+      }),
+    );
+    expect(Schema.is(ProductPersistenceConflict)(variantCollision)).toBe(true);
+    expect(variantCollision).toMatchObject({ conflict: 'VARIANT_ID' });
+    const problem = mapCreateProductActionProblem(variantCollision);
+    expect(problem).toMatchObject({ code: 'product_persistence_conflict', status: 409 });
+    expect(problem).not.toHaveProperty('retryable');
+    expect(JSON.stringify(problem)).not.toContain(diagnostic);
+  });
+
+  it('does not turn non-identity persistence conflicts into Product identity conflicts', () => {
+    const invocationCollision = new CatalogPersistenceConflict({
+      code: 'catalog_persistence_conflict',
+      conflict: 'ACTION_INVOCATION_ID',
+      reason: 'Invocation collision',
+    });
+    expect(mapCreateProductPersistenceConflict(invocationCollision)).toBe(invocationCollision);
+  });
+
   it('reports known persistence conflicts as non-retryable conflicts on every public Action', () => {
     const mappers = [
       mapCorrectProductActionProblem,
