@@ -40,6 +40,8 @@ import { ProductCategoryHistoryApi } from './shared/apis/product-category-histor
 import { productCategoryResourceDescriptor } from './shared/resources/product-category.ts';
 import { ProductDetailApi } from './shared/apis/product-detail.ts';
 import { ProductHistoryApi } from './shared/apis/product-history.ts';
+import { ProductRelationshipCurrentApi } from './shared/apis/product-relationship-current.ts';
+import { ProductRelationshipHistoryApi } from './shared/apis/product-relationship-history.ts';
 import { productResourceDescriptor } from './shared/resources/product.ts';
 import { productTypeResourceDescriptor } from './shared/resources/product-type.ts';
 import { productUnitResourceDescriptor } from './shared/resources/product-unit.ts';
@@ -178,6 +180,8 @@ export const catalogManifest = defineOntosModuleManifest({
       'product-category-history': ProductCategoryHistoryApi,
       'product-detail': ProductDetailApi,
       'product-history': ProductHistoryApi,
+      'product-relationship-current': ProductRelationshipCurrentApi,
+      'product-relationship-history': ProductRelationshipHistoryApi,
       // </generated-module-manifest-apis>
     },
     businessPermissions: [

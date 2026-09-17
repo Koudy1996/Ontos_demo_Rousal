@@ -125,6 +125,8 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'product-category-history': () => import('./src/api/product-category-history-client.ts'),
       'product-detail': () => import('./src/api/product-detail-client.ts'),
       'product-history': () => import('./src/api/product-history-client.ts'),
+      'product-relationship-current': () => import('./src/api/product-relationship-current-client.ts'),
+      'product-relationship-history': () => import('./src/api/product-relationship-history-client.ts'),
       // </generated-module-registration-apis>
     },
     components: {
