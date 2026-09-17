@@ -119,7 +119,10 @@ describe('Brand governed Actions', () => {
       Schema.decodeUnknownSync(SetProductBrandPayloadSchema)({ ...assign, assignment: { kind: 'brand' } }),
     ).toThrow();
     expect(() => Schema.decodeUnknownSync(SetProductBrandPayloadSchema)({ ...assign, evidenceRefs: [] })).toThrow();
-    expect(() => Schema.decodeUnknownSync(SetProductBrandPayloadSchema)({ ...assign, expectedRevision: 0 })).toThrow();
+    expect(
+      Schema.decodeUnknownSync(SetProductBrandPayloadSchema)({ ...assign, expectedRevision: 0 }).expectedRevision,
+    ).toBe(0);
+    expect(() => Schema.decodeUnknownSync(SetProductBrandPayloadSchema)({ ...assign, expectedRevision: -1 })).toThrow();
   });
 
   it.effect('never reports mutation success without authoritative persistence', () =>

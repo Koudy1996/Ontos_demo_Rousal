@@ -9,6 +9,7 @@ const EvidenceRefsSchema = Schema.NonEmptyArray(
 );
 const BrandNameSchema = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(240), Schema.isTrimmed());
 const ExpectedRevisionSchema = Schema.Int.check(Schema.isGreaterThan(0));
+const ExpectedProductBrandRevisionSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const EvidenceSchema = Schema.Struct({ evidenceRefs: EvidenceRefsSchema, reason: ReasonSchema });
 
 export const BrandAuditEvidenceSchema = EvidenceSchema;
@@ -48,7 +49,7 @@ export const ProductBrandAssignmentSchema = Schema.Union([
 export const SetProductBrandPayloadSchema = Schema.Struct({
   assignment: ProductBrandAssignmentSchema,
   evidenceRefs: EvidenceRefsSchema,
-  expectedRevision: ExpectedRevisionSchema,
+  expectedRevision: ExpectedProductBrandRevisionSchema,
   productRef: ProductRefSchema,
   reason: ReasonSchema,
 });
