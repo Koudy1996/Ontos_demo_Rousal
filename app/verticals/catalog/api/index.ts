@@ -172,17 +172,17 @@ type CatalogApiRuntimeArguments = readonly [
 export const makeCatalogApiRuntime = (
   ...args: CatalogApiRuntimeArguments
 ): EffectBffDefinition<typeof catalogApi> & EffectBffRuntime<typeof catalogApi> => {
-  const [governedReadRuntimeLive, governedActionRuntimeLive, gatewayAssertionRedemption] = args;
+  const [governedReadRuntimeLive, actionRuntimeLive, gatewayAssertionRedemption] = args;
+  const governedActionRuntimeLive = Layer.mergeAll(actionRuntimeLive, governedReadRuntimeLive);
   const actionPrincipalVerifierLive = GovernedActionPrincipalVerifierLive.pipe(
     Layer.provide(governedActionRuntimeLive),
   );
-  const manufacturerActionRuntimesLive = Layer.mergeAll(governedActionRuntimeLive, governedReadRuntimeLive);
   const apiHandlersLive = Layer.mergeAll(
     catalogReadinessLayer,
     // <generated-governed-http-handler-layers>
     addProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     assignCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
-    changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(manufacturerActionRuntimesLive)),
+    changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -215,7 +215,7 @@ export const makeCatalogApiRuntime = (
     removeProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeProductLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
-    removeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(manufacturerActionRuntimesLive)),
+    removeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeVariantAttributeOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeVariantLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -237,7 +237,7 @@ export const makeCatalogApiRuntime = (
     setProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
-    setProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(manufacturerActionRuntimesLive)),
+    setProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductUnitTargetDivisibilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setVariantAttributeOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
