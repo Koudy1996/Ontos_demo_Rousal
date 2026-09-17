@@ -5,7 +5,10 @@ import type { OntosResourceType } from '@app/core-runtime';
 import { Schema } from 'effect';
 
 const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
-const ResourceIdSchema = checkedUuid.pipe(Schema.brand('CatalogAttributeDefinitionResourceId'), Schema.decodeTo(checkedUuid));
+const ResourceIdSchema = checkedUuid.pipe(
+  Schema.brand('CatalogAttributeDefinitionResourceId'),
+  Schema.decodeTo(checkedUuid),
+);
 const TenantIdSchema = checkedUuid.pipe(Schema.brand('CatalogTenantId'), Schema.decodeTo(checkedUuid));
 
 export const AttributeDefinitionRefSchema = Schema.Struct({
