@@ -6,12 +6,14 @@
   "exports": {
     "./api": "./shared/api.ts",
     "./api/client": "./src/api/catalog-client.ts",
-    "./domain/product": "./shared/domain/product.ts",
-    "./domain/product-forms": "./shared/domain/product-form-separation.ts",
-    "./domain/product-change-classification": "./shared/domain/product-change-classification.ts",
     "./domain/catalog-revision-reference": "./shared/domain/catalog-revision-reference.ts",
+    "./domain/product": "./shared/domain/product.ts",
+    "./domain/product-change-classification": "./shared/domain/product-change-classification.ts",
+    "./domain/product-forms": "./shared/domain/product-form-separation.ts",
     "./resources/catalog-root": "./shared/resources/catalog-root.ts",
     "./resources/product": "./shared/resources/product.ts",
+    "./resources/product-category": "./shared/resources/product-category.ts",
+    "./resources/product-type": "./shared/resources/product-type.ts",
     "./resources/variant": "./shared/resources/variant.ts",
     "./Route": "./src/federation-entry.tsx",
     "./Widget": "./src/components/catalog-widget.tsx"

@@ -16,9 +16,11 @@ import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
 import { CreateProductRecoveryApi } from './shared/apis/create-product-recovery.ts';
+import { productCategoryResourceDescriptor } from './shared/resources/product-category.ts';
 import { ProductDetailApi } from './shared/apis/product-detail.ts';
 import { ProductHistoryApi } from './shared/apis/product-history.ts';
 import { productResourceDescriptor } from './shared/resources/product.ts';
+import { productTypeResourceDescriptor } from './shared/resources/product-type.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
@@ -90,7 +92,9 @@ export const catalogManifest = defineOntosModuleManifest({
     resourceTypes: [
       // <generated-module-manifest-resources>
       catalogRootResourceDescriptor,
+      productCategoryResourceDescriptor,
       productResourceDescriptor,
+      productTypeResourceDescriptor,
       variantResourceDescriptor,
       // </generated-module-manifest-resources>
     ],
