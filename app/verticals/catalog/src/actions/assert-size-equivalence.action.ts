@@ -14,6 +14,8 @@ import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import { SizePersistenceConflict, sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { SizeUsagePersistence } from '../persistence/size-usage-persistence.ts';
 
+const catalogModuleKey = 'commerce.catalog';
+
 export {
   AssertSizeEquivalencePayloadSchema,
   AssertSizeEquivalenceResultSchema,
@@ -45,8 +47,8 @@ export const handleAssertSizeEquivalence = Effect.fn('AssertSizeEquivalenceActio
       accessKind: 'read',
       queryHash: `catalog-size-equivalence:${leftSizeRef.resourceId}:${rightSizeRef.resourceId}`,
       resultCount: 2,
-      servingModuleKey: 'commerce.catalog',
-      targetModuleKey: 'commerce.catalog',
+      servingModuleKey: catalogModuleKey,
+      targetModuleKey: catalogModuleKey,
       targetResourceId: leftSizeRef.resourceId,
       targetResourceType: 'commerce.catalog.controlled-attribute-value',
     });
@@ -70,12 +72,12 @@ export const assertSizeEquivalenceAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.assert-size-equivalence',
-      moduleKey: 'commerce.catalog',
+      moduleKey: catalogModuleKey,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: catalogModuleKey,
     payloadSchema: AssertSizeEquivalencePayloadSchema,
     policies: [],
     resultSchema: AssertSizeEquivalenceResultSchema,

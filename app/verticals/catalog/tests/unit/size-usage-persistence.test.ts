@@ -1,5 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Option, Schema } from 'effect';
+import { DateTime, Effect, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { SizeEquivalenceAssertionSchema, SizeUsageListSchema } from '../../shared/domain/attribute-vocabulary.ts';
@@ -99,7 +99,11 @@ describe('Size usage persistence preflight', () => {
       const result = yield* Effect.flip(
         service.assertEquivalence({
           actionInvocationId: '00000000-0000-4000-8000-000000000007',
-          assertion: { ...assertion, validFrom: '2026-09-18', validUntil: '2026-09-17' },
+          assertion: {
+            ...assertion,
+            validFrom: DateTime.makeUnsafe('2026-09-18T00:00:00.000Z'),
+            validUntil: DateTime.makeUnsafe('2026-09-17T00:00:00.000Z'),
+          },
           principalId,
         }),
       );

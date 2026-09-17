@@ -14,6 +14,8 @@ import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import { SizePersistenceConflict, sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { SizeUsagePersistence } from '../persistence/size-usage-persistence.ts';
 
+const catalogModuleKey = 'commerce.catalog';
+
 export {
   ReplaceProductSizesPayloadSchema,
   ReplaceProductSizesResultSchema,
@@ -28,7 +30,7 @@ export const handleReplaceProductSizes = Effect.fn('ReplaceProductSizesAction.ha
     payload: ReplaceProductSizesPayload,
     context: ActionHandlerContext<Readonly<Record<string, never>>, SizeUsagePersistence>,
   ) {
-    const { productRef, orderedSizeRefs } = payload.list;
+    const { orderedSizeRefs, productRef } = payload.list;
     if (
       productRef.tenantId !== context.scope.tenantId ||
       orderedSizeRefs.some((ref) => ref.tenantId !== context.scope.tenantId)
@@ -51,8 +53,8 @@ export const handleReplaceProductSizes = Effect.fn('ReplaceProductSizesAction.ha
       accessKind: 'read',
       queryHash: `catalog-product-size-usage:${productRef.resourceId}`,
       resultCount: orderedSizeRefs.length,
-      servingModuleKey: 'commerce.catalog',
-      targetModuleKey: 'commerce.catalog',
+      servingModuleKey: catalogModuleKey,
+      targetModuleKey: catalogModuleKey,
       targetResourceId: productRef.resourceId,
       targetResourceType: 'commerce.catalog.product',
     });
@@ -76,12 +78,12 @@ export const replaceProductSizesAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.catalog.replace-product-sizes',
-      moduleKey: 'commerce.catalog',
+      moduleKey: catalogModuleKey,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: catalogModuleKey,
     payloadSchema: ReplaceProductSizesPayloadSchema,
     policies: [],
     resultSchema: ReplaceProductSizesResultSchema,

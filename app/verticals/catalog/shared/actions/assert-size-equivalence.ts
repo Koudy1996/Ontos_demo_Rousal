@@ -9,5 +9,11 @@ export const AssertSizeEquivalencePayloadSchema = Schema.Struct({
 });
 export type AssertSizeEquivalencePayload = typeof AssertSizeEquivalencePayloadSchema.Type;
 
-export const AssertSizeEquivalenceResultSchema = Schema.Struct({ assertionId: Schema.String.check(Schema.isUUID()) });
+const checkedAssertionId = Schema.String.check(Schema.isUUID());
+const AssertionIdSchema = checkedAssertionId.pipe(
+  Schema.brand('CatalogSizeEquivalenceAssertionId'),
+  Schema.decodeTo(checkedAssertionId),
+);
+
+export const AssertSizeEquivalenceResultSchema = Schema.Struct({ assertionId: AssertionIdSchema });
 export type AssertSizeEquivalenceResult = typeof AssertSizeEquivalenceResultSchema.Type;
