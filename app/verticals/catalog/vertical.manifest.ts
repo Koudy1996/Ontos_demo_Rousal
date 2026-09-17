@@ -9,6 +9,7 @@ import {
   ShellReportContributionSchema,
   ShellSearchContributionSchema,
 } from '@app/core-runtime';
+import type { OntosModuleManifestInput } from '@app/core-runtime';
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
 import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
@@ -121,7 +122,7 @@ const _reportContribution = (value: ReportContributionInput) =>
 const _searchContribution = (value: SearchContributionInput) =>
   Result.getOrThrow(Schema.decodeResult(ShellSearchContributionSchema)(value));
 
-export const catalogManifest = defineOntosModuleManifest({
+export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManifest({
   activation: {
     defaultState: 'inactive',
     preservesHistoryWhenInactive: true,
