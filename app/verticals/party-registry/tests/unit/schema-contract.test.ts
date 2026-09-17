@@ -637,9 +637,11 @@ it.layer(NodeFileSystem.layer)('schema-contract', (suite) => {
       );
       expect(bootstrap).toMatch(/\['core', 'auth', 'contacts', 'party'\]/u);
       expect(verifier).toMatch(
-        /const EXPECTED_APPLICATION_SCHEMAS = \[\s*'auth',\s*'commerce_customer_context',\s*'contacts',\s*'core',\s*'party',\s*'payment_term_catalog',\s*\]/u,
+        /const EXPECTED_APPLICATION_SCHEMAS = \[\s*'auth',\s*'catalog',\s*'commerce_customer_context',\s*'contacts',\s*'core',\s*'party',\s*'payment_term_catalog',\s*\]/u,
       );
+      expect(verifier).toMatch(/__drizzle_migrations_catalog/u);
       expect(verifier).toMatch(/__drizzle_migrations_party/u);
+      expect(verifier).toMatch(/verticals\/catalog\/scripts\/verify-db-schema\.mts/u);
       expect(verifier).toMatch(/verticals\/party-registry\/scripts\/verify-db-schema\.mts/u);
     }),
   );
