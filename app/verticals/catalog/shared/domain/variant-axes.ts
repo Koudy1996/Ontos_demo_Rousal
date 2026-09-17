@@ -27,6 +27,7 @@ export const VariantAxisIssueKindSchema = Schema.Literals([
   'DISALLOWED_AXIS',
   'MISSING_DEFINITION',
   'MISSING_AXIS',
+  'DUPLICATE_AXIS_VALUE',
   'INVALID_VALUE',
   'UNVERIFIABLE_VALUE',
   'DUPLICATE_COMBINATION',
@@ -73,7 +74,7 @@ const inspectAxisValue = (
   candidate: VariantAxisCandidate,
   definitions: readonly AttributeDefinition[],
   conversions: readonly UnitConversion[] | undefined,
-  allowedValue: ((definition: AttributeDefinition, value: AttributeValue) => boolean) | undefined,
+  allowedValue: ((definition: AttributeDefinition, value: AttributeValue) => boolean | undefined) | undefined,
 ): AxisInspection => {
   const id = axis.attributeDefinitionRef.resourceId;
   const variantId = candidate.variant.variantRef.resourceId;
@@ -81,26 +82,38 @@ const inspectAxisValue = (
     sameRef(item.attributeDefinitionRef, axis.attributeDefinitionRef),
   );
   const [match] = matches;
-  if (matches.length !== 1 || match === undefined || match.values.length === 0) {
+  if (matches.length > 1) {
+    return { issue: { attributeDefinitionId: id, kind: 'DUPLICATE_AXIS_VALUE', variantId } };
+  }
+  if (match === undefined || match.values.length === 0) {
     return { issue: { attributeDefinitionId: id, kind: 'MISSING_AXIS', variantId } };
   }
-  const definition = definitions.find((item) => sameRef(item.ref, axis.attributeDefinitionRef));
-  if (definition === undefined) {
+  const matchingDefinitions = definitions.filter((item) => sameRef(item.ref, axis.attributeDefinitionRef));
+  const [definition] = matchingDefinitions;
+  if (matchingDefinitions.length !== 1 || definition === undefined) {
     return { issue: { attributeDefinitionId: id, kind: 'MISSING_DEFINITION', variantId } };
   }
   const checked = validateAttributeValues(definition, match.values, conversions);
-  if (allowedValue === undefined) {
-    return { issue: { attributeDefinitionId: id, kind: 'UNVERIFIABLE_VALUE', variantId } };
-  }
+  const keys = checked.normalized.map(valueKey);
   if (
     !checked.valid ||
     checked.normalized.length !== match.values.length ||
     checked.normalized.some((value) => value.kind === 'SPECIAL' && value.state === 'UNKNOWN') ||
-    checked.normalized.some((value) => !allowedValue(definition, value))
+    new Set(keys).size !== keys.length
   ) {
     return { issue: { attributeDefinitionId: id, kind: 'INVALID_VALUE', variantId } };
   }
-  return { key: stableParts([id, ...checked.normalized.map(valueKey).toSorted()]) };
+  if (allowedValue === undefined) {
+    return { issue: { attributeDefinitionId: id, kind: 'UNVERIFIABLE_VALUE', variantId } };
+  }
+  const decisions = checked.normalized.map((value) => allowedValue(definition, value));
+  if (decisions.some((decision) => decision === undefined)) {
+    return { issue: { attributeDefinitionId: id, kind: 'UNVERIFIABLE_VALUE', variantId } };
+  }
+  if (decisions.some((decision) => decision === false)) {
+    return { issue: { attributeDefinitionId: id, kind: 'INVALID_VALUE', variantId } };
+  }
+  return { key: stableParts([axis.attributeDefinitionRef.tenantId, id, ...keys.toSorted()]) };
 };
 
 /**
@@ -114,29 +127,32 @@ export const evaluateVariantAxes = (input: {
   readonly conversions?: readonly UnitConversion[];
   readonly definitions: readonly AttributeDefinition[];
   /** Predicate from the authoritative allowed-value snapshot; undefined means unverified. */
-  readonly isAllowedValue?: (definition: AttributeDefinition, value: AttributeValue) => boolean;
+  readonly isAllowedValue?: (definition: AttributeDefinition, value: AttributeValue) => boolean | undefined;
   readonly productRef: ProductVariant['productRef'];
   readonly productTypeRules: readonly ProductTypeAttributeRule[];
 }): VariantAxesResult => {
   const issues: VariantAxisIssue[] = [];
   const axisIds = new Set<string>();
+  const variantRuleIds = new Set<string>();
+  for (const rule of input.productTypeRules) {
+    if (rule.level === 'VARIANT') {
+      variantRuleIds.add(stableParts([rule.attributeDefinitionRef.tenantId, rule.attributeDefinitionRef.resourceId]));
+    }
+  }
   for (const axis of input.axes) {
     const id = axis.attributeDefinitionRef.resourceId;
-    if (axisIds.has(id)) {
+    const key = stableParts([axis.attributeDefinitionRef.tenantId, id]);
+    if (axisIds.has(key)) {
       issues.push({ attributeDefinitionId: id, kind: 'DUPLICATE_AXIS' });
     }
-    axisIds.add(id);
-    const definition = input.definitions.find((item) => sameRef(item.ref, axis.attributeDefinitionRef));
-    if (definition === undefined || definition.ref.tenantId !== input.productRef.tenantId) {
+    axisIds.add(key);
+    const definitions = input.definitions.filter((item) => sameRef(item.ref, axis.attributeDefinitionRef));
+    const [definition] = definitions;
+    if (definitions.length !== 1 || definition === undefined || definition.ref.tenantId !== input.productRef.tenantId) {
       issues.push({ attributeDefinitionId: id, kind: 'MISSING_DEFINITION' });
       continue;
     }
-    if (
-      !definition.levels.includes('VARIANT') ||
-      !input.productTypeRules.some(
-        (rule) => rule.level === 'VARIANT' && sameRef(rule.attributeDefinitionRef, axis.attributeDefinitionRef),
-      )
-    ) {
+    if (!new Set(definition.levels).has('VARIANT') || !variantRuleIds.has(key)) {
       issues.push({ attributeDefinitionId: id, kind: 'DISALLOWED_AXIS' });
     }
   }
@@ -157,7 +173,8 @@ export const evaluateVariantAxes = (input: {
       );
       issues.push(...axisResults.flatMap((result) => (result.issue === undefined ? [] : [result.issue])));
       const extraValue = candidate.effectiveAxisValues.some(
-        (item) => !axisIds.has(item.attributeDefinitionRef.resourceId),
+        (item) =>
+          !axisIds.has(stableParts([item.attributeDefinitionRef.tenantId, item.attributeDefinitionRef.resourceId])),
       );
       if (extraValue) {
         issues.push({ kind: 'INVALID_VALUE', variantId });

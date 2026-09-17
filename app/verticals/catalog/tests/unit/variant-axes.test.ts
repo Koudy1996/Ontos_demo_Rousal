@@ -122,6 +122,59 @@ describe('Variant axes and exact combinations', () => {
         ],
       }).issues[0]?.kind,
     ).toBe('INVALID_VALUE');
+    expect(
+      evaluateVariantAxes({
+        ...base,
+        candidates: [{ effectiveAxisValues: values(white), variant: active }],
+        isAllowedValue: () => base.definitions.at(1)?.levels.includes('VARIANT'),
+      }).issues[0]?.kind,
+    ).toBe('UNVERIFIABLE_VALUE');
+  });
+
+  it('rejects repeated axis records and repeated values rather than treating them as absence or a new combination', () => {
+    const active = variant('33333333-3333-4333-8333-333333333333');
+    expect(
+      evaluateVariantAxes({
+        ...base,
+        candidates: [{ effectiveAxisValues: [...values(white), ...values(black)], variant: active }],
+      }).issues[0]?.kind,
+    ).toBe('DUPLICATE_AXIS_VALUE');
+    const multiple = { ...definition, multiplicity: 'MULTIPLE' as const };
+    expect(
+      evaluateVariantAxes({
+        ...base,
+        candidates: [
+          {
+            effectiveAxisValues: [{ attributeDefinitionRef: definition.ref, values: [white, white] }],
+            variant: active,
+          },
+        ],
+        definitions: [multiple],
+      }).issues[0]?.kind,
+    ).toBe('INVALID_VALUE');
+  });
+
+  it('compares MULTIPLE values as an order-independent complete set', () => {
+    const multiple = { ...definition, multiplicity: 'MULTIPLE' as const };
+    const first = variant('33333333-3333-4333-8333-333333333333');
+    const second = variant('77777777-7777-4777-8777-777777777777');
+    expect(
+      evaluateVariantAxes({
+        ...base,
+        candidates: [
+          { effectiveAxisValues: [{ attributeDefinitionRef: definition.ref, values: [white, black] }], variant: first },
+          {
+            effectiveAxisValues: [{ attributeDefinitionRef: definition.ref, values: [black, white] }],
+            variant: second,
+          },
+        ],
+        definitions: [multiple],
+      }).issues,
+    ).toContainEqual({
+      conflictingVariantId: first.variantRef.resourceId,
+      kind: 'DUPLICATE_COMBINATION',
+      variantId: second.variantRef.resourceId,
+    });
   });
 
   it('allows an axis-free singleton but detects a second indistinguishable active Variant', () => {
