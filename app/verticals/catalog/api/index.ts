@@ -129,7 +129,10 @@ export const makeCatalogApiRuntime = (
     // <generated-governed-http-handler-layers>
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
-    createProductRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    createProductRecoveryReadApiLive.pipe(
+      GovernedReadLayer.provide(governedReadRuntimeLive),
+      GovernedReadLayer.provide(governedActionRuntimeLive),
+    ),
     productDetailReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reactivateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

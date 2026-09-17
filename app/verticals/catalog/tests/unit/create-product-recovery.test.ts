@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Option, Schema } from 'effect';
-import { ActionAlreadyCommitted, ActionRuntime } from '@app/core-runtime';
+import { ActionAlreadyCommitted, ActionRuntime, ReadHandlerUnavailable } from '@app/core-runtime';
+import type { ActionRuntimeService } from '@app/core-runtime';
 
 import { CreateProductResultSchema } from '../../shared/actions/create-product.ts';
 import { recoverCreateProduct } from '../../src/api/create-product-recovery.read.ts';
@@ -9,6 +10,9 @@ import type { CatalogPersistence } from '../../src/persistence/catalog-persisten
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const principalId = '22222222-2222-4222-8222-222222222222';
 const invocationId = '33333333-3333-4333-8333-333333333333';
+const brandedInvocationId = Schema.decodeSync(
+  Schema.String.check(Schema.isUUID()).pipe(Schema.brand('ActionInvocationId')),
+)(invocationId);
 const productId = '44444444-4444-4444-8444-444444444444';
 const variantId = '55555555-5555-4555-8555-555555555555';
 const productRef = {
@@ -63,8 +67,8 @@ const services = (lookup: CatalogPersistence['getCreatedByInvocation']): Catalog
 
 describe('create Product recovery', () => {
   it.effect('returns the original result only after Core confirms this principal committed the invocation', () =>
-    Effect.gen(function* () {
-      const runtime = {
+    Effect.gen(function* recoverCommittedCreateCase() {
+      const runtime: ActionRuntimeService = {
         resolveActionCommit: () =>
           Effect.fail(
             new ActionAlreadyCommitted({ code: 'action_already_committed', invocationId, reason: 'committed' }),
@@ -88,9 +92,10 @@ describe('create Product recovery', () => {
   );
 
   it.effect('does not read Catalog while the Core commit is still open', () =>
-    Effect.gen(function* () {
-      const runtime = {
-        resolveActionCommit: () => Effect.succeed({ _tag: 'ActionCommitOpen' as const, invocationId }),
+    Effect.gen(function* rejectOpenCreateCase() {
+      const runtime: ActionRuntimeService = {
+        resolveActionCommit: () =>
+          Effect.succeed({ _tag: 'ActionCommitOpen' as const, invocationId: brandedInvocationId }),
         runAction: () => Effect.die('unused'),
       };
       const failure = yield* recoverCreateProduct(
@@ -101,7 +106,7 @@ describe('create Product recovery', () => {
           services: services(() => Effect.die('must not read before commit')),
         },
       ).pipe(Effect.provideService(ActionRuntime, runtime), Effect.flip);
-      expect(failure._tag).toBe('ReadHandlerUnavailable');
+      expect(Schema.is(ReadHandlerUnavailable)(failure)).toBe(true);
     }),
   );
 });
