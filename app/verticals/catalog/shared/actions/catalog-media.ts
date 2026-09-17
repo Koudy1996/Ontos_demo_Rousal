@@ -10,9 +10,9 @@ import { ProductEvidenceReferenceSchema, ProductReasonSchema } from '../domain/p
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
-export const CatalogMediaSubjectRefSchema = Schema.Union([ProductRefSchema, VariantRefSchema]);
+const CatalogMediaSubjectRefSchema = Schema.Union([ProductRefSchema, VariantRefSchema]);
 export type CatalogMediaSubjectRef = typeof CatalogMediaSubjectRefSchema.Type;
-export const CatalogMediaResourceKindSchema = Schema.Literals(['MEDIA', 'DOCUMENT']);
+const CatalogMediaResourceKindSchema = Schema.Literals(['MEDIA', 'DOCUMENT']);
 const SetRevisionSchema = Schema.Finite.check(Schema.isInt(), Schema.isBetween({ maximum: 2_147_483_646, minimum: 0 }));
 const ChangeFields = {
   evidenceRefs: Schema.Array(ProductEvidenceReferenceSchema),

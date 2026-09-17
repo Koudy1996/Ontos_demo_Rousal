@@ -4,7 +4,7 @@ import { ProductEvidenceReferenceSchema, ProductReasonSchema, ProductVariantSche
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
-export const VariantChangeClassificationSchema = Schema.Literals([
+const VariantChangeClassificationSchema = Schema.Literals([
   'SAME_MEANING_RENAME',
   'EVIDENCED_RECORD_CORRECTION',
   'EVIDENCED_PARENT_CORRECTION',

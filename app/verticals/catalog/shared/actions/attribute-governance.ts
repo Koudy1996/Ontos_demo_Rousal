@@ -30,7 +30,7 @@ export const CreateAttributeDefinitionPayloadSchema = Schema.Struct({
 );
 export type CreateAttributeDefinitionPayload = typeof CreateAttributeDefinitionPayloadSchema.Type;
 
-export const DefinitionResultSchema = Schema.Struct({
+const DefinitionResultSchema = Schema.Struct({
   attributeDefinitionRef: AttributeDefinitionRefSchema,
   revision: CatalogRevisionNumberSchema,
 });
@@ -66,7 +66,7 @@ export const CreateControlledAttributeValuePayloadSchema = Schema.Struct({
 );
 export type CreateControlledAttributeValuePayload = typeof CreateControlledAttributeValuePayloadSchema.Type;
 
-export const ControlledValueResultSchema = Schema.Struct({
+const ControlledValueResultSchema = Schema.Struct({
   controlledValueRef: ControlledAttributeValueRefSchema,
   revision: CatalogRevisionNumberSchema,
 });
@@ -94,7 +94,7 @@ export const RetireControlledAttributeValuePayloadSchema = Schema.Struct({
   reason: ProductReasonSchema,
 });
 export type RetireControlledAttributeValuePayload = typeof RetireControlledAttributeValuePayloadSchema.Type;
-export const ControlledValueLifecycleResultSchema = Schema.Struct({
+const ControlledValueLifecycleResultSchema = Schema.Struct({
   ...ControlledValueResultSchema.fields,
   changed: Schema.Boolean,
   lifecycle: Schema.Literals(['ACTIVE', 'RETIRED']),

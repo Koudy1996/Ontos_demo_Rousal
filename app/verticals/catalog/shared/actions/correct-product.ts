@@ -48,7 +48,7 @@ export const ProductSelectionRevalidationRequiredSchema = Schema.Struct({
   }),
 );
 export type ProductSelectionRevalidationRequired = typeof ProductSelectionRevalidationRequiredSchema.Type;
-export const ProductSelectionRevalidationSchema = Schema.Union([
+const ProductSelectionRevalidationSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('NOT_REQUIRED') }),
   ProductSelectionRevalidationRequiredSchema,
 ]);

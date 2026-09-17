@@ -14,7 +14,7 @@ export const CategoryReasonSchema = Schema.String.check(
 );
 export const CategoryRevisionSchema = Schema.Finite.check(Schema.isInt(), Schema.isGreaterThan(0));
 export const CategoryCounterSchema = Schema.Finite.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0));
-export const CategoryRecordSchema = Schema.Struct({
+const CategoryRecordSchema = Schema.Struct({
   categoryRef: ProductCategoryRefSchema,
   lifecycle: Schema.Literals(['ACTIVE', 'RETIRED']),
   name: CategoryNameSchema,

@@ -72,5 +72,3 @@ export class ManufacturerActionError extends Schema.TaggedError<ManufacturerActi
   ]),
   reason: Schema.String,
 }) {}
-
-export const ManufacturerActionErrorSchema = ManufacturerActionError;
