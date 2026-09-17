@@ -82,6 +82,22 @@ describe('Product category classification', () => {
     expect(matchesCategory(unavailable, parent, 'SUBTREE')).toBeUndefined();
   });
 
+  it('fails closed on incomplete or cyclic hierarchy data', () => {
+    const assignments = [{ categoryRef: child, productRef }];
+    expect(deriveClassification(productRef, assignments, [], revision)).toEqual({ status: 'UNAVAILABLE' });
+    expect(
+      deriveClassification(
+        productRef,
+        assignments,
+        [
+          { categoryRef: child, parentRef: parent },
+          { categoryRef: parent, parentRef: child },
+        ],
+        revision,
+      ),
+    ).toEqual({ status: 'UNAVAILABLE' });
+  });
+
   it('rejects cross-Tenant links', () => {
     expect(addDirectCategory([], productRef, otherTenant)).toEqual({ status: 'TENANT_MISMATCH' });
     expect(removeDirectCategory([], productRef, otherTenant)).toEqual({ status: 'TENANT_MISMATCH' });

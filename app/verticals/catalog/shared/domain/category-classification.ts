@@ -86,12 +86,25 @@ export const deriveClassification = (
     .filter(({ productRef: owner }) => sameRef(owner, productRef))
     .map(({ categoryRef }) => categoryRef);
   const parentByCategory = new Map(hierarchy.map(({ categoryRef, parentRef }) => [keyOf(categoryRef), parentRef]));
+  if (
+    direct.some(
+      (categoryRef) => categoryRef.tenantId !== productRef.tenantId || !parentByCategory.has(keyOf(categoryRef)),
+    ) ||
+    hierarchy.some(
+      ({ categoryRef, parentRef }) =>
+        categoryRef.tenantId !== productRef.tenantId ||
+        (parentRef !== undefined &&
+          (parentRef.tenantId !== productRef.tenantId || !parentByCategory.has(keyOf(parentRef)))),
+    )
+  )
+    return { status: 'UNAVAILABLE' };
   const ancestors = new Map<string, { ancestorRef: CategoryKey; viaDirectCategories: CategoryKey[] }>();
   for (const source of direct) {
     const visited = new Set<string>([keyOf(source)]);
     let parent = parentByCategory.get(keyOf(source));
-    while (parent !== undefined && parent.tenantId === productRef.tenantId && !visited.has(keyOf(parent))) {
+    while (parent !== undefined) {
       const key = keyOf(parent);
+      if (visited.has(key)) return { status: 'UNAVAILABLE' };
       visited.add(key);
       const classification = ancestors.get(key);
       if (classification === undefined) ancestors.set(key, { ancestorRef: parent, viaDirectCategories: [source] });
