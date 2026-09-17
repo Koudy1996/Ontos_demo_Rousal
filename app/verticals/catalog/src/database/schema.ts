@@ -189,6 +189,7 @@ export const productTypes = catalogSchema.table.withRLS(
     productTypeId: uuid('product_type_id').defaultRandom().primaryKey(),
     tenantId: uuid('tenant_id').notNull(),
     name: text('name').notNull(),
+    // Create/revise writes the immutable revision in the same Core transaction; the verifier proves this pointer.
     currentRevision: integer('current_revision').default(1).notNull(),
     createdByActionInvocationId: uuid('created_by_action_invocation_id').notNull(),
     createdByPrincipalId: uuid('created_by_principal_id').notNull(),
@@ -244,6 +245,7 @@ export const productTypeRevisionAttributes = catalogSchema.table.withRLS(
     tenantId: uuid('tenant_id').notNull(),
     productTypeId: uuid('product_type_id').notNull(),
     revision: integer('revision').notNull(),
+    // #402 will add the tenant-qualified Attribute Definition FK when its owner table exists.
     attributeDefinitionId: uuid('attribute_definition_id').notNull(),
     level: text('level').notNull(),
     requirement: text('requirement').notNull(),
@@ -277,6 +279,7 @@ export const productTypeAssignments = catalogSchema.table.withRLS(
     tenantId: uuid('tenant_id').notNull(),
     productId: uuid('product_id').notNull(),
     productTypeId: uuid('product_type_id').notNull(),
+    // Assignment writes append the matching event in the same transaction; removal leaves only the event.
     assignmentRevision: integer('assignment_revision').default(1).notNull(),
     assignedByActionInvocationId: uuid('assigned_by_action_invocation_id').notNull(),
     assignedByPrincipalId: uuid('assigned_by_principal_id').notNull(),
@@ -354,6 +357,7 @@ export const productCategoryHierarchyRevisions = catalogSchema.table.withRLS(
   'product_category_hierarchy_revisions',
   {
     tenantId: uuid('tenant_id').primaryKey(),
+    // Every Category writer locks this row first, advances exactly one counter, and appends its event atomically.
     hierarchyRevision: integer('hierarchy_revision').default(0).notNull(),
     assignmentRevision: integer('assignment_revision').default(0).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -442,6 +446,11 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
     productId: uuid('product_id'),
     previousParentCategoryId: uuid('previous_parent_category_id'),
     nextParentCategoryId: uuid('next_parent_category_id'),
+    previousName: text('previous_name'),
+    nextName: text('next_name'),
+    previousLifecycleState: text('previous_lifecycle_state'),
+    nextLifecycleState: text('next_lifecycle_state'),
+    categoryRevision: integer('category_revision'),
     changeKind: text('change_kind').notNull(),
     hierarchyRevision: integer('hierarchy_revision').notNull(),
     assignmentRevision: integer('assignment_revision').notNull(),
@@ -463,6 +472,16 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
       foreignColumns: [products.tenantId, products.productId],
       name: 'catalog_product_category_events_product_fk',
     }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.previousParentCategoryId],
+      foreignColumns: [productCategories.tenantId, productCategories.categoryId],
+      name: 'catalog_product_category_events_previous_parent_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.nextParentCategoryId],
+      foreignColumns: [productCategories.tenantId, productCategories.categoryId],
+      name: 'catalog_product_category_events_next_parent_fk',
+    }).onDelete('restrict'),
     index('catalog_product_category_events_history_idx').on(table.tenantId, table.categoryId, table.recordedAt),
     check(
       'catalog_product_category_events_kind_ck',
@@ -471,6 +490,26 @@ export const productCategoryEvents = catalogSchema.table.withRLS(
     check(
       'catalog_product_category_events_revisions_ck',
       sql`${table.hierarchyRevision} >= 0 and ${table.assignmentRevision} >= 0`,
+    ),
+    check(
+      'catalog_product_category_events_category_revision_ck',
+      sql`${table.categoryRevision} is null or ${table.categoryRevision} > 0`,
+    ),
+    check(
+      'catalog_product_category_events_previous_lifecycle_ck',
+      sql`${table.previousLifecycleState} is null or ${table.previousLifecycleState} in ('ACTIVE', 'RETIRED')`,
+    ),
+    check(
+      'catalog_product_category_events_next_lifecycle_ck',
+      sql`${table.nextLifecycleState} is null or ${table.nextLifecycleState} in ('ACTIVE', 'RETIRED')`,
+    ),
+    check(
+      'catalog_product_category_events_previous_name_ck',
+      sql`${table.previousName} is null or (${table.previousName} = btrim(${table.previousName}) and length(${table.previousName}) between 1 and 240)`,
+    ),
+    check(
+      'catalog_product_category_events_next_name_ck',
+      sql`${table.nextName} is null or (${table.nextName} = btrim(${table.nextName}) and length(${table.nextName}) between 1 and 240)`,
     ),
     check(
       'catalog_product_category_events_reason_ck',

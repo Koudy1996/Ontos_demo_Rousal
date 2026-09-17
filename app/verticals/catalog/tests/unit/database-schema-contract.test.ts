@@ -68,6 +68,9 @@ it('constrains Product Type revisions, rule levels, and a single current assignm
   expect(getTableConfig(productTypeRevisionAttributes).primaryKeys.map((key) => key.getName())).toContain(
     'catalog_product_type_revision_attributes_pk',
   );
+  expect(getTableConfig(productTypeRevisionAttributes).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_type_revision_attributes_revision_fk',
+  ]);
   expect(getTableConfig(productTypeAssignments).primaryKeys.map((key) => key.getName())).toContain(
     'catalog_product_type_assignments_pk',
   );
@@ -97,6 +100,21 @@ it('constrains tenant-qualified Category hierarchy, direct links, and revision l
   expect(getTableConfig(productCategoryEvents).uniqueConstraints.map((constraint) => constraint.name)).toContain(
     'catalog_product_category_events_invocation_uk',
   );
+  expect(getTableConfig(productCategoryEvents).foreignKeys.map((key) => key.getName())).toEqual([
+    'catalog_product_category_events_category_fk',
+    'catalog_product_category_events_product_fk',
+    'catalog_product_category_events_previous_parent_fk',
+    'catalog_product_category_events_next_parent_fk',
+  ]);
+  for (const name of [
+    'previous_name',
+    'next_name',
+    'previous_lifecycle_state',
+    'next_lifecycle_state',
+    'category_revision',
+  ]) {
+    expect(getTableConfig(productCategoryEvents).columns.map((column) => column.name)).toContain(name);
+  }
 });
 
 it('keeps Product identity, Variant ownership, and historical revision keys constrained', () => {
@@ -131,4 +149,7 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_product_type_revision_attributes_append_only');
   expect(combined).toContain('catalog_product_type_assignment_events_append_only');
   expect(combined).toContain('catalog_product_category_events_append_only');
+  expect(combined).toContain('catalog_product_types_identity_immutable');
+  expect(combined).toContain('catalog_product_categories_identity_immutable');
+  expect(combined).toContain('catalog_category_revision_counters_monotonic');
 });
