@@ -3,6 +3,7 @@ import { DateTime, Effect, Option } from 'effect';
 import type { ConfigurationUnitRevision } from '../../shared/domain/configuration-unit.ts';
 import { evaluateMeasuredConstraint } from '../../shared/domain/configuration-constraints.ts';
 import type { ConstraintDecision, MeasuredConstraint } from '../../shared/domain/configuration-constraints.ts';
+import { inspectProductConfigurationRuleConsistency } from './product-configuration-persistence.ts';
 import type {
   ConfigurationCompatibilityRuleInput,
   ConfigurationMeasuredRuleInput,
@@ -311,6 +312,18 @@ const unitEvidenceCurrent = (revision: CurrentConfigurationRevision, at: Date): 
     );
   });
 
+const rulesCurrent = (revision: CurrentConfigurationRevision): boolean =>
+  inspectProductConfigurationRuleConsistency(revision) === null;
+const currentIssue = (
+  revision: CurrentConfigurationRevision,
+  input: CurrentConfigurationAssessmentInput,
+): string | null => {
+  if (!currentAt(revision, input)) {
+    return 'CURRENT_DEFINITION_UNVERIFIED';
+  }
+  return rulesCurrent(revision) ? null : 'CURRENT_RULES_UNVERIFIED';
+};
+
 /** Reads one owner-confirmed Current revision; no Selection proof or purchase permission is issued. */
 export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurationCurrentEvaluator.evaluate')(
   function* evaluateCurrentProductConfiguration(
@@ -373,11 +386,9 @@ export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurati
     if (revision === undefined) {
       return unknown('CURRENT_DEFINITION_UNAVAILABLE');
     }
-    if (!currentAt(revision, input)) {
-      return unknown('CURRENT_DEFINITION_UNVERIFIED');
-    }
-    if (matching === undefined) {
-      return unknown('CURRENT_RULES_UNAVAILABLE');
+    const issue = currentIssue(revision, input);
+    if (issue !== null) {
+      return unknown(issue);
     }
     if (revision.definitionEvidenceRefs.length === 0) {
       return unknown('CHOICE_REVISION_UNVERIFIED');
@@ -385,7 +396,7 @@ export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurati
     if (!unitEvidenceCurrent(revision, input.at)) {
       return unknown('CONFIGURATION_UNIT_REVISION_UNVERIFIED');
     }
-    const decision = assess(revision, matching, input.values);
+    const decision = assess(revision, matching ?? applicableRules(revision, input.target), input.values);
     if (decision?.status === 'INVALID') {
       return invalid(decision.code, decision.ruleIds);
     }

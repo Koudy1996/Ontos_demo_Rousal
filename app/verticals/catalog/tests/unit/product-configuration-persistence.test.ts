@@ -149,6 +149,94 @@ describe('Product Configuration publication input', () => {
     ).toBeNull();
   });
 
+  it('rejects empty and contradictory measured intervals while allowing disjoint variant ranges', () => {
+    for (const minimumInclusive of [false, true]) {
+      expect(
+        inspectProductConfigurationPublishInput({
+          ...input,
+          measuredRules: [
+            {
+              choiceKey: 'length',
+              evidenceRefs: ['range'],
+              maximum: '100.0',
+              maximumInclusive: false,
+              minimum: '100',
+              minimumInclusive,
+            },
+          ],
+        }),
+      ).toContain('bounds or step');
+    }
+    const [productRule] = input.measuredRules;
+    const narrowVariant = {
+      choiceKey: 'length',
+      evidenceRefs: ['variant range'],
+      minimum: '121',
+      minimumInclusive: true,
+      variantId: 'black',
+    } as const;
+    expect(
+      inspectProductConfigurationPublishInput({ ...input, measuredRules: [productRule, narrowVariant] }),
+    ).toContain('contradictory');
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [productRule, { ...narrowVariant, minimum: '120', minimumInclusive: false }],
+      }),
+    ).toContain('contradictory');
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [
+          productRule,
+          { ...narrowVariant, minimum: '121', variantId: 'black' },
+          {
+            choiceKey: 'length',
+            evidenceRefs: ['white range'],
+            maximum: '90',
+            maximumInclusive: true,
+            variantId: 'white',
+          },
+        ],
+      }),
+    ).toContain('contradictory');
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [
+          productRule,
+          { ...narrowVariant, minimum: '100' },
+          {
+            choiceKey: 'length',
+            evidenceRefs: ['white range'],
+            maximum: '90',
+            maximumInclusive: true,
+            variantId: 'white',
+          },
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects a forbidden pair that cannot coexist on one Single Choice', () => {
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        compatibilityRules: [
+          {
+            choiceKey: 'mount',
+            evidenceRefs: ['conflict'],
+            kind: 'FORBIDDEN_PAIR',
+            optionKey: 'A',
+            otherChoiceKey: 'mount',
+            otherOptionKey: 'B',
+            ruleId: 'same-choice-distinct-options',
+          },
+        ],
+      }),
+    ).toContain('operands');
+  });
+
   it('rejects unsupported compatibility operands and missing evidence', () => {
     expect(
       inspectProductConfigurationPublishInput({

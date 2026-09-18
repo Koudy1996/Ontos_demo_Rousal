@@ -27,6 +27,13 @@ export class ProductConfigurationPersistenceUnavailable extends Schema.TaggedErr
   { code: Schema.Literal('product_configuration_persistence_unavailable'), reason: Schema.String },
 ) {}
 
+interface ConfigurationRuleSnapshot {
+  readonly choices: PublishProductConfigurationInput['choices'];
+  readonly compatibilityRules: PublishProductConfigurationInput['compatibilityRules'];
+  readonly measuredRules: PublishProductConfigurationInput['measuredRules'];
+  readonly optionAllowances: PublishProductConfigurationInput['optionAllowances'];
+}
+
 export interface ConfigurationSelectionImpact {
   /** Owner-issued proof, including existing open selections; unavailable evidence fails closed. */
   readonly verify: (input: {
@@ -34,10 +41,7 @@ export interface ConfigurationSelectionImpact {
     readonly effectiveFrom: Date;
     readonly previousRevision: number;
     readonly productId: string;
-    readonly proposed: Pick<
-      PublishProductConfigurationInput,
-      'choices' | 'optionAllowances' | 'measuredRules' | 'compatibilityRules'
-    >;
+    readonly proposed: ConfigurationRuleSnapshot;
     readonly proposedRevision: number;
     readonly tenantId: string;
   }) => Effect.Effect<boolean, ProductConfigurationPersistenceUnavailable>;
@@ -185,6 +189,42 @@ const targetKey = (value: ConfigurationTargetInput): string =>
 const validTarget = (value: ConfigurationTargetInput): boolean =>
   value.packageDefinitionId === undefined || value.variantId !== undefined;
 const unique = (values: readonly string[]): boolean => new Set(values).size === values.length;
+const overlappingTargets = (left: ConfigurationTargetInput, right: ConfigurationTargetInput): boolean =>
+  (left.variantId === undefined || right.variantId === undefined || left.variantId === right.variantId) &&
+  (left.packageDefinitionId === undefined ||
+    right.packageDefinitionId === undefined ||
+    left.packageDefinitionId === right.packageDefinitionId);
+const conflictingBounds = (rules: readonly ConfigurationMeasuredRuleInput[]): boolean => {
+  for (const lower of rules) {
+    if (lower.minimum === undefined) {
+      continue;
+    }
+    for (const upper of rules) {
+      if (upper.maximum === undefined || !overlappingTargets(lower, upper)) {
+        continue;
+      }
+      const order = compareDecimal(lower.minimum, upper.maximum);
+      if (order > 0 || (order === 0 && (lower.minimumInclusive !== true || upper.maximumInclusive !== true))) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+const invalidMeasuredBounds = (rule: ConfigurationMeasuredRuleInput): boolean =>
+  !decimal(rule.minimum) ||
+  !decimal(rule.maximum) ||
+  !decimal(rule.step) ||
+  !decimal(rule.stepBase) ||
+  (rule.minimum === undefined) !== (rule.minimumInclusive === undefined) ||
+  (rule.maximum === undefined) !== (rule.maximumInclusive === undefined) ||
+  (rule.step === undefined) !== (rule.stepBase === undefined) ||
+  (rule.step !== undefined && compareDecimal(rule.step, '0') <= 0) ||
+  (rule.minimum !== undefined &&
+    rule.maximum !== undefined &&
+    (compareDecimal(rule.minimum, rule.maximum) > 0 ||
+      (compareDecimal(rule.minimum, rule.maximum) === 0 &&
+        (rule.minimumInclusive !== true || rule.maximumInclusive !== true))));
 
 const inspectChoice = (choice: ConfigurationChoiceInput): string | null => {
   if (!text(choice.choiceKey, 160) || !text(choice.meaning) || !text(choice.label, 240)) {
@@ -217,7 +257,7 @@ const knownOption = (
 ): boolean => choices.get(choiceKey)?.options?.some((option) => option.optionKey === optionKey) ?? false;
 
 const inspectAllowances = (
-  input: PublishProductConfigurationInput,
+  input: Pick<PublishProductConfigurationInput, 'choices' | 'optionAllowances'>,
   choices: ReadonlyMap<string, ConfigurationChoiceInput>,
 ): string | null => {
   if (!unique(input.optionAllowances.map((rule) => `${rule.choiceKey}|${rule.optionKey}|${targetKey(rule)}`))) {
@@ -250,7 +290,7 @@ const inspectAllowances = (
 };
 
 const inspectMeasured = (
-  input: PublishProductConfigurationInput,
+  input: Pick<PublishProductConfigurationInput, 'choices' | 'measuredRules'>,
   choices: ReadonlyMap<string, ConfigurationChoiceInput>,
 ): string | null => {
   if (!unique(input.measuredRules.map((rule) => `${rule.choiceKey}|${targetKey(rule)}`))) {
@@ -261,17 +301,17 @@ const inspectMeasured = (
       !validTarget(rule) ||
       choices.get(rule.choiceKey)?.kind !== 'MEASURED_VALUE' ||
       !evidence(rule.evidenceRefs) ||
-      !decimal(rule.minimum) ||
-      !decimal(rule.maximum) ||
-      !decimal(rule.step) ||
-      !decimal(rule.stepBase) ||
-      (rule.minimum === undefined) !== (rule.minimumInclusive === undefined) ||
-      (rule.maximum === undefined) !== (rule.maximumInclusive === undefined) ||
-      (rule.step === undefined) !== (rule.stepBase === undefined) ||
-      (rule.step !== undefined && compareDecimal(rule.step, '0') <= 0) ||
-      (rule.minimum !== undefined && rule.maximum !== undefined && compareDecimal(rule.minimum, rule.maximum) > 0)
+      invalidMeasuredBounds(rule)
     ) {
       return 'Measured rule bounds or step are invalid';
+    }
+  }
+  for (const choice of input.choices) {
+    if (
+      choice.kind === 'MEASURED_VALUE' &&
+      conflictingBounds(input.measuredRules.filter((rule) => rule.choiceKey === choice.choiceKey))
+    ) {
+      return 'Combined measured rule bounds are contradictory';
     }
   }
   return input.choices.some(
@@ -286,8 +326,11 @@ const inspectMeasured = (
     : null;
 };
 
+const impossibleForbiddenPair = (rule: ConfigurationCompatibilityRuleInput): boolean =>
+  rule.choiceKey === rule.otherChoiceKey && rule.optionKey !== rule.otherOptionKey;
+
 const inspectCompatibility = (
-  input: PublishProductConfigurationInput,
+  input: Pick<PublishProductConfigurationInput, 'compatibilityRules'>,
   choices: ReadonlyMap<string, ConfigurationChoiceInput>,
 ): string | null => {
   if (!unique(input.compatibilityRules.map((rule) => rule.ruleId))) {
@@ -301,6 +344,7 @@ const inspectCompatibility = (
       !knownOption(choices, rule.choiceKey, rule.optionKey) ||
       (rule.kind === 'FORBIDDEN_PAIR' &&
         (!knownOption(choices, rule.otherChoiceKey, rule.otherOptionKey ?? '') ||
+          impossibleForbiddenPair(rule) ||
           rule.maximum !== undefined ||
           rule.maximumInclusive !== undefined)) ||
       (rule.kind === 'CONDITIONAL_MAXIMUM' &&
@@ -314,6 +358,28 @@ const inspectCompatibility = (
     }
   }
   return null;
+};
+
+export const inspectProductConfigurationRules = (input: ConfigurationRuleSnapshot): string | null => {
+  if (input.choices.length === 0 || !unique(input.choices.map((choice) => choice.choiceKey))) {
+    return 'Choices must be explicit and unique';
+  }
+  for (const choice of input.choices) {
+    const issue = inspectChoice(choice);
+    if (issue !== null) {
+      return issue;
+    }
+  }
+  const choices = new Map(input.choices.map((choice) => [choice.choiceKey, choice]));
+  return inspectAllowances(input, choices) ?? inspectMeasured(input, choices) ?? inspectCompatibility(input, choices);
+};
+
+/** Detect malformed constraints without treating a missing decision as a customer-value violation. */
+export const inspectProductConfigurationRuleConsistency = (
+  input: Pick<PublishProductConfigurationInput, 'choices' | 'measuredRules' | 'compatibilityRules'>,
+): string | null => {
+  const choices = new Map(input.choices.map((choice) => [choice.choiceKey, choice]));
+  return inspectMeasured(input, choices) ?? inspectCompatibility(input, choices);
 };
 
 export const inspectProductConfigurationPublishInput = (input: PublishProductConfigurationInput): string | null => {
@@ -330,17 +396,7 @@ export const inspectProductConfigurationPublishInput = (input: PublishProductCon
   ) {
     return 'Invalid scope, revision, effectiveness, or action evidence';
   }
-  if (input.choices.length === 0 || !unique(input.choices.map((choice) => choice.choiceKey))) {
-    return 'Choices must be explicit and unique';
-  }
-  for (const choice of input.choices) {
-    const issue = inspectChoice(choice);
-    if (issue !== null) {
-      return issue;
-    }
-  }
-  const choices = new Map(input.choices.map((choice) => [choice.choiceKey, choice]));
-  return inspectAllowances(input, choices) ?? inspectMeasured(input, choices) ?? inspectCompatibility(input, choices);
+  return inspectProductConfigurationRules(input);
 };
 const inspectActingPrincipal = (input: PublishProductConfigurationInput, trustedPrincipalId: string): string | null =>
   input.principalId === trustedPrincipalId ? null : 'Acting Principal does not match trusted operation scope';

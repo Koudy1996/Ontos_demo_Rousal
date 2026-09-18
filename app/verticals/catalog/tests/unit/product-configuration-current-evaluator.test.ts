@@ -223,6 +223,26 @@ describe('Current Product Configuration evaluator', () => {
     }),
   );
 
+  it.effect('treats a corrupt rule definition as indeterminate, not an invalid customer value', () =>
+    Effect.gen(function* rejectsCorruptRules() {
+      expect(
+        yield* evaluate({
+          ...revision,
+          measuredRules: [
+            ...revision.measuredRules.slice(0, 1),
+            {
+              choiceKey: 'length',
+              evidenceRefs: ['bad range'],
+              minimum: '121',
+              minimumInclusive: true,
+              variantId: 'black',
+            },
+          ],
+        }),
+      ).toMatchObject({ code: 'CURRENT_RULES_UNVERIFIED', status: 'INDETERMINATE' });
+    }),
+  );
+
   it.effect('rejects stale or retired Configuration Unit evidence without substituting a later revision', () =>
     Effect.gen(function* checksUnitRevision() {
       const [unit] = revision.units;
