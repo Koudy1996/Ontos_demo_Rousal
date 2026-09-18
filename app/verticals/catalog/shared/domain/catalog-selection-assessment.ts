@@ -46,13 +46,16 @@ const sameRef = (left: CatalogSelectionRevision['resourceRef'], right: CatalogSe
   left.resourceId === right.resourceId;
 
 const matchingBasis = (basis: Basis, role: Basis[number]['role'], selected: CatalogSelectionRevision): boolean =>
-  basis.some((fact) => fact.role === role && sameCatalogRevisionReference(fact.source, selected));
+  basis.some(
+    (fact) => fact.subject === undefined && fact.role === role && sameCatalogRevisionReference(fact.source, selected),
+  );
 
 const hasRoleForRef = (
   basis: Basis,
   role: Basis[number]['role'],
   ref: CatalogSelectionRevision['resourceRef'],
-): boolean => basis.some((fact) => fact.role === role && sameRef(fact.source.resourceRef, ref));
+): boolean =>
+  basis.some((fact) => fact.subject === undefined && fact.role === role && sameRef(fact.source.resourceRef, ref));
 
 const assessPinnedRevisions = (
   selection: CatalogSelection,
@@ -126,7 +129,10 @@ export const assessCatalogSelection = (input: CatalogSelectionAssessmentInput): 
   if (!hasRoleForRef(basis, 'PRODUCT', selection.productRef)) {
     return indeterminate('Current Product revision is missing');
   }
-  if (!basis.some((fact) => fact.role === 'PRODUCT_TYPE') || !current.dependentFactsComplete) {
+  if (
+    !basis.some((fact) => fact.subject === undefined && fact.role === 'PRODUCT_TYPE') ||
+    !current.dependentFactsComplete
+  ) {
     return indeterminate('Required direct or indirect Catalog facts are not completely attested');
   }
   if (basis.some((fact) => fact.source.resourceRef.tenantId !== selection.productRef.tenantId)) {

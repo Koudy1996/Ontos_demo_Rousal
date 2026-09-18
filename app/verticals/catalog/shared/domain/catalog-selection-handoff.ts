@@ -66,7 +66,10 @@ const hasBasis = (
   basis: ReadyQuantity['evidence']['basis'],
   role: (typeof CatalogSelectionBasisSchema.Type)['role'],
   revision: (typeof CatalogSelectionBasisSchema.Type)['source'],
-): boolean => basis.some((item) => item.role === role && sameCatalogRevisionReference(item.source, revision));
+): boolean =>
+  basis.some(
+    (item) => item.subject === undefined && item.role === role && sameCatalogRevisionReference(item.source, revision),
+  );
 
 const packageIsProven = (quantity: ReadyQuantity): boolean => {
   const selected = quantity.selection.packageOption;

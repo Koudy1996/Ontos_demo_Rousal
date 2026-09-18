@@ -12,6 +12,10 @@ import { VariantRefSchema } from '../resources/variant.ts';
 const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed());
 const choiceKeySchema = nonEmptyText.pipe(Schema.brand('CatalogConfigurationChoiceKey'));
 const membershipAttestationIdSchema = nonEmptyText.pipe(Schema.brand('CatalogMembershipAttestationId'));
+const setComponentIdSchema = Schema.String.check(Schema.isUUID(), Schema.isTrimmed()).pipe(
+  Schema.brand('SetComponentId'),
+);
+const packageDefinitionType = 'commerce.catalog.package-definition';
 
 /** An owner-issued business revision; no revision ID is invented when the owner issues only a sequence. */
 export const CatalogSelectionRevisionSchema = Schema.Struct({
@@ -33,7 +37,7 @@ export const VariantSelectionRevisionSchema = revisionOf('commerce.catalog.varia
 export const ProductTypeSelectionRevisionSchema = revisionOf('commerce.catalog.product-type');
 export const AttributeDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.attribute-definition');
 export const ConfigurationUnitSelectionRevisionSchema = revisionOf('commerce.catalog.unit');
-export const PackageDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.package-definition');
+export const PackageDefinitionSelectionRevisionSchema = revisionOf(packageDefinitionType);
 export const ConfigurationDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.configuration-definition');
 export const SetCompositionSelectionRevisionSchema = revisionOf('commerce.catalog.set-composition');
 
@@ -149,14 +153,67 @@ export const CatalogSelectionBasisSchema = Schema.Struct({
     'VARIANT_AXIS',
     'CONFIGURATION_DEFINITION',
     'UNIT',
+    'UNIT_RULE',
+    'UNIT_TARGET_DIVISIBILITY',
     'PACKAGE_CONTENT',
+    'PACKAGE_OPTION_ROLE',
     'SET_COMPOSITION',
     'COMPONENT',
     'CATEGORY',
     'OTHER_CATALOG_FACT',
   ]),
   source: CatalogSelectionRevisionSchema,
-});
+  /** Absent for the selected target itself; present for one need in a pinned Set revision. */
+  subject: Schema.optionalKey(
+    Schema.Struct({
+      componentId: setComponentIdSchema,
+      composition: SetCompositionSelectionRevisionSchema,
+      kind: Schema.Literal('SET_COMPONENT'),
+    }),
+  ),
+}).check(
+  Schema.makeFilter(({ role, source, subject }) => {
+    if (subject !== undefined && subject.composition.resourceRef.tenantId !== source.resourceRef.tenantId) {
+      return 'Component basis and source must share one Tenant';
+    }
+    if (role === 'UNIT_RULE' && source.resourceRef.resourceType !== 'commerce.catalog.product-unit') {
+      return 'Unit rule basis must name its Product Unit Resource';
+    }
+    if (
+      role === 'UNIT_TARGET_DIVISIBILITY' &&
+      source.resourceRef.resourceType !== 'commerce.catalog.variant' &&
+      source.resourceRef.resourceType !== packageDefinitionType
+    ) {
+      return 'Target divisibility basis must name its Variant or Package Definition Resource';
+    }
+    return role === 'PACKAGE_OPTION_ROLE' && source.resourceRef.resourceType !== packageDefinitionType
+      ? 'Package Option role basis must name its Package Definition Resource'
+      : undefined;
+  }),
+);
+export type CatalogSelectionBasis = typeof CatalogSelectionBasisSchema.Type;
+
+/** Role and component scope are part of identity, even when the owner Source revision is equal. */
+export const sameCatalogSelectionBasis = (left: CatalogSelectionBasis, right: CatalogSelectionBasis): boolean =>
+  left.role === right.role &&
+  sameRef(left.source.resourceRef, right.source.resourceRef) &&
+  left.source.revision === right.source.revision &&
+  left.source.revisionId === right.source.revisionId &&
+  (left.subject === undefined
+    ? right.subject === undefined
+    : right.subject !== undefined &&
+      left.subject.componentId === right.subject.componentId &&
+      sameRef(left.subject.composition.resourceRef, right.subject.composition.resourceRef) &&
+      left.subject.composition.revision === right.subject.composition.revision &&
+      left.subject.composition.revisionId === right.subject.composition.revisionId);
+
+export const CatalogSelectionBasisListSchema = Schema.Array(CatalogSelectionBasisSchema).check(
+  Schema.makeFilter((basis) =>
+    basis.some((entry, index) => basis.slice(index + 1).some((later) => sameCatalogSelectionBasis(entry, later)))
+      ? 'Duplicate Catalog basis identity'
+      : undefined,
+  ),
+);
 
 /** Owner-issued membership evidence binds a Variant revision to its Product without changing the request. */
 export const CatalogSelectionMembershipSchema = Schema.Struct({
@@ -180,7 +237,8 @@ const hasExactBasis = (
   reference: CatalogSelectionRevision,
 ): boolean =>
   basis.some(
-    ({ role: candidateRole, source }) =>
+    ({ role: candidateRole, source, subject }) =>
+      subject === undefined &&
       candidateRole === role &&
       sameRef(source.resourceRef, reference.resourceRef) &&
       source.revision === reference.revision &&
@@ -190,7 +248,7 @@ const hasExactBasis = (
 /** Evidence is a point-in-time assessment, not a guarantee that it remains Current at Order commit. */
 const assessmentFields = {
   assessedAt: CatalogRevisionInstantSchema,
-  basis: Schema.Array(CatalogSelectionBasisSchema),
+  basis: CatalogSelectionBasisListSchema,
   purpose: nonEmptyText,
   selection: CatalogSelectionSchema,
   validUntil: Schema.optionalKey(CatalogRevisionInstantSchema),
@@ -205,8 +263,19 @@ export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
     sameRef(membership.variant.resourceRef, selection.variantRef) &&
     membership.observedAt === assessedAt &&
     (validUntil === undefined || validUntil > assessedAt) &&
-    basis.every(({ source }) => source.resourceRef.tenantId === selection.productRef.tenantId) &&
-    basis.some(({ role, source }) => role === 'PRODUCT' && sameRef(source.resourceRef, selection.productRef)) &&
+    basis.every(
+      ({ source, subject }) =>
+        source.resourceRef.tenantId === selection.productRef.tenantId &&
+        (subject === undefined ||
+          (selection.setComposition !== undefined &&
+            sameRef(subject.composition.resourceRef, selection.setComposition.resourceRef) &&
+            subject.composition.revision === selection.setComposition.revision &&
+            subject.composition.revisionId === selection.setComposition.revisionId)),
+    ) &&
+    basis.some(
+      ({ role, source, subject }) =>
+        subject === undefined && role === 'PRODUCT' && sameRef(source.resourceRef, selection.productRef),
+    ) &&
     hasExactBasis(basis, 'VARIANT', membership.variant) &&
     (selection.packageOption === undefined ||
       hasExactBasis(basis, 'PACKAGE_CONTENT', selection.packageOption.contentRevision)) &&
@@ -252,7 +321,7 @@ export const CatalogSelectionAssessmentResultSchema = Schema.Union([
 export const CatalogAcceptedSelectionEvidenceSchema = Schema.Struct({
   acceptedAt: CatalogRevisionInstantSchema,
   acceptedSelection: CatalogSelectionWithQuantitySchema,
-  basis: Schema.Array(CatalogSelectionBasisSchema),
+  basis: CatalogSelectionBasisListSchema,
   historical: Schema.Literal(true),
   purpose: nonEmptyText,
 });

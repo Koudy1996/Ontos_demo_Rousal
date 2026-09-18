@@ -4,10 +4,12 @@ import { Schema } from 'effect';
 import {
   CatalogAcceptedSelectionEvidenceSchema,
   CatalogSelectionAssessmentResultSchema,
+  CatalogSelectionBasisSchema,
   CatalogSelectionEvidenceSchema,
   CatalogSelectionSchema,
   CatalogSelectionWithQuantitySchema,
   ProductSelectionRevisionSchema,
+  sameCatalogSelectionBasis,
 } from '../../shared/domain/catalog-selection-evidence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -25,6 +27,74 @@ const decodeSelection = Schema.decodeUnknownSync(CatalogSelectionSchema, { onExc
 const decodeEvidence = Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema, { onExcessProperty: 'error' });
 
 describe('Catalog Selection decision references', () => {
+  it('keeps component dependency roles and subjects distinct without fabricating revision identity', () => {
+    const composition = {
+      resourceRef: ref('commerce.catalog.set-composition', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      revision: 2,
+    };
+    const componentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const subject = { componentId, composition, kind: 'SET_COMPONENT' };
+    const source = { resourceRef: variantRef, revision: 3 };
+    const decode = Schema.decodeUnknownSync(CatalogSelectionBasisSchema, { onExcessProperty: 'error' });
+    const divisibility = decode({ role: 'UNIT_TARGET_DIVISIBILITY', source, subject });
+    const variant = decode({ role: 'VARIANT', source, subject });
+    expect(divisibility.subject).toMatchObject(subject);
+    expect(divisibility.source).toMatchObject(source);
+    expect(divisibility.source.revisionId).toBeUndefined();
+    expect(sameCatalogSelectionBasis(divisibility, variant)).toBe(false);
+    expect(
+      sameCatalogSelectionBasis(
+        divisibility,
+        decode({ role: 'UNIT_TARGET_DIVISIBILITY', source, subject: { ...subject, componentId: tenantId } }),
+      ),
+    ).toBe(false);
+    expect(() => decode({ role: 'UNIT_RULE', source: { ...source, resourceRef: variantRef }, subject })).toThrow();
+    expect(() => decode({ role: 'PACKAGE_OPTION_ROLE', source, subject })).toThrow();
+  });
+
+  it('rejects duplicate component basis identity and facts scoped to a different composition', () => {
+    const composition = {
+      resourceRef: ref('commerce.catalog.set-composition', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      revision: 2,
+    };
+    const subject = { componentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', composition, kind: 'SET_COMPONENT' };
+    const componentFact = { role: 'VARIANT', source: { resourceRef: variantRef, revision: 3 }, subject };
+    const membership = {
+      attestationId: 'catalog-membership-1',
+      observedAt: instant,
+      productRef,
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      variant: { resourceRef: variantRef, revision: 2 },
+    };
+    const basis = [
+      { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
+      { role: 'VARIANT', source: membership.variant },
+      { role: 'SET_COMPOSITION', source: composition },
+      componentFact,
+    ];
+    const selected = { ...selection, setComposition: composition };
+    const evidence = {
+      assessedAt: instant,
+      basis,
+      membership,
+      purpose: 'PURCHASE_ACCEPTANCE',
+      selection: selected,
+      status: 'VALID',
+    };
+    expect(decodeEvidence(evidence)).toMatchObject({ status: 'VALID' });
+    expect(() => decodeEvidence({ ...evidence, basis: [...basis, componentFact] })).toThrow();
+    expect(() =>
+      decodeEvidence({
+        ...evidence,
+        basis: basis.map((fact) =>
+          fact === componentFact
+            ? { ...componentFact, subject: { ...subject, composition: { ...composition, revision: 3 } } }
+            : fact,
+        ),
+      }),
+    ).toThrow();
+    expect(() => decodeEvidence({ ...evidence, basis: basis.filter((fact) => fact.role !== 'PRODUCT') })).toThrow();
+  });
   it('keeps exact Product and Variant identity without inventing a revision ID', () => {
     expect(decodeSelection(selection)).toMatchObject(selection);
     expect(
