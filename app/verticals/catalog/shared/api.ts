@@ -111,16 +111,27 @@ import { RemoveProductCategoryAssignmentRecoveryApi } from './apis/remove-produc
 import { RemoveProductLocalizedFactsActionApi } from './apis/remove-product-localized-facts-action.ts';
 import { RemoveProductLocalizedFactsRecoveryApi } from './apis/remove-product-localized-facts-recovery.ts';
 import { RemoveProductManufacturerActionApi } from './apis/remove-product-manufacturer-action.ts';
+import { RemoveProductManufacturerRecoveryApi } from './apis/remove-product-manufacturer-recovery.ts';
 import { RemoveProductRelationshipActionApi } from './apis/remove-product-relationship-action.ts';
+import { RemoveProductRelationshipRecoveryApi } from './apis/remove-product-relationship-recovery.ts';
 import { RemoveVariantAttributeOverrideActionApi } from './apis/remove-variant-attribute-override-action.ts';
+import { RemoveVariantAttributeOverrideRecoveryApi } from './apis/remove-variant-attribute-override-recovery.ts';
 import { RemoveVariantLocalizedFactsActionApi } from './apis/remove-variant-localized-facts-action.ts';
+import { RemoveVariantLocalizedFactsRecoveryApi } from './apis/remove-variant-localized-facts-recovery.ts';
 import { RenameAttributeDefinitionActionApi } from './apis/rename-attribute-definition-action.ts';
+import { RenameAttributeDefinitionRecoveryApi } from './apis/rename-attribute-definition-recovery.ts';
 import { RenameBrandActionApi } from './apis/rename-brand-action.ts';
+import { RenameBrandRecoveryApi } from './apis/rename-brand-recovery.ts';
 import { RenameControlledAttributeValueActionApi } from './apis/rename-controlled-attribute-value-action.ts';
+import { RenameControlledAttributeValueRecoveryApi } from './apis/rename-controlled-attribute-value-recovery.ts';
 import { RenameProductCategoryActionApi } from './apis/rename-product-category-action.ts';
+import { RenameProductCategoryRecoveryApi } from './apis/rename-product-category-recovery.ts';
 import { RenameSkuActionApi } from './apis/rename-sku-action.ts';
+import { RenameSkuRecoveryApi } from './apis/rename-sku-recovery.ts';
 import { ReorderCatalogMediaActionApi } from './apis/reorder-catalog-media-action.ts';
+import { ReorderCatalogMediaRecoveryApi } from './apis/reorder-catalog-media-recovery.ts';
 import { ReplaceProductSizesActionApi } from './apis/replace-product-sizes-action.ts';
+import { ReplaceProductSizesRecoveryApi } from './apis/replace-product-sizes-recovery.ts';
 import { RetireBrandActionApi } from './apis/retire-brand-action.ts';
 import { RetireBrandRecoveryApi } from './apis/retire-brand-recovery.ts';
 import { RetireConfigurationUnitActionApi } from './apis/retire-configuration-unit-action.ts';
@@ -156,8 +167,11 @@ import { ReviseSetCompositionRecoveryApi } from './apis/revise-set-composition-r
 import { SetCompositionCurrentApi } from './apis/set-composition-current.ts';
 import { SetCompositionHistoryApi } from './apis/set-composition-history.ts';
 import { SetProductAttributeValuesActionApi } from './apis/set-product-attribute-values-action.ts';
+import { SetProductAttributeValuesRecoveryApi } from './apis/set-product-attribute-values-recovery.ts';
 import { SetProductBrandActionApi } from './apis/set-product-brand-action.ts';
+import { SetProductBrandRecoveryApi } from './apis/set-product-brand-recovery.ts';
 import { SetProductLocalizedFactsActionApi } from './apis/set-product-localized-facts-action.ts';
+import { SetProductLocalizedFactsRecoveryApi } from './apis/set-product-localized-facts-recovery.ts';
 import { SetProductManufacturerActionApi } from './apis/set-product-manufacturer-action.ts';
 import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
 import { SetProductUnitTargetDivisibilityActionApi } from './apis/set-product-unit-target-divisibility-action.ts';
@@ -294,16 +308,27 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RemoveProductLocalizedFactsActionApi)
   .addHttpApi(RemoveProductLocalizedFactsRecoveryApi)
   .addHttpApi(RemoveProductManufacturerActionApi)
+  .addHttpApi(RemoveProductManufacturerRecoveryApi)
   .addHttpApi(RemoveProductRelationshipActionApi)
+  .addHttpApi(RemoveProductRelationshipRecoveryApi)
   .addHttpApi(RemoveVariantAttributeOverrideActionApi)
+  .addHttpApi(RemoveVariantAttributeOverrideRecoveryApi)
   .addHttpApi(RemoveVariantLocalizedFactsActionApi)
+  .addHttpApi(RemoveVariantLocalizedFactsRecoveryApi)
   .addHttpApi(RenameAttributeDefinitionActionApi)
+  .addHttpApi(RenameAttributeDefinitionRecoveryApi)
   .addHttpApi(RenameBrandActionApi)
+  .addHttpApi(RenameBrandRecoveryApi)
   .addHttpApi(RenameControlledAttributeValueActionApi)
+  .addHttpApi(RenameControlledAttributeValueRecoveryApi)
   .addHttpApi(RenameProductCategoryActionApi)
+  .addHttpApi(RenameProductCategoryRecoveryApi)
   .addHttpApi(RenameSkuActionApi)
+  .addHttpApi(RenameSkuRecoveryApi)
   .addHttpApi(ReorderCatalogMediaActionApi)
+  .addHttpApi(ReorderCatalogMediaRecoveryApi)
   .addHttpApi(ReplaceProductSizesActionApi)
+  .addHttpApi(ReplaceProductSizesRecoveryApi)
   .addHttpApi(RetireBrandActionApi)
   .addHttpApi(RetireBrandRecoveryApi)
   .addHttpApi(RetireConfigurationUnitActionApi)
@@ -339,8 +364,11 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(SetCompositionCurrentApi)
   .addHttpApi(SetCompositionHistoryApi)
   .addHttpApi(SetProductAttributeValuesActionApi)
+  .addHttpApi(SetProductAttributeValuesRecoveryApi)
   .addHttpApi(SetProductBrandActionApi)
+  .addHttpApi(SetProductBrandRecoveryApi)
   .addHttpApi(SetProductLocalizedFactsActionApi)
+  .addHttpApi(SetProductLocalizedFactsRecoveryApi)
   .addHttpApi(SetProductManufacturerActionApi)
   .addHttpApi(SetProductTypeActionApi)
   .addHttpApi(SetProductUnitTargetDivisibilityActionApi)
@@ -943,6 +971,94 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.remove-product-manufacturer-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: manufacturerRelationBusinessTarget,
+    permission: 'commerce.catalog.read.remove-product-manufacturer-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.remove-product-relationship-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productRelationshipBusinessTarget,
+    permission: 'commerce.catalog.read.remove-product-relationship-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.remove-variant-attribute-override-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.remove-variant-attribute-override-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.remove-variant-localized-facts-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.remove-variant-localized-facts-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.rename-attribute-definition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: attributeDefinitionBusinessTarget,
+    permission: 'commerce.catalog.read.rename-attribute-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.rename-brand-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: brandBusinessTarget,
+    permission: 'commerce.catalog.read.rename-brand-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.rename-controlled-attribute-value-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: controlledAttributeValueBusinessTarget,
+    permission: 'commerce.catalog.read.rename-controlled-attribute-value-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.rename-product-category-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.read.rename-product-category-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.rename-sku-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.rename-sku-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.reorder-catalog-media-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.reorder-catalog-media-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.replace-product-sizes-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.replace-product-sizes-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.retire-brand-recovery': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: brandBusinessTarget,
@@ -1083,6 +1199,30 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: setCompositionBusinessTarget,
     permission: 'commerce.catalog.read.set-composition-history',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-product-attribute-values-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.set-product-attribute-values-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-product-brand-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.set-product-brand-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-product-localized-facts-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.set-product-localized-facts-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -1785,6 +1925,20 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.remove-product-attribute-values-recovery',
     'commerce.catalog.read.remove-product-category-assignment-recovery',
     'commerce.catalog.read.remove-product-localized-facts-recovery',
+    'commerce.catalog.read.remove-product-manufacturer-recovery',
+    'commerce.catalog.read.remove-product-relationship-recovery',
+    'commerce.catalog.read.remove-variant-attribute-override-recovery',
+    'commerce.catalog.read.remove-variant-localized-facts-recovery',
+    'commerce.catalog.read.rename-attribute-definition-recovery',
+    'commerce.catalog.read.rename-brand-recovery',
+    'commerce.catalog.read.rename-controlled-attribute-value-recovery',
+    'commerce.catalog.read.rename-product-category-recovery',
+    'commerce.catalog.read.rename-sku-recovery',
+    'commerce.catalog.read.reorder-catalog-media-recovery',
+    'commerce.catalog.read.replace-product-sizes-recovery',
+    'commerce.catalog.read.set-product-attribute-values-recovery',
+    'commerce.catalog.read.set-product-brand-recovery',
+    'commerce.catalog.read.set-product-localized-facts-recovery',
     'commerce.catalog.read.retire-brand-recovery',
     'commerce.catalog.read.retire-configuration-unit-recovery',
     'commerce.catalog.read.retire-controlled-attribute-value-recovery',

@@ -83,6 +83,20 @@ import { productRelationshipCurrentRead } from '../../src/api/product-relationsh
 import { productRelationshipHistoryRead } from '../../src/api/product-relationship-history.read.ts';
 import { quantityPreparationRead } from '../../src/api/quantity-preparation.read.ts';
 import { skuLookupRead } from '../../src/api/sku-lookup.read.ts';
+import { removeProductManufacturerRecoveryRead } from '../../src/api/remove-product-manufacturer-recovery.read.ts';
+import { removeProductRelationshipRecoveryRead } from '../../src/api/remove-product-relationship-recovery.read.ts';
+import { removeVariantAttributeOverrideRecoveryRead } from '../../src/api/remove-variant-attribute-override-recovery.read.ts';
+import { removeVariantLocalizedFactsRecoveryRead } from '../../src/api/remove-variant-localized-facts-recovery.read.ts';
+import { renameAttributeDefinitionRecoveryRead } from '../../src/api/rename-attribute-definition-recovery.read.ts';
+import { renameBrandRecoveryRead } from '../../src/api/rename-brand-recovery.read.ts';
+import { renameControlledAttributeValueRecoveryRead } from '../../src/api/rename-controlled-attribute-value-recovery.read.ts';
+import { renameProductCategoryRecoveryRead } from '../../src/api/rename-product-category-recovery.read.ts';
+import { renameSkuRecoveryRead } from '../../src/api/rename-sku-recovery.read.ts';
+import { reorderCatalogMediaRecoveryRead } from '../../src/api/reorder-catalog-media-recovery.read.ts';
+import { replaceProductSizesRecoveryRead } from '../../src/api/replace-product-sizes-recovery.read.ts';
+import { setProductAttributeValuesRecoveryRead } from '../../src/api/set-product-attribute-values-recovery.read.ts';
+import { setProductBrandRecoveryRead } from '../../src/api/set-product-brand-recovery.read.ts';
+import { setProductLocalizedFactsRecoveryRead } from '../../src/api/set-product-localized-facts-recovery.read.ts';
 import { setCompositionCurrentRead } from '../../src/api/set-composition-current.read.ts';
 import { setCompositionHistoryRead } from '../../src/api/set-composition-history.read.ts';
 
@@ -168,6 +182,20 @@ const reads = [
   productRelationshipHistoryRead,
   quantityPreparationRead,
   skuLookupRead,
+  removeProductManufacturerRecoveryRead,
+  removeProductRelationshipRecoveryRead,
+  removeVariantAttributeOverrideRecoveryRead,
+  removeVariantLocalizedFactsRecoveryRead,
+  renameAttributeDefinitionRecoveryRead,
+  renameBrandRecoveryRead,
+  renameControlledAttributeValueRecoveryRead,
+  renameProductCategoryRecoveryRead,
+  renameSkuRecoveryRead,
+  reorderCatalogMediaRecoveryRead,
+  replaceProductSizesRecoveryRead,
+  setProductAttributeValuesRecoveryRead,
+  setProductBrandRecoveryRead,
+  setProductLocalizedFactsRecoveryRead,
   setCompositionCurrentRead,
   setCompositionHistoryRead,
 ] as const;

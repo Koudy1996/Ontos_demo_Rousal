@@ -129,16 +129,27 @@ import { removeProductCategoryAssignmentRecoveryReadApiLive } from './remove-pro
 import { removeProductLocalizedFactsActionApiLive } from './remove-product-localized-facts-action-server.ts';
 import { removeProductLocalizedFactsRecoveryReadApiLive } from './remove-product-localized-facts-recovery-read-server.ts';
 import { removeProductManufacturerActionApiLive } from './remove-product-manufacturer-action-server.ts';
+import { removeProductManufacturerRecoveryReadApiLive } from './remove-product-manufacturer-recovery-read-server.ts';
 import { removeProductRelationshipActionApiLive } from './remove-product-relationship-action-server.ts';
+import { removeProductRelationshipRecoveryReadApiLive } from './remove-product-relationship-recovery-read-server.ts';
 import { removeVariantAttributeOverrideActionApiLive } from './remove-variant-attribute-override-action-server.ts';
+import { removeVariantAttributeOverrideRecoveryReadApiLive } from './remove-variant-attribute-override-recovery-read-server.ts';
 import { removeVariantLocalizedFactsActionApiLive } from './remove-variant-localized-facts-action-server.ts';
+import { removeVariantLocalizedFactsRecoveryReadApiLive } from './remove-variant-localized-facts-recovery-read-server.ts';
 import { renameAttributeDefinitionActionApiLive } from './rename-attribute-definition-action-server.ts';
+import { renameAttributeDefinitionRecoveryReadApiLive } from './rename-attribute-definition-recovery-read-server.ts';
 import { renameBrandActionApiLive } from './rename-brand-action-server.ts';
+import { renameBrandRecoveryReadApiLive } from './rename-brand-recovery-read-server.ts';
 import { renameControlledAttributeValueActionApiLive } from './rename-controlled-attribute-value-action-server.ts';
+import { renameControlledAttributeValueRecoveryReadApiLive } from './rename-controlled-attribute-value-recovery-read-server.ts';
 import { renameProductCategoryActionApiLive } from './rename-product-category-action-server.ts';
+import { renameProductCategoryRecoveryReadApiLive } from './rename-product-category-recovery-read-server.ts';
 import { renameSkuActionApiLive } from './rename-sku-action-server.ts';
+import { renameSkuRecoveryReadApiLive } from './rename-sku-recovery-read-server.ts';
 import { reorderCatalogMediaActionApiLive } from './reorder-catalog-media-action-server.ts';
+import { reorderCatalogMediaRecoveryReadApiLive } from './reorder-catalog-media-recovery-read-server.ts';
 import { replaceProductSizesActionApiLive } from './replace-product-sizes-action-server.ts';
+import { replaceProductSizesRecoveryReadApiLive } from './replace-product-sizes-recovery-read-server.ts';
 import { retireBrandActionApiLive } from './retire-brand-action-server.ts';
 import { retireBrandRecoveryReadApiLive } from './retire-brand-recovery-read-server.ts';
 import { retireConfigurationUnitActionApiLive } from './retire-configuration-unit-action-server.ts';
@@ -174,8 +185,11 @@ import { reviseSetCompositionRecoveryReadApiLive } from './revise-set-compositio
 import { setCompositionCurrentReadApiLive } from './set-composition-current-read-server.ts';
 import { setCompositionHistoryReadApiLive } from './set-composition-history-read-server.ts';
 import { setProductAttributeValuesActionApiLive } from './set-product-attribute-values-action-server.ts';
+import { setProductAttributeValuesRecoveryReadApiLive } from './set-product-attribute-values-recovery-read-server.ts';
 import { setProductBrandActionApiLive } from './set-product-brand-action-server.ts';
+import { setProductBrandRecoveryReadApiLive } from './set-product-brand-recovery-read-server.ts';
 import { setProductLocalizedFactsActionApiLive } from './set-product-localized-facts-action-server.ts';
+import { setProductLocalizedFactsRecoveryReadApiLive } from './set-product-localized-facts-recovery-read-server.ts';
 import { setProductManufacturerActionApiLive } from './set-product-manufacturer-action-server.ts';
 import { setProductTypeActionApiLive } from './set-product-type-action-server.ts';
 import { setProductUnitTargetDivisibilityActionApiLive } from './set-product-unit-target-divisibility-action-server.ts';
@@ -388,16 +402,27 @@ export const makeCatalogApiRuntime = (
     removeProductLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeProductLocalizedFactsRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     removeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    removeProductManufacturerRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     removeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    removeProductRelationshipRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     removeVariantAttributeOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    removeVariantAttributeOverrideRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     removeVariantLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    removeVariantLocalizedFactsRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     renameAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    renameAttributeDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     renameBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    renameBrandRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     renameControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    renameControlledAttributeValueRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     renameProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    renameProductCategoryRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     renameSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    renameSkuRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reorderCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reorderCatalogMediaRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     replaceProductSizesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    replaceProductSizesRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireBrandRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -433,8 +458,11 @@ export const makeCatalogApiRuntime = (
     setCompositionCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setCompositionHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setProductAttributeValuesRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setProductBrandRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setProductLocalizedFactsRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductUnitTargetDivisibilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

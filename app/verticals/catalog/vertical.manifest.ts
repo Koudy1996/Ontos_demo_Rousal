@@ -126,16 +126,27 @@ import { RemoveProductCategoryAssignmentRecoveryApi } from './shared/apis/remove
 import { removeProductLocalizedFactsAction } from './src/actions/remove-product-localized-facts.action.ts';
 import { RemoveProductLocalizedFactsRecoveryApi } from './shared/apis/remove-product-localized-facts-recovery.ts';
 import { removeProductManufacturerAction } from './src/actions/remove-product-manufacturer.action.ts';
+import { RemoveProductManufacturerRecoveryApi } from './shared/apis/remove-product-manufacturer-recovery.ts';
 import { removeProductRelationshipAction } from './src/actions/remove-product-relationship.action.ts';
+import { RemoveProductRelationshipRecoveryApi } from './shared/apis/remove-product-relationship-recovery.ts';
 import { removeVariantAttributeOverrideAction } from './src/actions/remove-variant-attribute-override.action.ts';
+import { RemoveVariantAttributeOverrideRecoveryApi } from './shared/apis/remove-variant-attribute-override-recovery.ts';
 import { removeVariantLocalizedFactsAction } from './src/actions/remove-variant-localized-facts.action.ts';
+import { RemoveVariantLocalizedFactsRecoveryApi } from './shared/apis/remove-variant-localized-facts-recovery.ts';
 import { renameAttributeDefinitionAction } from './src/actions/rename-attribute-definition.action.ts';
+import { RenameAttributeDefinitionRecoveryApi } from './shared/apis/rename-attribute-definition-recovery.ts';
 import { renameBrandAction } from './src/actions/rename-brand.action.ts';
+import { RenameBrandRecoveryApi } from './shared/apis/rename-brand-recovery.ts';
 import { renameControlledAttributeValueAction } from './src/actions/rename-controlled-attribute-value.action.ts';
+import { RenameControlledAttributeValueRecoveryApi } from './shared/apis/rename-controlled-attribute-value-recovery.ts';
 import { renameProductCategoryAction } from './src/actions/rename-product-category.action.ts';
+import { RenameProductCategoryRecoveryApi } from './shared/apis/rename-product-category-recovery.ts';
 import { renameSkuAction } from './src/actions/rename-sku.action.ts';
+import { RenameSkuRecoveryApi } from './shared/apis/rename-sku-recovery.ts';
 import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.action.ts';
+import { ReorderCatalogMediaRecoveryApi } from './shared/apis/reorder-catalog-media-recovery.ts';
 import { replaceProductSizesAction } from './src/actions/replace-product-sizes.action.ts';
+import { ReplaceProductSizesRecoveryApi } from './shared/apis/replace-product-sizes-recovery.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
 import { RetireBrandRecoveryApi } from './shared/apis/retire-brand-recovery.ts';
 import { retireConfigurationUnitAction } from './src/actions/retire-configuration-unit.action.ts';
@@ -171,8 +182,11 @@ import { ReviseSetCompositionRecoveryApi } from './shared/apis/revise-set-compos
 import { SetCompositionCurrentApi } from './shared/apis/set-composition-current.ts';
 import { SetCompositionHistoryApi } from './shared/apis/set-composition-history.ts';
 import { setProductAttributeValuesAction } from './src/actions/set-product-attribute-values.action.ts';
+import { SetProductAttributeValuesRecoveryApi } from './shared/apis/set-product-attribute-values-recovery.ts';
 import { setProductBrandAction } from './src/actions/set-product-brand.action.ts';
+import { SetProductBrandRecoveryApi } from './shared/apis/set-product-brand-recovery.ts';
 import { setProductLocalizedFactsAction } from './src/actions/set-product-localized-facts.action.ts';
+import { SetProductLocalizedFactsRecoveryApi } from './shared/apis/set-product-localized-facts-recovery.ts';
 import { setProductManufacturerAction } from './src/actions/set-product-manufacturer.action.ts';
 import { setProductTypeAction } from './src/actions/set-product-type.action.ts';
 import { setProductUnitTargetDivisibilityAction } from './src/actions/set-product-unit-target-divisibility.action.ts';
@@ -361,6 +375,17 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'remove-product-attribute-values-recovery': RemoveProductAttributeValuesRecoveryApi,
       'remove-product-category-assignment-recovery': RemoveProductCategoryAssignmentRecoveryApi,
       'remove-product-localized-facts-recovery': RemoveProductLocalizedFactsRecoveryApi,
+      'remove-product-manufacturer-recovery': RemoveProductManufacturerRecoveryApi,
+      'remove-product-relationship-recovery': RemoveProductRelationshipRecoveryApi,
+      'remove-variant-attribute-override-recovery': RemoveVariantAttributeOverrideRecoveryApi,
+      'remove-variant-localized-facts-recovery': RemoveVariantLocalizedFactsRecoveryApi,
+      'rename-attribute-definition-recovery': RenameAttributeDefinitionRecoveryApi,
+      'rename-brand-recovery': RenameBrandRecoveryApi,
+      'rename-controlled-attribute-value-recovery': RenameControlledAttributeValueRecoveryApi,
+      'rename-product-category-recovery': RenameProductCategoryRecoveryApi,
+      'rename-sku-recovery': RenameSkuRecoveryApi,
+      'reorder-catalog-media-recovery': ReorderCatalogMediaRecoveryApi,
+      'replace-product-sizes-recovery': ReplaceProductSizesRecoveryApi,
       'retire-brand-recovery': RetireBrandRecoveryApi,
       'retire-configuration-unit-recovery': RetireConfigurationUnitRecoveryApi,
       'retire-controlled-attribute-value-recovery': RetireControlledAttributeValueRecoveryApi,
@@ -379,6 +404,9 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'revise-set-composition-recovery': ReviseSetCompositionRecoveryApi,
       'set-composition-current': SetCompositionCurrentApi,
       'set-composition-history': SetCompositionHistoryApi,
+      'set-product-attribute-values-recovery': SetProductAttributeValuesRecoveryApi,
+      'set-product-brand-recovery': SetProductBrandRecoveryApi,
+      'set-product-localized-facts-recovery': SetProductLocalizedFactsRecoveryApi,
       'sku-lookup': SkuLookupApi,
       'update-product-recovery': UpdateProductRecoveryApi,
       'variant-history': VariantHistoryApi,

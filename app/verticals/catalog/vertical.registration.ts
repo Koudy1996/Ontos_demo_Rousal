@@ -237,6 +237,20 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
         import('./src/api/remove-product-category-assignment-recovery-client.ts'),
       'remove-product-localized-facts-recovery': () =>
         import('./src/api/remove-product-localized-facts-recovery-client.ts'),
+      'remove-product-manufacturer-recovery': () => import('./src/api/remove-product-manufacturer-recovery-client.ts'),
+      'remove-product-relationship-recovery': () => import('./src/api/remove-product-relationship-recovery-client.ts'),
+      'remove-variant-attribute-override-recovery': () =>
+        import('./src/api/remove-variant-attribute-override-recovery-client.ts'),
+      'remove-variant-localized-facts-recovery': () =>
+        import('./src/api/remove-variant-localized-facts-recovery-client.ts'),
+      'rename-attribute-definition-recovery': () => import('./src/api/rename-attribute-definition-recovery-client.ts'),
+      'rename-brand-recovery': () => import('./src/api/rename-brand-recovery-client.ts'),
+      'rename-controlled-attribute-value-recovery': () =>
+        import('./src/api/rename-controlled-attribute-value-recovery-client.ts'),
+      'rename-product-category-recovery': () => import('./src/api/rename-product-category-recovery-client.ts'),
+      'rename-sku-recovery': () => import('./src/api/rename-sku-recovery-client.ts'),
+      'reorder-catalog-media-recovery': () => import('./src/api/reorder-catalog-media-recovery-client.ts'),
+      'replace-product-sizes-recovery': () => import('./src/api/replace-product-sizes-recovery-client.ts'),
       'retire-brand-recovery': () => import('./src/api/retire-brand-recovery-client.ts'),
       'retire-configuration-unit-recovery': () => import('./src/api/retire-configuration-unit-recovery-client.ts'),
       'retire-controlled-attribute-value-recovery': () =>
@@ -256,6 +270,10 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'revise-set-composition-recovery': () => import('./src/api/revise-set-composition-recovery-client.ts'),
       'set-composition-current': () => import('./src/api/set-composition-current-client.ts'),
       'set-composition-history': () => import('./src/api/set-composition-history-client.ts'),
+      'set-product-attribute-values-recovery': () =>
+        import('./src/api/set-product-attribute-values-recovery-client.ts'),
+      'set-product-brand-recovery': () => import('./src/api/set-product-brand-recovery-client.ts'),
+      'set-product-localized-facts-recovery': () => import('./src/api/set-product-localized-facts-recovery-client.ts'),
       'sku-lookup': () => import('./src/api/sku-lookup-client.ts'),
       'update-product-recovery': () => import('./src/api/update-product-recovery-client.ts'),
       'variant-history': () => import('./src/api/variant-history-client.ts'),
