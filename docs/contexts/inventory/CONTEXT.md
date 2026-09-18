@@ -43,22 +43,24 @@ _Avoid_: allocation as remapping, availability-driven substitution, Unit convers
 
 ## Reservations and commitment
 
-**Inventory Reservation** — Durable Inventory Resource representing one exact stock obligation. A normal runtime provisional Reservation is bound to one exact Order Commitment Attempt and its exact Stock Requirements.
+**Inventory Reservation** — Durable, authority-homogeneous Inventory Resource representing one exact stock obligation for one Order Commitment Attempt. One Reservation contains only Stock Allocations enforced by one actual Reservation Authority; one Attempt may therefore require multiple Inventory Reservations.
 
 **Reservation Authority** — Owner capable of enforcing one exact Reservation obligation in the applicable scope and therefore of issuing authoritative Reservation evidence. It may be Inventory, an External Business System, or absent.
 _Avoid_: Availability, Integration Route, or provider adapter treated as authority merely because it consumes or transports evidence.
 
-**Reservation Confirmation** — Attempt-bound proof issued by the actual Reservation Authority that one exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. It is not part of the pre-attempt Order Acceptance Decision Bundle.
+**Attempt Reservation Coverage** — Complete set of one or more Inventory Reservations whose Allocations collectively cover all Stock Requirements of one exact Order Commitment Attempt. Each member Reservation remains bound to exactly one Reservation Authority.
+
+**Reservation Confirmation** — Attempt-bound proof issued by the actual Reservation Authority that one exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. An Attempt with multiple Reservations therefore has multiple authority-issued Confirmations. It is not part of the pre-attempt Order Acceptance Decision Bundle.
 
 **Reservation Release** — Explicit owner-governed end of one whole provisional Inventory Reservation after release safety is proven.
 _Avoid_: Confirmation expiry, `AT_RISK`, or `REVOKED` treated as Reservation Release.
 
-**Provisional Shortage Priority** — Launch FIFO rule for competing unprotected provisional Reservation Confirmations after a material shortage: older owner-issued Confirmation has priority over younger Confirmation.
+**Provisional Shortage Priority** — Launch FIFO rule within one Reservation Authority's affected provisional scope after a material shortage: older owner-issued unprotected Confirmation has priority over younger Confirmation. No cross-authority global FIFO is inferred.
 _Avoid_: best-fit skipping, B2C-over-B2B priority, technical arrival order as FIFO.
 
-**Commitment Protection** — Attempt-bound owner guarantee established for one exact Inventory Reservation immediately before Order commitment. Protected Quantity remains fenced from incompatible use until authoritative Order truth proves commit or proves non-commit plus closure.
+**Commitment Protection** — Attempt-bound owner guarantee established by the actual Reservation Authority for one exact Inventory Reservation immediately before Order commitment. An Attempt with multiple Reservations requires protection for every member Reservation before Inventory coverage is fully protected.
 
-**COMMITTED_OBLIGATION** — Post-commit lifecycle meaning of the Inventory stock obligation for an Accepted Order. It continues to constrain its exact Stock Positions until explicit owner-governed transitions account for the remaining Quantity.
+**COMMITTED_OBLIGATION** — Post-commit lifecycle meaning of one Inventory Reservation's stock obligation for an Accepted Order. If an Attempt used multiple Reservations, proven commit yields multiple corresponding committed obligations; each continues to constrain its exact Stock Positions until owner-governed transitions account for the remaining Quantity.
 
 **AT_RISK** — Guarantee-health meaning stating that an obligation still exists but its promised guarantee cannot currently be owner-verifiably honored.
 _Avoid_: release, revocation, cancellation, free stock, or proof that an Order did not commit.
