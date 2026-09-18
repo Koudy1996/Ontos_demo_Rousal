@@ -94,8 +94,12 @@ export const effectiveAttributeValuesCurrentRead = defineRead(
     resultSchema: EffectiveAttributeValuesCurrentResponseSchema,
     schemaVersion: '1',
   },
-  (input, context: ReadHandlerContext<EffectiveAttributeValueReads>) =>
-    readEffectiveAttributeValuesCurrent(input, context.scope.tenantId, context.services),
+  Effect.fn('EffectiveAttributeValuesCurrentRead.handler')(function* handler(
+    input: EffectiveAttributeValuesCurrentRequest,
+    context: ReadHandlerContext<EffectiveAttributeValueReads>,
+  ) {
+    return yield* readEffectiveAttributeValuesCurrent(input, context.scope.tenantId, context.services);
+  }),
   (transaction, scope) => effectiveAttributeValueReadsForScope(transaction, scope),
   () => ({ kind: 'module', moduleId: moduleKey }),
 );

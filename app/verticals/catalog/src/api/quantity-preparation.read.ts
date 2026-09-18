@@ -70,7 +70,7 @@ export const quantityPreparationRead = defineRead(
     owningModuleKey: moduleKey,
     permissionTarget: 'resource',
     policies: [],
-    readKey,
+    readKey: 'commerce.catalog.api.quantity-preparation',
     resourcePermission: defineReadResourcePermission<QuantityPreparationRequest>(({ selection }) => ({
       permission: 'read',
       resource: selection.productRef,
