@@ -52,7 +52,21 @@ export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(funct
     variantRef: payload.variantRef,
   });
   const result = yield* Match.value(outcome).pipe(
-    Match.tag('changed', ({ variant }) => Effect.succeed({ variant })),
+    Match.tag('changed', ({ variant }) => {
+      const decision = {
+        classification: payload.classification,
+        evidenceRefs: payload.evidenceRefs,
+        reason: payload.reason,
+        variantRef: payload.variantRef,
+      };
+      return Effect.succeed({
+        decision:
+          payload.targetProductRef === undefined
+            ? decision
+            : { ...decision, targetProductRef: payload.targetProductRef },
+        variant,
+      });
+    }),
     Match.tag('not_found', () => Effect.fail(variantNotFound())),
     Match.tag('revision_conflict', () => Effect.fail(conflictForOutcome('revision_conflict'))),
     Match.tag('lifecycle_conflict', () => Effect.fail(conflictForOutcome('lifecycle_conflict'))),
@@ -89,7 +103,7 @@ export const changeVariantAction = defineAction(
     payloadSchema: ChangeVariantPayloadSchema,
     policies: [],
     resultSchema: ChangeVariantResultSchema,
-    schemaVersion: '1',
+    schemaVersion: '2',
   },
   handleChangeVariant,
   (transaction, scope) =>
@@ -100,7 +114,7 @@ export const changeVariantAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 2 },
             {
               decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
               encode: Schema.encodeEffect(ChangeVariantResultSchema),

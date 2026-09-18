@@ -1,6 +1,11 @@
 import { Effect, Option, Schema } from 'effect';
 
 import type { CatalogLocalOverrideOperation } from '../domain/catalog-local-override.ts';
+import type {
+  CosmeticProductCorrection,
+  ProductChangeClassification,
+} from '../../shared/domain/product-change-classification.ts';
+import { requireExistingCatalogFactChangeClassification } from '../../shared/domain/product-change-classification.ts';
 import {
   catalogLocalOverridePermission,
   decideCatalogLocalOverrideTransition,
@@ -10,6 +15,7 @@ import type {
   CatalogFactAdmission,
   CatalogFactScope,
   CatalogLocalOverride,
+  CatalogSourceAssertion,
 } from '../domain/catalog-source-resolution.ts';
 import { resolveCatalogSourceFact } from '../domain/catalog-source-resolution.ts';
 import { decideCatalogResolvedCurrentChange } from './catalog-resolved-current-event-seam.ts';
@@ -23,6 +29,7 @@ import type {
 
 export interface CatalogLocalOverrideActivation<Value> {
   readonly at: Date;
+  readonly classification?: ProductChangeClassification;
   readonly evidenceRef: string;
   readonly principalId: string;
   readonly reason: string;
@@ -46,6 +53,7 @@ export interface CatalogLocalOverrideRelease {
 export type CatalogLocalOverrideOperationResult<Value> =
   | {
       readonly action: CatalogLocalOverrideOperation;
+      readonly classification?: CosmeticProductCorrection;
       readonly override: CatalogLocalOverride<Value>;
       readonly resolved: CatalogCurrentResolution<Value>;
       readonly resolvedCurrentChanged: boolean;
@@ -116,6 +124,34 @@ const operationChangeCause = {
   RELEASE: 'OVERRIDE_RELEASED',
 } as const satisfies Record<CatalogLocalOverrideOperation, CatalogResolvedCurrentChangeCause>;
 
+const acceptedBaseRevisionFor = <Value>(input: {
+  readonly at: Date;
+  readonly bases: readonly CatalogSourceAssertion<Value>[];
+  readonly resolved: CatalogCurrentResolution<Value>;
+  readonly valuesEqual: (left: Value, right: Value) => boolean;
+}) => {
+  if (input.resolved.status !== 'CURRENT' || input.resolved.source !== 'BASE') {
+    return null;
+  }
+  const epoch = input.at.getTime();
+  const matching = input.bases.filter(
+    (base) =>
+      Number.isFinite(epoch) &&
+      base.effectiveFrom.getTime() <= epoch &&
+      (base.effectiveTo === undefined || epoch < base.effectiveTo.getTime()) &&
+      input.valuesEqual(base.value, input.resolved.value),
+  );
+  return (
+    matching.toSorted((left, right) =>
+      left.sourceRevision === right.sourceRevision
+        ? right.evidencedAt.getTime() - left.evidencedAt.getTime()
+        : left.sourceRevision < right.sourceRevision
+          ? 1
+          : -1,
+    )[0] ?? null
+  );
+};
+
 /**
  * One explicit Catalog decision over one exact Catalog-owned fact/scope. Permission, ownership,
  * validity, single-active-winner compare-and-set, and release-to-latest-base are all enforced here;
@@ -124,6 +160,7 @@ const operationChangeCause = {
 export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverrideWiring<Value>) => {
   const runOperation = Effect.fn('CatalogLocalOverride.runOperation')(function* runOperation(input: {
     readonly at: Date;
+    readonly classification: ProductChangeClassification | null;
     readonly evidenceRef: string;
     readonly expectedRevision: bigint | null;
     readonly operation: CatalogLocalOverrideOperation;
@@ -182,6 +219,7 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
     };
     const bases = yield* wiring.store.readAcceptedBases(input.scope);
     const resolutionAdmission: CatalogFactAdmission = {
+      assertionAdmission: admission.assertionAdmission,
       factOwnership: admission.factOwnership,
       overridePermitted: true,
       overrideValueValid: true,
@@ -194,6 +232,33 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
       scope: input.scope,
       valuesEqual: wiring.valuesEqual,
     });
+    let classification: CosmeticProductCorrection | undefined;
+    if (
+      input.operation !== 'RELEASE' &&
+      previous.status === 'CURRENT' &&
+      !wiring.valuesEqual(previous.value, value) &&
+      (input.scope.targetKind === 'PRODUCT' || input.scope.targetKind === 'VARIANT')
+    ) {
+      const checked = yield* requireExistingCatalogFactChangeClassification({
+        classification: input.classification ?? undefined,
+        evidenceRef: input.evidenceRef,
+        reason: input.reason,
+        target: {
+          resourceId: input.scope.targetId,
+          targetKind: input.scope.targetKind,
+          tenantId: input.scope.tenantId,
+        },
+      }).pipe(
+        Effect.match({
+          onFailure: (error) => ({ error, status: 'REJECTED' as const }),
+          onSuccess: (checkedClassification) => ({ status: 'ACCEPTED' as const, value: checkedClassification }),
+        }),
+      );
+      if (checked.status === 'REJECTED') {
+        return { reason: checked.error.reason, status: 'INVALID' };
+      }
+      classification = checked.value;
+    }
     const next = resolveCatalogSourceFact({
       acceptedBases: bases,
       admission: resolutionAdmission,
@@ -211,20 +276,42 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
     }
     const change = decideCatalogResolvedCurrentChange({ next, previous, valuesEqual: wiring.valuesEqual });
     if (change.kind === 'CHANGED') {
+      const acceptedBase = acceptedBaseRevisionFor({
+        at: input.at,
+        bases,
+        resolved: next,
+        valuesEqual: wiring.valuesEqual,
+      });
+      const sourceRevision =
+        acceptedBase === null
+          ? {
+              evidenceRef: override.evidenceRef,
+              kind: 'LOCAL_OVERRIDE' as const,
+              revision: override.revision,
+            }
+          : {
+              assertionId: acceptedBase.assertionId,
+              issuerSystemId: acceptedBase.issuerSystemId,
+              kind: 'ACCEPTED_BASE' as const,
+              sourceRecordId: acceptedBase.sourceRecordId,
+              sourceRevision: acceptedBase.sourceRevision,
+            };
       yield* wiring.events.emitResolvedCurrentChanged({
         cause: operationChangeCause[input.operation],
         next: change.next,
         previous: change.previous,
         scope: input.scope,
+        sourceRevision,
       });
     }
-    return {
+    const applied = {
       action: input.operation,
       override,
       resolved: next,
       resolvedCurrentChanged: change.kind === 'CHANGED',
-      status: 'APPLIED',
+      status: 'APPLIED' as const,
     };
+    return classification === undefined ? applied : { ...applied, classification };
   });
 
   return {
@@ -233,6 +320,7 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
     ) {
       return yield* runOperation({
         at: input.at,
+        classification: input.classification ?? null,
         evidenceRef: input.evidenceRef,
         expectedRevision: null,
         operation: 'ACTIVATE',
@@ -245,6 +333,7 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
     change: Effect.fn('CatalogLocalOverride.change')(function* change(input: CatalogLocalOverrideChange<Value>) {
       return yield* runOperation({
         at: input.at,
+        classification: input.classification ?? null,
         evidenceRef: input.evidenceRef,
         expectedRevision: input.expectedRevision,
         operation: 'CHANGE',
@@ -257,6 +346,7 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
     release: Effect.fn('CatalogLocalOverride.release')(function* release(input: CatalogLocalOverrideRelease) {
       return yield* runOperation({
         at: input.at,
+        classification: null,
         evidenceRef: input.evidenceRef,
         expectedRevision: input.expectedRevision,
         operation: 'RELEASE',

@@ -8,7 +8,8 @@ import { Effect, Match, Schema } from 'effect';
 import { CreateProductPayloadSchema, CreateProductResultSchema } from '../../shared/actions/create-product.ts';
 import type { CreateProductPayload, CreateProductResult } from '../../shared/actions/create-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
-import { ProductPersistenceConflict } from '../../shared/domain/product-errors.ts';
+import { completeProductCreationClassification } from '../../shared/domain/product-change-classification.ts';
+import { ProductCorrectionRequired, ProductPersistenceConflict } from '../../shared/domain/product-errors.ts';
 import { CatalogPersistenceConflict } from '../persistence/errors.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
@@ -46,7 +47,7 @@ const createProductServiceFactory = (
         captureCatalogActionResult(
           transaction,
           scope,
-          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 2 },
           {
             decode: Schema.decodeUnknownEffect(CreateProductResultSchema),
             encode: Schema.encodeEffect(CreateProductResultSchema),
@@ -75,10 +76,21 @@ export const mapCreateProductPersistenceConflict = (error: CatalogPersistenceCon
       })
     : error;
 
-const handleCreateProduct = Effect.fn('CreateProductAction.handle')(function* handleCreateProduct(
+export const handleCreateProduct = Effect.fn('CreateProductAction.handle')(function* handleCreateProduct(
   payload: CreateProductPayload,
   context: ActionHandlerContext<typeof domainEvents, CreateProductServices>,
 ) {
+  if (
+    payload.classification.kind === 'NEW_PRODUCT' &&
+    (payload.classification.previousProductRef.tenantId !== context.scope.tenantId ||
+      payload.classification.reason !== payload.reason)
+  ) {
+    return yield* new ProductCorrectionRequired({
+      code: 'product_correction_required',
+      productRef: payload.classification.previousProductRef,
+      reason: 'Product successor classification must retain the trusted Tenant and Action reason',
+    });
+  }
   const outcome = yield* context.services
     .create({
       actionInvocationId: context.actionInvocationId,
@@ -94,7 +106,7 @@ const handleCreateProduct = Effect.fn('CreateProductAction.handle')(function* ha
         Schema.is(CatalogPersistenceConflict)(error) ? mapCreateProductPersistenceConflict(error) : error,
       ),
     );
-  const result = yield* Match.value(outcome).pipe(
+  const created = yield* Match.value(outcome).pipe(
     Match.tag('conflict', () =>
       Effect.fail(
         new ProductPersistenceConflict({
@@ -107,7 +119,28 @@ const handleCreateProduct = Effect.fn('CreateProductAction.handle')(function* ha
     Match.tag('created', ({ product, variantId }) => Effect.succeed({ product, variantId })),
     Match.exhaustive,
   );
-  yield* context.recordAuditEvidence({ reason: payload.reason });
+  const classification = yield* completeProductCreationClassification(
+    payload.classification,
+    created.product.productRef,
+  ).pipe(
+    Effect.mapError(
+      (error) =>
+        new ProductCorrectionRequired({
+          code: 'product_correction_required',
+          productRef:
+            payload.classification.kind === 'NEW_PRODUCT'
+              ? payload.classification.previousProductRef
+              : created.product.productRef,
+          reason: error.reason,
+        }),
+    ),
+  );
+  const result = { ...created, classification };
+  yield* context.recordAuditEvidence(
+    classification.kind === 'INDEPENDENT_PRODUCT'
+      ? { reason: payload.reason }
+      : { evidenceRefs: classification.evidenceRefs, reason: payload.reason },
+  );
   yield* recordProductAccess(context, result.product.productRef.resourceId);
   yield* recordProductEvent(
     context,
@@ -142,7 +175,7 @@ export const createProductAction = defineAction(
     payloadSchema: CreateProductPayloadSchema,
     policies: [],
     resultSchema: CreateProductResultSchema,
-    schemaVersion: '1',
+    schemaVersion: '2',
   },
   handleCreateProduct,
   createProductServiceFactory,

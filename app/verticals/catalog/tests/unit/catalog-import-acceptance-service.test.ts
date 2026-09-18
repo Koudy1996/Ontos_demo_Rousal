@@ -14,6 +14,7 @@ import {
   makeCatalogImportAcceptanceService,
   summarizeCatalogImportItems,
 } from '../../src/persistence/catalog-import-acceptance-service.ts';
+import type { CatalogImportDeliveredItem } from '../../src/persistence/catalog-import-acceptance-service.ts';
 import type { ExternalCorrelationResolutionFailure } from '../../src/persistence/external-correlation-resolver.ts';
 import { ExternalCorrelationMissingLink } from '../../src/persistence/external-correlation-missing-link.ts';
 import type { CatalogSourceResolutionPorts } from '../../src/persistence/catalog-source-resolution-ports.ts';
@@ -32,10 +33,11 @@ const target = decodeTarget({
   resourceType: 'commerce.catalog.product',
   tenantId,
 });
+const productRef = { ...target, resourceType: 'commerce.catalog.product' as const };
 const sourceRecord = decodeSource({
-  issuerId: 'erp-a',
+  issuerId: 'source-1',
   issuerKind: 'EXTERNAL_BUSINESS_SYSTEM',
-  recordId: '784',
+  recordId: 'record-1',
   recordNamespace: 'product',
   tenantId,
 });
@@ -77,12 +79,27 @@ const override90: CatalogLocalOverride<string> = {
   value: '90 cm',
 };
 
-const delivered = (assertion: CatalogSourceAssertion<string>) => ({
-  assertion,
-  captureConfirmed: true,
-  recordMeaning: 'PRODUCT' as const,
-  sourceRecord,
+const correctionFor = (assertion: CatalogSourceAssertion<string>) => ({
+  affectsOpenSelection: true as const,
+  evidenceRefs: [assertion.assertionId] as const,
+  kind: 'COSMETIC_CORRECTION' as const,
+  productRef,
+  reason: 'The source corrects the recorded height of the same Product',
 });
+
+const delivered = (
+  assertion: CatalogSourceAssertion<string>,
+  classification?: ReturnType<typeof correctionFor>,
+): CatalogImportDeliveredItem<string> => {
+  const item = { assertion, captureConfirmed: true, recordMeaning: 'PRODUCT' as const, sourceRecord };
+  return classification === undefined ? item : { ...item, classification };
+};
+
+const deliveredFrom = (
+  assertion: CatalogSourceAssertion<string>,
+  deliveredSourceRecord: typeof sourceRecord,
+  classification?: ReturnType<typeof correctionFor>,
+) => ({ ...delivered(assertion, classification), sourceRecord: deliveredSourceRecord });
 
 const createStore = (seed?: {
   readonly bases?: readonly CatalogSourceAssertion<string>[];
@@ -91,7 +108,7 @@ const createStore = (seed?: {
   const bases = [...(seed?.bases ?? [])];
   const overrides = [...(seed?.overrides ?? [])];
   const ports: CatalogSourceResolutionPorts<string> = {
-    appendAcceptedBase: (assertion) =>
+    appendAcceptedBase: ({ assertion }) =>
       Effect.sync(() => {
         const exists = bases.some(
           (base) => base.assertionId === assertion.assertionId && base.sourceRevision === assertion.sourceRevision,
@@ -142,7 +159,12 @@ const admissionPorts = (input?: { readonly valueValid?: (assertionId: string) =>
   isOverrideValueValid: () => Effect.succeed(true),
   readAdmission: () =>
     Effect.succeed(
-      Option.some({ factOwnership: 'CATALOG_LOCAL' as const, overridePermitted: true, overrideValueValid: true }),
+      Option.some({
+        assertionAdmission: 'EXTERNAL_SOURCE' as const,
+        factOwnership: 'CATALOG_LOCAL' as const,
+        overridePermitted: true,
+        overrideValueValid: true,
+      }),
     ),
 });
 
@@ -169,8 +191,12 @@ describe('Catalog import acceptance service', () => {
       const store = createStore({ bases: [base80], overrides: [override90] });
       const events = createEvents();
       const service = makeService({ events, store });
-      const result = yield* service.acceptBatch({ at, items: [delivered(base95)] });
-      expect(result.items[0]).toMatchObject({ resolvedCurrentChanged: false, status: 'ACCEPTED_BASE' });
+      const result = yield* service.acceptBatch({ at, items: [delivered(base95, correctionFor(base95))] });
+      expect(result.items[0]).toMatchObject({
+        classification: { kind: 'COSMETIC_CORRECTION' },
+        resolvedCurrentChanged: false,
+        status: 'ACCEPTED_BASE',
+      });
       expect(store.bases.map(({ sourceRevision }) => sourceRevision)).toEqual([1n, 2n]);
       expect(events.emitted).toEqual([]);
     }),
@@ -181,9 +207,21 @@ describe('Catalog import acceptance service', () => {
       const store = createStore({ bases: [base80] });
       const events = createEvents();
       const service = makeService({ events, store });
-      const result = yield* service.acceptBatch({ at, items: [delivered(base95)] });
+      const result = yield* service.acceptBatch({ at, items: [delivered(base95, correctionFor(base95))] });
       expect(result.items[0]).toMatchObject({ resolvedCurrentChanged: true, status: 'ACCEPTED_BASE' });
       expect(events.emitted).toEqual([{ cause: 'IMPORT_ACCEPTED' }]);
+    }),
+  );
+
+  it.effect('requires an evidenced classification before a changed Product fact is accepted', () =>
+    Effect.gen(function* testClassificationRequired() {
+      const store = createStore({ bases: [base80] });
+      const events = createEvents();
+      const service = makeService({ events, store });
+      const result = yield* service.acceptBatch({ at, items: [delivered(base95)] });
+      expect(result.items[0]).toMatchObject({ status: 'RECONCILIATION_REQUIRED' });
+      expect(store.bases).toEqual([base80]);
+      expect(events.emitted).toEqual([]);
     }),
   );
 
@@ -246,7 +284,10 @@ describe('Catalog import acceptance service', () => {
       const events = createEvents();
       const service = makeService({ events, store });
       const foreign: CatalogSourceAssertion<string> = { ...base80, issuerSystemId: 'source-2' };
-      const result = yield* service.acceptBatch({ at, items: [delivered(foreign)] });
+      const result = yield* service.acceptBatch({
+        at,
+        items: [deliveredFrom(foreign, decodeSource({ ...sourceRecord, issuerId: 'source-2' }))],
+      });
       expect(result.items[0]).toMatchObject({ status: 'NO_AUTHORITY' });
       expect(store.bases).toEqual([]);
     }),
@@ -269,7 +310,7 @@ describe('Catalog import acceptance service', () => {
       };
       const result = yield* service.acceptBatch({
         at,
-        items: [delivered(base95), delivered(base80), delivered(invalid)],
+        items: [delivered(base95, correctionFor(base95)), delivered(base80), delivered(invalid)],
       });
       expect(result.items.map(({ status }) => status)).toEqual(['ACCEPTED_BASE', 'STALE', 'INVALID_VALUE']);
       expect(result.summary).toMatchObject({

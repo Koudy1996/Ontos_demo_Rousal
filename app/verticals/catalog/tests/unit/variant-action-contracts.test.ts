@@ -29,6 +29,14 @@ describe('Variant Action payload contracts', () => {
     const decode = Schema.decodeUnknownSync(CreateVariantPayloadSchema);
     expect(
       decode({
+        classification: {
+          affectsOpenSelection: true,
+          evidenceRefs: ['factory-sheet'],
+          kind: 'NEW_REALIZATION',
+          newVariantRef: variantRef,
+          productRef,
+          reason: 'Recorded form',
+        },
         evidenceRefs: ['factory-sheet'],
         expectedProductRevision: 1,
         productRef,
@@ -36,9 +44,32 @@ describe('Variant Action payload contracts', () => {
         variantRef,
       }).variantRef,
     ).toEqual(variantRef);
-    expect(() => decode({ expectedProductRevision: 1, productRef, reason: 'No evidence', variantRef })).toThrow();
     expect(() =>
       decode({
+        classification: {
+          affectsOpenSelection: true,
+          evidenceRefs: ['factory-sheet'],
+          kind: 'NEW_REALIZATION',
+          newVariantRef: variantRef,
+          productRef,
+          reason: 'No evidence',
+        },
+        expectedProductRevision: 1,
+        productRef,
+        reason: 'No evidence',
+        variantRef,
+      }),
+    ).toThrow();
+    expect(() =>
+      decode({
+        classification: {
+          affectsOpenSelection: true,
+          evidenceRefs: ['factory-sheet'],
+          kind: 'NEW_REALIZATION',
+          newVariantRef: variantRef,
+          productRef,
+          reason: 'Cross tenant',
+        },
         evidenceRefs: ['factory-sheet'],
         expectedProductRevision: 1,
         productRef,

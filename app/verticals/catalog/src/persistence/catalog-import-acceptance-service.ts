@@ -2,6 +2,11 @@ import { Effect, Option, Schema } from 'effect';
 
 import type { CatalogExternalSourceRecordRef } from '../../shared/domain/external-identifier-boundary.ts';
 import type {
+  CosmeticProductCorrection,
+  ProductChangeClassification,
+} from '../../shared/domain/product-change-classification.ts';
+import { requireExistingCatalogFactChangeClassification } from '../../shared/domain/product-change-classification.ts';
+import type {
   CatalogExternalTargetKind,
   CatalogExternalTargetRequest,
   CatalogResolvedExternalTarget,
@@ -32,6 +37,7 @@ import type {
 export interface CatalogImportDeliveredItem<Value> {
   readonly assertion: CatalogSourceAssertion<Value>;
   readonly captureConfirmed: boolean;
+  readonly classification?: ProductChangeClassification;
   readonly recordMeaning: CatalogExternalTargetKind;
   readonly sourceRecord: CatalogExternalSourceRecordRef;
 }
@@ -44,6 +50,7 @@ export interface CatalogImportBatchInput<Value> {
 export type CatalogImportItemResult<Value> =
   | {
       readonly base: CatalogSourceAssertion<Value>;
+      readonly classification?: CosmeticProductCorrection;
       readonly resolvedCurrentChanged: boolean;
       readonly scope: CatalogFactScope;
       readonly status: 'ACCEPTED_BASE';
@@ -218,9 +225,19 @@ export const makeCatalogImportAcceptanceService = <Value>(wiring: CatalogImportA
     readonly at: Date;
     readonly item: CatalogImportDeliveredItem<Value>;
   }): Effect.fn.Return<CatalogImportItemResult<Value>, CatalogSourceResolutionUnavailable> {
-    const { assertion, captureConfirmed, recordMeaning, sourceRecord } = input.item;
-    if (assertion.scope.tenantId !== sourceRecord.tenantId) {
-      return { reason: 'Assertion Tenant and source record Tenant disagree', status: 'INVALID_TARGET' };
+    const {
+      assertion,
+      captureConfirmed,
+      classification: suppliedClassification,
+      recordMeaning,
+      sourceRecord,
+    } = input.item;
+    if (
+      assertion.scope.tenantId !== sourceRecord.tenantId ||
+      assertion.issuerSystemId !== sourceRecord.issuerId ||
+      assertion.sourceRecordId !== sourceRecord.recordId
+    ) {
+      return { reason: 'Assertion provenance does not match the exact source identity', status: 'INVALID_TARGET' };
     }
     const resolvedTarget = yield* wiring.resolveTarget({ recordMeaning, sourceRecord }).pipe(
       Effect.match({
@@ -257,13 +274,14 @@ export const makeCatalogImportAcceptanceService = <Value>(wiring: CatalogImportA
       { concurrency: 4 },
     );
     const valueValid = yield* wiring.admission.isAssertionValueValid({ assertion, scope });
+    const currentBase = selectCurrentBase(bases, assertion);
     const decision = assessCatalogSourceAssertion({
       activeOverride: selectActiveOverride(overrides, scope),
       admission: Option.getOrNull(admissionOption),
       assertion,
       at: input.at,
       authority: Option.getOrNull(authorityOption),
-      currentBase: selectCurrentBase(bases, assertion),
+      currentBase,
       targetVerified: true,
       valuesEqual: wiring.valuesEqual,
       valueValid,
@@ -271,7 +289,42 @@ export const makeCatalogImportAcceptanceService = <Value>(wiring: CatalogImportA
     if (decision.status !== 'ACCEPTED') {
       return decisionResult<Value>(decision);
     }
-    const append = yield* wiring.store.appendAcceptedBase(decision.base);
+    let classification: CosmeticProductCorrection | undefined;
+    if (
+      currentBase !== null &&
+      !wiring.valuesEqual(currentBase.value, assertion.value) &&
+      (scope.targetKind === 'PRODUCT' || scope.targetKind === 'VARIANT')
+    ) {
+      const checked = yield* requireExistingCatalogFactChangeClassification({
+        classification: suppliedClassification,
+        evidenceRef: assertion.assertionId,
+        target: {
+          resourceId: scope.targetId,
+          targetKind: scope.targetKind,
+          tenantId: scope.tenantId,
+        },
+      }).pipe(
+        Effect.match({
+          onFailure: (error) => ({ error, status: 'REJECTED' as const }),
+          onSuccess: (value) => ({ status: 'ACCEPTED' as const, value }),
+        }),
+      );
+      if (checked.status === 'REJECTED') {
+        return { reason: checked.error.reason, status: 'RECONCILIATION_REQUIRED' };
+      }
+      classification = checked.value;
+    }
+    const verifiedAuthority = Option.getOrNull(authorityOption);
+    if (verifiedAuthority === null) {
+      return { reason: 'Verified source authority disappeared before persistence', status: 'UNVERIFIABLE' };
+    }
+    const append = yield* wiring.store.appendAcceptedBase({
+      assertion: decision.base,
+      authority: verifiedAuthority,
+      captureConfirmed,
+      sourceRecord,
+      targetResolution: resolution,
+    });
     if (append.status === 'ALREADY_PRESENT') {
       return { reason: 'The same source assertion was already accepted', status: 'DUPLICATE' };
     }
@@ -304,12 +357,13 @@ export const makeCatalogImportAcceptanceService = <Value>(wiring: CatalogImportA
         scope,
       });
     }
-    return {
+    const accepted = {
       base: decision.base,
       resolvedCurrentChanged: change.kind === 'CHANGED',
       scope,
-      status: 'ACCEPTED_BASE',
+      status: 'ACCEPTED_BASE' as const,
     };
+    return classification === undefined ? accepted : { ...accepted, classification };
   });
 
   const acceptBatch = Effect.fn('CatalogImportAcceptance.acceptBatch')(function* acceptBatch(

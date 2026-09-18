@@ -4,7 +4,7 @@ import { ProductEvidenceReferenceSchema, ProductReasonSchema, ProductVariantSche
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
-const VariantChangeClassificationSchema = Schema.Literals([
+export const VariantChangeClassificationSchema = Schema.Literals([
   'SAME_MEANING_RENAME',
   'EVIDENCED_RECORD_CORRECTION',
   'EVIDENCED_PARENT_CORRECTION',
@@ -21,5 +21,17 @@ export const ChangeVariantPayloadSchema = Schema.Struct({
 });
 export type ChangeVariantPayload = typeof ChangeVariantPayloadSchema.Type;
 
-export const ChangeVariantResultSchema = Schema.Struct({ variant: ProductVariantSchema });
+export const VariantChangeDecisionSchema = Schema.Struct({
+  classification: VariantChangeClassificationSchema,
+  evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
+  reason: ProductReasonSchema,
+  targetProductRef: Schema.optionalKey(ProductRefSchema),
+  variantRef: VariantRefSchema,
+});
+export type VariantChangeDecision = typeof VariantChangeDecisionSchema.Type;
+
+export const ChangeVariantResultSchema = Schema.Struct({
+  decision: Schema.optionalKey(VariantChangeDecisionSchema),
+  variant: ProductVariantSchema,
+});
 export type ChangeVariantResult = typeof ChangeVariantResultSchema.Type;

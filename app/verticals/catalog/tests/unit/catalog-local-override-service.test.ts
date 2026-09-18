@@ -15,6 +15,20 @@ const tenantId = '11111111-1111-4111-8111-111111111111';
 const productId = '22222222-2222-4222-8222-222222222222';
 const at = new Date('2026-09-18T12:00:00.000Z');
 const scope = { factKey: 'height', targetId: productId, targetKind: 'PRODUCT', tenantId } as const;
+const productRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: productId,
+  resourceType: 'commerce.catalog.product',
+  tenantId,
+} as const;
+const correction = (evidenceRef: string, reason: string) =>
+  ({
+    affectsOpenSelection: true,
+    evidenceRefs: [evidenceRef],
+    kind: 'COSMETIC_CORRECTION',
+    productRef,
+    reason,
+  }) as const;
 
 const base80: CatalogSourceAssertion<string> = {
   assertionId: 'assertion-r1',
@@ -86,7 +100,12 @@ const createAdmission = (input?: {
   const allowed = new Set(input?.allowedPermissions ?? Object.values(catalogLocalOverridePermission));
   const admission =
     input?.admission === undefined
-      ? { factOwnership: 'CATALOG_LOCAL' as const, overridePermitted: true, overrideValueValid: true }
+      ? {
+          assertionAdmission: 'NONE' as const,
+          factOwnership: 'CATALOG_LOCAL' as const,
+          overridePermitted: true,
+          overrideValueValid: true,
+        }
       : input.admission;
   return {
     ports: {
@@ -133,6 +152,7 @@ describe('Catalog Local Override service', () => {
       const service = makeService({ admission, events, store });
       const result = yield* service.activate({
         at,
+        classification: correction('evidence-1', 'Measured correction'),
         evidenceRef: 'evidence-1',
         principalId: 'principal-1',
         reason: 'Measured correction',
@@ -141,6 +161,7 @@ describe('Catalog Local Override service', () => {
       });
       expect(result).toMatchObject({
         action: 'ACTIVATE',
+        classification: { kind: 'COSMETIC_CORRECTION' },
         resolved: { source: 'LOCAL_OVERRIDE', status: 'CURRENT', value: '90 cm' },
         resolvedCurrentChanged: true,
         status: 'APPLIED',
@@ -158,6 +179,7 @@ describe('Catalog Local Override service', () => {
       const service = makeService({ admission, events, store });
       yield* service.activate({
         at,
+        classification: correction('evidence-1', 'Measured correction'),
         evidenceRef: 'evidence-1',
         principalId: 'principal-1',
         reason: 'Measured correction',
@@ -186,6 +208,7 @@ describe('Catalog Local Override service', () => {
       const service = makeService({ admission, events, store });
       yield* service.activate({
         at,
+        classification: correction('evidence-1', 'Measured correction'),
         evidenceRef: 'evidence-1',
         principalId: 'principal-1',
         reason: 'Measured correction',
@@ -204,6 +227,7 @@ describe('Catalog Local Override service', () => {
       expect(stale.status).toBe('STALE_EDITOR');
       const changed = yield* service.change({
         at,
+        classification: correction('evidence-3', 'Corrected again'),
         evidenceRef: 'evidence-3',
         expectedRevision: 1n,
         principalId: 'principal-1',
@@ -228,6 +252,7 @@ describe('Catalog Local Override service', () => {
       const service = makeService({ admission, events, store });
       yield* service.activate({
         at,
+        classification: correction('evidence-1', 'Measured correction'),
         evidenceRef: 'evidence-1',
         principalId: 'principal-1',
         reason: 'Measured correction',
@@ -248,6 +273,26 @@ describe('Catalog Local Override service', () => {
         status: 'APPLIED',
       });
       expect(store.overrides.at(-1)).toMatchObject({ lifecycle: 'RELEASED', revision: 2n, value: '90 cm' });
+    }),
+  );
+
+  it.effect('requires the same evidenced classification before changing a Product fact', () =>
+    Effect.gen(function* testClassificationRequired() {
+      const store = createStore({ bases: [base80] });
+      const events = createEvents();
+      const admission = createAdmission();
+      const service = makeService({ admission, events, store });
+      const result = yield* service.activate({
+        at,
+        evidenceRef: 'evidence-1',
+        principalId: 'principal-1',
+        reason: 'Measured correction',
+        scope,
+        value: '90 cm',
+      });
+      expect(result).toMatchObject({ status: 'INVALID' });
+      expect(store.overrides).toEqual([]);
+      expect(events.emitted).toEqual([]);
     }),
   );
 
@@ -278,7 +323,12 @@ describe('Catalog Local Override service', () => {
       expect(
         resolveCatalogSourceFact({
           acceptedBases: store.bases,
-          admission: { factOwnership: 'CATALOG_LOCAL', overridePermitted: true, overrideValueValid: true },
+          admission: {
+            assertionAdmission: 'NONE',
+            factOwnership: 'CATALOG_LOCAL',
+            overridePermitted: true,
+            overrideValueValid: true,
+          },
           at,
           overrides: store.overrides,
           scope,
@@ -304,7 +354,12 @@ describe('Catalog Local Override service', () => {
       });
       expect(forbidden.status).toBe('FORBIDDEN_FACT');
       const foreignOwner = createAdmission({
-        admission: { factOwnership: 'EXTERNAL_SOURCE', overridePermitted: false, overrideValueValid: false },
+        admission: {
+          assertionAdmission: 'EXTERNAL_SOURCE',
+          factOwnership: 'EXTERNAL_SOURCE',
+          overridePermitted: false,
+          overrideValueValid: false,
+        },
       });
       const foreignService = makeService({ admission: foreignOwner, events, store });
       expect(
@@ -340,6 +395,7 @@ describe('Catalog Local Override service', () => {
       const service = makeService({ admission, events, store });
       const result = yield* service.activate({
         at,
+        classification: correction('evidence-1', 'Measured correction'),
         evidenceRef: 'evidence-1',
         principalId: 'principal-1',
         reason: 'Invalid',
@@ -360,6 +416,7 @@ describe('Catalog Local Override service', () => {
       const service = makeService({ admission, casConflict: true, events, store });
       const result = yield* service.activate({
         at,
+        classification: correction('evidence-1', 'Measured correction'),
         evidenceRef: 'evidence-1',
         principalId: 'principal-1',
         reason: 'Measured correction',

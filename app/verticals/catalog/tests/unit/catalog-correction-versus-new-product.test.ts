@@ -16,6 +16,9 @@ import { ProductCorrectionRequired } from '../../shared/domain/product-errors.ts
 import { ProductSchema } from '../../shared/domain/product.ts';
 import { SetCompositionRevisionSchema, classifySetCompositionChange } from '../../shared/domain/set-composition.ts';
 import { correctProductAction, handleCorrectProduct } from '../../src/actions/correct-product.action.ts';
+import type { CreateProductResult } from '../../shared/actions/create-product.ts';
+import type { createProductAction } from '../../src/actions/create-product.action.ts';
+import { handleCreateProduct, recordCreateProductResultSnapshot } from '../../src/actions/create-product.action.ts';
 import type { CatalogPersistence } from '../../src/persistence/catalog-persistence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -47,6 +50,24 @@ const product = (revision: number, name: string) =>
     updatedAt: '2026-09-18T10:00:00.000Z',
     variants: [{ lifecycle: 'ACTIVE', productRef, variantId, variantRef }],
   });
+
+const successorProduct = Schema.decodeUnknownSync(ProductSchema)({
+  catalogReady: false,
+  createdAt: '2026-09-18T10:00:00.000Z',
+  lifecycle: 'DRAFT',
+  name: 'Police Beta',
+  productRef: replacementProductRef,
+  revision: 1,
+  updatedAt: '2026-09-18T10:00:00.000Z',
+  variants: [
+    {
+      lifecycle: 'WORK_IN_PROGRESS',
+      productRef: replacementProductRef,
+      variantId: replacementVariantRef.resourceId,
+      variantRef: replacementVariantRef,
+    },
+  ],
+});
 
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
@@ -101,6 +122,46 @@ const context = <Events extends typeof correctProductAction.descriptor.domainEve
 };
 
 const decodeClassification = Schema.decodeUnknownSync(ProductChangeClassificationSchema);
+
+const createContext = () => {
+  const events: { eventType: string; payloadJson: unknown }[] = [];
+  const audit: AuditEvidence[] = [];
+  const services = {
+    captureResult: () => Effect.void,
+    correct: unexpected,
+    create: () =>
+      Effect.succeed({
+        _tag: 'created' as const,
+        product: successorProduct,
+        variantId: replacementVariantRef.resourceId,
+      }),
+    getCreatedByInvocation: unexpected,
+    getCurrent: unexpected,
+    getHistory: unexpected,
+    reactivate: unexpected,
+    recoverCreateProduct: unexpected,
+    recoverUpdateProduct: unexpected,
+    retire: unexpected,
+    update: unexpected,
+  };
+  const value: ActionHandlerContext<typeof createProductAction.descriptor.domainEvents, typeof services> = {
+    actionInvocationId: '55555555-5555-4555-8555-555555555555',
+    addDomainEvent: (event) =>
+      Effect.sync(() => {
+        events.push({ eventType: event.eventType, payloadJson: event.payloadJson });
+        return Object.create(null);
+      }),
+    addOutboxMessage: () => Effect.void,
+    recordAuditEvidence: (evidence) =>
+      Effect.sync(() => {
+        audit.push(evidence);
+      }),
+    recordDataAccess: () => Effect.void,
+    scope,
+    services,
+  };
+  return { audit, events, value };
+};
 
 describe('Catalog Correction versus new Product realization (#415)', () => {
   it.effect('corrects a typo in place and keeps Product identity without Current revalidation', () =>
@@ -211,6 +272,50 @@ describe('Catalog Correction versus new Product realization (#415)', () => {
         expect(error.reason).toContain('owning Variant or Product creation Action');
         expect(state.events).toHaveLength(0);
       }
+    }),
+  );
+
+  it.effect('creates and durably captures the evidenced successor under its new Product identity', () =>
+    Effect.gen(function* successor() {
+      const reason = 'A new common business identity replaces the previous Product';
+      const state = createContext();
+      const result = yield* handleCreateProduct(
+        {
+          classification: {
+            affectsOpenSelection: true,
+            evidenceRefs: ['urn:evidence:successor-product'],
+            kind: 'NEW_PRODUCT',
+            previousProductRef: productRef,
+            reason,
+          },
+          name: 'Police Beta',
+          reason,
+        },
+        state.value,
+      );
+      expect(result.classification).toMatchObject({
+        kind: 'NEW_PRODUCT',
+        newProductRef: replacementProductRef,
+        previousProductRef: productRef,
+      });
+      expect(state.audit).toEqual([{ evidenceRefs: ['urn:evidence:successor-product'], reason }]);
+      expect(state.events[0]).toMatchObject({
+        eventType: 'commerce.catalog.product-created.v1',
+        payloadJson: { classification: { kind: 'NEW_PRODUCT', newProductRef: replacementProductRef } },
+      });
+
+      let captured: CreateProductResult | undefined;
+      yield* recordCreateProductResultSnapshot({
+        actionInvocationId: state.value.actionInvocationId,
+        result,
+        services: {
+          captureResult: (_actionInvocationId, persistedResult) =>
+            Effect.sync(() => {
+              captured = persistedResult;
+            }),
+        },
+      });
+      expect(captured?.classification).toEqual(result.classification);
     }),
   );
 

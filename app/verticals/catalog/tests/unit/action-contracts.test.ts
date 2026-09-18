@@ -168,7 +168,9 @@ describe('Catalog Product Action contracts', () => {
     const reactivate = Schema.decodeUnknownSync(ReactivateProductPayloadSchema);
     const correct = Schema.decodeUnknownSync(CorrectProductPayloadSchema);
 
-    expect(create({ reason: 'Create Product' }).reason).toBe('Create Product');
+    expect(create({ classification: { kind: 'INDEPENDENT_PRODUCT' }, reason: 'Create Product' }).reason).toBe(
+      'Create Product',
+    );
     expect(
       update({ expectedRevision: 1, productRef, reason: 'Activate Product', targetLifecycle: 'ACTIVE' }).productRef,
     ).toEqual(productRef);

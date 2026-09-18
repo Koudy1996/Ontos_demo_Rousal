@@ -25,6 +25,15 @@ const variantRef = {
   tenantId,
 } as const;
 const variant = { lifecycle: 'WORK_IN_PROGRESS', productRef, variantId: variantRef.resourceId, variantRef } as const;
+const creationClassification = (reason: string, evidenceRefs: readonly [string]) =>
+  ({
+    affectsOpenSelection: true,
+    evidenceRefs,
+    kind: 'NEW_REALIZATION',
+    newVariantRef: variantRef,
+    productRef,
+    reason,
+  }) as const;
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
     authContextRef: 'job:variant-actions:run:1',
@@ -73,10 +82,18 @@ describe('Variant Action handlers', () => {
           }),
       });
       const result = yield* handleCreateVariant(
-        { evidenceRefs: ['sheet'], expectedProductRevision: 1, productRef, reason: 'Real form', variantRef },
+        {
+          classification: creationClassification('Real form', ['sheet']),
+          evidenceRefs: ['sheet'],
+          expectedProductRevision: 1,
+          productRef,
+          reason: 'Real form',
+          variantRef,
+        },
         run.value,
       );
       expect(result.variant.lifecycle).toBe('WORK_IN_PROGRESS');
+      expect(result.classification).toMatchObject({ kind: 'NEW_REALIZATION', newVariantRef: variantRef });
       expect(run.reads).toEqual([variantRef.resourceId]);
     }),
   );
@@ -86,6 +103,7 @@ describe('Variant Action handlers', () => {
       const run = context({});
       const error = yield* handleCreateVariant(
         {
+          classification: creationClassification('Wrong tenant', ['sheet']),
           evidenceRefs: ['sheet'],
           expectedProductRevision: 1,
           productRef,
@@ -103,6 +121,7 @@ describe('Variant Action handlers', () => {
       const run = context({});
       const error = yield* handleCreateVariant(
         {
+          classification: creationClassification('Wrong parent tenant', ['sheet']),
           evidenceRefs: ['sheet'],
           expectedProductRevision: 1,
           productRef: { ...productRef, tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
@@ -120,7 +139,14 @@ describe('Variant Action handlers', () => {
     Effect.gen(function* variantCollisionTest() {
       const run = context({ create: () => Effect.succeed({ _tag: 'identity_conflict' }) });
       const error = yield* handleCreateVariant(
-        { evidenceRefs: ['sheet'], expectedProductRevision: 1, productRef, reason: 'Duplicate', variantRef },
+        {
+          classification: creationClassification('Duplicate', ['sheet']),
+          evidenceRefs: ['sheet'],
+          expectedProductRevision: 1,
+          productRef,
+          reason: 'Duplicate',
+          variantRef,
+        },
         run.value,
       ).pipe(Effect.flip);
       expect(error).toMatchObject({ code: 'variant_action_conflict', conflict: 'IDENTITY' });
@@ -164,6 +190,28 @@ describe('Variant Action handlers', () => {
         run.value,
       ).pipe(Effect.flip);
       expect(error).toMatchObject({ code: 'variant_action_conflict', conflict: 'INVALID_CHANGE' });
+    }),
+  );
+
+  it.effect('returns the exact correction decision for durable result capture', () =>
+    Effect.gen(function* variantDecisionCaptureTest() {
+      const run = context({ change: () => Effect.succeed({ _tag: 'changed', revision: 2, variant }) });
+      const result = yield* handleChangeVariant(
+        {
+          classification: 'EVIDENCED_RECORD_CORRECTION',
+          evidenceRefs: ['drawing'],
+          expectedVariantRevision: 1,
+          reason: 'Wrong record',
+          variantRef,
+        },
+        run.value,
+      );
+      expect(result.decision).toEqual({
+        classification: 'EVIDENCED_RECORD_CORRECTION',
+        evidenceRefs: ['drawing'],
+        reason: 'Wrong record',
+        variantRef,
+      });
     }),
   );
 

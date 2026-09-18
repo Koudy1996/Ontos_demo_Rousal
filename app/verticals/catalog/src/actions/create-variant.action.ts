@@ -7,6 +7,7 @@ import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } fr
 
 import { CreateVariantPayloadSchema, CreateVariantResultSchema } from '../../shared/actions/create-variant.ts';
 import type { CreateVariantPayload, CreateVariantResult } from '../../shared/actions/create-variant.ts';
+import { requireVariantCreationClassification } from '../../shared/domain/product-change-classification.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
@@ -37,6 +38,15 @@ export const handleCreateVariant = Effect.fn('CreateVariantAction.handle')(funct
   if (payload.productRef.tenantId !== context.scope.tenantId) {
     return yield* variantNotFound();
   }
+  const classification = yield* requireVariantCreationClassification({
+    classification: payload.classification,
+    evidenceRefs: payload.evidenceRefs,
+    productRef: payload.productRef,
+    reason: payload.reason,
+    variantRef: payload.variantRef,
+  }).pipe(
+    Effect.catchTag('ProductChangeClassificationConflict', () => Effect.fail(conflictForOutcome('invalid_change'))),
+  );
   const outcome = yield* context.services.create({
     actionInvocationId: context.actionInvocationId,
     evidenceRefs: payload.evidenceRefs,
@@ -47,7 +57,7 @@ export const handleCreateVariant = Effect.fn('CreateVariantAction.handle')(funct
     variantRef: payload.variantRef,
   });
   const result = yield* Match.value(outcome).pipe(
-    Match.tag('created', ({ variant }) => Effect.succeed({ variant })),
+    Match.tag('created', ({ variant }) => Effect.succeed({ classification, variant })),
     Match.tag('not_found', () => Effect.fail(variantNotFound())),
     Match.tag('revision_conflict', () => Effect.fail(conflictForOutcome('revision_conflict'))),
     Match.tag('lifecycle_conflict', () => Effect.fail(conflictForOutcome('lifecycle_conflict'))),
@@ -84,7 +94,7 @@ export const createVariantAction = defineAction(
     payloadSchema: CreateVariantPayloadSchema,
     policies: [],
     resultSchema: CreateVariantResultSchema,
-    schemaVersion: '1',
+    schemaVersion: '2',
   },
   handleCreateVariant,
   (transaction, scope) =>
@@ -95,7 +105,7 @@ export const createVariantAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 2 },
             {
               decode: Schema.decodeUnknownEffect(CreateVariantResultSchema),
               encode: Schema.encodeEffect(CreateVariantResultSchema),
