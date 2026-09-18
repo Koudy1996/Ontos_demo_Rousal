@@ -51,7 +51,7 @@ export const ReviseProductTypeActionConflictProblemSchema = makeProblemDetailsSc
 export const ReviseProductTypeActionIneligibleProblemSchema = makeProblemDetailsSchema(
   'ReviseProductTypeActionIneligibleProblem',
   422,
-  { code: Schema.Literals(['action_policy_denied', 'action_not_implemented']) },
+  { code: Schema.Literal('action_policy_denied') },
 );
 export const ReviseProductTypeActionPreconditionProblemSchema = makeProblemDetailsSchema(
   'ReviseProductTypeActionPreconditionProblem',
@@ -66,8 +66,10 @@ export const ReviseProductTypeActionUnavailableProblemSchema = makeRetryableProb
       'action_permission_check_failed',
       'action_policy_evaluation_failed',
       'action_transaction_failed',
+      'catalog_persistence_unavailable',
       'module_state_check_unavailable',
       'operation_context_unavailable',
+      'product_type_impact_basis_unavailable',
     ]),
   },
 );

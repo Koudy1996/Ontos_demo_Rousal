@@ -127,7 +127,10 @@ export const reviseProductTypeActionProblem = {
 const mapDomainProblem = (error: DomainError): ReviseProductTypeActionProblem =>
   Match.value(error).pipe(
     Match.tags({
-      ReviseProductTypeNotImplemented: () => reviseProductTypeActionProblem.ineligible('action_not_implemented'),
+      CatalogPersistenceUnavailable: () =>
+        reviseProductTypeActionProblem.unavailable('catalog_persistence_unavailable'),
+      ProductTypeImpactBasisUnavailable: () =>
+        reviseProductTypeActionProblem.unavailable('product_type_impact_basis_unavailable'),
       ReviseProductTypeStaleBasis: () => reviseProductTypeActionProblem.conflict('product_type_stale_basis'),
     }),
     Match.exhaustive,
