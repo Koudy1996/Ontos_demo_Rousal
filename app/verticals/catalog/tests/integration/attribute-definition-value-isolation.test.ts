@@ -15,6 +15,7 @@ import {
   attributeValueSets,
   catalogRelations,
   productTypeAssignments,
+  productTypeAssignmentEvents,
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
@@ -126,14 +127,28 @@ it.live('keeps two Products using one material definition independent in Current
         revision: 1,
         tenantId: tenantA,
       });
-      yield* admin.insert(productTypeAssignments).values(
-        [p1, p2].map((productId) => ({
-          assignedByActionInvocationId: randomUUID(),
-          assignedByPrincipalId: principalId,
-          productId,
-          productTypeId: typeId,
-          tenantId: tenantA,
-        })),
+      yield* admin.transaction((transaction) =>
+        Effect.forEach([p1, p2], (productId) => {
+          const actionInvocationId = randomUUID();
+          return Effect.gen(function* assignProductType() {
+            yield* transaction.insert(productTypeAssignmentEvents).values({
+              actionInvocationId,
+              actingPrincipalId: principalId,
+              assignmentRevision: 1,
+              nextProductTypeId: typeId,
+              productId,
+              reason: 'Fixture Product Type assignment',
+              tenantId: tenantA,
+            });
+            yield* transaction.insert(productTypeAssignments).values({
+              assignedByActionInvocationId: actionInvocationId,
+              assignedByPrincipalId: principalId,
+              productId,
+              productTypeId: typeId,
+              tenantId: tenantA,
+            });
+          });
+        }),
       );
 
       const first = yield* setMaterial(tenantA, p1, 'steel', null);
