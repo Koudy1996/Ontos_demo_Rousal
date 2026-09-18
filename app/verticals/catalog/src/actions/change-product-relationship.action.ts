@@ -100,30 +100,39 @@ export const changeProductRelationshipResultServiceFactory = (
   scope: Parameters<typeof relationshipPersistenceServiceFactory>[1],
 ) =>
   relationshipPersistenceServiceFactory(transaction, scope).pipe(
-    Effect.map((services) => ({
-      ...services,
-      captureResult: (actionInvocationId: string, result: ChangeProductRelationshipResult) =>
-        captureCatalogActionResult(
-          transaction,
-          scope,
-          { actionInvocationId, actionKey, schemaVersion: 1 },
-          {
-            decode: Schema.decodeUnknownEffect(ChangeProductRelationshipResultSchema),
-            encode: Schema.encodeEffect(ChangeProductRelationshipResultSchema),
-          },
-          result,
-        ).pipe(
-          Effect.mapError((cause) =>
-            Object.assign(
-              new ActionTransactionError({
-                code: 'action_transaction_failed',
-                reason: 'Catalog result capture failed',
-              }),
-              { cause },
+    Effect.map(
+      (
+        services,
+      ): ProductRelationshipPersistence & {
+        captureResult: (
+          actionInvocationId: string,
+          result: ChangeProductRelationshipResult,
+        ) => Effect.Effect<void, ActionTransactionError>;
+      } => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: ChangeProductRelationshipResult) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ChangeProductRelationshipResultSchema),
+              encode: Schema.encodeEffect(ChangeProductRelationshipResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((cause) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause },
+              ),
             ),
           ),
-        ),
-    })),
+      }),
+    ),
   );
 
 export const changeProductRelationshipAction = defineAction(
