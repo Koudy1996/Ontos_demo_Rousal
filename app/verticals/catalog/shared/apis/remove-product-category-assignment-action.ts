@@ -85,7 +85,7 @@ export const RemoveProductCategoryAssignmentActionAlreadyCommittedProblemSchema 
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_REMOVE_PRODUCT_CATEGORY_ASSIGNMENT'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -94,7 +94,7 @@ export const RemoveProductCategoryAssignmentActionCommitIndeterminateProblemSche
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_REMOVE_PRODUCT_CATEGORY_ASSIGNMENT'),
     retryCommand: Schema.Literal(false),
   },
 );

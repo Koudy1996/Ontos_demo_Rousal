@@ -141,9 +141,9 @@ const mapCoreProblem = (error: ActionCoreError): RemoveCatalogMediaActionProblem
       ActionAlreadyCommitted: (failure) =>
         RemoveCatalogMediaActionAlreadyCommittedProblemSchema.make({
           code: failure.code,
-          detail: 'This Action is already committed. Refresh governed reads.',
+          detail: 'This Action is already committed. Recover its original result by invocation.',
           invocationId: failure.invocationId,
-          resolution: 'REFRESH_GOVERNED_READS',
+          resolution: 'RECOVER_REMOVE_CATALOG_MEDIA',
           retryCommand: false,
           status: problemStatus.conflict,
           title: 'Action already committed',
@@ -154,7 +154,7 @@ const mapCoreProblem = (error: ActionCoreError): RemoveCatalogMediaActionProblem
         RemoveCatalogMediaActionCommitIndeterminateProblemSchema.make({
           detail: 'The Action commit is uncertain. Resolve this invocation before another attempt.',
           invocationId: failure.invocationId,
-          resolution: 'RESOLVE_COMMIT',
+          resolution: 'RECOVER_REMOVE_CATALOG_MEDIA',
           retryCommand: false,
           status: problemStatus.unavailable,
           title: 'Action commit uncertain',
