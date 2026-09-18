@@ -29,6 +29,7 @@ import {
   productConfigurationChoiceOptions,
   productConfigurationChoices,
   productConfigurationCompatibilityRules,
+  productConfigurationContinuityDecisions,
   productConfigurationDefinitionRevisions,
   productConfigurationDefinitions,
   productConfigurationMeasuredRules,
@@ -126,6 +127,7 @@ it('owns seventy-one tenant-scoped Catalog tables with RLS and immutable history
     'product_configuration_choice_options',
     'product_configuration_choices',
     'product_configuration_compatibility_rules',
+    'product_configuration_continuity_decisions',
     'product_configuration_definition_revisions',
     'product_configuration_definitions',
     'product_configuration_measured_rules',
@@ -236,6 +238,22 @@ it('reserves SKU across exact target kinds and keeps assignment provenance separ
 });
 
 it('keeps Product Configuration definitions and exact rules revision-scoped', () => {
+  const continuity = getTableConfig(productConfigurationContinuityDecisions);
+  expect(continuity.foreignKeys.map((key) => key.getName())).toEqual(
+    expect.arrayContaining([
+      'catalog_configuration_continuity_definition_fk',
+      'catalog_configuration_continuity_left_fk',
+      'catalog_configuration_continuity_right_fk',
+      'catalog_configuration_continuity_variant_fk',
+      'catalog_configuration_continuity_package_fk',
+    ]),
+  );
+  expect(continuity.checks.map((rule) => rule.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_configuration_continuity_revisions_ck',
+      'catalog_configuration_continuity_evidence_ck',
+    ]),
+  );
   expect(getTableConfig(productConfigurationDefinitions).foreignKeys.map((key) => key.getName())).toContain(
     'catalog_configuration_definitions_product_fk',
   );

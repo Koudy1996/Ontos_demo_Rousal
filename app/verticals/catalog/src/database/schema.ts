@@ -57,6 +57,7 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_configuration_choice_options',
   'product_configuration_choices',
   'product_configuration_compatibility_rules',
+  'product_configuration_continuity_decisions',
   'product_configuration_definition_revisions',
   'product_configuration_definitions',
   'product_configuration_measured_rules',
@@ -3451,6 +3452,82 @@ export const productConfigurationCompatibilityRules = catalogSchema.table.withRL
   ],
 );
 
+/** Owner-recorded, immutable evidence for one exact selection across two Definition revisions. */
+export const productConfigurationContinuityDecisions = catalogSchema.table.withRLS(
+  'product_configuration_continuity_decisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    decisionId: uuid('decision_id').defaultRandom().notNull(),
+    definitionId: uuid('definition_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    packageDefinitionId: uuid('package_definition_id'),
+    leftRevision: integer('left_revision').notNull(),
+    rightRevision: integer('right_revision').notNull(),
+    leftSelectionHash: text('left_selection_hash').notNull(),
+    rightSelectionHash: text('right_selection_hash').notNull(),
+    meaningEvidenceRefs: text('meaning_evidence_refs').array().notNull(),
+    leftRuleEvidenceRefs: text('left_rule_evidence_refs').array().notNull(),
+    rightRuleEvidenceRefs: text('right_rule_evidence_refs').array().notNull(),
+    reason: text('reason').notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.decisionId], name: 'catalog_configuration_continuity_pk' }),
+    unique('catalog_configuration_continuity_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.definitionId],
+      foreignColumns: [
+        productConfigurationDefinitions.tenantId,
+        productConfigurationDefinitions.productId,
+        productConfigurationDefinitions.definitionId,
+      ],
+      name: 'catalog_configuration_continuity_definition_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.leftRevision],
+      foreignColumns: [
+        productConfigurationDefinitionRevisions.tenantId,
+        productConfigurationDefinitionRevisions.definitionId,
+        productConfigurationDefinitionRevisions.revision,
+      ],
+      name: 'catalog_configuration_continuity_left_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.definitionId, table.rightRevision],
+      foreignColumns: [
+        productConfigurationDefinitionRevisions.tenantId,
+        productConfigurationDefinitionRevisions.definitionId,
+        productConfigurationDefinitionRevisions.revision,
+      ],
+      name: 'catalog_configuration_continuity_right_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.productId, productVariants.variantId],
+      name: 'catalog_configuration_continuity_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.variantId, table.packageDefinitionId],
+      foreignColumns: [
+        packageDefinitions.tenantId,
+        packageDefinitions.productId,
+        packageDefinitions.variantId,
+        packageDefinitions.packageDefinitionId,
+      ],
+      name: 'catalog_configuration_continuity_package_fk',
+    }).onDelete('restrict'),
+    check('catalog_configuration_continuity_revisions_ck', sql`${table.leftRevision} > 0 and ${table.rightRevision} > 0 and ${table.leftRevision} <> ${table.rightRevision}`),
+    check('catalog_configuration_continuity_left_hash_ck', sql`${table.leftSelectionHash} ~ '^[0-9a-f]{64}$'`),
+    check('catalog_configuration_continuity_right_hash_ck', sql`${table.rightSelectionHash} ~ '^[0-9a-f]{64}$'`),
+    check('catalog_configuration_continuity_evidence_ck', sql`cardinality(${table.meaningEvidenceRefs}) > 0 and cardinality(${table.leftRuleEvidenceRefs}) > 0 and cardinality(${table.rightRuleEvidenceRefs}) > 0`),
+    check('catalog_configuration_continuity_reason_ck', sql`length(btrim(${table.reason})) between 1 and 1000`),
+    ...tenantRlsPolicies('catalog_configuration_continuity_tenant', table.tenantId),
+  ],
+);
+
 const catalogDatabaseSchema = {
   catalogResultSnapshots,
   commercialGtinAssignmentRevisions,
@@ -3465,6 +3542,7 @@ const catalogDatabaseSchema = {
   productConfigurationOptionAllowances,
   productConfigurationRevisionActivations,
   productConfigurationCompatibilityRules,
+  productConfigurationContinuityDecisions,
   catalogMediaAssignmentRevisions,
   catalogMediaAssignments,
   catalogMediaAssignmentSetRevisions,
@@ -3539,6 +3617,7 @@ export const CATALOG_TABLES = [
   productConfigurationOptionAllowances,
   productConfigurationRevisionActivations,
   productConfigurationCompatibilityRules,
+  productConfigurationContinuityDecisions,
   catalogMediaAssignmentRevisions,
   catalogMediaAssignments,
   catalogMediaAssignmentSetRevisions,
