@@ -11,7 +11,6 @@ import { CatalogSelectionRevisionSchema } from '../../shared/domain/catalog-sele
 import type {
   ProductConfiguration,
   ProductConfigurationDefinitionRevision,
-  ProductConfigurationRevisionEquivalenceAttestation,
 } from '../../shared/domain/product-configuration.ts';
 import {
   assessCatalogOpenSelectionSnapshot,
@@ -39,6 +38,7 @@ import type { SetCompositionSelectionImpact } from './set-composition-persistenc
 import { SetCompositionPersistenceUnavailable } from './set-composition-persistence.ts';
 import type { ProductConfigurationAssessmentSide } from '../domain/product-configuration-reassessment.ts';
 import { reassessProductConfigurationChange } from '../domain/product-configuration-reassessment.ts';
+import { productConfigurationRevisionEquivalenceAttestationFor } from '../domain/product-configuration-equivalence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
@@ -198,17 +198,6 @@ const proposedCurrentRevision = (
   };
 };
 
-/** Injectable owner-issued #460 equivalence decision; absent means no proof and a closed gate. */
-export interface ConfigurationChangeAssurance {
-  readonly current: ProductConfigurationAssessmentSide;
-  readonly earlier: ProductConfigurationAssessmentSide;
-  readonly proposedSelection: ProductConfiguration;
-  readonly selection: ProductConfiguration;
-}
-export type ConfigurationChangeAssuranceProvider = (
-  request: ConfigurationChangeAssurance,
-) => ProductConfigurationRevisionEquivalenceAttestation | undefined;
-
 /** The proposed Definition publication an open selection is reassessed against. */
 export interface ConfigurationSelectionChange {
   readonly definitionId: string;
@@ -241,10 +230,9 @@ export const reassessOpenConfiguration: (
   revisionToken: string,
   input: ConfigurationSelectionChange,
   reference: CartOpenSelectionReference,
-  assurance?: ConfigurationChangeAssuranceProvider,
 ) => Effect.Effect<boolean, ProductConfigurationPersistenceUnavailable> = Effect.fn(
   'CatalogSelectionChangeImpact.reassessOpenConfiguration',
-)(function* reassessOpenConfigurationStep(persistence, revisionToken, input, reference, assurance): Effect.fn.Return<
+)(function* reassessOpenConfigurationStep(persistence, revisionToken, input, reference): Effect.fn.Return<
   boolean,
   ProductConfigurationPersistenceUnavailable
 > {
@@ -281,11 +269,20 @@ export const reassessOpenConfiguration: (
     definition: proposedDefinition,
     input: sideInput,
   };
-  const attestation = assurance?.({
-    current,
-    earlier,
-    proposedSelection: reexpressSelection(configuration, proposedDefinition.reference),
-    selection: configuration,
+  const proposedSelection = reexpressSelection(configuration, proposedDefinition.reference);
+  const attestation = productConfigurationRevisionEquivalenceAttestationFor({
+    attestationId: [
+      'commerce.catalog',
+      'configuration-equivalence',
+      input.tenantId,
+      input.definitionId,
+      String(input.previousRevision),
+      String(input.proposedRevision),
+      revisionToken,
+      reference.selectionId,
+    ].join(':'),
+    left: { ...earlier, selection: configuration },
+    right: { ...current, selection: proposedSelection },
   });
   const result = reassessProductConfigurationChange(
     attestation === undefined
@@ -319,7 +316,6 @@ export const productConfigurationSelectionImpactForScope = (
   scope: OperationalScope,
   population?: CartOpenSelectionPopulationPort,
   assess?: CatalogSelectionEvidenceReader['assess'],
-  assurance?: ConfigurationChangeAssuranceProvider,
 ): ConfigurationSelectionImpact => ({
   verify: Effect.fn('ProductConfigurationSelectionImpact.verify')(function* verifyConfigurationImpact(
     input: Parameters<ConfigurationSelectionImpact['verify']>[0],
@@ -343,7 +339,7 @@ export const productConfigurationSelectionImpactForScope = (
     const persistence = productConfigurationPersistenceForScope(transaction, scope);
     const reassessments = yield* Effect.forEach(
       affected,
-      (reference) => reassessOpenConfiguration(persistence, snapshot.revisionToken, input, reference, assurance),
+      (reference) => reassessOpenConfiguration(persistence, snapshot.revisionToken, input, reference),
       { concurrency: 1 },
     );
     return reassessments.every(Boolean);

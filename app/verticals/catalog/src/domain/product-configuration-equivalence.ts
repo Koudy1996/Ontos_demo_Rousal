@@ -7,6 +7,7 @@ import type {
 } from '../../shared/domain/catalog-unit-conversion-evidence.ts';
 import { sameProductConfigurationSelectionAcrossRevisions } from '../../shared/domain/product-configuration.ts';
 import type {
+  ConfigurationRuleRevisionEvidence,
   ConfigurationInspection,
   ProductConfiguration,
   ProductConfigurationDefinitionRevision,
@@ -440,4 +441,106 @@ export const assessProductConfigurationEquivalence = (
     };
   }
   return structural;
+};
+
+export interface ProductConfigurationEquivalenceAttestationSide {
+  readonly assessment?: CurrentConfigurationAssessment;
+  readonly definition?: ProductConfigurationDefinitionRevision;
+  readonly input: CurrentConfigurationAssessmentInput;
+  readonly selection: ProductConfiguration;
+}
+
+export interface ProductConfigurationEquivalenceAttestationInput {
+  readonly attestationId: string;
+  readonly left: ProductConfigurationEquivalenceAttestationSide;
+  readonly right: ProductConfigurationEquivalenceAttestationSide;
+  readonly unitConversionEvidence?: readonly CatalogUnitConversionEvidence[];
+}
+
+const attestedRuleRevisions = (
+  side: ProductConfigurationEquivalenceAttestationSide,
+): readonly ConfigurationRuleRevisionEvidence[] | undefined => {
+  const { assessment, definition } = side;
+  if (
+    assessment?.status !== 'VALID' ||
+    definition === undefined ||
+    assessment.definitionId !== definition.reference.resourceRef.resourceId ||
+    assessment.definitionRevision !== definition.reference.revision
+  ) {
+    return undefined;
+  }
+  const revisions: ConfigurationRuleRevisionEvidence[] = [];
+  const ruleIds = new Set<string>();
+  for (const rule of assessment.rules) {
+    if (
+      rule.ownerModuleId !== catalogOwner ||
+      rule.definitionRevision !== assessment.definitionRevision ||
+      rule.kind === undefined ||
+      !Number.isSafeInteger(rule.revision) ||
+      rule.revision < 1 ||
+      rule.ruleId.trim().length === 0 ||
+      rule.ruleId !== rule.ruleId.trim() ||
+      ruleIds.has(rule.ruleId) ||
+      rule.evidenceRefs.length === 0 ||
+      rule.evidenceRefs.some((reference) => reference.trim().length === 0)
+    ) {
+      return undefined;
+    }
+    ruleIds.add(rule.ruleId);
+    revisions.push({
+      definitionRevision: definition.reference,
+      kind: rule.kind,
+      ownerModuleId: catalogOwner,
+      revision: rule.revision,
+      ruleId: rule.ruleId,
+    });
+  }
+  return revisions;
+};
+
+/**
+ * Mint #460 evidence only from the two exact Catalog-owner Current assessments. The caller chooses
+ * an identity for this assessment, but cannot assert its result: this issuer derives the complete
+ * rule bases and returns no attestation unless the existing equivalence gate proves the claim.
+ */
+export const productConfigurationRevisionEquivalenceAttestationFor = (
+  input: ProductConfigurationEquivalenceAttestationInput,
+): ProductConfigurationRevisionEquivalenceAttestation | undefined => {
+  if (input.attestationId.trim().length === 0 || input.attestationId !== input.attestationId.trim()) {
+    return undefined;
+  }
+  const leftRuleRevisions = attestedRuleRevisions(input.left);
+  const rightRuleRevisions = attestedRuleRevisions(input.right);
+  if (leftRuleRevisions === undefined || rightRuleRevisions === undefined) {
+    return undefined;
+  }
+  const attestation: ProductConfigurationRevisionEquivalenceAttestation = {
+    admissibility: {
+      completeCurrentRuleBasis: true,
+      left: 'ADMISSIBLE',
+      leftRuleRevisions,
+      right: 'ADMISSIBLE',
+      rightRuleRevisions,
+    },
+    attestationId: input.attestationId,
+    leftSelection: structuredClone(input.left.selection),
+    meaning: { choicesAndValues: 'SAME', units: 'SAME' },
+    ownerModuleId: catalogOwner,
+    rightSelection: structuredClone(input.right.selection),
+    source: 'CATALOG_OWNER_EQUIVALENCE_ASSESSMENT',
+    status: 'CONFIRMED',
+  };
+  const proof = assessProductConfigurationEquivalence(
+    input.left.selection,
+    input.left.definition,
+    input.left.input,
+    input.left.assessment,
+    input.right.selection,
+    input.right.definition,
+    input.right.input,
+    input.right.assessment,
+    attestation,
+    input.unitConversionEvidence ?? [],
+  );
+  return proof.status === 'VALID' && proof.same === true ? attestation : undefined;
 };

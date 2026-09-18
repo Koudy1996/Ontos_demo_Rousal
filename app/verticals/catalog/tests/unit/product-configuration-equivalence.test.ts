@@ -13,7 +13,10 @@ import type {
 } from '../../shared/domain/product-configuration.ts';
 import { ProductRefSchema } from '../../shared/resources/product.ts';
 import { VariantRefSchema } from '../../shared/resources/variant.ts';
-import { assessProductConfigurationEquivalence } from '../../src/domain/product-configuration-equivalence.ts';
+import {
+  assessProductConfigurationEquivalence,
+  productConfigurationRevisionEquivalenceAttestationFor,
+} from '../../src/domain/product-configuration-equivalence.ts';
 import type {
   CurrentConfigurationAssessment,
   CurrentConfigurationAssessmentInput,
@@ -169,6 +172,59 @@ const compare = (
   );
 
 describe('owner-private Product Configuration equivalence gate', () => {
+  it('issues owner equivalence only from exact matching Current assessments', () => {
+    const issued = productConfigurationRevisionEquivalenceAttestationFor({
+      attestationId: 'catalog-equivalence-1',
+      left: { assessment: assessment(1), definition: leftDefinition, input, selection: left },
+      right: { assessment: assessment(2), definition: rightDefinition, input, selection: right },
+    });
+    expect(issued).toMatchObject({
+      attestationId: 'catalog-equivalence-1',
+      ownerModuleId: 'commerce.catalog',
+      source: 'CATALOG_OWNER_EQUIVALENCE_ASSESSMENT',
+      status: 'CONFIRMED',
+    });
+    expect(compare(input, assessment(2), issued)).toMatchObject({ same: true, status: 'VALID' });
+
+    const changedMeaning = assessment(2).choiceRevisions.map((choice) =>
+      choice.choiceKey === 'mount' ? { ...choice, meaning: 'Different component role' } : choice,
+    );
+    expect(
+      productConfigurationRevisionEquivalenceAttestationFor({
+        attestationId: 'catalog-equivalence-2',
+        left: { assessment: assessment(1), definition: leftDefinition, input, selection: left },
+        right: {
+          assessment: { ...assessment(2), choiceRevisions: changedMeaning },
+          definition: rightDefinition,
+          input,
+          selection: right,
+        },
+      }),
+    ).toBeUndefined();
+    expect(
+      productConfigurationRevisionEquivalenceAttestationFor({
+        attestationId: '   ',
+        left: { assessment: assessment(1), definition: leftDefinition, input, selection: left },
+        right: { assessment: assessment(2), definition: rightDefinition, input, selection: right },
+      }),
+    ).toBeUndefined();
+    expect(
+      productConfigurationRevisionEquivalenceAttestationFor({
+        attestationId: 'catalog-equivalence-foreign-rule',
+        left: { assessment: assessment(1), definition: leftDefinition, input, selection: left },
+        right: {
+          assessment: {
+            ...assessment(2),
+            rules: assessment(2).rules.map((item) => ({ ...item, ownerModuleId: 'commerce.sales' })),
+          },
+          definition: rightDefinition,
+          input,
+          selection: right,
+        },
+      }),
+    ).toBeUndefined();
+  });
+
   it('requires exact owner assessments and matching rule bases', () => {
     const missingProof = new Map<string, ProductConfigurationRevisionEquivalenceAttestation>().get('missing');
     const missingAssessment = new Map<string, CurrentConfigurationAssessment>().get('missing');

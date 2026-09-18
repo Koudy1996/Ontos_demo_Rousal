@@ -18,18 +18,13 @@ import {
   CatalogSelectionSchema,
 } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
-import type { ProductConfigurationRevisionEquivalenceAttestation } from '../../shared/domain/product-configuration.ts';
-import type { ProductConfigurationAssessmentSide } from '../../src/domain/product-configuration-reassessment.ts';
 import { assembleCatalogSelectionEvidence } from '../../src/persistence/catalog-selection-evidence-service.ts';
 import type { CatalogSelectionEvidenceServiceResult } from '../../src/persistence/catalog-selection-evidence-service.ts';
 import {
   assessCatalogOpenSelectionSnapshot,
   catalogSelectionOpenPopulationImpactForScope,
 } from '../../src/persistence/catalog-selection-open-population.ts';
-import type {
-  ConfigurationChangeAssurance,
-  ConfigurationSelectionChange,
-} from '../../src/persistence/catalog-selection-change-impact.ts';
+import type { ConfigurationSelectionChange } from '../../src/persistence/catalog-selection-change-impact.ts';
 import {
   packageActivationSelectionImpactForScope,
   productConfigurationSelectionImpactForScope,
@@ -268,6 +263,12 @@ const displayOnlyConfigurationChange = changeInput(
     { label: 'B (display only)', meaning: 'B mounting part', optionKey: 'B' },
   ]),
 );
+const meaningChangingConfigurationChange = changeInput(
+  configurationChoices([
+    { label: 'A', meaning: 'A different mounting part', optionKey: 'A' },
+    { label: 'B', meaning: 'B mounting part', optionKey: 'B' },
+  ]),
+);
 const configurationPersistence = (
   revision: CurrentConfigurationRevision | undefined,
 ): ProductConfigurationPersistence => ({
@@ -278,38 +279,6 @@ const absentConfiguration: ProductConfigurationPersistence = {
   publish: () => Effect.die('configuration impact must not publish'),
   readCurrent: () => Effect.succeed(Option.none()),
 };
-const sideRuleRevisions = (side: ProductConfigurationAssessmentSide) => {
-  const { definition } = side;
-  if (definition === undefined) {
-    return [];
-  }
-  return (side.assessment?.rules ?? []).map((rule) => ({
-    definitionRevision: definition.reference,
-    kind: rule.kind ?? 'MEASURED',
-    ownerModuleId: 'commerce.catalog' as const,
-    revision: rule.revision,
-    ruleId: rule.ruleId,
-  }));
-};
-const ownerEquivalence = (
-  request: ConfigurationChangeAssurance,
-): ProductConfigurationRevisionEquivalenceAttestation => ({
-  admissibility: {
-    completeCurrentRuleBasis: true,
-    left: 'ADMISSIBLE',
-    leftRuleRevisions: sideRuleRevisions(request.earlier),
-    right: 'ADMISSIBLE',
-    rightRuleRevisions: sideRuleRevisions(request.current),
-  },
-  attestationId: 'owner-equivalence-change-impact-1',
-  leftSelection: request.selection,
-  meaning: { choicesAndValues: 'SAME', units: 'SAME' },
-  ownerModuleId: 'commerce.catalog',
-  rightSelection: request.proposedSelection,
-  source: 'CATALOG_OWNER_EQUIVALENCE_ASSESSMENT',
-  status: 'CONFIRMED',
-});
-
 describe('Catalog open-selection population impact (#479 wiring)', () => {
   it.effect('fails closed when the Cart owner population port is absent', () =>
     Effect.gen(function* absentPort() {
@@ -457,19 +426,18 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
           'cart-population-1',
           displayOnlyConfigurationChange,
           configurationReference,
-          ownerEquivalence,
         ),
       ).toBe(true);
     }),
   );
 
-  it.effect('fails closed on a cross-revision configuration comparison without owner evidence', () =>
-    Effect.gen(function* unprovenConfigurationRevision() {
+  it.effect('fails closed when the same option key has different owner-recorded meaning', () =>
+    Effect.gen(function* changedConfigurationMeaning() {
       expect(
         yield* reassessOpenConfiguration(
           configurationPersistence(committedConfiguration),
           'cart-population-1',
-          displayOnlyConfigurationChange,
+          meaningChangingConfigurationChange,
           configurationReference,
         ),
       ).toBe(false);
@@ -484,7 +452,6 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
           'cart-population-1',
           displayOnlyConfigurationChange,
           configurationReference,
-          ownerEquivalence,
         ),
       ).toBe(false);
       expect(
@@ -493,7 +460,6 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
           'cart-population-1',
           displayOnlyConfigurationChange,
           configurationReference,
-          ownerEquivalence,
         ),
       ).toBe(false);
     }),
