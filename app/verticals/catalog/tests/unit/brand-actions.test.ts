@@ -86,6 +86,10 @@ const context = (
     ...overrides,
   },
 });
+const renameContext = (overrides: Partial<BrandPersistence> = {}): Parameters<typeof handleRenameBrand>[1] => ({
+  ...context(overrides),
+  addDomainEvent: () => Effect.succeed(Object.create(null)),
+});
 
 describe('Brand governed Actions', () => {
   it.effect('rolls back every Brand Action when decoded-success capture fails', () =>
@@ -226,12 +230,64 @@ describe('Brand governed Actions', () => {
     Effect.gen(function* rejectUnavailablePersistence() {
       const errors = yield* Effect.all([
         handleCreateBrand(create, context()).pipe(Effect.flip),
-        handleRenameBrand(rename, context()).pipe(Effect.flip),
+        handleRenameBrand(rename, renameContext()).pipe(Effect.flip),
         handleRetireBrand(retire, context()).pipe(Effect.flip),
         handleReactivateBrand(reactivate, context()).pipe(Effect.flip),
         handleSetProductBrand(assign, context()).pipe(Effect.flip),
       ]);
       expect(errors.map((error) => error.code)).toEqual(Array.from({ length: 5 }, () => 'brand_unavailable'));
+    }),
+  );
+
+  it.effect('emits the committed Brand rename and linked outbox once after persistence succeeds', () =>
+    Effect.gen(function* committedBrandRename() {
+      const emitted: unknown[] = [];
+      const result = Schema.decodeUnknownSync(BrandMutationResultSchema)({ brandRef, revision: 2 });
+      const actionContext: Parameters<typeof handleRenameBrand>[1] = {
+        ...renameContext({ rename: () => Effect.succeed({ _tag: 'applied' as const, result }) }),
+        addDomainEvent: (event) => {
+          emitted.push(event);
+          return Effect.succeed(Object.create(null));
+        },
+        addOutboxMessage: (event, message) => {
+          emitted.push({ event, message });
+          return Effect.void;
+        },
+      };
+      expect(yield* handleRenameBrand(rename, actionContext)).toEqual(result);
+      expect(emitted).toHaveLength(2);
+      expect(emitted[0]).toMatchObject({
+        eventType: 'commerce.catalog.brand-descriptive-changed.v1',
+        payloadJson: { brandRef, name: 'Alfa', revision: 2, tenantId },
+        subjectResourceId: brandRef.resourceId,
+        subjectResourceType: brandRef.resourceType,
+      });
+      expect(emitted[1]).toMatchObject({
+        message: {
+          payloadJson: { brandRef, name: 'Alfa', revision: 2, tenantId },
+          topic: 'commerce.catalog.brand-descriptive-changed.v1',
+        },
+      });
+    }),
+  );
+
+  it.effect('emits nothing when the Brand rename is rejected as stale', () =>
+    Effect.gen(function* rejectedBrandRename() {
+      const emitted: unknown[] = [];
+      const actionContext: Parameters<typeof handleRenameBrand>[1] = {
+        ...renameContext({ rename: () => Effect.succeed({ _tag: 'stale' as const, actualRevision: 3 }) }),
+        addDomainEvent: (event) => {
+          emitted.push(event);
+          return Effect.die('Rejected rename must not create an event');
+        },
+        addOutboxMessage: (event, message) => {
+          emitted.push({ event, message });
+          return Effect.die('Rejected rename must not enqueue an outbox message');
+        },
+      };
+      const error = yield* handleRenameBrand(rename, actionContext).pipe(Effect.flip);
+      expect(error.code).toBe('brand_stale');
+      expect(emitted).toHaveLength(0);
     }),
   );
 

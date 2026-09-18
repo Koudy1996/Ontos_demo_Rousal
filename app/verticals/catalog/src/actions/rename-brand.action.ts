@@ -15,6 +15,8 @@ import {
 import type { RenameBrandPayload } from '../../shared/actions/brand-mutations.ts';
 import type { BrandPersistence } from '../persistence/brand-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-brand-descriptive-changed-v1.ts';
+import { createRenameBrandCommerceCatalogBrandDescriptiveChangedV1OutboxMessage } from './rename-brand-commerce-catalog-brand-descriptive-changed-v1.outbox-message.ts';
 import {
   brandPersistenceServiceFactory,
   mapBrandPersistenceError,
@@ -24,6 +26,10 @@ import {
 export type { RenameBrandPayload } from '../../shared/actions/brand-mutations.ts';
 
 const ACTION_KEY = 'commerce.catalog.rename-brand';
+const BRAND_DESCRIPTIVE_CHANGED_EVENT_TYPE = 'commerce.catalog.brand-descriptive-changed.v1';
+const domainEvents = {
+  [BRAND_DESCRIPTIVE_CHANGED_EVENT_TYPE]: OutboxPayloadSchema,
+} as const;
 
 interface CapturingBrandPersistence extends BrandPersistence {
   readonly captureResult: (
@@ -34,7 +40,7 @@ interface CapturingBrandPersistence extends BrandPersistence {
 
 export const handleRenameBrand = Effect.fn('RenameBrandAction.handle')(function* handleRenameBrand(
   payload: RenameBrandPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, BrandPersistence>,
+  context: ActionHandlerContext<typeof domainEvents, BrandPersistence>,
 ) {
   if (payload.brandRef.tenantId !== context.scope.tenantId) {
     return yield* new BrandActionError({
@@ -47,6 +53,24 @@ export const handleRenameBrand = Effect.fn('RenameBrandAction.handle')(function*
     .pipe(Effect.mapError(mapBrandPersistenceError));
   const result = yield* resolveBrandMutation(outcome);
   yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
+  const eventPayload = {
+    brandRef: result.brandRef,
+    name: payload.name,
+    revision: result.revision,
+    tenantId: context.scope.tenantId,
+  };
+  const event = yield* context.addDomainEvent({
+    eventType: BRAND_DESCRIPTIVE_CHANGED_EVENT_TYPE,
+    payloadJson: eventPayload,
+    producerModuleKey: result.brandRef.moduleId,
+    subjectModuleKey: result.brandRef.moduleId,
+    subjectResourceId: result.brandRef.resourceId,
+    subjectResourceType: 'commerce.catalog.brand',
+  });
+  yield* context.addOutboxMessage(
+    event,
+    createRenameBrandCommerceCatalogBrandDescriptiveChangedV1OutboxMessage(eventPayload),
+  );
   return result;
 });
 
@@ -60,11 +84,11 @@ export const renameBrandAction = defineAction(
     auditEvidenceSchema: BrandAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: BrandActionErrorSchema,
-    domainEvents: {},
+    domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
+      entrypointKey: 'commerce.catalog.rename-brand',
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -108,4 +132,9 @@ export const renameBrandAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createRenameBrandCommerceCatalogBrandDescriptiveChangedV1OutboxMessage } from './rename-brand-commerce-catalog-brand-descriptive-changed-v1.outbox-message.ts';
+export { RenameBrandCommerceCatalogBrandDescriptiveChangedV1OutboxPayloadSchema } from './rename-brand-commerce-catalog-brand-descriptive-changed-v1.outbox-message.ts';
+export { RenameBrandCommerceCatalogBrandDescriptiveChangedV1OutboxProducerModuleKey } from './rename-brand-commerce-catalog-brand-descriptive-changed-v1.outbox-message.ts';
+export { RenameBrandCommerceCatalogBrandDescriptiveChangedV1OutboxTopic } from './rename-brand-commerce-catalog-brand-descriptive-changed-v1.outbox-message.ts';
+export type { RenameBrandCommerceCatalogBrandDescriptiveChangedV1OutboxPayload } from './rename-brand-commerce-catalog-brand-descriptive-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>
