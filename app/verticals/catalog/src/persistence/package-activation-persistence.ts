@@ -1,9 +1,10 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Match, Schema } from 'effect';
 
 import { PackageDefinitionContentInputSchema } from '../../shared/actions/package-definition-contract.ts';
 import { packageContentRevisions, packageDefinitions, productVariants, products } from '../database/schema.ts';
+import { resolveEffectiveRevision } from './package-persistence.ts';
 import type { PackageContentBasis } from './package-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -210,19 +211,32 @@ export const packageActivationPersistenceForScope = (
     if (contentBasis === undefined || selectionImpact === undefined) {
       return yield* unavailable();
     }
-    const [content] = yield* transaction
+    const now = DateTime.toDateUtc(yield* DateTime.now);
+    const revisions = yield* transaction
       .select()
       .from(packageContentRevisions)
       .where(
         and(
           eq(packageContentRevisions.tenantId, tenantId),
           eq(packageContentRevisions.packageDefinitionId, definition.packageDefinitionId),
-          eq(packageContentRevisions.revision, definition.currentRevision),
         ),
       )
       .for('update')
-      .limit(1)
       .pipe(Effect.mapError(unavailable));
+    const effectiveRevision = yield* Match.value(resolveEffectiveRevision(revisions, now)).pipe(
+      Match.tag('invalid', () => Effect.fail(unavailable())),
+      Match.tag('resolved', ({ revision }) => Effect.succeed(revision)),
+      Match.exhaustive,
+    );
+    if (effectiveRevision !== definition.currentRevision) {
+      return { _tag: 'stale', actualRevision: effectiveRevision } as const;
+    }
+    // Activation appends an immutable Active snapshot at currentRevision + 1.
+    // A scheduled successor already owns that slot and cannot be replaced or skipped.
+    if (revisions.length !== definition.currentRevision) {
+      return { _tag: 'invalid', reason: 'Scheduled successor content prevents activation' } as const;
+    }
+    const content = revisions.find((row) => row.revision === effectiveRevision);
     if (content === undefined || !validDraftContent(content, definition)) {
       return yield* unavailable();
     }
@@ -282,10 +296,6 @@ export const packageActivationPersistenceForScope = (
       }))
     ) {
       return { _tag: 'invalid', reason: 'Issued selection impact is not proven safe' } as const;
-    }
-    const now = DateTime.toDateUtc(yield* DateTime.now);
-    if (now.getTime() <= content.effectiveAt.getTime()) {
-      return { _tag: 'invalid', reason: 'Draft content is not yet effective' } as const;
     }
     const [updated] = yield* transaction
       .update(packageDefinitions)

@@ -57,28 +57,32 @@ const content = {
 };
 type Table = typeof packageDefinitions | typeof packageContentRevisions | typeof products | typeof productVariants;
 type WriteValue = Partial<typeof packageDefinitions.$inferInsert> | typeof packageContentRevisions.$inferInsert;
-const rows = (table: Table, overrides: { content?: typeof content; definition?: typeof definition }) => {
+interface Overrides {
+  content?: typeof content;
+  contents?: readonly (typeof content & { revision: number })[];
+  definition?: typeof definition;
+}
+const rows = (table: Table, overrides: Overrides) => {
   if (table === packageDefinitions) {
     return [overrides.definition ?? definition];
   }
   if (table === packageContentRevisions) {
-    return [overrides.content ?? content];
+    return overrides.contents ?? [{ ...(overrides.content ?? content), revision: 1 }];
   }
   return [{ lifecycleState: 'ACTIVE' }];
 };
-const readLimit = (table: Table, overrides: { content?: typeof content; definition?: typeof definition }) =>
-  Effect.succeed(rows(table, overrides));
+const readLimit = (table: Table, overrides: Overrides) => Effect.succeed(rows(table, overrides));
 const writeUpdate = (table: Table, writes: unknown[], value: WriteValue) => {
   writes.push([table, value]);
   return Effect.succeed([{ ...definition, currentRevision: 2 }]);
 };
-const queryFor = (table: Table, overrides: { content?: typeof content; definition?: typeof definition }) => ({
-  where: () => ({ for: () => ({ limit: () => readLimit(table, overrides) }) }),
+const queryFor = (table: Table, overrides: Overrides) => ({
+  where: () => ({ for: () => ({ limit: () => readLimit(table, overrides), pipe: () => readLimit(table, overrides) }) }),
 });
 const updateFor = (table: Table, writes: unknown[]) => ({
   set: (value: WriteValue) => ({ where: () => ({ returning: () => writeUpdate(table, writes, value) }) }),
 });
-const fixture = (writes: unknown[], overrides: { content?: typeof content; definition?: typeof definition } = {}) => ({
+const fixture = (writes: unknown[], overrides: Overrides = {}) => ({
   insert: (table: Table) => ({
     values: (value: WriteValue) => {
       writes.push([table, value]);
@@ -178,6 +182,64 @@ describe('Package Definition activation persistence', () => {
           Match.orElse(() => false),
         ),
       ).toBe(true);
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('does not activate a future successor or overwrite its immutable revision slot', () =>
+    Effect.gen(function* scheduledSuccessor() {
+      const writes: unknown[] = [];
+      const successor = {
+        ...content,
+        amount: '8',
+        effectiveAt: new Date('2999-01-01T00:00:00.000Z'),
+        revision: 2,
+      };
+      const verifiedAmounts: string[] = [];
+      const service = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, { contents: [{ ...content, revision: 1 }, successor] }),
+        scope,
+        {
+          verify: ({ content: candidate }) => {
+            verifiedAmounts.push(candidate.amount);
+            return Effect.succeed(true);
+          },
+        },
+        { verify: () => Effect.succeed(true) },
+      );
+      expect(
+        Match.value(yield* service.activate(input)).pipe(
+          Match.tag('invalid', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+      expect(verifiedAmounts).toEqual([]);
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('reports a newly effective successor as stale without activating old content', () =>
+    Effect.gen(function* effectiveSuccessor() {
+      const writes: unknown[] = [];
+      const service = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, {
+          contents: [
+            { ...content, revision: 1 },
+            { ...content, amount: '8', effectiveAt: new Date('1970-01-01T00:00:00.000Z'), revision: 2 },
+          ],
+        }),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        { verify: () => Effect.succeed(true) },
+      );
+      expect(
+        Match.value(yield* service.activate(input)).pipe(
+          Match.tag('stale', ({ actualRevision }) => actualRevision),
+          Match.orElse(() => null),
+        ),
+      ).toBe(2);
       expect(writes).toEqual([]);
     }),
   );
