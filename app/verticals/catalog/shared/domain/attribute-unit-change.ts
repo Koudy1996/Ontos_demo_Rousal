@@ -7,12 +7,22 @@ import {
   validateAttributeValues,
 } from './attribute-values.ts';
 import type { AttributeDefinition, AttributeValue, UnitConversion } from './attribute-values.ts';
+import type { CatalogResourceRefInput } from './catalog-revision-reference.ts';
+
+export interface AttributeValueProvenance {
+  readonly evidence: string;
+  readonly sourceDefinitionRef: CatalogResourceRefInput;
+  readonly sourceDefinitionRevision: number;
+  readonly sourceUnit: string | null;
+  readonly subjectRef: CatalogResourceRefInput;
+  readonly valueOrdinal: number;
+}
 
 export interface EvidencedAttributeValue {
   /** The immutable value as recorded under the previous definition rules. */
   readonly original: AttributeValue | null;
   /** Evidence for the unit and origin of this specific recorded value. */
-  readonly provenance: string | null;
+  readonly provenance: AttributeValueProvenance | null;
 }
 
 export type AttributeUnitChangeAssessment =
@@ -29,6 +39,8 @@ export type AttributeUnitChangeAssessment =
 export const assessAttributeUnitChange = (
   current: AttributeDefinition,
   proposed: AttributeDefinition,
+  subjectRef: CatalogResourceRefInput,
+  sourceDefinitionRevision: number,
   recorded: readonly EvidencedAttributeValue[],
   conversions: readonly UnitConversion[],
 ): AttributeUnitChangeAssessment => {
@@ -42,15 +54,30 @@ export const assessAttributeUnitChange = (
   if (recorded.length === 0 || recorded.some(({ original }) => original === null)) {
     return { kind: 'INDETERMINATE', reasons: ['Recorded value is absent'] };
   }
-  if (recorded.some(({ provenance }) => provenance === null || provenance.trim().length === 0)) {
+  if (
+    !Schema.is(Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)))(sourceDefinitionRevision) ||
+    recorded.some(
+      ({ original, provenance }, valueOrdinal) =>
+        provenance === null ||
+        provenance.evidence.trim().length === 0 ||
+        provenance.subjectRef.moduleId !== subjectRef.moduleId ||
+        provenance.subjectRef.resourceId !== subjectRef.resourceId ||
+        provenance.subjectRef.resourceType !== subjectRef.resourceType ||
+        provenance.subjectRef.tenantId !== subjectRef.tenantId ||
+        provenance.sourceDefinitionRef.moduleId !== current.ref.moduleId ||
+        provenance.sourceDefinitionRef.resourceId !== current.ref.resourceId ||
+        provenance.sourceDefinitionRef.resourceType !== current.ref.resourceType ||
+        provenance.sourceDefinitionRef.tenantId !== current.ref.tenantId ||
+        provenance.sourceDefinitionRevision !== sourceDefinitionRevision ||
+        provenance.valueOrdinal !== valueOrdinal ||
+        provenance.sourceUnit !== (original?.kind === 'MEASUREMENT' ? original.unit : null),
+    )
+  ) {
     return { kind: 'INDETERMINATE', reasons: ['Unit or value provenance is unknown'] };
   }
   const originals = recorded.map(({ original }) => original);
   if (originals.some((value) => !Schema.is(AttributeValueSchema)(value))) {
     return { kind: 'INDETERMINATE', reasons: ['Recorded value is malformed'] };
-  }
-  if (originals.some((value) => value?.kind !== 'MEASUREMENT')) {
-    return { kind: 'INDETERMINATE', reasons: ['Recorded measurement is not established'] };
   }
   const previous = validateAttributeValues(current, originals);
   if (!previous.valid) {
