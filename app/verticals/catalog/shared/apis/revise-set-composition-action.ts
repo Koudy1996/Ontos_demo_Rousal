@@ -77,7 +77,7 @@ export const ReviseSetCompositionActionAlreadyCommittedProblemSchema = makeProbl
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_REVISE_SET_COMPOSITION'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -86,7 +86,7 @@ export const ReviseSetCompositionActionCommitIndeterminateProblemSchema = makePr
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_REVISE_SET_COMPOSITION'),
     retryCommand: Schema.Literal(false),
   },
 );

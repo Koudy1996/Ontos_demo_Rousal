@@ -72,7 +72,7 @@ export const ReviseProductUnitActionAlreadyCommittedProblemSchema = makeProblemD
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_REVISE_PRODUCT_UNIT'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -81,7 +81,7 @@ export const ReviseProductUnitActionCommitIndeterminateProblemSchema = makeProbl
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_REVISE_PRODUCT_UNIT'),
     retryCommand: Schema.Literal(false),
   },
 );
