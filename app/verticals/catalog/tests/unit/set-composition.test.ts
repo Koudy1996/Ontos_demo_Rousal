@@ -19,7 +19,9 @@ const ref = (type: string, id: string) => ({
 });
 const productRef = Schema.decodeUnknownSync(ProductRefSchema)(ref('product', '22222222-2222-4222-8222-222222222222'));
 const variantRef = Schema.decodeUnknownSync(VariantRefSchema)(ref('variant', '33333333-3333-4333-8333-333333333333'));
-const unitRef = Schema.decodeUnknownSync(CatalogResourceRefSchema)(ref('unit', '44444444-4444-4444-8444-444444444444'));
+const unitRef = Schema.decodeUnknownSync(CatalogResourceRefSchema)(
+  ref('product-unit', '44444444-4444-4444-8444-444444444444'),
+);
 const componentProduct = Schema.decodeUnknownSync(ProductRefSchema)(
   ref('product', '55555555-5555-4555-8555-555555555555'),
 );
@@ -51,6 +53,15 @@ describe('Set composition', () => {
   });
 
   it('rejects incomplete, zero, duplicate, and nested compositions', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+        ...revision,
+        components: [
+          { ...components[0], quantity: { amount: '2', unitRef: ref('product', unitRef.resourceId) } },
+          components[1],
+        ],
+      }),
+    ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(SetCompositionRevisionSchema)({ ...revision, components: [components[0]] }),
     ).toThrow();
@@ -106,5 +117,23 @@ describe('Set composition', () => {
     });
     expect(classifySetCompositionChange(original, changed)).toBe('MATERIAL_CHANGE');
     expect(original.components[1]?.quantity.amount).toBe('4');
+  });
+
+  it('treats reordered and re-keyed needs as the same exact content without losing multiplicity', () => {
+    const original = Schema.decodeUnknownSync(SetCompositionRevisionSchema)(revision);
+    const rekeyed = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+      ...revision,
+      components: [
+        { ...components[1], componentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+        { ...components[0], componentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+      ],
+    });
+    expect(classifySetCompositionChange(original, rekeyed)).toBe('SAME_CONTENT');
+
+    const duplicated = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+      ...revision,
+      components: [components[0], { ...components[0], componentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
+    });
+    expect(classifySetCompositionChange(original, duplicated)).toBe('MATERIAL_CHANGE');
   });
 });

@@ -2,9 +2,10 @@ import { Schema } from 'effect';
 
 import { CatalogSelectionSchema, SetCompositionSelectionRevisionSchema } from './catalog-selection-evidence.ts';
 import type { CatalogSelection } from './catalog-selection-evidence.ts';
-import { CatalogResourceRefSchema, sameCatalogRevisionReference } from './catalog-revision-reference.ts';
+import { sameCatalogRevisionReference } from './catalog-revision-reference.ts';
 import type { CatalogResourceRef } from './catalog-revision-reference.ts';
 import { ProductRefSchema } from '../resources/product.ts';
+import { ProductUnitRefSchema } from '../resources/product-unit.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
 const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed());
@@ -17,7 +18,7 @@ const positiveAmount = Schema.String.check(
 /** One stable need in one Set, not an optional or customer-selected alternative. */
 export const SetComponentSchema = Schema.Struct({
   componentId,
-  quantity: Schema.Struct({ amount: positiveAmount, unitRef: CatalogResourceRefSchema }),
+  quantity: Schema.Struct({ amount: positiveAmount, unitRef: ProductUnitRefSchema }),
   selection: CatalogSelectionSchema,
 }).check(
   Schema.makeFilter(({ quantity, selection }) =>
@@ -99,15 +100,22 @@ export const classifySetCompositionChange = (
   if (previous.components.length !== next.components.length) {
     return 'MATERIAL_CHANGE';
   }
-  const priorById = new Map(previous.components.map((component) => [component.componentId, component]));
+  // Component IDs identify recorded needs, not the goods delivered by the Set.
+  // Match as a multiset so re-keying a need is not mistaken for changed content,
+  // while repeated identical needs still have to match one-for-one.
+  const unmatched = [...previous.components];
   return next.components.every((component) => {
-    const prior = priorById.get(component.componentId);
-    return (
-      prior !== undefined &&
-      sameSelection(prior.selection, component.selection) &&
-      sameUnit(prior.quantity.unitRef, component.quantity.unitRef) &&
-      format(decimal(prior.quantity.amount)) === format(decimal(component.quantity.amount))
+    const index = unmatched.findIndex(
+      (prior) =>
+        sameSelection(prior.selection, component.selection) &&
+        sameUnit(prior.quantity.unitRef, component.quantity.unitRef) &&
+        format(decimal(prior.quantity.amount)) === format(decimal(component.quantity.amount)),
     );
+    if (index === -1) {
+      return false;
+    }
+    unmatched.splice(index, 1);
+    return true;
   })
     ? 'SAME_CONTENT'
     : 'MATERIAL_CHANGE';
