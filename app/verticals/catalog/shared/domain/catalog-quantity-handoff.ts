@@ -103,9 +103,23 @@ const matchesPackage = (
   );
 };
 
+const hasPackagePathBasis = (input: HandoffInput): boolean =>
+  input.evidence.status === 'VALID' &&
+  (input.packageContent?.status !== 'VALID' ||
+    input.packageContent.path.every(
+      (reference) =>
+        input.evidence.status === 'VALID' &&
+        input.evidence.basis.some(
+          ({ role, source, subject }) =>
+            role === 'PACKAGE_CONTENT' && subject === undefined && sameCatalogRevisionReference(source, reference),
+        ),
+    ));
+
 interface HandoffInput {
   /** Owner-issued canonical key for the selected configuration; not inferred from display choices. */
   readonly configurationKey?: string;
+  /** Owner-issued revision of the selected Variant or Package Definition divisibility fact. */
+  readonly divisibilityRevision: number;
   readonly divisible: boolean;
   readonly evidence: CatalogSelectionEvidence;
   readonly packageContent?: PackageResolution;
@@ -114,6 +128,33 @@ interface HandoffInput {
   readonly selection: CatalogSelection;
   readonly unitRef: CatalogResourceRef;
 }
+
+const hasQuantityBasis = (input: HandoffInput): boolean => {
+  if (input.evidence.status !== 'VALID' || input.quantity.status !== 'VALID') {
+    return false;
+  }
+  const { basis } = input.evidence;
+  const { unitRuleRevision } = input.quantity;
+  const target = input.selection.packageOption?.optionRef ?? input.selection.variantRef;
+  return (
+    Number.isSafeInteger(input.divisibilityRevision) &&
+    input.divisibilityRevision > 0 &&
+    basis.some(
+      ({ role, source, subject }) =>
+        role === 'UNIT_RULE' &&
+        subject === undefined &&
+        sameRef(source.resourceRef, input.unitRef) &&
+        source.revision === unitRuleRevision,
+    ) &&
+    basis.some(
+      ({ role, source, subject }) =>
+        role === 'UNIT_TARGET_DIVISIBILITY' &&
+        subject === undefined &&
+        sameRef(source.resourceRef, target) &&
+        source.revision === input.divisibilityRevision,
+    )
+  );
+};
 
 const packageFailure = (input: HandoffInput): Exclude<CatalogQuantityHandoff, { status: 'READY' }> | null => {
   if (input.packageContent?.status === 'INVALID') {
@@ -156,9 +197,15 @@ export const prepareCatalogQuantityHandoff = (input: HandoffInput): CatalogQuant
   if (!matchesQuantityIdentity({ quantity: input.quantity, selection: input.selection, unitRef: input.unitRef })) {
     return { reason: 'Quantity, Unit, and selection target must agree', status: 'INVALID' };
   }
+  if (!hasQuantityBasis(input)) {
+    return { reason: 'Exact Unit rule and target divisibility revisions are not evidenced', status: 'UNVERIFIABLE' };
+  }
   const failure = packageFailure(input);
   if (failure !== null) {
     return failure;
+  }
+  if (!hasPackagePathBasis(input)) {
+    return { reason: 'Exact lower Package Content Revision basis is missing', status: 'UNVERIFIABLE' };
   }
   if (
     input.selection.packageOption !== undefined &&
