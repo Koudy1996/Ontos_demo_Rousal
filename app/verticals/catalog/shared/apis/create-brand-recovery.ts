@@ -8,7 +8,6 @@ import { ProductActionInvocationIdSchema } from '../domain/product.ts';
 export const CreateBrandRecoveryRequestSchema = Schema.Struct({ invocationId: ProductActionInvocationIdSchema });
 export type CreateBrandRecoveryRequest = typeof CreateBrandRecoveryRequestSchema.Type;
 export const CreateBrandRecoveryResponseSchema = CreateBrandResultSchema;
-export type CreateBrandRecoveryResponse = typeof CreateBrandRecoveryResponseSchema.Type;
 
 export const CreateBrandRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'CreateBrandRecoveryAuthenticationProblem',

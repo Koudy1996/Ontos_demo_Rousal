@@ -10,7 +10,6 @@ export const PublishProductConfigurationRecoveryRequestSchema = Schema.Struct({
 });
 export type PublishProductConfigurationRecoveryRequest = typeof PublishProductConfigurationRecoveryRequestSchema.Type;
 export const PublishProductConfigurationRecoveryResponseSchema = PublishProductConfigurationResultSchema;
-export type PublishProductConfigurationRecoveryResponse = typeof PublishProductConfigurationRecoveryResponseSchema.Type;
 
 export const PublishProductConfigurationRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'PublishProductConfigurationRecoveryAuthenticationProblem',

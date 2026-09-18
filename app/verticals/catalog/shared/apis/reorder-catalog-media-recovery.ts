@@ -10,7 +10,6 @@ export const ReorderCatalogMediaRecoveryRequestSchema = Schema.Struct({
 });
 export type ReorderCatalogMediaRecoveryRequest = typeof ReorderCatalogMediaRecoveryRequestSchema.Type;
 export const ReorderCatalogMediaRecoveryResponseSchema = ReorderCatalogMediaResultSchema;
-export type ReorderCatalogMediaRecoveryResponse = typeof ReorderCatalogMediaRecoveryResponseSchema.Type;
 
 export const ReorderCatalogMediaRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ReorderCatalogMediaRecoveryAuthenticationProblem',

@@ -10,7 +10,6 @@ export const RemoveProductLocalizedFactsRecoveryRequestSchema = Schema.Struct({
 });
 export type RemoveProductLocalizedFactsRecoveryRequest = typeof RemoveProductLocalizedFactsRecoveryRequestSchema.Type;
 export const RemoveProductLocalizedFactsRecoveryResponseSchema = RemoveProductLocalizedFactsResultSchema;
-export type RemoveProductLocalizedFactsRecoveryResponse = typeof RemoveProductLocalizedFactsRecoveryResponseSchema.Type;
 
 export const RemoveProductLocalizedFactsRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RemoveProductLocalizedFactsRecoveryAuthenticationProblem',

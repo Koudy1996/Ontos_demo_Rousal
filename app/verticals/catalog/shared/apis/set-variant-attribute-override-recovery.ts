@@ -10,7 +10,6 @@ export const SetVariantAttributeOverrideRecoveryRequestSchema = Schema.Struct({
 });
 export type SetVariantAttributeOverrideRecoveryRequest = typeof SetVariantAttributeOverrideRecoveryRequestSchema.Type;
 export const SetVariantAttributeOverrideRecoveryResponseSchema = SetVariantAttributeOverrideResultSchema;
-export type SetVariantAttributeOverrideRecoveryResponse = typeof SetVariantAttributeOverrideRecoveryResponseSchema.Type;
 
 export const SetVariantAttributeOverrideRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'SetVariantAttributeOverrideRecoveryAuthenticationProblem',

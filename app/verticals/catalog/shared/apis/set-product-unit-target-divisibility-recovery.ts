@@ -11,8 +11,6 @@ export const SetProductUnitTargetDivisibilityRecoveryRequestSchema = Schema.Stru
 export type SetProductUnitTargetDivisibilityRecoveryRequest =
   typeof SetProductUnitTargetDivisibilityRecoveryRequestSchema.Type;
 export const SetProductUnitTargetDivisibilityRecoveryResponseSchema = SetProductUnitTargetDivisibilityResultSchema;
-export type SetProductUnitTargetDivisibilityRecoveryResponse =
-  typeof SetProductUnitTargetDivisibilityRecoveryResponseSchema.Type;
 
 export const SetProductUnitTargetDivisibilityRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'SetProductUnitTargetDivisibilityRecoveryAuthenticationProblem',

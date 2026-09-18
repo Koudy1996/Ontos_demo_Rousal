@@ -8,7 +8,6 @@ import { ProductActionInvocationIdSchema } from '../domain/product.ts';
 export const RetireVariantRecoveryRequestSchema = Schema.Struct({ invocationId: ProductActionInvocationIdSchema });
 export type RetireVariantRecoveryRequest = typeof RetireVariantRecoveryRequestSchema.Type;
 export const RetireVariantRecoveryResponseSchema = RetireVariantResultSchema;
-export type RetireVariantRecoveryResponse = typeof RetireVariantRecoveryResponseSchema.Type;
 
 export const RetireVariantRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RetireVariantRecoveryAuthenticationProblem',

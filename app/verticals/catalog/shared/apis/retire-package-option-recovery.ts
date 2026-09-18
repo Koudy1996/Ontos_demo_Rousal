@@ -10,7 +10,6 @@ export const RetirePackageOptionRecoveryRequestSchema = Schema.Struct({
 });
 export type RetirePackageOptionRecoveryRequest = typeof RetirePackageOptionRecoveryRequestSchema.Type;
 export const RetirePackageOptionRecoveryResponseSchema = RetirePackageOptionResultSchema;
-export type RetirePackageOptionRecoveryResponse = typeof RetirePackageOptionRecoveryResponseSchema.Type;
 
 export const RetirePackageOptionRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RetirePackageOptionRecoveryAuthenticationProblem',

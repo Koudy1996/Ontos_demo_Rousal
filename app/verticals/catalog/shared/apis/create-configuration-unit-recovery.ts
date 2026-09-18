@@ -10,7 +10,6 @@ export const CreateConfigurationUnitRecoveryRequestSchema = Schema.Struct({
 });
 export type CreateConfigurationUnitRecoveryRequest = typeof CreateConfigurationUnitRecoveryRequestSchema.Type;
 export const CreateConfigurationUnitRecoveryResponseSchema = CreateConfigurationUnitResultSchema;
-export type CreateConfigurationUnitRecoveryResponse = typeof CreateConfigurationUnitRecoveryResponseSchema.Type;
 
 export const CreateConfigurationUnitRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'CreateConfigurationUnitRecoveryAuthenticationProblem',

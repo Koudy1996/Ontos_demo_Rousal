@@ -10,8 +10,6 @@ export const DecideProductTypeUnnecessaryRecoveryRequestSchema = Schema.Struct({
 });
 export type DecideProductTypeUnnecessaryRecoveryRequest = typeof DecideProductTypeUnnecessaryRecoveryRequestSchema.Type;
 export const DecideProductTypeUnnecessaryRecoveryResponseSchema = DecideProductTypeUnnecessaryResultSchema;
-export type DecideProductTypeUnnecessaryRecoveryResponse =
-  typeof DecideProductTypeUnnecessaryRecoveryResponseSchema.Type;
 
 export const DecideProductTypeUnnecessaryRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'DecideProductTypeUnnecessaryRecoveryAuthenticationProblem',

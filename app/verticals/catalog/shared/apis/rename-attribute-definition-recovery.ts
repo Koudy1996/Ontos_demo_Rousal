@@ -10,7 +10,6 @@ export const RenameAttributeDefinitionRecoveryRequestSchema = Schema.Struct({
 });
 export type RenameAttributeDefinitionRecoveryRequest = typeof RenameAttributeDefinitionRecoveryRequestSchema.Type;
 export const RenameAttributeDefinitionRecoveryResponseSchema = RenameAttributeDefinitionResultSchema;
-export type RenameAttributeDefinitionRecoveryResponse = typeof RenameAttributeDefinitionRecoveryResponseSchema.Type;
 
 export const RenameAttributeDefinitionRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RenameAttributeDefinitionRecoveryAuthenticationProblem',

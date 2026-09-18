@@ -8,7 +8,6 @@ import { ProductActionInvocationIdSchema } from '../domain/product.ts';
 export const CorrectGtinRecoveryRequestSchema = Schema.Struct({ invocationId: ProductActionInvocationIdSchema });
 export type CorrectGtinRecoveryRequest = typeof CorrectGtinRecoveryRequestSchema.Type;
 export const CorrectGtinRecoveryResponseSchema = CorrectGtinResultSchema;
-export type CorrectGtinRecoveryResponse = typeof CorrectGtinRecoveryResponseSchema.Type;
 
 export const CorrectGtinRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'CorrectGtinRecoveryAuthenticationProblem',

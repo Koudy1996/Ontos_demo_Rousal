@@ -11,8 +11,6 @@ export const RemoveVariantAttributeOverrideRecoveryRequestSchema = Schema.Struct
 export type RemoveVariantAttributeOverrideRecoveryRequest =
   typeof RemoveVariantAttributeOverrideRecoveryRequestSchema.Type;
 export const RemoveVariantAttributeOverrideRecoveryResponseSchema = RemoveVariantAttributeOverrideResultSchema;
-export type RemoveVariantAttributeOverrideRecoveryResponse =
-  typeof RemoveVariantAttributeOverrideRecoveryResponseSchema.Type;
 
 export const RemoveVariantAttributeOverrideRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RemoveVariantAttributeOverrideRecoveryAuthenticationProblem',

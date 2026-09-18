@@ -11,8 +11,6 @@ export const ReactivateControlledAttributeValueRecoveryRequestSchema = Schema.St
 export type ReactivateControlledAttributeValueRecoveryRequest =
   typeof ReactivateControlledAttributeValueRecoveryRequestSchema.Type;
 export const ReactivateControlledAttributeValueRecoveryResponseSchema = ReactivateControlledAttributeValueResultSchema;
-export type ReactivateControlledAttributeValueRecoveryResponse =
-  typeof ReactivateControlledAttributeValueRecoveryResponseSchema.Type;
 
 export const ReactivateControlledAttributeValueRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ReactivateControlledAttributeValueRecoveryAuthenticationProblem',

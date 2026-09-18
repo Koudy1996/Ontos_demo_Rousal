@@ -10,7 +10,6 @@ export const ReplaceProductSizesRecoveryRequestSchema = Schema.Struct({
 });
 export type ReplaceProductSizesRecoveryRequest = typeof ReplaceProductSizesRecoveryRequestSchema.Type;
 export const ReplaceProductSizesRecoveryResponseSchema = ReplaceProductSizesResultSchema;
-export type ReplaceProductSizesRecoveryResponse = typeof ReplaceProductSizesRecoveryResponseSchema.Type;
 
 export const ReplaceProductSizesRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ReplaceProductSizesRecoveryAuthenticationProblem',

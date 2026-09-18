@@ -11,8 +11,6 @@ export const CreateControlledAttributeValueRecoveryRequestSchema = Schema.Struct
 export type CreateControlledAttributeValueRecoveryRequest =
   typeof CreateControlledAttributeValueRecoveryRequestSchema.Type;
 export const CreateControlledAttributeValueRecoveryResponseSchema = CreateControlledAttributeValueResultSchema;
-export type CreateControlledAttributeValueRecoveryResponse =
-  typeof CreateControlledAttributeValueRecoveryResponseSchema.Type;
 
 export const CreateControlledAttributeValueRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'CreateControlledAttributeValueRecoveryAuthenticationProblem',

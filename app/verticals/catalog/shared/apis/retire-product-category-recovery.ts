@@ -10,7 +10,6 @@ export const RetireProductCategoryRecoveryRequestSchema = Schema.Struct({
 });
 export type RetireProductCategoryRecoveryRequest = typeof RetireProductCategoryRecoveryRequestSchema.Type;
 export const RetireProductCategoryRecoveryResponseSchema = RetireProductCategoryResultSchema;
-export type RetireProductCategoryRecoveryResponse = typeof RetireProductCategoryRecoveryResponseSchema.Type;
 
 export const RetireProductCategoryRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RetireProductCategoryRecoveryAuthenticationProblem',

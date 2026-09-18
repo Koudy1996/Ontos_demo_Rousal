@@ -11,8 +11,6 @@ export const RemoveProductCategoryAssignmentRecoveryRequestSchema = Schema.Struc
 export type RemoveProductCategoryAssignmentRecoveryRequest =
   typeof RemoveProductCategoryAssignmentRecoveryRequestSchema.Type;
 export const RemoveProductCategoryAssignmentRecoveryResponseSchema = RemoveProductCategoryAssignmentResultSchema;
-export type RemoveProductCategoryAssignmentRecoveryResponse =
-  typeof RemoveProductCategoryAssignmentRecoveryResponseSchema.Type;
 
 export const RemoveProductCategoryAssignmentRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RemoveProductCategoryAssignmentRecoveryAuthenticationProblem',

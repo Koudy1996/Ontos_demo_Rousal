@@ -10,7 +10,6 @@ export const RemoveVariantLocalizedFactsRecoveryRequestSchema = Schema.Struct({
 });
 export type RemoveVariantLocalizedFactsRecoveryRequest = typeof RemoveVariantLocalizedFactsRecoveryRequestSchema.Type;
 export const RemoveVariantLocalizedFactsRecoveryResponseSchema = RemoveVariantLocalizedFactsResultSchema;
-export type RemoveVariantLocalizedFactsRecoveryResponse = typeof RemoveVariantLocalizedFactsRecoveryResponseSchema.Type;
 
 export const RemoveVariantLocalizedFactsRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RemoveVariantLocalizedFactsRecoveryAuthenticationProblem',

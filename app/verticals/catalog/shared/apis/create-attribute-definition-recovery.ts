@@ -10,7 +10,6 @@ export const CreateAttributeDefinitionRecoveryRequestSchema = Schema.Struct({
 });
 export type CreateAttributeDefinitionRecoveryRequest = typeof CreateAttributeDefinitionRecoveryRequestSchema.Type;
 export const CreateAttributeDefinitionRecoveryResponseSchema = CreateAttributeDefinitionResultSchema;
-export type CreateAttributeDefinitionRecoveryResponse = typeof CreateAttributeDefinitionRecoveryResponseSchema.Type;
 
 export const CreateAttributeDefinitionRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'CreateAttributeDefinitionRecoveryAuthenticationProblem',

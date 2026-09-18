@@ -10,7 +10,6 @@ export const ReviseSetCompositionRecoveryRequestSchema = Schema.Struct({
 });
 export type ReviseSetCompositionRecoveryRequest = typeof ReviseSetCompositionRecoveryRequestSchema.Type;
 export const ReviseSetCompositionRecoveryResponseSchema = ReviseSetCompositionResultSchema;
-export type ReviseSetCompositionRecoveryResponse = typeof ReviseSetCompositionRecoveryResponseSchema.Type;
 
 export const ReviseSetCompositionRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ReviseSetCompositionRecoveryAuthenticationProblem',

@@ -8,7 +8,6 @@ import { ProductActionInvocationIdSchema } from '../domain/product.ts';
 export const GovernVariantAxesRecoveryRequestSchema = Schema.Struct({ invocationId: ProductActionInvocationIdSchema });
 export type GovernVariantAxesRecoveryRequest = typeof GovernVariantAxesRecoveryRequestSchema.Type;
 export const GovernVariantAxesRecoveryResponseSchema = GovernVariantAxesResultSchema;
-export type GovernVariantAxesRecoveryResponse = typeof GovernVariantAxesRecoveryResponseSchema.Type;
 
 export const GovernVariantAxesRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'GovernVariantAxesRecoveryAuthenticationProblem',

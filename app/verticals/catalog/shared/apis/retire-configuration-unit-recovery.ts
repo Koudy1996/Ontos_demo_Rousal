@@ -10,7 +10,6 @@ export const RetireConfigurationUnitRecoveryRequestSchema = Schema.Struct({
 });
 export type RetireConfigurationUnitRecoveryRequest = typeof RetireConfigurationUnitRecoveryRequestSchema.Type;
 export const RetireConfigurationUnitRecoveryResponseSchema = RetireConfigurationUnitResultSchema;
-export type RetireConfigurationUnitRecoveryResponse = typeof RetireConfigurationUnitRecoveryResponseSchema.Type;
 
 export const RetireConfigurationUnitRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RetireConfigurationUnitRecoveryAuthenticationProblem',

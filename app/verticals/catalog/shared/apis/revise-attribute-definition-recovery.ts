@@ -10,7 +10,6 @@ export const ReviseAttributeDefinitionRecoveryRequestSchema = Schema.Struct({
 });
 export type ReviseAttributeDefinitionRecoveryRequest = typeof ReviseAttributeDefinitionRecoveryRequestSchema.Type;
 export const ReviseAttributeDefinitionRecoveryResponseSchema = ReviseAttributeDefinitionResultSchema;
-export type ReviseAttributeDefinitionRecoveryResponse = typeof ReviseAttributeDefinitionRecoveryResponseSchema.Type;
 
 export const ReviseAttributeDefinitionRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ReviseAttributeDefinitionRecoveryAuthenticationProblem',

@@ -10,7 +10,6 @@ export const AssertSizeEquivalenceRecoveryRequestSchema = Schema.Struct({
 });
 export type AssertSizeEquivalenceRecoveryRequest = typeof AssertSizeEquivalenceRecoveryRequestSchema.Type;
 export const AssertSizeEquivalenceRecoveryResponseSchema = AssertSizeEquivalenceResultSchema;
-export type AssertSizeEquivalenceRecoveryResponse = typeof AssertSizeEquivalenceRecoveryResponseSchema.Type;
 
 export const AssertSizeEquivalenceRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'AssertSizeEquivalenceRecoveryAuthenticationProblem',

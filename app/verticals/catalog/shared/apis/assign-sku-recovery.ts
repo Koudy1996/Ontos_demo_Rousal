@@ -8,7 +8,6 @@ import { ProductActionInvocationIdSchema } from '../domain/product.ts';
 export const AssignSkuRecoveryRequestSchema = Schema.Struct({ invocationId: ProductActionInvocationIdSchema });
 export type AssignSkuRecoveryRequest = typeof AssignSkuRecoveryRequestSchema.Type;
 export const AssignSkuRecoveryResponseSchema = AssignSkuResultSchema;
-export type AssignSkuRecoveryResponse = typeof AssignSkuRecoveryResponseSchema.Type;
 
 export const AssignSkuRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'AssignSkuRecoveryAuthenticationProblem',

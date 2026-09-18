@@ -11,8 +11,6 @@ export const RetireControlledAttributeValueRecoveryRequestSchema = Schema.Struct
 export type RetireControlledAttributeValueRecoveryRequest =
   typeof RetireControlledAttributeValueRecoveryRequestSchema.Type;
 export const RetireControlledAttributeValueRecoveryResponseSchema = RetireControlledAttributeValueResultSchema;
-export type RetireControlledAttributeValueRecoveryResponse =
-  typeof RetireControlledAttributeValueRecoveryResponseSchema.Type;
 
 export const RetireControlledAttributeValueRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RetireControlledAttributeValueRecoveryAuthenticationProblem',

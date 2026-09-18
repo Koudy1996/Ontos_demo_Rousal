@@ -10,7 +10,6 @@ export const ActivatePackageDefinitionRecoveryRequestSchema = Schema.Struct({
 });
 export type ActivatePackageDefinitionRecoveryRequest = typeof ActivatePackageDefinitionRecoveryRequestSchema.Type;
 export const ActivatePackageDefinitionRecoveryResponseSchema = ActivatePackageDefinitionResultSchema;
-export type ActivatePackageDefinitionRecoveryResponse = typeof ActivatePackageDefinitionRecoveryResponseSchema.Type;
 
 export const ActivatePackageDefinitionRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ActivatePackageDefinitionRecoveryAuthenticationProblem',

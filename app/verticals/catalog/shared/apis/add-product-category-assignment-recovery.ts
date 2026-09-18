@@ -10,8 +10,6 @@ export const AddProductCategoryAssignmentRecoveryRequestSchema = Schema.Struct({
 });
 export type AddProductCategoryAssignmentRecoveryRequest = typeof AddProductCategoryAssignmentRecoveryRequestSchema.Type;
 export const AddProductCategoryAssignmentRecoveryResponseSchema = AddProductCategoryAssignmentResultSchema;
-export type AddProductCategoryAssignmentRecoveryResponse =
-  typeof AddProductCategoryAssignmentRecoveryResponseSchema.Type;
 
 export const AddProductCategoryAssignmentRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'AddProductCategoryAssignmentRecoveryAuthenticationProblem',

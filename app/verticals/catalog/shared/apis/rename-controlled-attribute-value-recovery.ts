@@ -11,8 +11,6 @@ export const RenameControlledAttributeValueRecoveryRequestSchema = Schema.Struct
 export type RenameControlledAttributeValueRecoveryRequest =
   typeof RenameControlledAttributeValueRecoveryRequestSchema.Type;
 export const RenameControlledAttributeValueRecoveryResponseSchema = RenameControlledAttributeValueResultSchema;
-export type RenameControlledAttributeValueRecoveryResponse =
-  typeof RenameControlledAttributeValueRecoveryResponseSchema.Type;
 
 export const RenameControlledAttributeValueRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'RenameControlledAttributeValueRecoveryAuthenticationProblem',

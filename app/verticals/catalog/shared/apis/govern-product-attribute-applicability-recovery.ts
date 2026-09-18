@@ -12,8 +12,6 @@ export type GovernProductAttributeApplicabilityRecoveryRequest =
   typeof GovernProductAttributeApplicabilityRecoveryRequestSchema.Type;
 export const GovernProductAttributeApplicabilityRecoveryResponseSchema =
   GovernProductAttributeApplicabilityResultSchema;
-export type GovernProductAttributeApplicabilityRecoveryResponse =
-  typeof GovernProductAttributeApplicabilityRecoveryResponseSchema.Type;
 
 export const GovernProductAttributeApplicabilityRecoveryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'GovernProductAttributeApplicabilityRecoveryAuthenticationProblem',
