@@ -175,6 +175,8 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'gtin-history': () => import('./src/api/gtin-history-client.ts'),
       'manufacturer-relation-current': () => import('./src/api/manufacturer-relation-current-client.ts'),
       'manufacturer-relation-history': () => import('./src/api/manufacturer-relation-history-client.ts'),
+      'package-definition-history': () => import('./src/api/package-definition-history-client.ts'),
+      'package-option-history': () => import('./src/api/package-option-history-client.ts'),
       'product-brand-current': () => import('./src/api/product-brand-current-client.ts'),
       'product-brand-history': () => import('./src/api/product-brand-history-client.ts'),
       'product-category-classification': () => import('./src/api/product-category-classification-client.ts'),
@@ -186,6 +188,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'product-size-current': () => import('./src/api/product-size-current-client.ts'),
       'quantity-preparation': () => import('./src/api/quantity-preparation-client.ts'),
       'sku-lookup': () => import('./src/api/sku-lookup-client.ts'),
+      'variant-history': () => import('./src/api/variant-history-client.ts'),
       // </generated-module-registration-apis>
     },
     components: {

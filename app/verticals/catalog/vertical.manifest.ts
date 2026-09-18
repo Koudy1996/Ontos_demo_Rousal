@@ -57,7 +57,9 @@ import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relat
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
 import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
+import { PackageDefinitionHistoryApi } from './shared/apis/package-definition-history.ts';
 import { packageDefinitionResourceDescriptor } from './shared/resources/package-definition.ts';
+import { PackageOptionHistoryApi } from './shared/apis/package-option-history.ts';
 import { ProductBrandCurrentApi } from './shared/apis/product-brand-current.ts';
 import { ProductBrandHistoryApi } from './shared/apis/product-brand-history.ts';
 import { ProductCategoryClassificationApi } from './shared/apis/product-category-classification.ts';
@@ -119,6 +121,7 @@ import { setVariantAttributeOverrideAction } from './src/actions/set-variant-att
 import { setVariantLocalizedFactsAction } from './src/actions/set-variant-localized-facts.action.ts';
 import { SkuLookupApi } from './shared/apis/sku-lookup.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
+import { VariantHistoryApi } from './shared/apis/variant-history.ts';
 import { variantResourceDescriptor } from './shared/resources/variant.ts';
 // </generated-module-manifest-imports>
 
@@ -245,6 +248,8 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'gtin-history': GtinHistoryApi,
       'manufacturer-relation-current': ManufacturerRelationCurrentApi,
       'manufacturer-relation-history': ManufacturerRelationHistoryApi,
+      'package-definition-history': PackageDefinitionHistoryApi,
+      'package-option-history': PackageOptionHistoryApi,
       'product-brand-current': ProductBrandCurrentApi,
       'product-brand-history': ProductBrandHistoryApi,
       'product-category-classification': ProductCategoryClassificationApi,
@@ -256,6 +261,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'product-size-current': ProductSizeCurrentApi,
       'quantity-preparation': QuantityPreparationApi,
       'sku-lookup': SkuLookupApi,
+      'variant-history': VariantHistoryApi,
       // </generated-module-manifest-apis>
     },
     businessPermissions: [

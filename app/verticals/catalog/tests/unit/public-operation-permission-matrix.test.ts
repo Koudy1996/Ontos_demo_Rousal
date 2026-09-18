@@ -15,6 +15,9 @@ import { productCategoryClassificationRead } from '../../src/api/product-categor
 import { productCategoryHistoryRead } from '../../src/api/product-category-history.read.ts';
 import { productDetailRead } from '../../src/api/product-detail.read.ts';
 import { productHistoryRead } from '../../src/api/product-history.read.ts';
+import { variantHistoryRead } from '../../src/api/variant-history.read.ts';
+import { packageDefinitionHistoryRead } from '../../src/api/package-definition-history.read.ts';
+import { packageOptionHistoryRead } from '../../src/api/package-option-history.read.ts';
 import { productBrandCurrentRead } from '../../src/api/product-brand-current.read.ts';
 import { productBrandHistoryRead } from '../../src/api/product-brand-history.read.ts';
 import { productSizeCurrentRead } from '../../src/api/product-size-current.read.ts';
@@ -37,6 +40,9 @@ const reads = [
   productCategoryHistoryRead,
   productDetailRead,
   productHistoryRead,
+  variantHistoryRead,
+  packageDefinitionHistoryRead,
+  packageOptionHistoryRead,
   productBrandCurrentRead,
   productBrandHistoryRead,
   productSizeCurrentRead,
@@ -87,6 +93,7 @@ it('maps every published Action and governed read to one explicit atomic permiss
     } else if (
       relationshipOrIdentity ||
       readKey === 'commerce.catalog.api.product-size-current' ||
+      readKey === 'commerce.catalog.api.effective-attribute-values-current' ||
       readKey === 'commerce.catalog.api.gtin-current' ||
       readKey === 'commerce.catalog.api.gtin-history' ||
       readKey === 'commerce.catalog.api.sku-lookup'

@@ -47,6 +47,8 @@ import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-cur
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
 import { MarkGtinUnresolvedActionApi } from './apis/mark-gtin-unresolved-action.ts';
 import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
+import { PackageDefinitionHistoryApi } from './apis/package-definition-history.ts';
+import { PackageOptionHistoryApi } from './apis/package-option-history.ts';
 import { ProductBrandCurrentApi } from './apis/product-brand-current.ts';
 import { ProductBrandHistoryApi } from './apis/product-brand-history.ts';
 import { ProductCategoryClassificationApi } from './apis/product-category-classification.ts';
@@ -104,6 +106,7 @@ import { SetVariantAttributeOverrideActionApi } from './apis/set-variant-attribu
 import { SetVariantLocalizedFactsActionApi } from './apis/set-variant-localized-facts-action.ts';
 import { SkuLookupApi } from './apis/sku-lookup.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
+import { VariantHistoryApi } from './apis/variant-history.ts';
 // </generated-governed-http-api-imports>
 import { ProductActionInvocationIdSchema } from './domain/product.ts';
 
@@ -167,6 +170,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ManufacturerRelationHistoryApi)
   .addHttpApi(MarkGtinUnresolvedActionApi)
   .addHttpApi(MoveProductCategoryActionApi)
+  .addHttpApi(PackageDefinitionHistoryApi)
+  .addHttpApi(PackageOptionHistoryApi)
   .addHttpApi(ProductBrandCurrentApi)
   .addHttpApi(ProductBrandHistoryApi)
   .addHttpApi(ProductCategoryClassificationApi)
@@ -224,6 +229,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(SetVariantLocalizedFactsActionApi)
   .addHttpApi(SkuLookupApi)
   .addHttpApi(UpdateProductActionApi)
+  .addHttpApi(VariantHistoryApi)
   // </generated-governed-http-api-additions>
   .pipe(identity);
 
@@ -424,6 +430,30 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
     permission: 'commerce.catalog.read.product-history',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.variant-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.variant-history',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.package-definition-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.package-definition-history',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.package-option-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.package-option-history',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -633,6 +663,30 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: productUnitBusinessTarget,
     permission: 'commerce.catalog.create-product-unit',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.decide-product-type-unnecessary': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.decide-product-type-unnecessary',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.govern-product-attribute-applicability': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.govern-product-attribute-applicability',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.promote-package-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.promote-package-definition',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -1053,6 +1107,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.create-product-type',
     'commerce.catalog.create-product-unit',
     'commerce.catalog.move-product-category',
+    'commerce.catalog.promote-package-definition',
     'commerce.catalog.reactivate-brand',
     'commerce.catalog.reactivate-controlled-attribute-value',
     'commerce.catalog.rename-attribute-definition',
@@ -1095,6 +1150,9 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.product-detail',
     'commerce.catalog.read.effective-attribute-values-current',
     'commerce.catalog.read.product-history',
+    'commerce.catalog.read.variant-history',
+    'commerce.catalog.read.package-definition-history',
+    'commerce.catalog.read.package-option-history',
     'commerce.catalog.read.product-size-current',
     'commerce.catalog.read.product-relationship',
     'commerce.catalog.read.product-relationship-history',
@@ -1116,6 +1174,8 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.correct-sku',
     'commerce.catalog.create-set-composition',
     'commerce.catalog.create-variant',
+    'commerce.catalog.decide-product-type-unnecessary',
+    'commerce.catalog.govern-product-attribute-applicability',
     'commerce.catalog.govern-variant-axes',
     'commerce.catalog.mark-gtin-unresolved',
     'commerce.catalog.remove-product-attribute-values',
