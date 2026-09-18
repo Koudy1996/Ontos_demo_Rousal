@@ -4,14 +4,15 @@ import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { ColorDetailsSchema } from '../domain/color.ts';
 import { ProductInstantSchema } from '../domain/product.ts';
+import { AttributeDefinitionRefSchema } from '../resources/attribute-definition.ts';
 import { ControlledAttributeValueRefSchema } from '../resources/controlled-attribute-value.ts';
 
 export const ColorCurrentRequestSchema = Schema.Struct({ valueRef: ControlledAttributeValueRefSchema });
 export type ColorCurrentRequest = typeof ColorCurrentRequestSchema.Type;
 export const ColorCurrentResponseSchema = Schema.Struct({
   assignable: Schema.Boolean,
-  attributeDefinitionId: Schema.String.check(Schema.isUUID()),
-  colorDetails: Schema.NullOr(ColorDetailsSchema),
+  attributeDefinitionId: AttributeDefinitionRefSchema.fields.resourceId,
+  colorDetails: Schema.OptionFromNullOr(ColorDetailsSchema),
   displayName: Schema.NonEmptyString,
   lifecycleState: Schema.Literals(['ACTIVE', 'RETIRED']),
   recordedAt: ProductInstantSchema,

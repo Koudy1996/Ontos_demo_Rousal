@@ -76,7 +76,7 @@ export const colorCurrentRead = defineRead(
       result: {
         assignable,
         attributeDefinitionId,
-        colorDetails,
+        colorDetails: colorDetails === null ? Option.none() : Option.some(colorDetails),
         displayName,
         lifecycleState,
         recordedAt: recordedAt.toISOString(),

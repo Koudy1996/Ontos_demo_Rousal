@@ -7,7 +7,7 @@ import {
   defineReadResourcePermission,
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 import { ColorHistoryRequestSchema, ColorHistoryResponseSchema } from '../../shared/apis/color-history.ts';
 import type { ColorHistoryRequest } from '../../shared/apis/color-history.ts';
 import { colorReadsForScope } from '../persistence/color-reads.ts';
@@ -78,7 +78,7 @@ export const colorHistoryRead = defineRead(
         valueRef,
       }) => ({
         attributeDefinitionId,
-        colorDetails,
+        colorDetails: colorDetails === null ? Option.none() : Option.some(colorDetails),
         displayName,
         evidenceRefs,
         lifecycleState,

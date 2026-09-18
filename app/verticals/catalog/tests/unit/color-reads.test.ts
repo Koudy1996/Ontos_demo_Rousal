@@ -107,13 +107,18 @@ describe('Color governed reads', () => {
         expect(
           Schema.is(ColorCurrentResponseSchema)({
             ...current.value,
+            colorDetails: current.value.colorDetails === null ? Option.none() : Option.some(current.value.colorDetails),
             recordedAt: current.value.recordedAt.toISOString(),
           }),
         ).toBe(true);
       }
       expect(
         Schema.is(ColorHistoryResponseSchema)({
-          revisions: history.map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() })),
+          revisions: history.map((row) => ({
+            ...row,
+            colorDetails: row.colorDetails === null ? Option.none() : Option.some(row.colorDetails),
+            recordedAt: row.recordedAt.toISOString(),
+          })),
         }),
       ).toBe(true);
     }),
@@ -169,6 +174,15 @@ describe('Color governed reads', () => {
       const reads = colorReadsForScope(mock(rows), scope);
       const legacy = yield* reads.current(valueRef);
       expect(Option.isSome(legacy) && legacy.value.colorDetails).toBeNull();
+      if (Option.isSome(legacy)) {
+        const encoded = Schema.encodeSync(ColorCurrentResponseSchema)({
+          ...legacy.value,
+          colorDetails: Option.none(),
+          recordedAt: legacy.value.recordedAt.toISOString(),
+        });
+        expect(encoded.colorDetails).toBeNull();
+        expect(encoded.attributeDefinitionId).toBe(definitionId);
+      }
       rows.set(controlledAttributeValues, [
         {
           attributeDefinitionId: definitionId,
