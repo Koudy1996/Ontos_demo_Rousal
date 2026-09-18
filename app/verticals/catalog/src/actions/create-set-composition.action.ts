@@ -17,9 +17,6 @@ import {
   setCompositionPersistenceServiceFactory,
 } from './set-composition-action-support.ts';
 
-export { CreateSetCompositionPayloadSchema } from '../../shared/actions/create-set-composition.ts';
-export type { CreateSetCompositionPayload } from '../../shared/actions/create-set-composition.ts';
-
 type CreateSetCompositionServices = SetCompositionPersistence & {
   readonly captureResult: (
     actionInvocationId: string,

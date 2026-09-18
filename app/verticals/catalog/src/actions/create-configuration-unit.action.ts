@@ -25,7 +25,7 @@ import {
 
 const ACTION_KEY = 'commerce.catalog.create-configuration-unit';
 
-export const handleCreateConfigurationUnit = Effect.fn('CreateConfigurationUnitAction.handle')(function* handle(
+const handleCreateConfigurationUnit = Effect.fn('CreateConfigurationUnitAction.handle')(function* handle(
   payload: CreateConfigurationUnitPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, ConfigurationUnitPersistence>,
 ) {

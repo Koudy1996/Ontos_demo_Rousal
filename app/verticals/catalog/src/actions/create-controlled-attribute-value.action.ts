@@ -23,14 +23,7 @@ import type {
 } from '../persistence/attribute-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 
-export {
-  CreateControlledAttributeValuePayloadSchema,
-  CreateControlledAttributeValueResultSchema,
-} from '../../shared/actions/attribute-governance.ts';
-export type {
-  CreateControlledAttributeValuePayload,
-  CreateControlledAttributeValueResult,
-} from '../../shared/actions/attribute-governance.ts';
+export type { CreateControlledAttributeValuePayload } from '../../shared/actions/attribute-governance.ts';
 
 const domainEvents = {} as const;
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;

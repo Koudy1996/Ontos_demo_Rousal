@@ -19,8 +19,7 @@ import {
   variantPersistenceForScope,
 } from './variant-action-support.ts';
 
-export { CreateVariantPayloadSchema, CreateVariantResultSchema } from '../../shared/actions/create-variant.ts';
-export type { CreateVariantPayload, CreateVariantResult } from '../../shared/actions/create-variant.ts';
+export type { CreateVariantPayload } from '../../shared/actions/create-variant.ts';
 
 type CreateVariantServices = VariantPersistence & {
   readonly captureResult: (

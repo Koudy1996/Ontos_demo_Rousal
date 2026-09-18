@@ -24,14 +24,8 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export {
-  CreateProductCategoryPayloadSchema,
-  CreateProductCategoryResultSchema,
-} from '../../shared/actions/create-product-category.ts';
-export type {
-  CreateProductCategoryPayload,
-  CreateProductCategoryResult,
-} from '../../shared/actions/create-product-category.ts';
+export { CreateProductCategoryPayloadSchema } from '../../shared/actions/create-product-category.ts';
+export type { CreateProductCategoryPayload } from '../../shared/actions/create-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-created.v1': CreateProductCategoryResultSchema } as const;
 
