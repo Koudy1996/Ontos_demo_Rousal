@@ -50,6 +50,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'package_unit_divisibility_revisions',
   'product_brand_assignment_revisions',
   'product_brand_assignments',
+  'product_attribute_applicability',
+  'product_attribute_applicability_revisions',
   'product_categories',
   'product_category_assignments',
   'product_category_events',
@@ -2288,6 +2290,53 @@ export const productTypeRevisionAttributes = catalogSchema.table.withRLS(
   ],
 );
 
+/** Product-local use is distinct from Type permission, values, and Variant Axis role. */
+export const productAttributeApplicability = catalogSchema.table.withRLS(
+  'product_attribute_applicability',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    currentRevision: integer('current_revision').notNull(),
+    productLevel: boolean('product_level').notNull(),
+    variantLevel: boolean('variant_level').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.productId, table.attributeDefinitionId], name: 'catalog_product_attribute_applicability_pk' }),
+    foreignKey({ columns: [table.tenantId, table.productId], foreignColumns: [products.tenantId, products.productId], name: 'catalog_product_attribute_applicability_product_fk' }).onDelete('restrict'),
+    foreignKey({ columns: [table.tenantId, table.attributeDefinitionId], foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId], name: 'catalog_product_attribute_applicability_definition_fk' }).onDelete('restrict'),
+    check('catalog_product_attribute_applicability_revision_ck', sql`${table.currentRevision} > 0`),
+    ...tenantRlsPolicies('catalog_product_attribute_applicability_tenant', table.tenantId),
+  ],
+);
+
+/** Append-only evidence retains even an entirely removed declaration. */
+export const productAttributeApplicabilityRevisions = catalogSchema.table.withRLS(
+  'product_attribute_applicability_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    revision: integer('revision').notNull(),
+    productLevel: boolean('product_level').notNull(),
+    variantLevel: boolean('variant_level').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.productId, table.attributeDefinitionId, table.revision], name: 'catalog_product_attribute_applicability_revisions_pk' }),
+    unique('catalog_product_attribute_applicability_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({ columns: [table.tenantId, table.productId, table.attributeDefinitionId], foreignColumns: [productAttributeApplicability.tenantId, productAttributeApplicability.productId, productAttributeApplicability.attributeDefinitionId], name: 'catalog_product_attribute_applicability_revisions_current_fk' }).onDelete('restrict'),
+    check('catalog_product_attribute_applicability_revisions_number_ck', sql`${table.revision} > 0`),
+    check('catalog_product_attribute_applicability_revisions_reason_ck', sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`),
+    ...tenantRlsPolicies('catalog_product_attribute_applicability_revisions_tenant', table.tenantId),
+  ],
+);
+
 // An axis is a Product-local role for a shared definition.  The revision is a
 // compare-and-swap token for whole-product combination revalidation.
 export const productVariantAxes = catalogSchema.table.withRLS(
@@ -3567,6 +3616,8 @@ const catalogDatabaseSchema = {
   productBrandAssignments,
   attributeDefinitionRevisions,
   attributeDefinitions,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
   attributeValueItems,
   attributeValueRevisions,
   attributeValueSets,
@@ -3642,6 +3693,8 @@ export const CATALOG_TABLES = [
   productBrandAssignments,
   attributeDefinitionRevisions,
   attributeDefinitions,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
   attributeValueItems,
   attributeValueRevisions,
   attributeValueSets,
