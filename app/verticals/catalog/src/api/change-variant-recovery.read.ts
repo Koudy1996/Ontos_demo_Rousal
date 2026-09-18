@@ -39,7 +39,7 @@ export const recoverChangeVariantResult = (
     decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
     encode: Schema.encodeEffect(ChangeVariantResultSchema),
   };
-  return recoverCatalogActionResultVersions([3, 2, 1], (schemaVersion) =>
+  return recoverCatalogActionResultVersions([2, 1], (schemaVersion) =>
     recoverCatalogActionResult(
       transaction,
       scope,

@@ -3,6 +3,7 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
+import { GovernVariantAxesPayloadSchema } from '../../shared/actions/govern-variant-axes.ts';
 import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-variant-axes-changed-v1.ts';
 import { handleGovernVariantAxes } from '../../src/actions/govern-variant-axes.action.ts';
 import type { governVariantAxesAction } from '../../src/actions/govern-variant-axes.action.ts';
@@ -118,6 +119,58 @@ describe('committed Variant-axis change event', () => {
       yield* handleGovernVariantAxes(payload, rejected.value).pipe(Effect.flip);
       expect(rejected.events).toHaveLength(0);
       expect(rejected.outbox).toHaveLength(0);
+    }),
+  );
+
+  it.effect('decodes legacy axes input but fails closed before persistence without change evidence', () =>
+    Effect.gen(function* legacyAxesInput() {
+      const state = context(unexpected);
+      const failure = yield* handleGovernVariantAxes(
+        Schema.decodeUnknownSync(GovernVariantAxesPayloadSchema)({
+          axes: [],
+          expectedAxisRevision: 1,
+          productRef,
+          reason: 'Legacy axis request',
+        }),
+        state.value,
+      ).pipe(Effect.flip);
+      expect(Schema.is(VariantAxisWriteConflict)(failure)).toBe(true);
+      expect(failure).toMatchObject({ conflict: 'INVALID_INPUT' });
+      expect(state.events).toHaveLength(0);
+      expect(state.outbox).toHaveLength(0);
+    }),
+  );
+
+  it.effect('fails closed before persistence when an axis allowance revision is absent', () =>
+    Effect.gen(function* missingAllowanceRevision() {
+      const state = context(unexpected);
+      const failure = yield* handleGovernVariantAxes(
+        Schema.decodeUnknownSync(GovernVariantAxesPayloadSchema)({
+          axes: [
+            {
+              attributeDefinitionRef: {
+                moduleId: 'commerce.catalog',
+                resourceId: '55555555-5555-4555-8555-555555555555',
+                resourceType: 'commerce.catalog.attribute-definition',
+                tenantId,
+              },
+              definitionRevision: 1,
+            },
+          ],
+          classification: {
+            evidenceRefs: ['axis-review'],
+            kind: 'AXIS_ADDITION',
+            reason: 'Add evidenced axis',
+          },
+          expectedAxisRevision: 1,
+          productRef,
+          reason: 'Add evidenced axis',
+        }),
+        state.value,
+      ).pipe(Effect.flip);
+      expect(failure).toMatchObject({ conflict: 'INVALID_INPUT' });
+      expect(state.events).toHaveLength(0);
+      expect(state.outbox).toHaveLength(0);
     }),
   );
 

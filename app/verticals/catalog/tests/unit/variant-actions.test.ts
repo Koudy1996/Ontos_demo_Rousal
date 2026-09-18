@@ -48,7 +48,7 @@ const scope = {
 const unexpected = () => Effect.die('Unexpected persistence call');
 type TestVariantServices = VariantPersistence & {
   readonly assessOpenSelectionImpact: (
-    ref: ChangeVariantPayload['currentProductRef'],
+    ref: NonNullable<ChangeVariantPayload['currentProductRef']>,
   ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable>;
 };
 const context = (overrides: Partial<TestVariantServices>) => {
@@ -200,6 +200,25 @@ describe('Variant Action handlers', () => {
         run.value,
       ).pipe(Effect.flip);
       expect(error).toMatchObject({ code: 'variant_action_conflict', conflict: 'INVALID_CHANGE' });
+    }),
+  );
+
+  it.effect('decodes legacy change input but fails closed before persistence without Current Product evidence', () =>
+    Effect.gen(function* legacyVariantChangeTest() {
+      const run = context({});
+      const error = yield* handleChangeVariant(
+        {
+          classification: 'EVIDENCED_RECORD_CORRECTION',
+          evidenceRefs: ['drawing'],
+          expectedVariantRevision: 1,
+          originalDataErrorEvidenceRef: 'drawing',
+          reason: 'Wrong record',
+          variantRef,
+        },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(Schema.is(VariantCurrentBasisUnavailable)(error)).toBe(true);
+      expect(error.reason).toContain('Current Product evidence');
     }),
   );
 

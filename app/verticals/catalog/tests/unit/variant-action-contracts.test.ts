@@ -134,18 +134,18 @@ describe('Variant Action payload contracts', () => {
       }).targetProductRef?.resourceId,
     ).toBe('77777777-7777-4777-8777-777777777777');
 
-    expect(() =>
+    expect(
       decode({
         classification: 'EVIDENCED_RECORD_CORRECTION',
         evidenceRefs: ['drawing'],
         expectedVariantRevision: 2,
         reason: 'Legacy request lacks its Current Product evidence',
         variantRef,
-      }),
-    ).toThrow();
+      }).currentProductRef,
+    ).toBeUndefined();
   });
 
-  it('versions the evidenced Variant-axis contract and rejects its legacy wire shape', () => {
+  it('decodes the legacy Variant-axis wire shape while preserving current evidence fields', () => {
     const decode = Schema.decodeUnknownSync(GovernVariantAxesPayloadSchema);
     const attributeDefinitionRef = {
       moduleId: 'commerce.catalog',
@@ -165,16 +165,16 @@ describe('Variant Action payload contracts', () => {
       reason: 'Distinguishes exact forms',
     });
     expect(current.axes[0]?.expectedAllowanceRevision).toBe(1);
-    expect(governVariantAxesAction.descriptor.schemaVersion).toBe('2');
+    expect(governVariantAxesAction.descriptor.schemaVersion).toBe('1');
 
-    expect(() =>
+    expect(
       decode({
         axes: [{ attributeDefinitionRef, definitionRevision: 3 }],
         expectedAxisRevision: 1,
         productRef,
         reason: 'Legacy request has no decision or allowance revision evidence',
       }),
-    ).toThrow();
+    ).toMatchObject({ axes: [{ attributeDefinitionRef, definitionRevision: 3 }] });
   });
 
   it('requires an optimistic revision and identity evidence for reactivation', () => {
@@ -206,6 +206,6 @@ describe('Variant Action payload contracts', () => {
       expect(action.descriptor.legalEntityScope).toBe('forbidden');
       expect(action.descriptor.owningModuleKey).toBe('commerce.catalog');
     }
-    expect(changeVariantAction.descriptor.schemaVersion).toBe('3');
+    expect(changeVariantAction.descriptor.schemaVersion).toBe('2');
   });
 });

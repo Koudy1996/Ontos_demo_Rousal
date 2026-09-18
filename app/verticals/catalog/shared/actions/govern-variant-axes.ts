@@ -8,9 +8,8 @@ import { ProductRefSchema } from '../resources/product.ts';
 const AxisDefinitionSchema = Schema.Struct({
   attributeDefinitionRef: AttributeDefinitionRefSchema,
   definitionRevision: CatalogRevisionNumberSchema,
-  expectedAllowanceRevision: Schema.Finite.check(
-    Schema.isInt(),
-    Schema.isBetween({ maximum: 2_147_483_646, minimum: 0 }),
+  expectedAllowanceRevision: Schema.optionalKey(
+    Schema.Finite.check(Schema.isInt(), Schema.isBetween({ maximum: 2_147_483_646, minimum: 0 })),
   ),
 });
 
@@ -30,7 +29,7 @@ const AxisChangeClassificationSchema = Schema.Union([
 /** A complete replacement, in display order, of a Product's distinguishing roles. */
 export const GovernVariantAxesPayloadSchema = Schema.Struct({
   axes: Schema.Array(AxisDefinitionSchema).check(Schema.isMaxLength(32)),
-  classification: AxisChangeClassificationSchema,
+  classification: Schema.optionalKey(AxisChangeClassificationSchema),
   expectedAxisRevision: Schema.Finite.check(Schema.isInt(), Schema.isBetween({ maximum: 2_147_483_646, minimum: 0 })),
   productRef: ProductRefSchema,
   reason: ProductReasonSchema,

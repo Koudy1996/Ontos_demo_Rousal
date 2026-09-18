@@ -26,7 +26,7 @@ export type { GovernVariantAxesPayload } from '../../shared/actions/govern-varia
 
 const moduleKey = 'commerce.catalog' as const;
 const actionKey = 'commerce.catalog.govern-variant-axes' as const;
-const actionSchemaVersion = 2 as const;
+const actionSchemaVersion = 1 as const;
 const domainEvents = { 'commerce.catalog.variant-axes-changed.v1': OutboxPayloadSchema } as const;
 type GovernVariantAxesServices = VariantAxisPersistence & {
   readonly assessOpenSelectionImpact: (
@@ -43,6 +43,17 @@ export const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle
       code: 'variant_axis_write_conflict',
       conflict: 'INVALID_INPUT',
       reason: 'Axis definition is outside the trusted Tenant',
+    });
+  }
+  const evidencedAxes = payload.axes.filter(
+    (axis): axis is typeof axis & { readonly expectedAllowanceRevision: number } =>
+      axis.expectedAllowanceRevision !== undefined,
+  );
+  if (payload.classification === undefined || evidencedAxes.length !== payload.axes.length) {
+    return yield* new VariantAxisWriteConflict({
+      code: 'variant_axis_write_conflict',
+      conflict: 'INVALID_INPUT',
+      reason: 'Variant axis change evidence and expected allowance revisions are required',
     });
   }
   if (payload.classification.reason !== payload.reason) {
@@ -74,7 +85,7 @@ export const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle
   );
   const result = yield* context.services.govern({
     actionInvocationId: context.actionInvocationId,
-    axes: payload.axes.map((axis) => ({
+    axes: evidencedAxes.map((axis) => ({
       attributeDefinitionId: axis.attributeDefinitionRef.resourceId,
       definitionRevision: axis.definitionRevision,
       expectedAllowanceRevision: axis.expectedAllowanceRevision,
@@ -151,7 +162,7 @@ export const governVariantAxesAction = defineAction(
     payloadSchema: GovernVariantAxesPayloadSchema,
     policies: [],
     resultSchema: GovernVariantAxesResultSchema,
-    schemaVersion: '2',
+    schemaVersion: '1',
   },
   handleGovernVariantAxes,
   Effect.fn('GovernVariantAxesAction.services')(function* makeGovernVariantAxesServices(transaction, scope) {

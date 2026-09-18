@@ -28,7 +28,7 @@ import {
 
 type ChangeVariantHandlerServices = VariantPersistence & {
   readonly assessOpenSelectionImpact: (
-    productRef: ChangeVariantPayload['currentProductRef'],
+    productRef: NonNullable<ChangeVariantPayload['currentProductRef']>,
   ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable>;
 };
 type ChangeVariantServices = ChangeVariantHandlerServices & {
@@ -38,9 +38,12 @@ type ChangeVariantServices = ChangeVariantHandlerServices & {
   ) => Effect.Effect<void, ActionTransactionError>;
 };
 const ACTION_KEY = 'commerce.catalog.change-variant' as const;
-const ACTION_SCHEMA_VERSION = 3 as const;
+const ACTION_SCHEMA_VERSION = 2 as const;
 
-const operationForPayload = (payload: ChangeVariantPayload): VariantUseChangeOperation => {
+const operationForPayload = (
+  payload: ChangeVariantPayload,
+  currentProductRef: NonNullable<ChangeVariantPayload['currentProductRef']>,
+): VariantUseChangeOperation => {
   if (payload.classification === 'SAME_MEANING_RENAME') {
     return { evidenceRefs: payload.evidenceRefs, kind: 'SAME_MEANING_RENAME', reason: payload.reason };
   }
@@ -56,7 +59,7 @@ const operationForPayload = (payload: ChangeVariantPayload): VariantUseChangeOpe
     evidenceRefs: payload.evidenceRefs,
     kind: 'EVIDENCED_MEMBERSHIP_CORRECTION',
     reason: payload.reason,
-    targetProductRef: payload.targetProductRef ?? payload.currentProductRef,
+    targetProductRef: payload.targetProductRef ?? currentProductRef,
   };
 };
 
@@ -65,14 +68,21 @@ export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(funct
   context: ActionHandlerContext<Readonly<Record<string, never>>, ChangeVariantHandlerServices>,
 ) {
   yield* checkVariantTenant(context.scope.tenantId, payload.variantRef);
+  const { currentProductRef } = payload;
+  if (currentProductRef === undefined) {
+    return yield* new VariantCurrentBasisUnavailable({
+      code: 'variant_current_basis_unavailable',
+      reason: 'Current Product evidence is required before changing an existing Variant',
+    });
+  }
   if (
-    payload.currentProductRef.tenantId !== context.scope.tenantId ||
+    currentProductRef.tenantId !== context.scope.tenantId ||
     (payload.targetProductRef !== undefined && payload.targetProductRef.tenantId !== context.scope.tenantId)
   ) {
     return yield* variantNotFound();
   }
-  const decision = yield* decideVariantUseChange(operationForPayload(payload), {
-    currentProductRef: payload.currentProductRef,
+  const decision = yield* decideVariantUseChange(operationForPayload(payload, currentProductRef), {
+    currentProductRef,
   }).pipe(
     Effect.mapError(
       (failure) =>
@@ -84,7 +94,7 @@ export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(funct
     ),
   );
   if (decision.revalidation === 'REQUIRED') {
-    yield* context.services.assessOpenSelectionImpact(payload.currentProductRef).pipe(
+    yield* context.services.assessOpenSelectionImpact(currentProductRef).pipe(
       Effect.mapError(
         (failure) =>
           new VariantCurrentBasisUnavailable({
@@ -103,7 +113,7 @@ export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(funct
         SAME_MEANING_RENAME: 'SAME_MEANING',
       } as const
     )[payload.classification],
-    currentProductRef: payload.currentProductRef,
+    currentProductRef,
     evidenceRefs: payload.evidenceRefs,
     expectedRevision: payload.expectedVariantRevision,
     originalDataErrorEvidenceRef: payload.originalDataErrorEvidenceRef,
@@ -164,7 +174,7 @@ export const changeVariantAction = defineAction(
     payloadSchema: ChangeVariantPayloadSchema,
     policies: [],
     resultSchema: ChangeVariantResultSchema,
-    schemaVersion: '3',
+    schemaVersion: '2',
   },
   handleChangeVariant,
   Effect.fn('ChangeVariantAction.makeServices')(function* makeChangeVariantServices(transaction, scope) {

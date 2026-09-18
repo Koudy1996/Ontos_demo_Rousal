@@ -146,7 +146,7 @@ describe('Catalog Action result recovery', () => {
   it.effect('recovers the exact Change Variant decision from current and legacy snapshots', () =>
     Effect.gen(function* versionedChangeVariantRecovery() {
       const service = runtime(() => Effect.fail(committed));
-      const recovered = yield* Effect.forEach([3, 2, 1], (schemaVersion) => {
+      const recovered = yield* Effect.forEach([2, 1], (schemaVersion) => {
         const tx = transaction(
           snapshot({
             actionKey: 'commerce.catalog.change-variant',
@@ -162,7 +162,6 @@ describe('Catalog Action result recovery', () => {
         ).pipe(Effect.provideService(ActionRuntime, service));
       });
       expect(recovered).toEqual([
-        { result: changeVariantResult, status: 'committed' },
         { result: changeVariantResult, status: 'committed' },
         { result: changeVariantResult, status: 'committed' },
       ]);

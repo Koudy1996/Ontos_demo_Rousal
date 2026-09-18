@@ -39,7 +39,7 @@ const recoverResult = (
     decode: Schema.decodeUnknownEffect(GovernVariantAxesResultSchema),
     encode: Schema.encodeEffect(GovernVariantAxesResultSchema),
   };
-  return recoverCatalogActionResultVersions([2, 1], (schemaVersion) =>
+  return recoverCatalogActionResultVersions([1], (schemaVersion) =>
     recoverCatalogActionResult(
       transaction,
       scope,
