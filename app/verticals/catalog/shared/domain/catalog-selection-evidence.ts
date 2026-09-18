@@ -1,4 +1,4 @@
-import { Schema } from 'effect';
+import { Match, Schema } from 'effect';
 
 import {
   CatalogResourceRefSchema,
@@ -16,6 +16,16 @@ const setComponentIdSchema = Schema.String.check(Schema.isUUID(), Schema.isTrimm
   Schema.brand('SetComponentId'),
 );
 const packageDefinitionType = 'commerce.catalog.package-definition';
+const productType = 'commerce.catalog.product';
+const variantType = 'commerce.catalog.variant';
+const attributeDefinitionType = 'commerce.catalog.attribute-definition';
+const configurationUnitType = 'commerce.catalog.unit';
+const configurationDefinitionType = 'commerce.catalog.configuration-definition';
+const setCompositionType = 'commerce.catalog.set-composition';
+const productTypeResource = 'commerce.catalog.product-type';
+const attributeValueSetType = 'commerce.catalog.attribute-value-set';
+const productUnitRuleType = 'commerce.catalog.product-unit';
+const productCategoryType = 'commerce.catalog.product-category';
 
 /** An owner-issued business revision; no revision ID is invented when the owner issues only a sequence. */
 export const CatalogSelectionRevisionSchema = Schema.Struct({
@@ -32,13 +42,13 @@ const revisionOf = (resourceType: string) =>
     ),
   );
 
-export const ProductSelectionRevisionSchema = revisionOf('commerce.catalog.product');
-export const VariantSelectionRevisionSchema = revisionOf('commerce.catalog.variant');
-const AttributeDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.attribute-definition');
-const ConfigurationUnitSelectionRevisionSchema = revisionOf('commerce.catalog.unit');
+export const ProductSelectionRevisionSchema = revisionOf(productType);
+export const VariantSelectionRevisionSchema = revisionOf(variantType);
+const AttributeDefinitionSelectionRevisionSchema = revisionOf(attributeDefinitionType);
+const ConfigurationUnitSelectionRevisionSchema = revisionOf(configurationUnitType);
 export const PackageDefinitionSelectionRevisionSchema = revisionOf(packageDefinitionType);
-const ConfigurationDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.configuration-definition');
-export const SetCompositionSelectionRevisionSchema = revisionOf('commerce.catalog.set-composition');
+const ConfigurationDefinitionSelectionRevisionSchema = revisionOf(configurationDefinitionType);
+export const SetCompositionSelectionRevisionSchema = revisionOf(setCompositionType);
 
 const sameResource = (
   left: { readonly resourceId: string; readonly tenantId: string },
@@ -142,25 +152,54 @@ export const CatalogSelectionWithQuantitySchema = Schema.Struct({
   ),
 );
 
+/** Closed role vocabulary; every deciding role names the Catalog Resource kind it references. */
+export const CatalogSelectionBasisRoles = [
+  'PRODUCT',
+  'VARIANT',
+  'PRODUCT_TYPE',
+  'ATTRIBUTE_DEFINITION',
+  'INHERITED_VALUE',
+  'VARIANT_AXIS',
+  'CONFIGURATION_DEFINITION',
+  'UNIT',
+  'UNIT_CONVERSION',
+  'UNIT_RULE',
+  'UNIT_TARGET_DIVISIBILITY',
+  'PACKAGE_CONTENT',
+  'PACKAGE_OPTION_ROLE',
+  'SET_COMPOSITION',
+  'COMPONENT',
+  'CATEGORY',
+  'OTHER_CATALOG_FACT',
+] as const;
+export type CatalogSelectionBasisRole = (typeof CatalogSelectionBasisRoles)[number];
+
+/**
+ * Role-specific expected `resourceType`. A hand-built basis cannot borrow another Catalog
+ * Resource's identity for a deciding fact. `COMPONENT` and `OTHER_CATALOG_FACT` stay open
+ * because their exact source kind is deliberately not fixed by this contract.
+ */
+const expectedBasisResourceTypes = (role: CatalogSelectionBasisRole): readonly string[] | null =>
+  Match.value(role).pipe(
+    Match.when('PRODUCT', () => [productType]),
+    Match.when('VARIANT', () => [variantType]),
+    Match.when('PRODUCT_TYPE', () => [productTypeResource]),
+    Match.when('ATTRIBUTE_DEFINITION', () => [attributeDefinitionType]),
+    Match.when('INHERITED_VALUE', () => [attributeValueSetType]),
+    Match.when('VARIANT_AXIS', () => [productType]),
+    Match.when('CONFIGURATION_DEFINITION', () => [configurationDefinitionType]),
+    Match.whenOr('UNIT', 'UNIT_CONVERSION', () => [configurationUnitType]),
+    Match.when('UNIT_RULE', () => [productUnitRuleType]),
+    Match.when('UNIT_TARGET_DIVISIBILITY', () => [variantType, packageDefinitionType]),
+    Match.whenOr('PACKAGE_CONTENT', 'PACKAGE_OPTION_ROLE', () => [packageDefinitionType]),
+    Match.when('SET_COMPOSITION', () => [setCompositionType]),
+    Match.when('CATEGORY', () => [productCategoryType]),
+    Match.whenOr('COMPONENT', 'OTHER_CATALOG_FACT', () => null),
+    Match.exhaustive,
+  );
+
 export const CatalogSelectionBasisSchema = Schema.Struct({
-  role: Schema.Literals([
-    'PRODUCT',
-    'VARIANT',
-    'PRODUCT_TYPE',
-    'ATTRIBUTE_DEFINITION',
-    'INHERITED_VALUE',
-    'VARIANT_AXIS',
-    'CONFIGURATION_DEFINITION',
-    'UNIT',
-    'UNIT_RULE',
-    'UNIT_TARGET_DIVISIBILITY',
-    'PACKAGE_CONTENT',
-    'PACKAGE_OPTION_ROLE',
-    'SET_COMPOSITION',
-    'COMPONENT',
-    'CATEGORY',
-    'OTHER_CATALOG_FACT',
-  ]),
+  role: Schema.Literals([...CatalogSelectionBasisRoles]),
   source: CatalogSelectionRevisionSchema,
   /** Absent for the selected target itself; present for one need in a pinned Set revision. */
   subject: Schema.optionalKey(
@@ -175,18 +214,9 @@ export const CatalogSelectionBasisSchema = Schema.Struct({
     if (subject !== undefined && subject.composition.resourceRef.tenantId !== source.resourceRef.tenantId) {
       return 'Component basis and source must share one Tenant';
     }
-    if (role === 'UNIT_RULE' && source.resourceRef.resourceType !== 'commerce.catalog.product-unit') {
-      return 'Unit rule basis must name its Product Unit Resource';
-    }
-    if (
-      role === 'UNIT_TARGET_DIVISIBILITY' &&
-      source.resourceRef.resourceType !== 'commerce.catalog.variant' &&
-      source.resourceRef.resourceType !== packageDefinitionType
-    ) {
-      return 'Target divisibility basis must name its Variant or Package Definition Resource';
-    }
-    return role === 'PACKAGE_OPTION_ROLE' && source.resourceRef.resourceType !== packageDefinitionType
-      ? 'Package Option role basis must name its Package Definition Resource'
+    const expected = expectedBasisResourceTypes(role);
+    return expected !== null && !expected.includes(source.resourceRef.resourceType)
+      ? `Basis role ${role} must name a ${expected.join(' or ')} Resource`
       : undefined;
   }),
 );
@@ -206,7 +236,7 @@ export const sameCatalogSelectionBasis = (left: CatalogSelectionBasis, right: Ca
       left.subject.composition.revision === right.subject.composition.revision &&
       left.subject.composition.revisionId === right.subject.composition.revisionId);
 
-const CatalogSelectionBasisListSchema = Schema.Array(CatalogSelectionBasisSchema).check(
+export const CatalogSelectionBasisListSchema = Schema.Array(CatalogSelectionBasisSchema).check(
   Schema.makeFilter((basis) =>
     basis.some((entry, index) => basis.slice(index + 1).some((later) => sameCatalogSelectionBasis(entry, later)))
       ? 'Duplicate Catalog basis identity'

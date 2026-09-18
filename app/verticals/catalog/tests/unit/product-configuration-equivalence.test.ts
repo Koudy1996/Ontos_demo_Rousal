@@ -5,6 +5,7 @@ import {
   CatalogResourceRefSchema,
   CatalogRevisionNumberSchema,
 } from '../../shared/domain/catalog-revision-reference.ts';
+import { CatalogUnitConversionEvidenceSchema } from '../../shared/domain/catalog-unit-conversion-evidence.ts';
 import type {
   ProductConfiguration,
   ProductConfigurationDefinitionRevision,
@@ -426,5 +427,78 @@ describe('owner-private Product Configuration equivalence gate', () => {
       reason: 'Different Unit identities require an owner-qualified proof of lossless conversion',
       status: 'INDETERMINATE',
     });
+  });
+
+  it('accepts an exactly proven conversion and rejects unproven or foreign-unit evidence', () => {
+    const millimetre = ref('commerce.catalog.unit', '66666666-6666-4666-8666-666666666666');
+    const changedDefinition: ProductConfigurationDefinitionRevision = {
+      ...rightDefinition,
+      choices: rightDefinition.choices.map((choice) =>
+        choice.kind === 'MEASURED_VALUE' ? { ...choice, unitRef: millimetre } : choice,
+      ),
+    };
+    const changedSelection: ProductConfiguration = {
+      ...right,
+      values: right.values.map((value) =>
+        value.kind === 'MEASURED_VALUE' ? { ...value, amount: '830', unitRef: millimetre } : value,
+      ),
+    };
+    const changedInput: CurrentConfigurationAssessmentInput = {
+      ...input,
+      values: input.values.map((value) =>
+        value.kind === 'MEASURED_VALUE' ? { ...value, amount: '830', unitId: millimetre.resourceId } : value,
+      ),
+    };
+    const current = assessment(2);
+    const changedAssessment: CurrentConfigurationAssessment = {
+      ...current,
+      choiceRevisions: current.choiceRevisions.map((choice) =>
+        choice.choiceKey === 'length' ? { ...choice, unitId: millimetre.resourceId } : choice,
+      ),
+      unitRevisions: current.unitRevisions.map((unit) => ({ ...unit, meaning: 'Millimetre', ref: millimetre })),
+    };
+    const claimedProof: ProductConfigurationRevisionEquivalenceAttestation = {
+      ...attestation,
+      rightSelection: changedSelection,
+    };
+    const conversion = (numerator: string, denominator: string, toRevision = 1) =>
+      Schema.decodeUnknownSync(CatalogUnitConversionEvidenceSchema)({
+        denominator,
+        evidenceId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        from: { resourceRef: unitRef, revision: 1 },
+        numerator,
+        observedAt: '2026-09-18T12:00:00.000Z',
+        ownerModuleId: 'commerce.catalog',
+        source: 'CATALOG_OWNER_CURRENT_READ',
+        to: { resourceRef: millimetre, revision: toRevision },
+      });
+    const compareConverted = (proofs: readonly ReturnType<typeof conversion>[]) =>
+      assessProductConfigurationEquivalence(
+        left,
+        leftDefinition,
+        input,
+        assessment(1),
+        changedSelection,
+        changedDefinition,
+        changedInput,
+        changedAssessment,
+        claimedProof,
+        proofs,
+      );
+    expect(compareConverted([conversion('10', '1')])).toMatchObject({ same: true, status: 'VALID' });
+    expect(compareConverted([conversion('1', '1')])).toMatchObject({ status: 'INDETERMINATE' });
+    expect(compareConverted([conversion('10', '1', 2)])).toMatchObject({ status: 'INDETERMINATE' });
+    expect(compareConverted([])).toMatchObject({ status: 'INDETERMINATE' });
+    const foreignEndpoint = Schema.decodeUnknownSync(CatalogUnitConversionEvidenceSchema)({
+      denominator: '1',
+      evidenceId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      from: { resourceRef: ref('commerce.catalog.unit', '77777777-7777-4777-8777-777777777777'), revision: 1 },
+      numerator: '10',
+      observedAt: '2026-09-18T12:00:00.000Z',
+      ownerModuleId: 'commerce.catalog',
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      to: { resourceRef: millimetre, revision: 1 },
+    });
+    expect(compareConverted([foreignEndpoint])).toMatchObject({ status: 'INDETERMINATE' });
   });
 });

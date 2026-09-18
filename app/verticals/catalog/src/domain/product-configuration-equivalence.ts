@@ -1,3 +1,10 @@
+import { Schema } from 'effect';
+
+import { catalogUnitConversionProves } from '../../shared/domain/catalog-unit-conversion-evidence.ts';
+import type {
+  CatalogUnitConversionEvidence,
+  CatalogUnitRevisionReference,
+} from '../../shared/domain/catalog-unit-conversion-evidence.ts';
 import { sameProductConfigurationSelectionAcrossRevisions } from '../../shared/domain/product-configuration.ts';
 import type {
   ConfigurationInspection,
@@ -52,6 +59,10 @@ const assessmentMatchesSelection = (
 
 const catalogOwner = 'commerce.catalog';
 const catalogUnitType = 'commerce.catalog.unit';
+
+/** Whether Unit identity must match exactly or only be owner-qualified (conversion proven separately). */
+const UnitPolicySchema = Schema.Literals(['EXACT', 'OWNER_QUALIFIED']);
+type UnitPolicy = typeof UnitPolicySchema.Type;
 
 const sameRuleBasis = (
   attested: ProductConfigurationRevisionEquivalenceAttestation['admissibility']['leftRuleRevisions'],
@@ -115,13 +126,12 @@ const sameChoiceEvidence = (
   choice.evidenceRefs.every((ref) => ref.trim().length > 0) &&
   other.evidenceRefs.every((ref) => ref.trim().length > 0);
 
-const sameRecordedChoiceFacts = (choice: RecordedChoice, other: RecordedChoice): boolean =>
+const sameRecordedChoiceFacts = (choice: RecordedChoice, other: RecordedChoice, unitPolicy: UnitPolicy): boolean =>
   choice.kind === other.kind &&
   choice.meaning === other.meaning &&
   choice.required === other.required &&
   choice.options.length === other.options.length &&
-  choice.unitId === other.unitId &&
-  choice.unitRevision === other.unitRevision;
+  (unitPolicy === 'EXACT' ? choice.unitId === other.unitId && choice.unitRevision === other.unitRevision : true);
 
 const measuredUnitIdentityMatches = (
   choice: RecordedChoice,
@@ -150,6 +160,7 @@ const sameChoiceMeaning = (
   definedRight: DefinedChoice | undefined,
   leftRevision: number | undefined,
   rightRevision: number | undefined,
+  unitPolicy: UnitPolicy,
 ): boolean => {
   if (other === undefined || definedLeft === undefined || definedRight === undefined) {
     return false;
@@ -157,7 +168,7 @@ const sameChoiceMeaning = (
   return (
     definedChoiceMatches(choice, other, definedLeft, definedRight) &&
     sameChoiceEvidence(choice, other, leftRevision, rightRevision) &&
-    sameRecordedChoiceFacts(choice, other) &&
+    sameRecordedChoiceFacts(choice, other, unitPolicy) &&
     measuredUnitIdentityMatches(choice, other, definedLeft, definedRight) &&
     sameChoiceOptionMeanings(choice, other)
   );
@@ -192,6 +203,39 @@ const sameExactUnit = (
   );
 };
 
+const ownerQualifiedUnit = (unitId: string, assessment: CurrentConfigurationAssessment): boolean => {
+  const units = assessment.unitRevisions.filter((unit) => unit.ref.resourceId === unitId);
+  const [unit] = units;
+  return (
+    units.length === 1 &&
+    unit !== undefined &&
+    unit.ref.moduleId === catalogOwner &&
+    unit.ref.resourceType === catalogUnitType &&
+    unit.evidenceRefs.length > 0 &&
+    unit.evidenceRefs.every((ref) => ref.trim().length > 0)
+  );
+};
+
+const ownerQualifiedMeasuredUnits = (
+  leftSelection: ProductConfiguration,
+  rightSelection: ProductConfiguration,
+  left: CurrentConfigurationAssessment,
+  right: CurrentConfigurationAssessment,
+): boolean => {
+  const rightValues = new Map(rightSelection.values.map((value) => [value.choiceKey, value]));
+  return leftSelection.values.every((value) => {
+    if (value.kind !== 'MEASURED_VALUE') {
+      return true;
+    }
+    const other = rightValues.get(value.choiceKey);
+    return (
+      other?.kind === 'MEASURED_VALUE' &&
+      ownerQualifiedUnit(value.unitRef.resourceId, left) &&
+      ownerQualifiedUnit(other.unitRef.resourceId, right)
+    );
+  });
+};
+
 const sameRecordedMeaning = (
   left: CurrentConfigurationAssessment,
   right: CurrentConfigurationAssessment,
@@ -199,6 +243,7 @@ const sameRecordedMeaning = (
   rightDefinition: ProductConfigurationDefinitionRevision,
   leftSelection: ProductConfiguration,
   rightSelection: ProductConfiguration,
+  unitPolicy: UnitPolicy = 'EXACT',
 ): boolean => {
   if (
     left.choiceRevisions.length !== right.choiceRevisions.length ||
@@ -219,6 +264,7 @@ const sameRecordedMeaning = (
       rightDefinition.choices.find((item) => item.choiceKey === choice.choiceKey),
       left.definitionRevision,
       right.definitionRevision,
+      unitPolicy,
     ),
   );
   if (!choicesMatch) {
@@ -233,16 +279,16 @@ const sameRecordedMeaning = (
   if (measuredUnits.length !== rightSelection.values.filter((value) => value.kind === 'MEASURED_VALUE').length) {
     return false;
   }
-  return measuredUnits.every((unitId) => sameExactUnit(unitId, left, right));
+  return unitPolicy === 'EXACT'
+    ? measuredUnits.every((unitId) => sameExactUnit(unitId, left, right))
+    : ownerQualifiedMeasuredUnits(leftSelection, rightSelection, left, right);
 };
 
 /**
  * Rule 4 permits a documented lossless conversion to unify different Unit identities. This private
- * gate cannot supply that proof: `ConfigurationUnitRevision` carries no exact ratio, and neither the
- * assessment nor the equivalence attestation carries an owner-qualified conversion. Rather than
- * guess a factor or synthesize sameness from caller data, a measured Unit divergence stays
- * INDETERMINATE. The trusted `ConfigurationUnitConversion`/`evidenceId` path owned with Catalog
- * Selection (#479) must provide the proof before a positive conversion path can be sound.
+ * gate cannot supply that proof itself; the owner-qualified `CatalogUnitConversionEvidence` path
+ * owned with Catalog Selection (#479) carries the exact ratio. Without matching evidence the
+ * divergence stays INDETERMINATE rather than guessing a factor from caller data.
  */
 const measuredUnitsDiffer = (left: ProductConfiguration, right: ProductConfiguration): boolean => {
   const rightValues = new Map(right.values.map((value) => [value.choiceKey, value]));
@@ -256,10 +302,80 @@ const measuredUnitsDiffer = (left: ProductConfiguration, right: ProductConfigura
   });
 };
 
+const unitRevisionReference = (
+  assessment: CurrentConfigurationAssessment,
+  unitId: string,
+): CatalogUnitRevisionReference | undefined => {
+  const units = assessment.unitRevisions.filter((unit) => unit.ref.resourceId === unitId);
+  const [unit] = units;
+  return units.length === 1 && unit !== undefined && ownerQualifiedUnit(unitId, assessment)
+    ? { resourceRef: unit.ref, revision: unit.revision }
+    : undefined;
+};
+
+const losslessUnitConversionProven = (
+  leftSelection: ProductConfiguration,
+  left: CurrentConfigurationAssessment,
+  rightSelection: ProductConfiguration,
+  right: CurrentConfigurationAssessment,
+  evidence: readonly CatalogUnitConversionEvidence[],
+): boolean => {
+  const rightValues = new Map(rightSelection.values.map((value) => [value.choiceKey, value]));
+  return leftSelection.values.every((value) => {
+    if (value.kind !== 'MEASURED_VALUE') {
+      return true;
+    }
+    const other = rightValues.get(value.choiceKey);
+    if (other?.kind !== 'MEASURED_VALUE') {
+      return false;
+    }
+    if (value.unitRef.resourceId === other.unitRef.resourceId) {
+      return true;
+    }
+    const from = unitRevisionReference(left, value.unitRef.resourceId);
+    const to = unitRevisionReference(right, other.unitRef.resourceId);
+    return (
+      from !== undefined &&
+      to !== undefined &&
+      evidence.some((conversion) => catalogUnitConversionProves(conversion, from, to, value.amount, other.amount))
+    );
+  });
+};
+
 /**
  * Owner-private consumption gate. The attestation must come from a trusted Catalog
  * reader; this function cannot authenticate or issue one from caller-supplied data.
  */
+const equivalenceProofMatchesRules = (
+  attestation: ProductConfigurationRevisionEquivalenceAttestation | undefined,
+  left: CurrentConfigurationAssessment,
+  right: CurrentConfigurationAssessment,
+): boolean =>
+  attestation === undefined ||
+  (sameRuleBasis(attestation.admissibility.leftRuleRevisions, left) &&
+    sameRuleBasis(attestation.admissibility.rightRuleRevisions, right));
+
+const convertedMeaningProven = (
+  left: ProductConfiguration,
+  leftDefinition: ProductConfigurationDefinitionRevision,
+  leftAssessment: CurrentConfigurationAssessment,
+  right: ProductConfiguration,
+  rightDefinition: ProductConfigurationDefinitionRevision,
+  rightAssessment: CurrentConfigurationAssessment,
+  unitConversionEvidence: readonly CatalogUnitConversionEvidence[],
+): boolean =>
+  measuredUnitsDiffer(left, right) &&
+  sameRecordedMeaning(
+    leftAssessment,
+    rightAssessment,
+    leftDefinition,
+    rightDefinition,
+    left,
+    right,
+    'OWNER_QUALIFIED',
+  ) &&
+  losslessUnitConversionProven(left, leftAssessment, right, rightAssessment, unitConversionEvidence);
+
 export const assessProductConfigurationEquivalence = (
   left: ProductConfiguration,
   leftDefinition: ProductConfigurationDefinitionRevision | undefined,
@@ -270,6 +386,7 @@ export const assessProductConfigurationEquivalence = (
   rightInput: CurrentConfigurationAssessmentInput,
   rightAssessment: CurrentConfigurationAssessment | undefined,
   attestation: ProductConfigurationRevisionEquivalenceAttestation | undefined,
+  unitConversionEvidence: readonly CatalogUnitConversionEvidence[] = [],
 ): ConfigurationInspection & { readonly same?: boolean } => {
   const structural = sameProductConfigurationSelectionAcrossRevisions(
     left,
@@ -289,17 +406,32 @@ export const assessProductConfigurationEquivalence = (
   ) {
     return { reason: 'Exact owner admissibility assessments are unavailable', status: 'INDETERMINATE' };
   }
-  if (
-    attestation !== undefined &&
-    (!sameRuleBasis(attestation.admissibility.leftRuleRevisions, leftAssessment) ||
-      !sameRuleBasis(attestation.admissibility.rightRuleRevisions, rightAssessment))
-  ) {
+  if (!equivalenceProofMatchesRules(attestation, leftAssessment, rightAssessment)) {
     return { reason: 'Owner equivalence proof does not match assessed rule bases', status: 'INDETERMINATE' };
   }
   if (leftDefinition === undefined || rightDefinition === undefined) {
     return { reason: 'Exact Definition revisions are unavailable', status: 'INDETERMINATE' };
   }
-  if (!sameRecordedMeaning(leftAssessment, rightAssessment, leftDefinition, rightDefinition, left, right)) {
+  const exactMeaning = sameRecordedMeaning(
+    leftAssessment,
+    rightAssessment,
+    leftDefinition,
+    rightDefinition,
+    left,
+    right,
+  );
+  const convertedMeaning =
+    !exactMeaning &&
+    convertedMeaningProven(
+      left,
+      leftDefinition,
+      leftAssessment,
+      right,
+      rightDefinition,
+      rightAssessment,
+      unitConversionEvidence,
+    );
+  if (!exactMeaning && !convertedMeaning) {
     return {
       reason: measuredUnitsDiffer(left, right)
         ? 'Different Unit identities require an owner-qualified proof of lossless conversion'

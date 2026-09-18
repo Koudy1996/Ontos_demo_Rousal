@@ -375,4 +375,48 @@ describe('Catalog Selection decision references', () => {
       }),
     ).toThrow();
   });
+
+  it('qualifies every deciding basis role to its expected Catalog resourceType', () => {
+    const typeRef = ref('commerce.catalog.product-type', '99999999-9999-4999-8999-999999999999');
+    const attributeRef = ref('commerce.catalog.attribute-definition', '77777777-7777-4777-8777-777777777777');
+    const valueSetRef = ref('commerce.catalog.attribute-value-set', '66666666-6666-4666-8666-666666666666');
+    const definitionRef = ref('commerce.catalog.configuration-definition', '66666666-6666-4666-8666-666666666666');
+    const unitRef = ref('commerce.catalog.unit', '88888888-8888-4888-8888-888888888888');
+    const unitRuleRef = ref('commerce.catalog.product-unit', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    const packageRef = ref('commerce.catalog.package-definition', '44444444-4444-4444-8444-444444444444');
+    const setRef = ref('commerce.catalog.set-composition', '55555555-5555-4555-8555-555555555555');
+    const categoryRef = ref('commerce.catalog.product-category', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    const decode = Schema.decodeUnknownSync(CatalogSelectionBasisSchema, { onExcessProperty: 'error' });
+    const qualified: readonly (readonly [string, object])[] = [
+      ['PRODUCT', productRef],
+      ['VARIANT', variantRef],
+      ['PRODUCT_TYPE', typeRef],
+      ['ATTRIBUTE_DEFINITION', attributeRef],
+      ['INHERITED_VALUE', valueSetRef],
+      ['VARIANT_AXIS', productRef],
+      ['CONFIGURATION_DEFINITION', definitionRef],
+      ['UNIT', unitRef],
+      ['UNIT_CONVERSION', unitRef],
+      ['UNIT_RULE', unitRuleRef],
+      ['UNIT_TARGET_DIVISIBILITY', variantRef],
+      ['UNIT_TARGET_DIVISIBILITY', packageRef],
+      ['PACKAGE_CONTENT', packageRef],
+      ['PACKAGE_OPTION_ROLE', packageRef],
+      ['SET_COMPOSITION', setRef],
+      ['CATEGORY', categoryRef],
+    ];
+    for (const [role, resourceRef] of qualified) {
+      expect(decode({ role, source: { resourceRef, revision: 1 } })).toMatchObject({ role });
+    }
+    expect(() => decode({ role: 'PRODUCT', source: { resourceRef: variantRef, revision: 1 } })).toThrow();
+    expect(() => decode({ role: 'CATEGORY', source: { resourceRef: productRef, revision: 1 } })).toThrow();
+    expect(() => decode({ role: 'UNIT_CONVERSION', source: { resourceRef: productRef, revision: 1 } })).toThrow();
+    expect(() => decode({ role: 'PACKAGE_CONTENT', source: { resourceRef: variantRef, revision: 1 } })).toThrow();
+    expect(decode({ role: 'OTHER_CATALOG_FACT', source: { resourceRef: valueSetRef, revision: 1 } })).toMatchObject({
+      role: 'OTHER_CATALOG_FACT',
+    });
+    expect(decode({ role: 'COMPONENT', source: { resourceRef: variantRef, revision: 1 } })).toMatchObject({
+      role: 'COMPONENT',
+    });
+  });
 });

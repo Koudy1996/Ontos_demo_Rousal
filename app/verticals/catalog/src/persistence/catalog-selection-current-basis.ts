@@ -14,8 +14,17 @@ import {
 } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
+import { deriveClassification } from '../../shared/domain/category-classification.ts';
+import { catalogSelectionPurposeRequiresCategory } from '../../shared/domain/catalog-selection-purpose.ts';
 import type { SetCompositionRevision } from '../../shared/domain/set-composition.ts';
-import { productVariants, products, setCompositions } from '../database/schema.ts';
+import {
+  productCategories,
+  productCategoryAssignments,
+  productCategoryHierarchyRevisions,
+  productVariants,
+  products,
+  setCompositions,
+} from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 import { catalogSelectionPackageUnitBasisForScope } from './catalog-selection-package-unit-basis.ts';
 import { effectiveAttributeValueReadsForScope } from './effective-attribute-value-reads.ts';
@@ -41,6 +50,7 @@ const productUnitType = 'commerce.catalog.product-unit';
 const variantType = 'commerce.catalog.variant';
 const configurationDefinitionType = 'commerce.catalog.configuration-definition';
 const catalogUnitType = 'commerce.catalog.unit';
+const productCategoryType = 'commerce.catalog.product-category';
 
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   const failure = new CatalogPersistenceUnavailable({
@@ -764,6 +774,109 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
   },
 );
 
+/**
+ * Exact Category and ancestor basis for purposes that decide on classification.
+ * The hierarchy revision row is frozen with a shared lock, matching category writes;
+ * a missing assignment or unverifiable hierarchy is incomplete, never an empty set.
+ */
+const readCategoryBasis = Effect.fn('CatalogSelectionCurrentBasis.readCategoryBasis')(function* readCategoryBasis(
+  transaction: ScopedTransaction,
+  scope: OperationalScope,
+  productId: string,
+) {
+  const { tenantId } = scope;
+  const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+  const incomplete = { basis, complete: false as const };
+  const hierarchyRows = yield* transaction
+    .select()
+    .from(productCategoryHierarchyRevisions)
+    .where(eq(productCategoryHierarchyRevisions.tenantId, tenantId))
+    .for('share')
+    .limit(1)
+    .pipe(Effect.orElseSucceed(() => null));
+  const hierarchy = hierarchyRows?.[0];
+  if (hierarchy === undefined) {
+    return incomplete;
+  }
+  const reads = yield* Effect.all(
+    [
+      transaction
+        .select()
+        .from(productCategoryAssignments)
+        .where(
+          and(eq(productCategoryAssignments.tenantId, tenantId), eq(productCategoryAssignments.productId, productId)),
+        )
+        .orderBy(productCategoryAssignments.categoryId),
+      transaction
+        .select()
+        .from(productCategories)
+        .where(eq(productCategories.tenantId, tenantId))
+        .orderBy(productCategories.categoryId),
+    ],
+    { concurrency: 1 },
+  ).pipe(Effect.orElseSucceed(() => null));
+  if (reads === null) {
+    return incomplete;
+  }
+  const [assignments, categories] = reads;
+  const classification = deriveClassification(
+    { resourceId: productId, tenantId },
+    assignments.map(({ categoryId }) => ({
+      categoryRef: { resourceId: categoryId, tenantId },
+      productRef: { resourceId: productId, tenantId },
+    })),
+    categories.map((row) => {
+      const categoryRef = { resourceId: row.categoryId, tenantId };
+      const lifecycle = row.lifecycleState === 'ACTIVE' ? ('ACTIVE' as const) : ('RETIRED' as const);
+      return row.parentCategoryId === null
+        ? { categoryRef, lifecycle }
+        : { categoryRef, lifecycle, parentRef: { resourceId: row.parentCategoryId, tenantId } };
+    }),
+    { assignments: hierarchy.assignmentRevision, hierarchy: hierarchy.hierarchyRevision },
+  );
+  if (classification.status !== 'AVAILABLE' || classification.directCategories.length === 0) {
+    return incomplete;
+  }
+  const revisionById = new Map(categories.map((row) => [row.categoryId, row.currentRevision]));
+  const referenced = [
+    ...classification.directCategories,
+    ...classification.ancestors.map(({ ancestorRef }) => ancestorRef),
+  ];
+  for (const ref of new Map(referenced.map((entry) => [entry.resourceId, entry])).values()) {
+    const revision = Schema.decodeUnknownOption(CatalogRevisionNumberSchema)(revisionById.get(ref.resourceId));
+    if (Option.isNone(revision)) {
+      return incomplete;
+    }
+    basis.push({
+      role: 'CATEGORY',
+      source: {
+        resourceRef: {
+          moduleId: catalogModuleId,
+          resourceId: ref.resourceId,
+          resourceType: productCategoryType,
+          tenantId,
+        },
+        revision: revision.value,
+      },
+    });
+  }
+  return { basis, complete: true as const };
+});
+
+/** A purpose that does not require classification contributes no facts and no incompleteness. */
+const readPurposeCategoryBasis = Effect.fn('CatalogSelectionCurrentBasis.readPurposeCategoryBasis')(
+  function* readPurposeCategoryBasis(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    productId: string,
+    purpose: string,
+  ) {
+    return catalogSelectionPurposeRequiresCategory(purpose)
+      ? yield* readCategoryBasis(transaction, scope, productId)
+      : { basis: [], complete: true as const };
+  },
+);
+
 const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readIndirectDependencies')(
   function* readIndirectDependencies(
     transaction: ScopedTransaction,
@@ -772,6 +885,7 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
     now: DateTime.Utc,
     productRevision: number,
     variantRevision: number,
+    purpose: string,
   ) {
     const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
     const unknown = (reason: string) => ({ basis, reason, status: 'INDETERMINATE' as const });
@@ -852,12 +966,15 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
     if (readiness.reason !== null) {
       return { basis, reason: readiness.reason, status: readiness.status };
     }
+    const category = yield* readPurposeCategoryBasis(transaction, scope, selection.productRef.resourceId, purpose);
+    basis.push(...category.basis);
     // Assignment revision is a row counter, not the Product Resource revision.
     // Do not publish it as a ResourceRef basis until Catalog defines that identity.
     return {
       basis: basis.filter(
         (fact, index) => !basis.slice(0, index).some((prior) => sameCatalogSelectionBasis(prior, fact)),
       ),
+      dependentFactsComplete: category.complete,
       reason: null,
     };
   },
@@ -969,6 +1086,7 @@ export const catalogSelectionCurrentBasisForScope = (transaction: ScopedTransact
       now,
       product.revision,
       variant.revision,
+      purpose,
     );
     for (const fact of indirect.basis) {
       if (!basis.some((existing) => sameCatalogSelectionBasis(existing, fact))) {
@@ -988,7 +1106,7 @@ export const catalogSelectionCurrentBasisForScope = (transaction: ScopedTransact
     const observed: CatalogSelectionCurrentFacts = {
       assessedAt,
       basis,
-      dependentFactsComplete: true,
+      dependentFactsComplete: indirect.dependentFactsComplete,
       membership,
       productLifecycle: product.lifecycleState,
       purpose,
