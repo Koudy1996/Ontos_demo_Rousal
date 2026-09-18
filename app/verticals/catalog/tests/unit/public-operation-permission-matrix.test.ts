@@ -4,6 +4,8 @@ import { catalogAuthorityBundles, catalogPublicOperationContracts } from '../../
 import { catalogManifest } from '../../vertical.manifest.ts';
 import { brandCurrentRead } from '../../src/api/brand-current.read.ts';
 import { brandHistoryRead } from '../../src/api/brand-history.read.ts';
+import { colorCurrentRead } from '../../src/api/color-current.read.ts';
+import { colorHistoryRead } from '../../src/api/color-history.read.ts';
 import { catalogMediaCurrentRead } from '../../src/api/catalog-media-current.read.ts';
 import { createProductRecoveryRead } from '../../src/api/create-product-recovery.read.ts';
 import { effectiveAttributeValuesCurrentRead } from '../../src/api/effective-attribute-values-current.read.ts';
@@ -29,6 +31,8 @@ import { skuLookupRead } from '../../src/api/sku-lookup.read.ts';
 const reads = [
   brandCurrentRead,
   brandHistoryRead,
+  colorCurrentRead,
+  colorHistoryRead,
   catalogMediaCurrentRead,
   createProductRecoveryRead,
   effectiveAttributeValuesCurrentRead,
@@ -93,6 +97,8 @@ it('maps every published Action and governed read to one explicit atomic permiss
     } else if (
       relationshipOrIdentity ||
       readKey === 'commerce.catalog.api.product-size-current' ||
+      readKey === 'commerce.catalog.api.color-current' ||
+      readKey === 'commerce.catalog.api.color-history' ||
       readKey === 'commerce.catalog.api.effective-attribute-values-current' ||
       readKey === 'commerce.catalog.api.gtin-current' ||
       readKey === 'commerce.catalog.api.gtin-history' ||

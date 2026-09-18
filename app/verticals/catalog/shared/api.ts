@@ -20,6 +20,8 @@ import { CatalogMediaCurrentApi } from './apis/catalog-media-current.ts';
 import { ChangeProductManufacturerActionApi } from './apis/change-product-manufacturer-action.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
 import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
+import { ColorCurrentApi } from './apis/color-current.ts';
+import { ColorHistoryApi } from './apis/color-history.ts';
 import { ConfirmGtinActionApi } from './apis/confirm-gtin-action.ts';
 import { CorrectGtinActionApi } from './apis/correct-gtin-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
@@ -143,6 +145,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ChangeProductManufacturerActionApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
   .addHttpApi(ChangeVariantActionApi)
+  .addHttpApi(ColorCurrentApi)
+  .addHttpApi(ColorHistoryApi)
   .addHttpApi(ConfirmGtinActionApi)
   .addHttpApi(CorrectGtinActionApi)
   .addHttpApi(CorrectProductActionApi)
@@ -310,6 +314,26 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: brandBusinessTarget,
     permission: 'commerce.catalog.read.brand-history',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.color-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'controlled-attribute-value',
+    permission: 'commerce.catalog.read.color-current',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.color-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'controlled-attribute-value',
+    permission: 'commerce.catalog.read.color-history',
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
@@ -1137,6 +1161,8 @@ export const catalogAuthorityBundles = {
   CATALOG_READER: [
     'commerce.catalog.read.brand-current',
     'commerce.catalog.read.brand-history',
+    'commerce.catalog.read.color-current',
+    'commerce.catalog.read.color-history',
     'commerce.catalog.read.gtin-current',
     'commerce.catalog.read.gtin-history',
     'commerce.catalog.read.media',

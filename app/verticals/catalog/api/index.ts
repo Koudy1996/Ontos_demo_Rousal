@@ -38,6 +38,8 @@ import { catalogMediaCurrentReadApiLive } from './catalog-media-current-read-ser
 import { changeProductManufacturerActionApiLive } from './change-product-manufacturer-action-server.ts';
 import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
 import { changeVariantActionApiLive } from './change-variant-action-server.ts';
+import { colorCurrentReadApiLive } from './color-current-read-server.ts';
+import { colorHistoryReadApiLive } from './color-history-read-server.ts';
 import { confirmGtinActionApiLive } from './confirm-gtin-action-server.ts';
 import { correctGtinActionApiLive } from './correct-gtin-action-server.ts';
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
@@ -234,6 +236,8 @@ export const makeCatalogApiRuntime = (
     changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    colorCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    colorHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     confirmGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

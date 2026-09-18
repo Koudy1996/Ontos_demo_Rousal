@@ -28,6 +28,8 @@ import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
 import { changeVariantAction } from './src/actions/change-variant.action.ts';
+import { ColorCurrentApi } from './shared/apis/color-current.ts';
+import { ColorHistoryApi } from './shared/apis/color-history.ts';
 import { configurationUnitResourceDescriptor } from './shared/resources/configuration-unit.ts';
 import { confirmGtinAction } from './src/actions/confirm-gtin.action.ts';
 import { controlledAttributeValueResourceDescriptor } from './shared/resources/controlled-attribute-value.ts';
@@ -242,6 +244,8 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'brand-current': BrandCurrentApi,
       'brand-history': BrandHistoryApi,
       'catalog-media-current': CatalogMediaCurrentApi,
+      'color-current': ColorCurrentApi,
+      'color-history': ColorHistoryApi,
       'create-product-recovery': CreateProductRecoveryApi,
       'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
       'gtin-current': GtinCurrentApi,
