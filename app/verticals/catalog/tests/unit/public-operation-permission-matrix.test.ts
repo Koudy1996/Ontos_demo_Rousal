@@ -18,6 +18,7 @@ import { productBrandCurrentRead } from '../../src/api/product-brand-current.rea
 import { productBrandHistoryRead } from '../../src/api/product-brand-history.read.ts';
 import { productRelationshipCurrentRead } from '../../src/api/product-relationship-current.read.ts';
 import { productRelationshipHistoryRead } from '../../src/api/product-relationship-history.read.ts';
+import { quantityPreparationRead } from '../../src/api/quantity-preparation.read.ts';
 import { skuLookupRead } from '../../src/api/sku-lookup.read.ts';
 
 const reads = [
@@ -37,6 +38,7 @@ const reads = [
   productBrandHistoryRead,
   productRelationshipCurrentRead,
   productRelationshipHistoryRead,
+  quantityPreparationRead,
   skuLookupRead,
 ] as const;
 
@@ -73,7 +75,10 @@ it('maps every published Action and governed read to one explicit atomic permiss
       readKey.includes('manufacturer-relation') ||
       readKey.includes('product-relationship');
     let expectedTarget = 'tenant';
-    if (readKey === 'commerce.catalog.api.catalog-media-current') {
+    if (
+      readKey === 'commerce.catalog.api.catalog-media-current' ||
+      readKey === 'commerce.catalog.api.quantity-preparation'
+    ) {
       expectedTarget = 'resource';
     } else if (
       relationshipOrIdentity ||

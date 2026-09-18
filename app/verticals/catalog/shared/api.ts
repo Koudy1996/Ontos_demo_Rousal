@@ -52,6 +52,7 @@ import { ProductHistoryApi } from './apis/product-history.ts';
 import { ProductRelationshipCurrentApi } from './apis/product-relationship-current.ts';
 import { ProductRelationshipHistoryApi } from './apis/product-relationship-history.ts';
 import { PublishProductConfigurationActionApi } from './apis/publish-product-configuration-action.ts';
+import { QuantityPreparationApi } from './apis/quantity-preparation.ts';
 import { ReactivateBrandActionApi } from './apis/reactivate-brand-action.ts';
 import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
@@ -165,6 +166,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductRelationshipCurrentApi)
   .addHttpApi(ProductRelationshipHistoryApi)
   .addHttpApi(PublishProductConfigurationActionApi)
+  .addHttpApi(QuantityPreparationApi)
   .addHttpApi(ReactivateBrandActionApi)
   .addHttpApi(ReactivateControlledAttributeValueActionApi)
   .addHttpApi(ReactivateProductActionApi)
@@ -422,6 +424,16 @@ export const catalogPublicOperationContracts = {
     permission: 'commerce.catalog.read.product-relationship-history',
     permissionKind: 'context_permission',
     permissionTarget: 'module',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.quantity-preparation': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.quantity-preparation',
+    permissionKind: 'context_permission',
+    permissionTarget: 'resource',
+    resourcePermission: 'read',
     scope: 'tenant',
     version: '1',
   },
@@ -1046,6 +1058,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.product-history',
     'commerce.catalog.read.product-relationship',
     'commerce.catalog.read.product-relationship-history',
+    'commerce.catalog.read.quantity-preparation',
     'commerce.catalog.read.sku-lookup',
   ],
   PRODUCT_EDITOR: [

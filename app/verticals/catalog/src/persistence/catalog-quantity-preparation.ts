@@ -1,6 +1,6 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { Effect, Schema } from 'effect';
+import { DateTime, Effect, Match, Schema } from 'effect';
 import { isDeepStrictEqual } from 'node:util';
 
 import type { CatalogSelection, CatalogSelectionRevision } from '../../shared/domain/catalog-selection-evidence.ts';
@@ -13,6 +13,7 @@ import { normalizePurchaseQuantity } from '../../shared/domain/purchase-quantity
 import type { CatalogResourceRef } from '../../shared/domain/catalog-revision-reference.ts';
 import {
   packageDefinitions,
+  packageContentRevisions,
   packageUnitDivisibility,
   productUnitRuleRevisions,
   productUnits,
@@ -21,6 +22,7 @@ import {
   variantUnitDivisibility,
 } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
+import { resolveEffectiveRevision } from './package-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
@@ -166,6 +168,28 @@ const readSelectionBasis = Effect.fn('CatalogQuantityPreparation.readSelectionBa
     }
     if (!validRevision(pack.currentRevision)) {
       return failure('INDETERMINATE', 'Package Definition revision is unusable');
+    }
+    const revisions = yield* transaction
+      .select()
+      .from(packageContentRevisions)
+      .where(
+        and(eq(packageContentRevisions.tenantId, tenantId), eq(packageContentRevisions.packageDefinitionId, packageId)),
+      );
+    if (revisions.length !== pack.currentRevision) {
+      return failure('INDETERMINATE', 'Package Content revision history is incomplete');
+    }
+    const effectiveRevision = Match.value(
+      resolveEffectiveRevision(revisions, DateTime.toDateUtc(yield* DateTime.now)),
+    ).pipe(
+      Match.tag('resolved', ({ revision }) => revision),
+      Match.tag('invalid', () => null),
+      Match.exhaustive,
+    );
+    if (effectiveRevision === null) {
+      return failure('INDETERMINATE', 'Package Content has no unambiguous effective revision');
+    }
+    if (selection.packageOption?.contentRevision.revision !== effectiveRevision) {
+      return failure('STALE', 'Selected Package Content is not Current');
     }
     return { pack, product, variant };
   },

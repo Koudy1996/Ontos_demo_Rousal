@@ -4,6 +4,7 @@ import { describe, expect, it } from 'effect-rstest';
 
 import {
   packageDefinitions,
+  packageContentRevisions,
   packageUnitDivisibility,
   productUnitRuleRevisions,
   productUnits,
@@ -61,6 +62,10 @@ const rows = new Map<unknown, unknown>([
   [packageUnitDivisibility, { currentRevision: 6, divisible: false, packageDefinitionId: packageId, unitId }],
   [productUnits, { currentRuleRevision: 7, lifecycleState: 'ACTIVE', unitId }],
   [productUnitRuleRevisions, { revision: 7, rounding: 'UP', step: '0.01', unitId }],
+  [
+    packageContentRevisions,
+    [1, 2, 3, 4].map((revision) => ({ effectiveAt: new Date(`196${revision}-01-01T00:00:00Z`), revision })),
+  ],
 ]);
 type ReadTable =
   | typeof products
@@ -69,15 +74,18 @@ type ReadTable =
   | typeof variantUnitDivisibility
   | typeof packageUnitDivisibility
   | typeof productUnits
-  | typeof productUnitRuleRevisions;
+  | typeof productUnitRuleRevisions
+  | typeof packageContentRevisions;
 const queryResult = (table: ReadTable, overrides: Map<unknown, unknown>) => {
   const row = overrides.has(table) ? overrides.get(table) : rows.get(table);
-  return Effect.succeed(row === null ? [] : [row]);
+  if (row === null) {
+    return Effect.succeed([]);
+  }
+  return Effect.succeed(Array.isArray(row) ? row : [row]);
 };
 const makeLimit = (table: ReadTable, overrides: Map<unknown, unknown>) => () => queryResult(table, overrides);
-const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>) => () => ({
-  limit: makeLimit(table, overrides),
-});
+const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>) => () =>
+  table === packageContentRevisions ? queryResult(table, overrides) : { limit: makeLimit(table, overrides) };
 const makeFrom = (overrides: Map<unknown, unknown>) => (table: ReadTable) => ({
   where: makeWhere(table, overrides),
 });
@@ -141,6 +149,47 @@ describe('Catalog quantity preparation', () => {
         selection: packageSelection,
       });
       expect(result.status).toBe('INVALID');
+    }),
+  );
+
+  it.effect('does not prepare a scheduled future Package Content revision', () =>
+    Effect.gen(function* rejectsFuturePackageContent() {
+      const packageSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        packageOption: {
+          contentRevision: {
+            resourceRef: {
+              moduleId: 'commerce.catalog',
+              resourceId: packageId,
+              resourceType: 'commerce.catalog.package-definition',
+              tenantId,
+            },
+            revision: 4,
+          },
+          optionRef: {
+            moduleId: 'commerce.catalog',
+            resourceId: packageId,
+            resourceType: 'commerce.catalog.package-definition',
+            tenantId,
+          },
+        },
+      });
+      const overrides = new Map<unknown, unknown>([
+        [
+          packageContentRevisions,
+          [1, 2, 3, 4].map((revision) => ({
+            effectiveAt: new Date(revision === 4 ? '2099-01-01T00:00:00Z' : `196${revision}-01-01T00:00:00Z`),
+            revision,
+          })),
+        ],
+      ]);
+      // @ts-expect-error The mock provides only the read chains exercised here.
+      const result = yield* catalogQuantityPreparationForScope(transactionFor(overrides), scope).prepare({
+        amount: '2',
+        phase: 'PREPARE',
+        selection: packageSelection,
+      });
+      expect(result.status).toBe('STALE');
     }),
   );
 
