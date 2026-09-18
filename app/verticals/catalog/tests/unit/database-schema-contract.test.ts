@@ -44,6 +44,8 @@ import {
   packageUnitDivisibilityRevisions,
   productBrandAssignmentRevisions,
   productBrandAssignments,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
   productCategories,
   productCategoryAssignments,
   productCategoryEvents,
@@ -80,7 +82,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns seventy-one tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns seventy-five tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -118,6 +120,8 @@ it('owns seventy-one tenant-scoped Catalog tables with RLS and immutable history
     'package_option_role_revisions',
     'package_unit_divisibility',
     'package_unit_divisibility_revisions',
+    'product_attribute_applicability',
+    'product_attribute_applicability_revisions',
     'product_brand_assignment_revisions',
     'product_brand_assignments',
     'product_categories',
@@ -147,6 +151,7 @@ it('owns seventy-one tenant-scoped Catalog tables with RLS and immutable history
     'product_type_assignments',
     'product_type_revision_attributes',
     'product_type_revisions',
+    'product_type_untyped_decisions',
     'product_types',
     'product_unit_rule_revisions',
     'product_units',
@@ -172,6 +177,21 @@ it('owns seventy-one tenant-scoped Catalog tables with RLS and immutable history
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('keeps Product-local Attribute applicability distinct from Type permission and values', () => {
+  const current = getTableConfig(productAttributeApplicability);
+  const revisions = getTableConfig(productAttributeApplicabilityRevisions);
+  expect(current.primaryKeys.map((key) => key.getName())).toContain('catalog_product_attribute_applicability_pk');
+  expect(current.columns.map((column) => column.name)).toEqual(
+    expect.arrayContaining(['product_level', 'variant_level', 'current_revision']),
+  );
+  expect(revisions.primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_attribute_applicability_revisions_pk',
+  );
+  expect(revisions.uniqueConstraints.map((key) => key.name)).toContain(
+    'catalog_product_attribute_applicability_revisions_invocation_uk',
+  );
 });
 
 it('retains one bounded original result per tenant and Action invocation', () => {
@@ -671,6 +691,7 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_controlled_values_identity_immutable');
   expect(combined).toContain('catalog_controlled_values_definition_kind');
   expect(combined).toContain('catalog_attribute_value_revisions_append_only');
+  expect(combined).toContain('catalog_product_attribute_applicability_revisions_append_only');
   expect(combined).toContain('catalog_product_variant_axis_events_append_only');
   expect(combined).toContain('catalog_product_variant_revisions_append_only');
   expect(combined).toContain('catalog_product_type_assignment_current_pointer');
