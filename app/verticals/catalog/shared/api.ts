@@ -51,6 +51,7 @@ import { ProductDetailApi } from './apis/product-detail.ts';
 import { ProductHistoryApi } from './apis/product-history.ts';
 import { ProductRelationshipCurrentApi } from './apis/product-relationship-current.ts';
 import { ProductRelationshipHistoryApi } from './apis/product-relationship-history.ts';
+import { ProductSizeCurrentApi } from './apis/product-size-current.ts';
 import { PublishProductConfigurationActionApi } from './apis/publish-product-configuration-action.ts';
 import { QuantityPreparationApi } from './apis/quantity-preparation.ts';
 import { ReactivateBrandActionApi } from './apis/reactivate-brand-action.ts';
@@ -165,6 +166,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductHistoryApi)
   .addHttpApi(ProductRelationshipCurrentApi)
   .addHttpApi(ProductRelationshipHistoryApi)
+  .addHttpApi(ProductSizeCurrentApi)
   .addHttpApi(PublishProductConfigurationActionApi)
   .addHttpApi(QuantityPreparationApi)
   .addHttpApi(ReactivateBrandActionApi)
@@ -370,6 +372,16 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
     permission: 'commerce.catalog.read.product-brand-history',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.product-size-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.product-size-current',
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
@@ -1056,6 +1068,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.product-brand-history',
     'commerce.catalog.read.product-detail',
     'commerce.catalog.read.product-history',
+    'commerce.catalog.read.product-size-current',
     'commerce.catalog.read.product-relationship',
     'commerce.catalog.read.product-relationship-history',
     'commerce.catalog.read.quantity-preparation',

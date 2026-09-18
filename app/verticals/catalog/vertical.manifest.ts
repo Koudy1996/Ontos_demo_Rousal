@@ -64,6 +64,7 @@ import { ProductHistoryApi } from './shared/apis/product-history.ts';
 import { ProductRelationshipCurrentApi } from './shared/apis/product-relationship-current.ts';
 import { ProductRelationshipHistoryApi } from './shared/apis/product-relationship-history.ts';
 import { productResourceDescriptor } from './shared/resources/product.ts';
+import { ProductSizeCurrentApi } from './shared/apis/product-size-current.ts';
 import { productTypeResourceDescriptor } from './shared/resources/product-type.ts';
 import { productUnitResourceDescriptor } from './shared/resources/product-unit.ts';
 import { publishProductConfigurationAction } from './src/actions/publish-product-configuration.action.ts';
@@ -242,6 +243,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'product-history': ProductHistoryApi,
       'product-relationship-current': ProductRelationshipCurrentApi,
       'product-relationship-history': ProductRelationshipHistoryApi,
+      'product-size-current': ProductSizeCurrentApi,
       'quantity-preparation': QuantityPreparationApi,
       'sku-lookup': SkuLookupApi,
       // </generated-module-manifest-apis>

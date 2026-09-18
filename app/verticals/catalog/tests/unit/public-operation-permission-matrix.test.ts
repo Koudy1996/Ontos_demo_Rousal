@@ -16,6 +16,7 @@ import { productDetailRead } from '../../src/api/product-detail.read.ts';
 import { productHistoryRead } from '../../src/api/product-history.read.ts';
 import { productBrandCurrentRead } from '../../src/api/product-brand-current.read.ts';
 import { productBrandHistoryRead } from '../../src/api/product-brand-history.read.ts';
+import { productSizeCurrentRead } from '../../src/api/product-size-current.read.ts';
 import { productRelationshipCurrentRead } from '../../src/api/product-relationship-current.read.ts';
 import { productRelationshipHistoryRead } from '../../src/api/product-relationship-history.read.ts';
 import { quantityPreparationRead } from '../../src/api/quantity-preparation.read.ts';
@@ -36,6 +37,7 @@ const reads = [
   productHistoryRead,
   productBrandCurrentRead,
   productBrandHistoryRead,
+  productSizeCurrentRead,
   productRelationshipCurrentRead,
   productRelationshipHistoryRead,
   quantityPreparationRead,
@@ -82,6 +84,7 @@ it('maps every published Action and governed read to one explicit atomic permiss
       expectedTarget = 'resource';
     } else if (
       relationshipOrIdentity ||
+      readKey === 'commerce.catalog.api.product-size-current' ||
       readKey === 'commerce.catalog.api.gtin-current' ||
       readKey === 'commerce.catalog.api.gtin-history' ||
       readKey === 'commerce.catalog.api.sku-lookup'
