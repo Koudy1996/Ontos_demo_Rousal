@@ -334,6 +334,8 @@ const productUnitBusinessTarget = 'product-unit';
 const configurationUnitBusinessTarget = 'configuration-unit';
 const brandBusinessTarget = 'brand';
 const manufacturerRelationBusinessTarget = 'manufacturer-relation';
+const productTypeBusinessTarget = 'product-type';
+const setCompositionBusinessTarget = 'set-composition';
 
 export const catalogPublicOperationContracts = {
   'commerce.catalog.activate-package-definition': {
@@ -392,7 +394,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.color-current': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'controlled-attribute-value',
+    businessTarget: controlledAttributeValueBusinessTarget,
     permission: 'commerce.catalog.read.color-current',
     permissionKind: 'context_permission',
     permissionTarget: 'module',
@@ -402,7 +404,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.color-history': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'controlled-attribute-value',
+    businessTarget: controlledAttributeValueBusinessTarget,
     permission: 'commerce.catalog.read.color-history',
     permissionKind: 'context_permission',
     permissionTarget: 'module',
@@ -412,7 +414,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-attribute-definition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'attribute-definition',
+    businessTarget: attributeDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.create-attribute-definition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -420,7 +422,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-brand-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'brand',
+    businessTarget: brandBusinessTarget,
     permission: 'commerce.catalog.read.create-brand-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -428,7 +430,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-configuration-unit-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'configuration-unit',
+    businessTarget: configurationUnitBusinessTarget,
     permission: 'commerce.catalog.read.create-configuration-unit-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -436,7 +438,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-controlled-attribute-value-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'controlled-attribute-value',
+    businessTarget: controlledAttributeValueBusinessTarget,
     permission: 'commerce.catalog.read.create-controlled-attribute-value-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -444,7 +446,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-package-definition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
+    businessTarget: packageDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.create-package-definition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -452,7 +454,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-product-category-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-category',
+    businessTarget: productCategoryBusinessTarget,
     permission: 'commerce.catalog.read.create-product-category-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -468,7 +470,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-product-relationship-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-relationship',
+    businessTarget: productRelationshipBusinessTarget,
     permission: 'commerce.catalog.read.create-product-relationship-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -476,7 +478,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-product-type-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-type',
+    businessTarget: productTypeBusinessTarget,
     permission: 'commerce.catalog.read.create-product-type-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -484,7 +486,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-product-unit-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-unit',
+    businessTarget: productUnitBusinessTarget,
     permission: 'commerce.catalog.read.create-product-unit-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -492,7 +494,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.create-set-composition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'set-composition',
+    businessTarget: setCompositionBusinessTarget,
     permission: 'commerce.catalog.read.create-set-composition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -556,7 +558,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.package-definition-history': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
+    businessTarget: packageDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.package-definition-history',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -564,7 +566,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.package-option-history': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
+    businessTarget: packageDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.package-option-history',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -663,7 +665,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.retire-brand-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'brand',
+    businessTarget: brandBusinessTarget,
     permission: 'commerce.catalog.read.retire-brand-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -671,7 +673,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.retire-configuration-unit-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'configuration-unit',
+    businessTarget: configurationUnitBusinessTarget,
     permission: 'commerce.catalog.read.retire-configuration-unit-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -679,7 +681,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.retire-controlled-attribute-value-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'controlled-attribute-value',
+    businessTarget: controlledAttributeValueBusinessTarget,
     permission: 'commerce.catalog.read.retire-controlled-attribute-value-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -695,7 +697,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.retire-package-definition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
+    businessTarget: packageDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.retire-package-definition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -703,7 +705,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.retire-package-option-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
+    businessTarget: packageDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.retire-package-option-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -711,7 +713,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.retire-product-category-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-category',
+    businessTarget: productCategoryBusinessTarget,
     permission: 'commerce.catalog.read.retire-product-category-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -727,7 +729,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.retire-product-unit-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-unit',
+    businessTarget: productUnitBusinessTarget,
     permission: 'commerce.catalog.read.retire-product-unit-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -743,7 +745,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.revise-attribute-definition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'attribute-definition',
+    businessTarget: attributeDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.revise-attribute-definition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -751,7 +753,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.revise-configuration-unit-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'configuration-unit',
+    businessTarget: configurationUnitBusinessTarget,
     permission: 'commerce.catalog.read.revise-configuration-unit-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -759,7 +761,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.revise-package-definition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
+    businessTarget: packageDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.revise-package-definition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -767,7 +769,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.revise-product-type-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-type',
+    businessTarget: productTypeBusinessTarget,
     permission: 'commerce.catalog.read.revise-product-type-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -775,7 +777,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.revise-product-unit-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product-unit',
+    businessTarget: productUnitBusinessTarget,
     permission: 'commerce.catalog.read.revise-product-unit-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -783,7 +785,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.revise-set-composition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'set-composition',
+    businessTarget: setCompositionBusinessTarget,
     permission: 'commerce.catalog.read.revise-set-composition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -791,7 +793,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.set-composition-current': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'set-composition',
+    businessTarget: setCompositionBusinessTarget,
     permission: 'commerce.catalog.read.set-composition-current',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -799,7 +801,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.api.set-composition-history': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'set-composition',
+    businessTarget: setCompositionBusinessTarget,
     permission: 'commerce.catalog.read.set-composition-history',
     permissionKind: 'context_permission',
     scope: 'tenant',
@@ -977,7 +979,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.create-product-type': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
-    businessTarget: 'product-type',
+    businessTarget: productTypeBusinessTarget,
     permission: 'commerce.catalog.create-product-type',
     permissionKind: 'action_execution',
     scope: 'tenant',
@@ -993,7 +995,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.create-set-composition': {
     authorityBundle: 'PRODUCT_EDITOR',
-    businessTarget: 'set-composition',
+    businessTarget: setCompositionBusinessTarget,
     permission: 'commerce.catalog.create-set-composition',
     permissionKind: 'action_execution',
     scope: 'tenant',
@@ -1321,7 +1323,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.revise-product-type': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
-    businessTarget: 'product-type',
+    businessTarget: productTypeBusinessTarget,
     permission: 'commerce.catalog.revise-product-type',
     permissionKind: 'action_execution',
     scope: 'tenant',
@@ -1337,7 +1339,7 @@ export const catalogPublicOperationContracts = {
   },
   'commerce.catalog.revise-set-composition': {
     authorityBundle: 'PRODUCT_EDITOR',
-    businessTarget: 'set-composition',
+    businessTarget: setCompositionBusinessTarget,
     permission: 'commerce.catalog.revise-set-composition',
     permissionKind: 'action_execution',
     scope: 'tenant',
