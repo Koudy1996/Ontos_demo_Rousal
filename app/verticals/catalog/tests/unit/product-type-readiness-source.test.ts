@@ -12,6 +12,11 @@ import {
   products,
 } from '../../src/database/schema.ts';
 import type { productTypeRevisionAttributes } from '../../src/database/schema.ts';
+import {
+  ProductTypeCurrentBasisSchema,
+  ProductTypeCurrentRulesRevisionSchema,
+} from '../../shared/domain/product-type-rules.ts';
+import { evaluateCurrentProductTypeReadiness } from '../../src/persistence/product-type-readiness-evaluator.ts';
 import { productTypeReadinessSourceForScope } from '../../src/persistence/product-type-readiness-source.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -115,6 +120,73 @@ const transaction = (options: Rows = {}) => ({
 });
 
 describe('Product Type Current readiness source', () => {
+  it('keeps an allowed special Variant value without treating it as a confirmed required fact', () => {
+    const variantRef = {
+      moduleId: 'commerce.catalog',
+      resourceId: '99999999-9999-4999-8999-999999999999',
+      resourceType: 'commerce.catalog.variant',
+      tenantId,
+    } as const;
+    const productTypeRef = {
+      moduleId: 'commerce.catalog',
+      resourceId: typeId,
+      resourceType: 'commerce.catalog.product-type',
+      tenantId,
+    } as const;
+    const attributeDefinitionRef = {
+      moduleId: 'commerce.catalog',
+      resourceId: definitionId,
+      resourceType: 'commerce.catalog.attribute-definition',
+      tenantId,
+    } as const;
+    const rulesRevision = Schema.decodeUnknownSync(ProductTypeCurrentRulesRevisionSchema)({
+      effectiveFrom: '2026-09-16T00:00:00.000Z',
+      productTypeRef,
+      revision: 2,
+      revisionId,
+      rules: [{ attributeDefinitionRef, level: 'VARIANT', required: true }],
+    });
+    const basis = Schema.decodeUnknownSync(ProductTypeCurrentBasisSchema)({
+      currentRevision: 2,
+      effectiveFrom: rulesRevision.effectiveFrom,
+      evaluatedAt: '2026-09-17T00:00:00.000Z',
+      productTypeRef,
+      revision: 2,
+      revisionId,
+    });
+    const snapshot = {
+      productValues: [],
+      productValueSource: { complete: true, revisionTokens: [] },
+      source: { assignmentRevision: 3, basis, productRef, rulesRevision, status: 'VERIFIED' },
+      variantRefs: [variantRef],
+      variants: [
+        {
+          currentAttributeDefinitionIds: [definitionId],
+          currentValueSource: { complete: true, revisionTokens: ['value:1'] },
+          effectiveValues: [
+            {
+              attributeDefinitionId: definitionId,
+              result: { status: 'CURRENT', values: [{ kind: 'SPECIAL', state: 'UNKNOWN' }], variantRevision: 1 },
+            },
+          ],
+          variantRef,
+        },
+      ],
+    } as const;
+    expect(evaluateCurrentProductTypeReadiness(snapshot)).toMatchObject({
+      rules: { minimumSatisfied: false, violations: [{ kind: 'MISSING_REQUIRED', variantId: variantRef.resourceId }] },
+      status: 'INVALID',
+    });
+    expect(
+      evaluateCurrentProductTypeReadiness({
+        ...snapshot,
+        source: {
+          ...snapshot.source,
+          rulesRevision: { ...rulesRevision, rules: [{ attributeDefinitionRef, level: 'VARIANT', required: false }] },
+        },
+      }),
+    ).toMatchObject({ rules: { minimumSatisfied: true, violations: [] }, status: 'VERIFIED_TYPE_MINIMUM' });
+  });
   it.effect('fails closed when a recorded Current value set has no owner-verifiable revision', () =>
     Effect.gen(function* malformedValueSet() {
       // @ts-expect-error Mock supplies only the selected Drizzle query chain.

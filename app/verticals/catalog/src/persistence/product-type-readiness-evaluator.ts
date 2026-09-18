@@ -1,5 +1,10 @@
 import type { EffectiveAttributeValuesResult } from '../../shared/domain/effective-attribute-values.ts';
-import type { ProductTypeCurrentValue, ProductTypeRulesResult } from '../../shared/domain/product-type-rules.ts';
+import type { AttributeValue } from '../../shared/domain/attribute-values.ts';
+import type {
+  ProductTypeAttributeRule,
+  ProductTypeCurrentValue,
+  ProductTypeRulesResult,
+} from '../../shared/domain/product-type-rules.ts';
 import { evaluateProductTypeRules } from '../../shared/domain/product-type-rules.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
@@ -51,6 +56,21 @@ const sameRef = (left: ProductRef | VariantRef, right: ProductRef | VariantRef):
   left.tenantId === right.tenantId && left.resourceId === right.resourceId;
 const catalogModuleId = 'commerce.catalog';
 const definitionResourceType = 'commerce.catalog.attribute-definition';
+
+const countsAsEffectiveValue = (
+  values: readonly AttributeValue[],
+  rules: readonly ProductTypeAttributeRule[],
+  definitionId: string,
+): boolean => {
+  if (values.length === 0) {
+    return false;
+  }
+  const required = rules.some(
+    (rule) => rule.level === 'VARIANT' && rule.required && rule.attributeDefinitionRef.resourceId === definitionId,
+  );
+  // An allowed explicit special state is structurally valid, but it does not confirm a required fact.
+  return !required || values.some((value) => value.kind !== 'SPECIAL');
+};
 
 const currentVariantValue = (attributeDefinitionId: string, tenantId: string): ProductTypeCurrentValue => ({
   attributeDefinitionRef: {
@@ -266,7 +286,7 @@ export const evaluateCurrentProductTypeReadiness = (
         variantId: variant.variantRef.resourceId,
         variantRevision: result.variantRevision,
       });
-      if (result.values.length > 0) {
+      if (countsAsEffectiveValue(result.values, rulesRevision.rules, value.attributeDefinitionId)) {
         values.push({
           attributeDefinitionRef: {
             moduleId: catalogModuleId,
