@@ -8,6 +8,10 @@ import {
   attributeValueItems,
   attributeValueRevisions,
   attributeValueSets,
+  controlledAttributeValues,
+  controlledAttributeValueRevisions,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
   productTypeAssignments,
   productTypeRevisionAttributes,
   productTypeRevisions,
@@ -89,9 +93,13 @@ type QueryTable =
   | typeof productTypes
   | typeof productTypeRevisions
   | typeof productTypeRevisionAttributes
+  | typeof productAttributeApplicability
+  | typeof productAttributeApplicabilityRevisions
   | typeof attributeValueSets
   | typeof attributeValueRevisions
-  | typeof attributeValueItems;
+  | typeof attributeValueItems
+  | typeof controlledAttributeValues
+  | typeof controlledAttributeValueRevisions;
 
 const queryResult = (result: ReturnType<(table: QueryTable) => readonly object[]>) =>
   Object.assign(Effect.succeed(result), { limit: () => Effect.succeed(result), orderBy: () => Effect.succeed(result) });
@@ -120,13 +128,18 @@ const serviceWith = (
   sets: readonly SetFixture[],
   texts: Readonly<Record<string, string>>,
   options: {
+    readonly applicabilityProductLevel?: boolean;
+    readonly applicabilityVariantLevel?: boolean;
     readonly malformedDefinitionRevision?: boolean;
     readonly malformedItem?: boolean;
     readonly malformedRevision?: boolean;
     readonly malformedValueSnapshot?: boolean;
     readonly malformedValueSnapshotSetId?: string;
+    readonly missingApplicabilityRevision?: boolean;
+    readonly retiredControlledValue?: boolean;
     readonly specialState?: 'UNKNOWN' | 'NONE' | 'NOT_APPLICABLE';
     readonly staleSnapshotDefinitionRevision?: boolean;
+    readonly wrongProductSubject?: boolean;
   } = {},
 ) => {
   const queried: QueryTable[] = [];
@@ -142,6 +155,16 @@ const serviceWith = (
     const revisionValues = [];
     if (options.specialState !== undefined) {
       revisionValues.push({ kind: 'SPECIAL', state: options.specialState });
+    } else if (options.retiredControlledValue === true) {
+      revisionValues.push({
+        kind: 'CONTROLLED',
+        valueRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          resourceType: 'commerce.catalog.controlled-attribute-value',
+          tenantId,
+        },
+      });
     } else if (currentText !== undefined) {
       revisionValues.push({ kind: 'TEXT', text: currentText });
     }
@@ -164,12 +187,14 @@ const serviceWith = (
       },
     ];
   };
-  const rows = (table: QueryTable) => {
+  const authorityRows = (table: QueryTable): readonly object[] | undefined => {
     if (table === products) {
-      return [{ lifecycleState: 'ACTIVE', productId }];
+      return [
+        { lifecycleState: 'ACTIVE', productId: options.wrongProductSubject === true ? variantId : productId, tenantId },
+      ];
     }
     if (table === productVariants) {
-      return [{ lifecycleState: 'ACTIVE' }];
+      return [{ lifecycleState: 'ACTIVE', productId, tenantId, variantId }];
     }
     if (table === attributeDefinitions || table === attributeDefinitionRevisions) {
       return [
@@ -179,7 +204,7 @@ const serviceWith = (
           allowsUnknown: 1,
           applicableLevels: ['PRODUCT', 'VARIANT'],
           canonicalUnit: null,
-          controlledValueKind: null,
+          controlledValueKind: options.retiredControlledValue === true ? 'GENERAL' : null,
           currentRevision: 2,
           decimalPlaces: null,
           maximumValue: null,
@@ -191,9 +216,42 @@ const serviceWith = (
             table === attributeDefinitionRevisions && options.malformedDefinitionRevision === true
               ? 'Other meaning'
               : 'Material',
-          valueKind: 'TEXT',
+          valueKind: options.retiredControlledValue === true ? 'CONTROLLED' : 'TEXT',
         },
       ];
+    }
+    if (table === productAttributeApplicability) {
+      return [
+        {
+          attributeDefinitionId: definitionId,
+          currentRevision: 2,
+          productId,
+          productLevel: options.applicabilityProductLevel ?? true,
+          tenantId,
+          variantLevel: options.applicabilityVariantLevel ?? true,
+        },
+      ];
+    }
+    if (table === productAttributeApplicabilityRevisions) {
+      return options.missingApplicabilityRevision === true
+        ? []
+        : [
+            {
+              attributeDefinitionId: definitionId,
+              productId,
+              productLevel: options.applicabilityProductLevel ?? true,
+              revision: 2,
+              tenantId,
+              variantLevel: options.applicabilityVariantLevel ?? true,
+            },
+          ];
+    }
+    return undefined;
+  };
+  const rows = (table: QueryTable) => {
+    const authority = authorityRows(table);
+    if (authority !== undefined) {
+      return authority;
     }
     if (table === productTypeAssignments) {
       return [{ productTypeId: '88888888-8888-4888-8888-888888888888' }];
@@ -226,7 +284,42 @@ const serviceWith = (
       const set = sets[itemReads];
       itemReads += 1;
       const value = set === undefined ? undefined : texts[set.attributeValueSetId];
+      if (options.retiredControlledValue === true) {
+        return [
+          {
+            attributeDefinitionId: definitionId,
+            attributeValueSetId: set?.attributeValueSetId,
+            controlledAttributeValueId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            ordinal: 0,
+            tenantId,
+            valueKind: 'CONTROLLED',
+          },
+        ];
+      }
       return valueItemRows(set, value, options.specialState, options.malformedItem);
+    }
+    if (table === controlledAttributeValues) {
+      return [
+        {
+          attributeDefinitionId: definitionId,
+          controlledAttributeValueId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          currentRevision: 1,
+          lifecycleState: 'RETIRED',
+          specialization: 'GENERAL',
+          tenantId,
+        },
+      ];
+    }
+    if (table === controlledAttributeValueRevisions) {
+      return [
+        {
+          attributeDefinitionId: definitionId,
+          lifecycleState: 'RETIRED',
+          revision: 1,
+          specialization: 'GENERAL',
+          tenantId,
+        },
+      ];
     }
     return [];
   };
@@ -383,7 +476,7 @@ describe('private effective attribute value reads', () => {
     }),
   );
 
-  it.effect('rejects a Current value whose snapshot cites an outdated definition', () =>
+  it.effect('accepts a valid saved value from an older Definition revision', () =>
     Effect.gen(function* staleDefinition() {
       const reads = yield* serviceWith(
         [productSet],
@@ -392,7 +485,56 @@ describe('private effective attribute value reads', () => {
           staleSnapshotDefinitionRevision: true,
         },
       ).service;
+      expect(yield* reads.resolveVariant(input)).toMatchObject({
+        source: { level: 'PRODUCT', revision: 4 },
+        status: 'CURRENT',
+        values: [{ kind: 'TEXT', text: 'steel' }],
+      });
+    }),
+  );
+
+  it.effect('ignores a sibling Variant set while resolving the requested Variant', () =>
+    Effect.gen(function* siblingValue() {
+      const sibling = {
+        ...variantSet,
+        attributeValueSetId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        variantId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      };
+      const reads = yield* serviceWith([productSet, sibling], { [productSetId]: 'steel' }).service;
+      expect(yield* reads.resolveVariant(input)).toMatchObject({
+        source: { level: 'PRODUCT', revision: 4 },
+        status: 'CURRENT',
+        values: [{ kind: 'TEXT', text: 'steel' }],
+      });
+    }),
+  );
+
+  it.effect('requires the exact current Product-local applicability declaration', () =>
+    Effect.gen(function* applicability() {
+      for (const options of [
+        { applicabilityVariantLevel: false },
+        { applicabilityProductLevel: false },
+        { missingApplicabilityRevision: true },
+      ]) {
+        const reads = yield* serviceWith([productSet], { [productSetId]: 'steel' }, options).service;
+        expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+      }
+    }),
+  );
+
+  it.effect('rejects a Product row that does not identify the requested Product', () =>
+    Effect.gen(function* wrongProduct() {
+      const reads = yield* serviceWith([productSet], { [productSetId]: 'steel' }, { wrongProductSubject: true })
+        .service;
       expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+    }),
+  );
+
+  it.effect('does not expose a retired controlled value as Current', () =>
+    Effect.gen(function* retiredControlledValue() {
+      const reads = yield* serviceWith([productSet], {}, { retiredControlledValue: true }).service;
+      expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+      expect((yield* reads.readProductTypeValidity([productId])).complete).toBe(false);
     }),
   );
 

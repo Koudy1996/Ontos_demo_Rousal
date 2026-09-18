@@ -32,6 +32,8 @@ import {
   attributeValueSets,
   controlledAttributeValues,
   controlledAttributeValueRevisions,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
   productTypeAssignments,
   productTypeRevisionAttributes,
   productTypeRevisions,
@@ -119,6 +121,59 @@ type DefinitionRow = typeof attributeDefinitions.$inferSelect;
 type ValueItemRow = typeof attributeValueItems.$inferSelect;
 type ValueSetRow = typeof attributeValueSets.$inferSelect;
 type ValueRevisionRow = typeof attributeValueRevisions.$inferSelect;
+const validSubject = (
+  product: typeof products.$inferSelect | undefined,
+  variant: typeof productVariants.$inferSelect | undefined,
+  tenantId: string,
+  productId: string,
+  variantId: string,
+): boolean =>
+  product !== undefined &&
+  product.productId === productId &&
+  product.tenantId === tenantId &&
+  variant !== undefined &&
+  variant.variantId === variantId &&
+  variant.productId === productId &&
+  variant.tenantId === tenantId &&
+  product.lifecycleState !== 'RETIRED' &&
+  variant.lifecycleState !== 'RETIRED';
+const validApplicability = (
+  current: typeof productAttributeApplicability.$inferSelect | undefined,
+  revision: typeof productAttributeApplicabilityRevisions.$inferSelect | undefined,
+  tenantId: string,
+  productId: string,
+  definitionId: string,
+): boolean =>
+  current !== undefined &&
+  revision !== undefined &&
+  current.tenantId === tenantId &&
+  current.productId === productId &&
+  current.attributeDefinitionId === definitionId &&
+  current.variantLevel &&
+  revision.tenantId === tenantId &&
+  revision.productId === productId &&
+  revision.attributeDefinitionId === definitionId &&
+  revision.revision === current.currentRevision &&
+  revision.productLevel === current.productLevel &&
+  revision.variantLevel === current.variantLevel;
+const validRelevantSets = (
+  sets: readonly ValueSetRow[],
+  tenantId: string,
+  productId: string,
+  definitionId: string,
+  variantId: string,
+  productLevel: boolean,
+): boolean =>
+  !sets.some(
+    (set) =>
+      set.tenantId !== tenantId ||
+      set.productId !== productId ||
+      set.attributeDefinitionId !== definitionId ||
+      (set.variantId !== null && set.variantId !== variantId) ||
+      (set.variantId === null && !productLevel),
+  ) &&
+  sets.filter((set) => set.variantId === null).length <= 1 &&
+  sets.filter((set) => set.variantId === variantId).length <= 1;
 const ValueRevisionSnapshotSchema = Schema.Struct({
   attributeDefinitionRevision: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
   productTypeId: Schema.String.pipe(Schema.brand('ProductTypeId')),
@@ -293,7 +348,8 @@ const decodeItem = Effect.fn('EffectiveAttributeValueReads.decodeItem')(function
     controlled === undefined ||
     controlled.tenantId !== tenantId ||
     controlled.attributeDefinitionId !== definitionId ||
-    controlled.specialization !== controlledKind
+    controlled.specialization !== controlledKind ||
+    controlled.lifecycleState !== 'ACTIVE'
   ) {
     return Option.none<AttributeValue>();
   }
@@ -344,7 +400,8 @@ const readControlledDependency = Effect.fn('EffectiveAttributeValueReads.readCon
       revision.lifecycleState !== value.lifecycleState ||
       revision.meaning !== value.meaning ||
       revision.name !== value.name ||
-      revision.specialization !== value.specialization
+      revision.specialization !== value.specialization ||
+      value.lifecycleState !== 'ACTIVE'
     ) {
       return Option.none<string>();
     }
@@ -426,10 +483,7 @@ const readValidityEntry = Effect.fn('EffectiveAttributeValueReads.readValidityEn
   if (Option.isNone(values) || Option.isNone(currentDefinition)) {
     return Option.none<AttributeValueSetValidityEntry>();
   }
-  if (
-    !isDeepStrictEqual(snapshot.value.values, values.value) ||
-    (set.currentState === 'SET' && snapshot.value.attributeDefinitionRevision !== definition.value.currentRevision)
-  ) {
+  if (!isDeepStrictEqual(snapshot.value.values, values.value)) {
     return Option.none<AttributeValueSetValidityEntry>();
   }
   const checked =
@@ -562,13 +616,7 @@ export const effectiveAttributeValueReadsForScope = (
         ],
         { concurrency: 3 },
       );
-      if (
-        product === undefined ||
-        variant === undefined ||
-        Option.isNone(currentDefinition) ||
-        product.lifecycleState === 'RETIRED' ||
-        variant.lifecycleState === 'RETIRED'
-      ) {
+      if (!validSubject(product, variant, tenantId, productId, variantId) || Option.isNone(currentDefinition)) {
         return invalid('Product, Variant, or definition is missing or retired');
       }
       const definition = currentDefinition.value;
@@ -625,6 +673,39 @@ export const effectiveAttributeValueReadsForScope = (
       if (Option.isNone(decodedDefinition)) {
         return invalid('Current Attribute Definition is malformed');
       }
+      const [applicability] = yield* query(
+        transaction
+          .select()
+          .from(productAttributeApplicability)
+          .where(
+            and(
+              eq(productAttributeApplicability.tenantId, tenantId),
+              eq(productAttributeApplicability.productId, productId),
+              eq(productAttributeApplicability.attributeDefinitionId, definitionId),
+            ),
+          )
+          .limit(1),
+      );
+      if (applicability === undefined) {
+        return invalid('Attribute is not declared for this Product at Variant level');
+      }
+      const [applicabilityRevision] = yield* query(
+        transaction
+          .select()
+          .from(productAttributeApplicabilityRevisions)
+          .where(
+            and(
+              eq(productAttributeApplicabilityRevisions.tenantId, tenantId),
+              eq(productAttributeApplicabilityRevisions.productId, productId),
+              eq(productAttributeApplicabilityRevisions.attributeDefinitionId, definitionId),
+              eq(productAttributeApplicabilityRevisions.revision, applicability.currentRevision),
+            ),
+          )
+          .limit(1),
+      );
+      if (!validApplicability(applicability, applicabilityRevision, tenantId, productId, definitionId)) {
+        return invalid('Current Product attribute applicability is malformed');
+      }
       const typeRef = ref(tenantId, assignment.productTypeId, 'commerce.catalog.product-type');
       const effectiveFrom = revision.effectiveAt.toISOString();
       const basis = Schema.decodeUnknownOption(ProductTypeCurrentBasisSchema)({
@@ -649,7 +730,7 @@ export const effectiveAttributeValueReadsForScope = (
       if (Option.isNone(basis) || Option.isNone(rulesRevision)) {
         return invalid('Current Product Type basis is malformed');
       }
-      const sets = yield* query(
+      const allSets = yield* query(
         transaction
           .select()
           .from(attributeValueSets)
@@ -661,6 +742,7 @@ export const effectiveAttributeValueReadsForScope = (
             ),
           ),
       );
+      const sets = allSets.filter((set) => set.variantId === null || set.variantId === variantId);
       const loadSet = Effect.fn('EffectiveAttributeValueReads.loadSet')(function* loadSet(
         set: ValueSetRow | undefined,
       ) {
@@ -716,12 +798,7 @@ export const effectiveAttributeValueReadsForScope = (
           return { snapshot: null, valid: false };
         }
         const revisionSnapshot = Schema.decodeUnknownOption(ValueRevisionSnapshotSchema)(records[0]?.valueSnapshot);
-        if (
-          Option.isNone(revisionSnapshot) ||
-          !isDeepStrictEqual(revisionSnapshot.value.values, values.value) ||
-          (set.currentState === 'SET' &&
-            revisionSnapshot.value.attributeDefinitionRevision !== definition.currentRevision)
-        ) {
+        if (Option.isNone(revisionSnapshot) || !isDeepStrictEqual(revisionSnapshot.value.values, values.value)) {
           return { snapshot: null, valid: false };
         }
         const snapshot: AttributeValueSetSnapshot = {
@@ -731,17 +808,7 @@ export const effectiveAttributeValueReadsForScope = (
         };
         return { snapshot, valid: true };
       });
-      if (
-        sets.some(
-          (set) =>
-            set.tenantId !== tenantId ||
-            set.productId !== productId ||
-            set.attributeDefinitionId !== definitionId ||
-            (set.variantId !== null && set.variantId !== variantId),
-        ) ||
-        sets.filter((set) => set.variantId === null).length > 1 ||
-        sets.filter((set) => set.variantId === variantId).length > 1
-      ) {
+      if (!validRelevantSets(sets, tenantId, productId, definitionId, variantId, applicability.productLevel)) {
         return invalid('Current attribute value sets are ambiguous or malformed');
       }
       const [productSet, variantSet] = yield* Effect.all(
