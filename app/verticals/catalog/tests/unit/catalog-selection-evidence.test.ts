@@ -111,6 +111,24 @@ describe('Catalog Selection decision references', () => {
         },
       }),
     ).toThrow();
+    expect(
+      decodeSelection({
+        ...configured,
+        configuration: {
+          ...configured.configuration,
+          choices: [{ choiceKey: 'length', unit: { resourceRef: line.quantity.unitRef, revision: 4 }, value: '83' }],
+        },
+      }),
+    ).toBeDefined();
+    expect(() =>
+      decodeSelection({
+        ...configured,
+        configuration: {
+          ...configured.configuration,
+          choices: [{ choiceKey: 'length', unit: { resourceRef: definition, revision: 4 }, value: '83' }],
+        },
+      }),
+    ).toThrow();
     expect(() =>
       decodeSelection({
         ...configured,
@@ -256,6 +274,20 @@ describe('Catalog Selection decision references', () => {
       status: 'VALID',
     };
     expect(decodeEvidence(evidence)).toMatchObject(evidence);
+    const choiceWithoutAttribute = {
+      ...configuredPackedSet,
+      configuration: {
+        ...configuredPackedSet.configuration,
+        choices: [{ choiceKey: 'length', unit, value: '83' }],
+      },
+    };
+    expect(
+      decodeEvidence({
+        ...evidence,
+        basis: evidence.basis.filter((entry) => entry.role !== 'ATTRIBUTE_DEFINITION'),
+        selection: choiceWithoutAttribute,
+      }),
+    ).toBeDefined();
     for (const omitted of requiredBasis) {
       expect(() =>
         decodeEvidence({ ...evidence, basis: evidence.basis.filter((entry) => entry !== omitted) }),

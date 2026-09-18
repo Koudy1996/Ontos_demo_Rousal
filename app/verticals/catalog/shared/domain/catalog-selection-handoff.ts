@@ -105,7 +105,8 @@ const configurationIsProven = (quantity: ReadyQuantity): boolean => {
     hasBasis(basis, 'CONFIGURATION_DEFINITION', selected.definition) &&
     selected.choices.every(
       (choice) =>
-        hasBasis(basis, 'ATTRIBUTE_DEFINITION', choice.attributeDefinition) &&
+        (choice.attributeDefinition === undefined ||
+          hasBasis(basis, 'ATTRIBUTE_DEFINITION', choice.attributeDefinition)) &&
         (choice.unit === undefined || hasBasis(basis, 'UNIT', choice.unit)),
     )
   );
@@ -151,7 +152,7 @@ export const prepareCatalogAcceptedSelectionHandoff = (input: HandoffInput): Cat
   }
   if (!configurationIsProven(quantity)) {
     return {
-      reason: 'Exact Configuration Definition, Attribute Definition, and Unit owner basis are required',
+      reason: 'Exact Configuration Definition and applicable Attribute Definition and Unit owner basis are required',
       status: 'UNVERIFIABLE',
     };
   }

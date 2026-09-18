@@ -68,7 +68,9 @@ const assessPinnedRevisions = (
       : [
           ['CONFIGURATION_DEFINITION', selection.configuration.definition] as const,
           ...selection.configuration.choices.flatMap((choice) => [
-            ['ATTRIBUTE_DEFINITION', choice.attributeDefinition] as const,
+            ...(choice.attributeDefinition === undefined
+              ? []
+              : [['ATTRIBUTE_DEFINITION', choice.attributeDefinition] as const]),
             ...(choice.unit === undefined ? [] : [['UNIT', choice.unit] as const]),
           ]),
         ]),

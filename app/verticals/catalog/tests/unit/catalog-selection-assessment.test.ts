@@ -104,4 +104,50 @@ describe('Catalog Selection Current assessment', () => {
     expect(assess({ ...observed, basis: basis.filter(({ role }) => role !== 'PRODUCT') }).status).toBe('INDETERMINATE');
     expect(assess({ ...observed, productLifecycle: 'RETIRED' }).status).toBe('INVALID');
   });
+
+  it('requires the exact Definition and Unit without inventing an Attribute Definition dependency', () => {
+    const definition = {
+      resourceRef: ref('commerce.catalog.configuration-definition', '88888888-8888-4888-8888-888888888888'),
+      revision: 2,
+    };
+    const unit = { resourceRef: ref('commerce.catalog.unit', '99999999-9999-4999-8999-999999999999'), revision: 3 };
+    const configured = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+      configuration: { choices: [{ choiceKey: 'length', unit, value: '83' }], definition, productRef, variantRef },
+      productRef,
+      variantRef,
+    });
+    const current = {
+      ...observed,
+      basis: Schema.decodeUnknownSync(Schema.Array(CatalogSelectionBasisSchema))([
+        ...basis,
+        { role: 'CONFIGURATION_DEFINITION', source: definition },
+        { role: 'UNIT', source: unit },
+      ]),
+      selection: configured,
+    };
+    expect(assess(current, configured).status).toBe('VALID');
+    expect(assess({ ...current, basis: current.basis.filter(({ role }) => role !== 'UNIT') }, configured).status).toBe(
+      'INDETERMINATE',
+    );
+    expect(
+      assess({ ...current, basis: current.basis.filter(({ role }) => role !== 'CONFIGURATION_DEFINITION') }, configured)
+        .status,
+    ).toBe('INDETERMINATE');
+    expect(
+      assess(
+        {
+          ...current,
+          basis: current.basis.map((fact) =>
+            fact.role === 'UNIT'
+              ? Schema.decodeUnknownSync(CatalogSelectionBasisSchema)({
+                  role: 'UNIT',
+                  source: { ...unit, revision: 4 },
+                })
+              : fact,
+          ),
+        },
+        configured,
+      ).status,
+    ).toBe('INVALID');
+  });
 });

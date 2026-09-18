@@ -32,6 +32,7 @@ export const ProductSelectionRevisionSchema = revisionOf('commerce.catalog.produ
 export const VariantSelectionRevisionSchema = revisionOf('commerce.catalog.variant');
 export const ProductTypeSelectionRevisionSchema = revisionOf('commerce.catalog.product-type');
 export const AttributeDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.attribute-definition');
+export const ConfigurationUnitSelectionRevisionSchema = revisionOf('commerce.catalog.unit');
 export const PackageDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.package-definition');
 export const ConfigurationDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.configuration-definition');
 export const SetCompositionSelectionRevisionSchema = revisionOf('commerce.catalog.set-composition');
@@ -62,9 +63,10 @@ const sameRef = (
 export const ProductConfigurationSelectionSchema = Schema.Struct({
   choices: Schema.Array(
     Schema.Struct({
-      attributeDefinition: AttributeDefinitionSelectionRevisionSchema,
+      /** Only present when this choice independently depends on an Attribute Definition. */
+      attributeDefinition: Schema.optionalKey(AttributeDefinitionSelectionRevisionSchema),
       choiceKey: choiceKeySchema,
-      unit: Schema.optionalKey(CatalogSelectionRevisionSchema),
+      unit: Schema.optionalKey(ConfigurationUnitSelectionRevisionSchema),
       value: nonEmptyText,
     }),
   ),
@@ -108,7 +110,7 @@ export const CatalogSelectionSchema = Schema.Struct({
       selection.configuration?.definition.resourceRef,
       selection.setComposition?.resourceRef,
       ...(selection.configuration?.choices.flatMap((choice) => [
-        choice.attributeDefinition.resourceRef,
+        choice.attributeDefinition?.resourceRef,
         choice.unit?.resourceRef,
       ]) ?? []),
     ];
@@ -213,7 +215,7 @@ export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
       (hasExactBasis(basis, 'CONFIGURATION_DEFINITION', selection.configuration.definition) &&
         selection.configuration.choices.every(
           ({ attributeDefinition, unit }) =>
-            hasExactBasis(basis, 'ATTRIBUTE_DEFINITION', attributeDefinition) &&
+            (attributeDefinition === undefined || hasExactBasis(basis, 'ATTRIBUTE_DEFINITION', attributeDefinition)) &&
             (unit === undefined || hasExactBasis(basis, 'UNIT', unit)),
         )))
       ? undefined

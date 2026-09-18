@@ -123,7 +123,7 @@ describe('Catalog accepted Selection historical handoff', () => {
     ).toBe('UNVERIFIABLE');
   });
 
-  it('requires exact Attribute Definition and selected Unit basis for every configuration choice', () => {
+  it('requires exact Unit basis and Attribute Definition basis only when associated', () => {
     const definition = {
       resourceRef: ref('commerce.catalog.configuration-definition', '77777777-7777-4777-8777-777777777777'),
       revision: 1,
@@ -161,6 +161,24 @@ describe('Catalog accepted Selection historical handoff', () => {
       });
     };
     expect(resultWith(basis).status).toBe('ACCEPTED');
+    const withoutAttribute = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+      ...configured,
+      configuration: {
+        ...configured.configuration,
+        choices: [{ choiceKey: 'length', unit: choiceUnit, value: '83' }],
+      },
+    });
+    const withoutAttributeBasis = basis.filter((item) => item.role !== 'ATTRIBUTE_DEFINITION');
+    expect(
+      prepareCatalogAcceptedSelectionHandoff({
+        ...input(),
+        quantity: {
+          ...quantity,
+          evidence: { ...evidence, basis: withoutAttributeBasis, selection: withoutAttribute },
+          selection: withoutAttribute,
+        },
+      }).status,
+    ).toBe('ACCEPTED');
     expect(resultWith(basis.filter((item) => item.role !== 'ATTRIBUTE_DEFINITION')).status).toBe('UNVERIFIABLE');
     expect(resultWith(basis.filter((item) => item.role !== 'UNIT')).status).toBe('UNVERIFIABLE');
     expect(
