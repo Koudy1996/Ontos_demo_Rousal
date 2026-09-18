@@ -51,8 +51,7 @@ const unavailable = (cause?: unknown) => {
 
 const validId = Schema.is(Schema.String.check(Schema.isUUID()));
 const validText = (value: string) => value.length > 0 && value.trim() === value;
-const validDetails = (value: unknown): value is ColorDetails | null =>
-  value === null || Schema.is(ColorDetailsSchema)(value);
+const validDetails = Schema.is(Schema.Union([Schema.Null, ColorDetailsSchema]));
 
 const decodeRevision = (row: RevisionRow, ref: ControlledAttributeValueRef): ColorRevisionRead | null => {
   if (
@@ -68,7 +67,7 @@ const decodeRevision = (row: RevisionRow, ref: ControlledAttributeValueRef): Col
     (row.lifecycleState !== 'ACTIVE' && row.lifecycleState !== 'RETIRED') ||
     !Array.isArray(row.evidenceRefs) ||
     row.evidenceRefs.some((evidenceRef) => !validText(evidenceRef)) ||
-    !(row.recordedAt instanceof Date) ||
+    Object.prototype.toString.call(row.recordedAt) !== '[object Date]' ||
     Number.isNaN(row.recordedAt.getTime())
   ) {
     return null;
@@ -119,7 +118,6 @@ export const colorReadsForScope = (transaction: ScopedTransaction, scope: Operat
     return revisions;
   });
   return {
-    history,
     current: Effect.fn('ColorReads.current')(function* current(ref) {
       if (!validRef(ref)) {
         return yield* unavailable();
@@ -153,5 +151,6 @@ export const colorReadsForScope = (transaction: ScopedTransaction, scope: Operat
       }
       return Option.some({ ...latest, assignable: latest.lifecycleState === 'ACTIVE' });
     }),
+    history,
   };
 };

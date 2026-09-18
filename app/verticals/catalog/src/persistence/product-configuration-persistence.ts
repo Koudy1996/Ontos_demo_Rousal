@@ -184,6 +184,24 @@ const compareDecimal = (left: string, right: string): number => {
   return 0;
 };
 const epoch = (value: Date): number => DateTime.toEpochMillis(DateTime.makeUnsafe(value));
+const effectiveTimeFollows = (candidate: Date, previous: Date): boolean => epoch(candidate) > epoch(previous);
+
+const validActivationTimeline = (
+  definition: typeof productConfigurationDefinitions.$inferSelect,
+  ordered: readonly (typeof productConfigurationRevisionActivations.$inferSelect)[],
+): boolean =>
+  Number.isSafeInteger(definition.currentRevision) &&
+  definition.currentRevision >= 1 &&
+  ordered.length === definition.currentRevision &&
+  !ordered.some((activation, index) => {
+    const predecessor = ordered[index - 1];
+    return (
+      activation.revision !== index + 1 ||
+      activation.supersededRevision !== (index === 0 ? null : index) ||
+      !Number.isFinite(epoch(activation.effectiveAt)) ||
+      (predecessor !== undefined && !effectiveTimeFollows(activation.effectiveAt, predecessor.effectiveAt))
+    );
+  });
 const targetKey = (value: ConfigurationTargetInput): string =>
   `${value.variantId ?? ''}|${value.packageDefinitionId ?? ''}`;
 const validTarget = (value: ConfigurationTargetInput): boolean =>
@@ -472,6 +490,8 @@ export const inspectProductConfigurationPublishInput = (input: PublishProductCon
 };
 const inspectActingPrincipal = (input: PublishProductConfigurationInput, trustedPrincipalId: string): string | null =>
   input.principalId === trustedPrincipalId ? null : 'Acting Principal does not match trusted operation scope';
+const inspectPublishInput = (input: PublishProductConfigurationInput, principalId: string) =>
+  inspectProductConfigurationPublishInput(input) ?? inspectActingPrincipal(input, principalId);
 const activeProduct = (product: typeof products.$inferSelect | undefined): boolean =>
   product !== undefined && product.lifecycleState === 'ACTIVE';
 
@@ -672,8 +692,7 @@ export const productConfigurationPersistenceForScope = (
   let readCurrent: ProductConfigurationPersistence['readCurrent'] = (_input) => Effect.fail(unavailable());
   const publish: ProductConfigurationPersistence['publish'] = Effect.fn('ProductConfigurationPersistence.publish')(
     function* publish(input) {
-      const invalid =
-        inspectProductConfigurationPublishInput(input) ?? inspectActingPrincipal(input, scope.principalId);
+      const invalid = inspectPublishInput(input, scope.principalId);
       if (invalid !== null) {
         return { _tag: 'invalid', reason: invalid };
       }
@@ -758,7 +777,7 @@ export const productConfigurationPersistenceForScope = (
         // A new publication must not extend a timeline whose prior evidence is incomplete.
         yield* readCurrent({ at: last.effectiveAt, definitionId: input.definitionId, productId: input.productId });
       }
-      if (last !== undefined && epoch(input.effectiveFrom) <= epoch(last.effectiveAt)) {
+      if (last !== undefined && !effectiveTimeFollows(input.effectiveFrom, last.effectiveAt)) {
         return { _tag: 'invalid', reason: 'Effective time must follow the preceding activation' };
       }
       const revision = input.expectedRevision + 1;
@@ -951,20 +970,7 @@ export const productConfigurationPersistenceForScope = (
       )
       .pipe(Effect.mapError(unavailable));
     const ordered = [...activations].toSorted((a, b) => epoch(a.effectiveAt) - epoch(b.effectiveAt));
-    if (
-      !Number.isSafeInteger(definition.currentRevision) ||
-      definition.currentRevision < 1 ||
-      ordered.length !== definition.currentRevision ||
-      ordered.some((activation, index) => {
-        const predecessor = ordered[index - 1];
-        return (
-          activation.revision !== index + 1 ||
-          activation.supersededRevision !== (index === 0 ? null : index) ||
-          !Number.isFinite(epoch(activation.effectiveAt)) ||
-          (predecessor !== undefined && epoch(activation.effectiveAt) <= epoch(predecessor.effectiveAt))
-        );
-      })
-    ) {
+    if (!validActivationTimeline(definition, ordered)) {
       return yield* unavailable();
     }
     const revisions = yield* transaction

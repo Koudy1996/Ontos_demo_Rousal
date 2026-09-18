@@ -88,9 +88,9 @@ export interface VariantAxisPersistence {
 }
 
 export interface RecordedVariantCombination {
-  readonly variantId: string;
-  readonly combinationKey: string;
   readonly axisRevision: number;
+  readonly combinationKey: string;
+  readonly variantId: string;
 }
 
 export interface CurrentVariantAxisValue {
@@ -560,7 +560,7 @@ export const variantAxisPersistenceForScope = (
           row.productId !== productRef.resourceId ||
           row.axisRevision !== axes.axisRevision ||
           row.combinationKey === null ||
-          !/^[0-9a-f]{64}$/.test(row.combinationKey),
+          !/^[0-9a-f]{64}$/u.test(row.combinationKey),
       ) ||
       new Set(active.map((row) => row.combinationKey)).size !== active.length
     ) {

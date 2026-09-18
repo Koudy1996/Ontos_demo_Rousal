@@ -220,9 +220,7 @@ export const packagePersistenceForScope = (
     content: Content,
     input: Evidence & { readonly payload: { readonly evidenceRefs: readonly string[]; readonly reason: string } },
     revision = row.currentRevision,
-    intent: { readonly changeKind: 'physical_change' | 'correction'; readonly priorErrorExplanation?: string } = {
-      changeKind: 'physical_change',
-    },
+    intent?: { readonly changeKind: 'physical_change' | 'correction'; readonly priorErrorExplanation?: string },
   ) =>
     transaction
       .insert(packageContentRevisions)
@@ -230,7 +228,7 @@ export const packagePersistenceForScope = (
         actingPrincipalId: input.principalId,
         actionInvocationId: input.actionInvocationId,
         amount: content.amount,
-        changeKind: intent.changeKind,
+        changeKind: intent?.changeKind ?? 'physical_change',
         configurationKey: content.configurationKey ?? null,
         effectiveAt: DateTime.toDateUtc(DateTime.makeUnsafe(content.effectiveAt)),
         evidenceRefs: [...input.payload.evidenceRefs],
@@ -239,8 +237,8 @@ export const packagePersistenceForScope = (
         lowerPackageDefinitionId: content.lower?.revision.resourceRef.resourceId ?? null,
         lowerRevision: content.lower?.revision.revision ?? null,
         packageDefinitionId: row.packageDefinitionId,
+        priorErrorExplanation: intent?.priorErrorExplanation ?? null,
         productId: row.productId,
-        priorErrorExplanation: intent.priorErrorExplanation ?? null,
         reason: input.payload.reason,
         revision,
         setCompositionResourceId: content.setComposition?.resourceRef.resourceId ?? null,
@@ -461,8 +459,8 @@ export const packagePersistenceForScope = (
         lowerPackageDefinitionId: prior.lowerPackageDefinitionId,
         lowerRevision: prior.lowerRevision,
         packageDefinitionId: row.packageDefinitionId,
-        productId: row.productId,
         priorErrorExplanation: null,
+        productId: row.productId,
         reason: input.payload.reason,
         revision: updated.currentRevision,
         setCompositionResourceId: prior.setCompositionResourceId,
