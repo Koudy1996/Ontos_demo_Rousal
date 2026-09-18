@@ -2,7 +2,7 @@ import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { findPostgresFailure } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 
 import type { AttributeDefinition, AttributeValue } from '../../shared/domain/attribute-values.ts';
@@ -373,6 +373,17 @@ const attributeValueItemRow = (
   unit: value.kind === 'MEASUREMENT' ? value.unit : null,
   valueKind: value.kind,
 });
+
+/**
+ * One rule revision can migrate many value sets, while the append-only value revision ledger
+ * requires a distinct Action invocation UUID for every row. Derive a stable UUIDv8 child identity
+ * from the owning Action invocation and value-set identity so retries address the same revisions.
+ */
+const valueMigrationInvocationId = (actionInvocationId: string, attributeValueSetId: string): string => {
+  const hex = createHash('sha256').update(actionInvocationId).update(':').update(attributeValueSetId).digest('hex');
+  const variantNibble = ['8', '9', 'a', 'b'][Number.parseInt(hex.slice(16, 17), 16) % 4] ?? '8';
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${variantNibble}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+};
 
 interface ValueRewrite {
   readonly assessment: Extract<AttributeUnitChangeAssessment, { kind: 'CONVERTIBLE' }>;
@@ -912,7 +923,7 @@ export const attributePersistenceForScope = (
       .where(and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.attributeValueSetId, setId)));
     yield* transaction.insert(attributeValueRevisions).values({
       actingPrincipalId: input.principalId,
-      actionInvocationId: input.actionInvocationId,
+      actionInvocationId: valueMigrationInvocationId(input.actionInvocationId, setId),
       attributeValueSetId: setId,
       changeKind: 'SET',
       evidenceRefs: [...(input.evidenceRefs ?? []), input.evidence],
@@ -1009,13 +1020,6 @@ export const attributePersistenceForScope = (
     const plan = yield* planValueMigration(input.attributeDefinitionRef, currentDefinition, proposedDefinition);
     if (plan.kind !== 'CONVERTIBLE') {
       return yield* remediationConflict(plan.kind, plan.reasons, plan.subjects);
-    }
-    if (plan.rewrites.length > 1) {
-      return yield* remediationConflict(
-        'REMEDIATION_REQUIRED',
-        ['Migrating a shared measured unit across multiple value sets requires explicit per-subject remediation'],
-        plan.rewrites.map((rewrite) => rewrite.subjectKey),
-      );
     }
     yield* Effect.forEach(plan.rewrites, (rewrite) => migrateValueSet(input, rewrite, revision), { concurrency: 1 });
     const rules = proposedRules;

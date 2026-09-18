@@ -222,12 +222,15 @@ const valueSet = (product: string, set: string) => ({
   variantId: null,
 });
 
-const measurementRevision = (set: string) => ({
+const measurementRevision = (
+  set: string,
+  options: { readonly amount?: number; readonly evidenceRefs?: readonly string[]; readonly unit?: string } = {},
+) => ({
   actingPrincipalId: principalId,
   actionInvocationId: `${set}-initial`,
   attributeValueSetId: set,
   changeKind: 'SET',
-  evidenceRefs: ['supplier-sheet'],
+  evidenceRefs: [...(options.evidenceRefs ?? ['supplier-sheet'])],
   reason: 'Initial recorded width',
   revision: 1,
   tenantId,
@@ -237,7 +240,7 @@ const measurementRevision = (set: string) => ({
     productTypeId: typeId,
     productTypeRevision: 1,
     sourceProductValueRevision: null,
-    values: [{ amount: 80, kind: 'MEASUREMENT', unit: 'cm' }],
+    values: [{ amount: options.amount ?? 80, kind: 'MEASUREMENT', unit: options.unit ?? 'cm' }],
   },
 });
 
@@ -313,6 +316,7 @@ interface RevisionStores {
   readonly definitionRevisions: object[];
   readonly deletes: FixtureTable[];
   readonly items: object[];
+  readonly migratedInvocationIds: string[];
   readonly revisions: object[];
   readonly sets: object[];
   readonly updates: [FixtureTable, object][];
@@ -329,6 +333,7 @@ type FixtureUpdate =
   | Partial<typeof attributeDefinitions.$inferInsert>;
 
 const buildTransaction = (stores: RevisionStores) => {
+  let revisionReadIndex = 0;
   const rowsFor = (table: FixtureTable): readonly object[] => {
     if (table === attributeDefinitions) {
       return [stores.definition];
@@ -344,7 +349,15 @@ const buildTransaction = (stores: RevisionStores) => {
     }
     return [];
   };
-  const sliceRows = (table: FixtureTable, count: number) => Effect.sync(() => rowsFor(table).slice(0, count));
+  const sliceRows = (table: FixtureTable, count: number) =>
+    Effect.sync(() => {
+      if (table !== attributeValueRevisions) {
+        return rowsFor(table).slice(0, count);
+      }
+      const rows = rowsFor(table).slice(revisionReadIndex, revisionReadIndex + count);
+      revisionReadIndex += count;
+      return rows;
+    });
   const terminal = (table: FixtureTable) =>
     Object.assign(
       Effect.sync(() => rowsFor(table)),
@@ -357,19 +370,18 @@ const buildTransaction = (stores: RevisionStores) => {
     delete: (table: FixtureTable) => ({
       where: () => {
         stores.deletes.push(table);
-        if (table === attributeValueItems) {
-          stores.items.length = 0;
-        }
         return Effect.void;
       },
     }),
     insert: (table: FixtureTable) => ({
       values: (row: FixtureWrite) => {
         if (table === attributeValueItems && Array.isArray(row)) {
-          stores.items.length = 0;
           stores.items.push(...row);
         } else if (table === attributeValueRevisions || table === attributeDefinitionRevisions) {
           (table === attributeValueRevisions ? stores.revisions : stores.definitionRevisions).push(row);
+          if (table === attributeValueRevisions && !Array.isArray(row) && 'actionInvocationId' in row) {
+            stores.migratedInvocationIds.push(row.actionInvocationId);
+          }
         }
         return Effect.void;
       },
@@ -411,6 +423,7 @@ const revisionScenario = (options: RevisionScenarioOptions = {}) =>
       definitionRevisions: [],
       deletes: [],
       items: [],
+      migratedInvocationIds: [],
       revisions: [...(options.revisions ?? [measurementRevision(setId)])],
       sets: [...(options.sets ?? [valueSet(productId, setId)])],
       updates: [],
@@ -479,19 +492,65 @@ describe('Attribute rule revision value migration (#434)', () => {
     }),
   );
 
-  it.effect('refuses a shared unit change across multiple value sets without per-subject remediation', () =>
+  it.effect('atomically converts every exactly convertible shared value and preserves prior snapshots', () =>
     Effect.gen(function* sharedConversion() {
       const { persistence, stores } = yield* revisionScenario({
+        revisions: [measurementRevision(setId), measurementRevision(secondSetId, { amount: 90 })],
+        sets: [valueSet(productId, setId), valueSet(secondProductId, secondSetId)],
+      });
+      const result = yield* persistence.reviseDefinitionRules(revisionInput());
+      expect(result).toMatchObject({ changed: true, revision: 2 });
+      expect(stores.items).toEqual([
+        expect.objectContaining({
+          attributeValueSetId: setId,
+          numericValue: '800',
+          unit: 'mm',
+        }),
+        expect.objectContaining({
+          attributeValueSetId: secondSetId,
+          numericValue: '900',
+          unit: 'mm',
+        }),
+      ]);
+      expect(stores.revisions).toHaveLength(4);
+      expect(stores.revisions.slice(0, 2)).toMatchObject([
+        { revision: 1, valueSnapshot: { values: [{ amount: 80, kind: 'MEASUREMENT', unit: 'cm' }] } },
+        { revision: 1, valueSnapshot: { values: [{ amount: 90, kind: 'MEASUREMENT', unit: 'cm' }] } },
+      ]);
+      expect(stores.revisions.slice(2)).toMatchObject([
+        {
+          attributeValueSetId: setId,
+          revision: 2,
+          valueSnapshot: { attributeDefinitionRevision: 2, values: [{ amount: 800, unit: 'mm' }] },
+        },
+        {
+          attributeValueSetId: secondSetId,
+          revision: 2,
+          valueSnapshot: { attributeDefinitionRevision: 2, values: [{ amount: 900, unit: 'mm' }] },
+        },
+      ]);
+      expect(new Set(stores.migratedInvocationIds).size).toBe(2);
+      expect(stores.migratedInvocationIds).not.toContain(invocationId);
+      expect(stores.definitionRevisions).toHaveLength(1);
+    }),
+  );
+
+  it.effect('writes nothing when any subject in a shared unit change needs remediation', () =>
+    Effect.gen(function* sharedRemediation() {
+      const { persistence, stores } = yield* revisionScenario({
+        revisions: [measurementRevision(setId), measurementRevision(secondSetId, { amount: 90, evidenceRefs: [] })],
         sets: [valueSet(productId, setId), valueSet(secondProductId, secondSetId)],
       });
       const failure = yield* persistence.reviseDefinitionRules(revisionInput()).pipe(Effect.flip);
-      expect(Schema.is(AttributePersistenceConflict)(failure)).toBe(true);
       expect(failure).toMatchObject({
         conflict: 'REMEDIATION_REQUIRED',
-        remediation: { subjects: [productId, secondProductId] },
+        remediation: { kind: 'INDETERMINATE', subjects: [secondProductId] },
       });
       expect(stores.items).toEqual([]);
+      expect(stores.deletes).toEqual([]);
+      expect(stores.revisions).toHaveLength(2);
       expect(stores.definitionRevisions).toEqual([]);
+      expect(stores.updates).toEqual([]);
     }),
   );
 
