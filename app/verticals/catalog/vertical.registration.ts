@@ -19,6 +19,7 @@ import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { correctSkuAction } from './src/actions/correct-sku.action.ts';
 import { createAttributeDefinitionAction } from './src/actions/create-attribute-definition.action.ts';
 import { createBrandAction } from './src/actions/create-brand.action.ts';
+import { createConfigurationUnitAction } from './src/actions/create-configuration-unit.action.ts';
 import { createControlledAttributeValueAction } from './src/actions/create-controlled-attribute-value.action.ts';
 import { createPackageDefinitionAction } from './src/actions/create-package-definition.action.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
@@ -51,6 +52,7 @@ import { renameSkuAction } from './src/actions/rename-sku.action.ts';
 import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.action.ts';
 import { replaceProductSizesAction } from './src/actions/replace-product-sizes.action.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
+import { retireConfigurationUnitAction } from './src/actions/retire-configuration-unit.action.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
 import { retireGtinAction } from './src/actions/retire-gtin.action.ts';
 import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
@@ -59,6 +61,7 @@ import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
 import { retireProductUnitAction } from './src/actions/retire-product-unit.action.ts';
 import { retireVariantAction } from './src/actions/retire-variant.action.ts';
+import { reviseConfigurationUnitAction } from './src/actions/revise-configuration-unit.action.ts';
 import { revisePackageDefinitionAction } from './src/actions/revise-package-definition.action.ts';
 import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
 import { reviseProductUnitAction } from './src/actions/revise-product-unit.action.ts';
@@ -92,6 +95,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     correctSkuAction,
     createAttributeDefinitionAction,
     createBrandAction,
+    createConfigurationUnitAction,
     createControlledAttributeValueAction,
     createPackageDefinitionAction,
     createProductAction,
@@ -124,6 +128,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     reorderCatalogMediaAction,
     replaceProductSizesAction,
     retireBrandAction,
+    retireConfigurationUnitAction,
     retireControlledAttributeValueAction,
     retireGtinAction,
     retirePackageDefinitionAction,
@@ -132,6 +137,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     retireProductCategoryAction,
     retireProductUnitAction,
     retireVariantAction,
+    reviseConfigurationUnitAction,
     revisePackageDefinitionAction,
     reviseProductTypeAction,
     reviseProductUnitAction,

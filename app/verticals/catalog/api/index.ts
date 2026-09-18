@@ -44,6 +44,7 @@ import { correctProductActionApiLive } from './correct-product-action-server.ts'
 import { correctSkuActionApiLive } from './correct-sku-action-server.ts';
 import { createAttributeDefinitionActionApiLive } from './create-attribute-definition-action-server.ts';
 import { createBrandActionApiLive } from './create-brand-action-server.ts';
+import { createConfigurationUnitActionApiLive } from './create-configuration-unit-action-server.ts';
 import { createControlledAttributeValueActionApiLive } from './create-controlled-attribute-value-action-server.ts';
 import { createPackageDefinitionActionApiLive } from './create-package-definition-action-server.ts';
 import { createProductActionApiLive } from './create-product-action-server.ts';
@@ -89,6 +90,7 @@ import { renameSkuActionApiLive } from './rename-sku-action-server.ts';
 import { reorderCatalogMediaActionApiLive } from './reorder-catalog-media-action-server.ts';
 import { replaceProductSizesActionApiLive } from './replace-product-sizes-action-server.ts';
 import { retireBrandActionApiLive } from './retire-brand-action-server.ts';
+import { retireConfigurationUnitActionApiLive } from './retire-configuration-unit-action-server.ts';
 import { retireControlledAttributeValueActionApiLive } from './retire-controlled-attribute-value-action-server.ts';
 import { retireGtinActionApiLive } from './retire-gtin-action-server.ts';
 import { retirePackageDefinitionActionApiLive } from './retire-package-definition-action-server.ts';
@@ -97,6 +99,7 @@ import { retireProductActionApiLive } from './retire-product-action-server.ts';
 import { retireProductCategoryActionApiLive } from './retire-product-category-action-server.ts';
 import { retireProductUnitActionApiLive } from './retire-product-unit-action-server.ts';
 import { retireVariantActionApiLive } from './retire-variant-action-server.ts';
+import { reviseConfigurationUnitActionApiLive } from './revise-configuration-unit-action-server.ts';
 import { revisePackageDefinitionActionApiLive } from './revise-package-definition-action-server.ts';
 import { reviseProductTypeActionApiLive } from './revise-product-type-action-server.ts';
 import { reviseProductUnitActionApiLive } from './revise-product-unit-action-server.ts';
@@ -226,6 +229,7 @@ export const makeCatalogApiRuntime = (
     correctSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createPackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -274,6 +278,7 @@ export const makeCatalogApiRuntime = (
     reorderCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     replaceProductSizesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retirePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -282,6 +287,7 @@ export const makeCatalogApiRuntime = (
     retireProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     revisePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

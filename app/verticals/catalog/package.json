@@ -14,6 +14,7 @@
     "./resources/attribute-definition": "./shared/resources/attribute-definition.ts",
     "./resources/brand": "./shared/resources/brand.ts",
     "./resources/catalog-root": "./shared/resources/catalog-root.ts",
+    "./resources/configuration-unit": "./shared/resources/configuration-unit.ts",
     "./resources/controlled-attribute-value": "./shared/resources/controlled-attribute-value.ts",
     "./resources/package-definition": "./shared/resources/package-definition.ts",
     "./resources/product": "./shared/resources/product.ts",
