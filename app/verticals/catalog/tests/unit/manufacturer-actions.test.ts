@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect';
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { ActionTransactionError, ReadRuntime, TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { bindActionTestServices, makeActionTestHarness } from '@app/core-runtime/testing/actions';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
@@ -12,8 +13,14 @@ import {
   handleSetProductManufacturer,
   setProductManufacturerAction,
 } from '../../src/actions/set-product-manufacturer.action.ts';
-import { handleChangeProductManufacturer } from '../../src/actions/change-product-manufacturer.action.ts';
-import { handleRemoveProductManufacturer } from '../../src/actions/remove-product-manufacturer.action.ts';
+import {
+  changeProductManufacturerAction,
+  handleChangeProductManufacturer,
+} from '../../src/actions/change-product-manufacturer.action.ts';
+import {
+  handleRemoveProductManufacturer,
+  removeProductManufacturerAction,
+} from '../../src/actions/remove-product-manufacturer.action.ts';
 import { ManufacturerPersistenceUnavailable } from '../../src/persistence/manufacturer-persistence.ts';
 import type { ManufacturerPersistence } from '../../src/persistence/manufacturer-persistence.ts';
 import { ManufacturerTargetForbidden } from '../../src/persistence/manufacturer-target-forbidden.ts';
@@ -39,6 +46,7 @@ const basis = {
   subject,
   target: { kind: 'PARTY', partyRef },
 } as const;
+const captureTransport = (key: string) => ({ correlationId: key, idempotencyKey: key });
 const setPayload = Schema.decodeUnknownSync(SetProductManufacturerPayloadSchema)(basis);
 const changePayload = Schema.decodeUnknownSync(ChangeProductManufacturerPayloadSchema)({
   ...basis,
@@ -86,6 +94,81 @@ const context = (
 });
 
 describe('manufacturer Action contracts', () => {
+  it.effect('rolls back every manufacturer Action when decoded-success capture fails', () =>
+    Effect.gen(function* manufacturerCaptureFailure() {
+      const applied = {
+        _tag: 'applied' as const,
+        relationId: setPayload.relationId,
+        revision: 1,
+      };
+      const captured: string[] = [];
+      const services = {
+        captureResult: (actionInvocationId: string) =>
+          Effect.gen(function* failCapture() {
+            captured.push(actionInvocationId);
+            return yield* new ActionTransactionError({
+              code: 'action_transaction_failed',
+              reason: 'Catalog result capture failed',
+            });
+          }),
+        change: () => Effect.succeed(applied),
+        history: () => Effect.die('Unexpected history read'),
+        remove: () => Effect.succeed(applied),
+        set: () => Effect.succeed(applied),
+      };
+      const harness = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [
+          bindActionTestServices(setProductManufacturerAction, services),
+          bindActionTestServices(changeProductManufacturerAction, services),
+          bindActionTestServices(removeProductManufacturerAction, services),
+        ],
+      });
+      const principal = {
+        authBindingId: '99999999-9999-4999-8999-999999999999',
+        authContextRef: 'better-auth-session:manufacturer-result-capture',
+        authMethod: 'session' as const,
+        principalId: scope.principalId,
+        tenantId,
+      };
+      const failures = yield* Effect.all(
+        [
+          harness.runtime
+            .runAction({
+              payload: setPayload,
+              principal,
+              registration: setProductManufacturerAction,
+              transport: captureTransport('manufacturer-set-capture'),
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: changePayload,
+              principal,
+              registration: changeProductManufacturerAction,
+              transport: captureTransport('manufacturer-change-capture'),
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: removePayload,
+              principal,
+              registration: removeProductManufacturerAction,
+              transport: captureTransport('manufacturer-remove-capture'),
+            })
+            .pipe(Effect.flip),
+        ],
+        { concurrency: 1 },
+      ).pipe(
+        Effect.provideService(ReadRuntime, { runRead: () => Effect.die('Unexpected governed read') }),
+      );
+      for (const failure of failures) {
+        expect(failure).toMatchObject({ code: 'action_transaction_failed' });
+      }
+      expect(captured).toHaveLength(3);
+      expect(harness.snapshot().committed).toHaveLength(0);
+    }),
+  );
   it('requires typed identity, exact subject, reason and evidence', () => {
     const decode = Schema.decodeUnknownSync(SetProductManufacturerPayloadSchema);
     expect(decode(basis).target).toEqual(basis.target);

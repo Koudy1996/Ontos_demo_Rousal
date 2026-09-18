@@ -1,10 +1,13 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { ActionTransactionError, TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { bindActionTestServices, makeActionTestHarness } from '@app/core-runtime/testing/actions';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
 import {
+  BrandMutationResultSchema,
   CreateBrandPayloadSchema,
+  ProductBrandMutationResultSchema,
   ReactivateBrandPayloadSchema,
   RenameBrandPayloadSchema,
   RetireBrandPayloadSchema,
@@ -33,6 +36,7 @@ const productRef = {
   tenantId,
 };
 const evidence = { evidenceRefs: ['brand-evidence-2026'], reason: 'Current Brand assessment confirmed' };
+const captureTransport = (key: string) => ({ correlationId: key, idempotencyKey: key });
 const create = Schema.decodeUnknownSync(CreateBrandPayloadSchema)({ ...evidence, brandRef, name: 'Alfa Home' });
 const rename = Schema.decodeUnknownSync(RenameBrandPayloadSchema)({
   ...evidence,
@@ -84,6 +88,99 @@ const context = (
 });
 
 describe('Brand governed Actions', () => {
+  it.effect('rolls back every Brand Action when decoded-success capture fails', () =>
+    Effect.gen(function* brandCaptureFailure() {
+      const brandResult = Schema.decodeUnknownSync(BrandMutationResultSchema)({ brandRef, revision: 1 });
+      const productBrandResult = Schema.decodeUnknownSync(ProductBrandMutationResultSchema)({
+        assignment: assign.assignment,
+        productRef,
+        revision: 2,
+      });
+      const captured: string[] = [];
+      const services = {
+        captureResult: (actionInvocationId: string) =>
+          Effect.gen(function* failCapture() {
+            captured.push(actionInvocationId);
+            return yield* new ActionTransactionError({
+              code: 'action_transaction_failed',
+              reason: 'Catalog result capture failed',
+            });
+          }),
+        create: () => Effect.succeed({ _tag: 'applied' as const, result: brandResult }),
+        reactivate: () => Effect.succeed({ _tag: 'applied' as const, result: brandResult }),
+        rename: () => Effect.succeed({ _tag: 'applied' as const, result: brandResult }),
+        retire: () => Effect.succeed({ _tag: 'applied' as const, result: brandResult }),
+        setProductBrand: () => Effect.succeed({ _tag: 'applied' as const, result: productBrandResult }),
+      };
+      const harness = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [
+          bindActionTestServices(createBrandAction, services),
+          bindActionTestServices(renameBrandAction, services),
+          bindActionTestServices(retireBrandAction, services),
+          bindActionTestServices(reactivateBrandAction, services),
+          bindActionTestServices(setProductBrandAction, services),
+        ],
+      });
+      const principal = {
+        authBindingId: '99999999-9999-4999-8999-999999999999',
+        authContextRef: 'better-auth-session:brand-result-capture',
+        authMethod: 'session' as const,
+        principalId: scope.principalId,
+        tenantId,
+      };
+      const failures = yield* Effect.all(
+        [
+          harness.runtime
+            .runAction({
+              payload: create,
+              principal,
+              registration: createBrandAction,
+              transport: captureTransport('brand-create-capture'),
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: rename,
+              principal,
+              registration: renameBrandAction,
+              transport: captureTransport('brand-rename-capture'),
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: retire,
+              principal,
+              registration: retireBrandAction,
+              transport: captureTransport('brand-retire-capture'),
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: reactivate,
+              principal,
+              registration: reactivateBrandAction,
+              transport: captureTransport('brand-reactivate-capture'),
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: assign,
+              principal,
+              registration: setProductBrandAction,
+              transport: captureTransport('product-brand-capture'),
+            })
+            .pipe(Effect.flip),
+        ],
+        { concurrency: 1 },
+      );
+      expect(failures.map((failure) => failure.code)).toEqual(
+        Array.from({ length: 5 }, () => 'action_transaction_failed'),
+      );
+      expect(captured).toHaveLength(5);
+      expect(harness.snapshot().committed).toHaveLength(0);
+    }),
+  );
   it('requires explicit permission, tenant scope, and idempotency', () => {
     for (const action of [
       createBrandAction,
