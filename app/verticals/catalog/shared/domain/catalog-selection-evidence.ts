@@ -34,11 +34,10 @@ const revisionOf = (resourceType: string) =>
 
 export const ProductSelectionRevisionSchema = revisionOf('commerce.catalog.product');
 export const VariantSelectionRevisionSchema = revisionOf('commerce.catalog.variant');
-export const ProductTypeSelectionRevisionSchema = revisionOf('commerce.catalog.product-type');
-export const AttributeDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.attribute-definition');
-export const ConfigurationUnitSelectionRevisionSchema = revisionOf('commerce.catalog.unit');
+const AttributeDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.attribute-definition');
+const ConfigurationUnitSelectionRevisionSchema = revisionOf('commerce.catalog.unit');
 export const PackageDefinitionSelectionRevisionSchema = revisionOf(packageDefinitionType);
-export const ConfigurationDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.configuration-definition');
+const ConfigurationDefinitionSelectionRevisionSchema = revisionOf('commerce.catalog.configuration-definition');
 export const SetCompositionSelectionRevisionSchema = revisionOf('commerce.catalog.set-composition');
 
 const sameResource = (
@@ -86,7 +85,7 @@ export const ProductConfigurationSelectionSchema = Schema.Struct({
 );
 
 /** Package quantity remains distinct from purchase-line Quantity. */
-export const CatalogPackageOptionSelectionSchema = Schema.Struct({
+const CatalogPackageOptionSelectionSchema = Schema.Struct({
   contentRevision: PackageDefinitionSelectionRevisionSchema,
   optionRef: CatalogResourceRefSchema,
 }).check(
@@ -207,7 +206,7 @@ export const sameCatalogSelectionBasis = (left: CatalogSelectionBasis, right: Ca
       left.subject.composition.revision === right.subject.composition.revision &&
       left.subject.composition.revisionId === right.subject.composition.revisionId);
 
-export const CatalogSelectionBasisListSchema = Schema.Array(CatalogSelectionBasisSchema).check(
+const CatalogSelectionBasisListSchema = Schema.Array(CatalogSelectionBasisSchema).check(
   Schema.makeFilter((basis) =>
     basis.some((entry, index) => basis.slice(index + 1).some((later) => sameCatalogSelectionBasis(entry, later)))
       ? 'Duplicate Catalog basis identity'
@@ -253,7 +252,7 @@ const assessmentFields = {
   selection: CatalogSelectionSchema,
   validUntil: Schema.optionalKey(CatalogRevisionInstantSchema),
 };
-export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
+const CatalogSelectionValidEvidenceSchema = Schema.Struct({
   ...assessmentFields,
   membership: CatalogSelectionMembershipSchema,
   status: Schema.Literal('VALID'),
@@ -291,12 +290,12 @@ export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
       : 'VALID evidence requires exact membership and every selected source revision',
   ),
 );
-export const CatalogSelectionInvalidEvidenceSchema = Schema.Struct({
+const CatalogSelectionInvalidEvidenceSchema = Schema.Struct({
   ...assessmentFields,
   reason: nonEmptyText,
   status: Schema.Literal('INVALID'),
 });
-export const CatalogSelectionIndeterminateEvidenceSchema = Schema.Struct({
+const CatalogSelectionIndeterminateEvidenceSchema = Schema.Struct({
   ...assessmentFields,
   reason: nonEmptyText,
   status: Schema.Literal('INDETERMINATE'),

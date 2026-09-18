@@ -4,7 +4,7 @@ export interface BrandIdentity {
   readonly tenantId: string;
 }
 
-export interface BrandNameRecord {
+interface BrandNameRecord {
   readonly name: string;
   readonly reason: string;
 }

@@ -29,7 +29,6 @@ export const CatalogExternalSourceEvidenceSchema = Schema.Struct({
       : 'External source and observed Catalog target must share one Tenant',
   ),
 );
-export type CatalogExternalSourceEvidence = typeof CatalogExternalSourceEvidenceSchema.Type;
 
 /** Equality of source references never crosses issuer, namespace, or Tenant boundaries. */
 export const sameCatalogExternalSourceRecord = (

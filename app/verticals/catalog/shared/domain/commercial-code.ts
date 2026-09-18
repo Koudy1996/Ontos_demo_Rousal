@@ -50,7 +50,7 @@ export const skuUniquenessKey = (tenantId: string, code: string): string => {
   return `${tenantId.length}:${tenantId}:SKU:${normalized.length}:${normalized}`;
 };
 
-export const sameSkuTarget = (left: SkuTarget, right: SkuTarget): boolean => {
+const sameSkuTarget = (left: SkuTarget, right: SkuTarget): boolean => {
   if (left.tenantId !== right.tenantId || left.kind !== right.kind) {
     return false;
   }
@@ -120,7 +120,7 @@ export const assessSkuCorrection = (
   return { status: 'VALID' };
 };
 
-export const GtinFormatSchema = Schema.Literals(['GTIN_8', 'GTIN_12', 'GTIN_13', 'GTIN_14']);
+const GtinFormatSchema = Schema.Literals(['GTIN_8', 'GTIN_12', 'GTIN_13', 'GTIN_14']);
 export type GtinFormat = typeof GtinFormatSchema.Type;
 
 const gtinFormat = (length: number): GtinFormat | undefined => {

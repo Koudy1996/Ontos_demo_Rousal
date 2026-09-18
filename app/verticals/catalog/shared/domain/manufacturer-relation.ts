@@ -84,7 +84,7 @@ export const ManufacturerRelationHistorySchema = Schema.NonEmptyArray(Manufactur
 export type ManufacturerRelationHistory = typeof ManufacturerRelationHistorySchema.Type;
 
 /** This is Catalog's effective assertion only; owner status and read permission need separate checks. */
-export const manufacturerRelationIsCurrent = (record: ManufacturerRelationRevision, at: string): boolean =>
+const manufacturerRelationIsCurrent = (record: ManufacturerRelationRevision, at: string): boolean =>
   record.disposition === 'CONFIRMED' &&
   (record.effectivePeriod.effectiveFrom === undefined || record.effectivePeriod.effectiveFrom <= at) &&
   (record.effectivePeriod.effectiveTo === undefined || at < record.effectivePeriod.effectiveTo);

@@ -4,12 +4,12 @@ export interface ConfigurationMeasurement {
   readonly unit: string;
 }
 
-export interface ConfigurationBound {
+interface ConfigurationBound {
   readonly amount: string;
   readonly inclusive: boolean;
 }
 
-export interface ConfigurationStep {
+interface ConfigurationStep {
   readonly amount: string;
   readonly base: string;
 }
@@ -190,14 +190,14 @@ export type ConfigurationValue =
   | { readonly choiceId: string; readonly kind: 'SINGLE_CHOICE' }
   | { readonly amount: string; readonly kind: 'MEASURED_VALUE'; readonly unit: string };
 
-export interface ForbiddenChoiceCombination {
+interface ForbiddenChoiceCombination {
   readonly choices: Readonly<Record<string, string>>;
   readonly kind: 'FORBIDDEN_CHOICE_COMBINATION';
   readonly revision: number;
   readonly ruleId: string;
 }
 
-export interface ChoiceMeasuredMaximum {
+interface ChoiceMeasuredMaximum {
   readonly choiceId: string;
   readonly choiceKey: string;
   readonly kind: 'CHOICE_MEASURED_MAXIMUM';

@@ -9,7 +9,7 @@ export type CategoryNode = Readonly<{
   parentRef?: CategoryIdentity;
 }>;
 
-export const CategoryHierarchyFailureSchema = Schema.TaggedStruct('CategoryHierarchyFailure', {
+const CategoryHierarchyFailureSchema = Schema.TaggedStruct('CategoryHierarchyFailure', {
   reason: Schema.Literals([
     'CATEGORY_NOT_FOUND',
     'CATEGORY_RETIRED',
@@ -23,7 +23,7 @@ export const CategoryHierarchyFailureSchema = Schema.TaggedStruct('CategoryHiera
     'DIRECT_ASSIGNMENTS_REMAIN',
   ]),
 });
-export type CategoryHierarchyFailure = typeof CategoryHierarchyFailureSchema.Type;
+type CategoryHierarchyFailure = typeof CategoryHierarchyFailureSchema.Type;
 export const CategoryValidSchema = Schema.TaggedStruct('Valid', {});
 export type CategoryCheck = typeof CategoryHierarchyFailureSchema.Type | typeof CategoryValidSchema.Type;
 

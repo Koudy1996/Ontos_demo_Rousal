@@ -26,7 +26,7 @@ export const CatalogMediaAssignmentIdSchema = uuid.pipe(
   Schema.brand('CatalogMediaAssignmentId'),
   Schema.decodeTo(uuid),
 );
-export const CatalogMediaAssignmentRevisionSchema = Schema.Finite.check(
+const CatalogMediaAssignmentRevisionSchema = Schema.Finite.check(
   Schema.isInt(),
   Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 }),
 );

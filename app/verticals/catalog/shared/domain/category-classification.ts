@@ -22,7 +22,7 @@ export interface ClassificationRevision {
   readonly hierarchy: number;
 }
 
-export interface AncestorClassification {
+interface AncestorClassification {
   readonly ancestorRef: CategoryKey;
   readonly viaDirectCategories: readonly CategoryKey[];
 }

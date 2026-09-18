@@ -13,7 +13,7 @@ const colorRef = CatalogResourceRefSchema.check(
 );
 
 /** A preview illustrates a Color; it is never a physical-shade identity or equivalence key. */
-export const ColorPreviewSchema = Schema.Union([
+const ColorPreviewSchema = Schema.Union([
   Schema.Struct({ hex: Schema.String.check(Schema.isPattern(/^#[0-9a-fA-F]{6}$/u)), kind: Schema.Literal('HEX') }),
   Schema.Struct({
     blue: Schema.Number.check(Schema.isInt(), Schema.isBetween({ maximum: 255, minimum: 0 })),
@@ -23,16 +23,14 @@ export const ColorPreviewSchema = Schema.Union([
   }),
   Schema.Struct({ kind: Schema.Literal('ILLUSTRATION'), mediaRef: text }),
 ]);
-export type ColorPreview = typeof ColorPreviewSchema.Type;
 
 /** Swatch provenance is optional, but every Color needs a stated basis for its distinction. */
-export const ColorDistinctionEvidenceSchema = Schema.Union([
+const ColorDistinctionEvidenceSchema = Schema.Union([
   Schema.Struct({ designation: text, kind: Schema.Literal('SWATCH'), source: text, sourceScope: text, system: text }),
   Schema.Struct({ description: text, kind: Schema.Literal('OTHER'), source: text, sourceScope: text }),
 ]);
-export type ColorDistinctionEvidence = typeof ColorDistinctionEvidenceSchema.Type;
 
-export const ColorLocalizedNameSchema = Schema.Struct({ locale: CatalogLocaleSchema, name: text });
+const ColorLocalizedNameSchema = Schema.Struct({ locale: CatalogLocaleSchema, name: text });
 export type ColorLocalizedName = typeof ColorLocalizedNameSchema.Type;
 export const ColorLocalizedNamesSchema = Schema.Array(ColorLocalizedNameSchema).check(
   Schema.makeFilter((names) =>
@@ -90,7 +88,6 @@ export const ColorRevisionDecisionSchema = Schema.Struct({
       : undefined;
   }),
 );
-export type ColorRevisionDecision = typeof ColorRevisionDecisionSchema.Type;
 
 /** References retain both Tenant and Color identity, independently of later display changes. */
 export const ColorHistoricalReferenceSchema = Schema.Struct({
@@ -98,4 +95,3 @@ export const ColorHistoricalReferenceSchema = Schema.Struct({
   acceptedDistinctionEvidence: ColorDistinctionEvidenceSchema,
   colorRef,
 });
-export type ColorHistoricalReference = typeof ColorHistoricalReferenceSchema.Type;

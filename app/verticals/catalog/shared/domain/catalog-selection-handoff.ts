@@ -14,7 +14,7 @@ import type { SetCompositionRevision } from './set-composition.ts';
 type ReadyQuantity = Extract<CatalogQuantityHandoff, { readonly status: 'READY' }>;
 
 /** An Order-owned historical record, not a claim that any fact remains Current. */
-export interface CatalogAcceptedSelectionHandoff {
+interface CatalogAcceptedSelectionHandoff {
   readonly acceptedAt: CatalogRevisionInstant;
   readonly basis: readonly (typeof CatalogSelectionBasisSchema.Type)[];
   readonly historical: true;
