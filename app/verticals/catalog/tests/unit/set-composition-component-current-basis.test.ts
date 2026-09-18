@@ -7,6 +7,8 @@ import {
   packageContentRevisions,
   packageDefinitions,
   packageOptionRoleRevisions,
+  productConfigurationDefinitions,
+  productConfigurationRevisionActivations,
   productUnitRuleRevisions,
   productUnits,
   productVariants,
@@ -61,6 +63,7 @@ const at = new Date('2026-09-18T00:00:00.000Z');
 interface BasisOptions {
   readonly absentProduct?: boolean;
   readonly absentVariant?: boolean;
+  readonly configurationDefinitionIds?: readonly string[];
   readonly nested?: boolean;
   readonly retired?: boolean;
   readonly unavailableProduct?: boolean;
@@ -70,6 +73,8 @@ type BasisTable =
   | typeof setCompositions
   | typeof products
   | typeof productVariants
+  | typeof productConfigurationDefinitions
+  | typeof productConfigurationRevisionActivations
   | typeof variantUnitDivisibility
   | typeof productUnits
   | typeof productUnitRuleRevisions
@@ -93,6 +98,12 @@ const rowsFor = (table: BasisTable, options: BasisOptions): readonly object[] =>
       return [];
     }
     return [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId: 'product', variantId: 'variant' }];
+  }
+  if (table === productConfigurationDefinitions) {
+    return (options.configurationDefinitionIds ?? []).map((definitionId) => ({ definitionId }));
+  }
+  if (table === productConfigurationRevisionActivations) {
+    return [];
   }
   if (table === variantUnitDivisibility) {
     return [{ currentRevision: 5, divisible: false, unitId: options.unitId ?? unitId }];
@@ -153,16 +164,26 @@ const rowsFor = (table: BasisTable, options: BasisOptions): readonly object[] =>
   }
   throw new Error('Unexpected component basis table');
 };
-const selectedRows = (table: BasisTable, rows: readonly object[], unavailable: boolean) => {
+const selectedRows = (table: BasisTable, rows: readonly object[], unavailable: boolean, projected: boolean) => {
   const result = unavailable ? Effect.fail(new Error('Owner read unavailable')) : Effect.succeed(rows);
   return {
-    where: () => (table === packageContentRevisions ? result : { limit: () => result }),
+    where: () =>
+      table === packageContentRevisions ||
+      table === productConfigurationRevisionActivations ||
+      (table === productConfigurationDefinitions && projected)
+        ? result
+        : { limit: () => result },
   };
 };
 const transactionFor = (options: BasisOptions = {}) => ({
-  select: () => ({
+  select: (projection?: { readonly definitionId: typeof productConfigurationDefinitions.definitionId }) => ({
     from: (table: BasisTable) =>
-      selectedRows(table, rowsFor(table, options), table === products && options.unavailableProduct === true),
+      selectedRows(
+        table,
+        rowsFor(table, options),
+        table === products && options.unavailableProduct === true,
+        projection !== undefined,
+      ),
   }),
 });
 
@@ -304,6 +325,14 @@ describe('Set composition component Current basis', () => {
     Effect.gen(function* invalidComponents() {
       expect(yield* read({ nested: true })).toMatchObject({ code: 'NESTED_SET', status: 'INVALID' });
       expect(yield* read({ retired: true })).toMatchObject({ status: 'INVALID' });
+    }),
+  );
+
+  it.effect('fails closed when an omitted component Configuration has an owner definition', () =>
+    Effect.gen(function* omittedRequiredConfiguration() {
+      expect(yield* read({ configurationDefinitionIds: ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'] })).toMatchObject({
+        status: 'INDETERMINATE',
+      });
     }),
   );
 
