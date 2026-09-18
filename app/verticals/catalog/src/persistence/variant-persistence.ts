@@ -1,13 +1,17 @@
-import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { findPostgresFailure } from '@app/core-runtime';
+import type { ActionRuntime, OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { DateTime, Effect, Option, Schema } from 'effect';
 
+import { CreateVariantResultSchema } from '../../shared/actions/create-variant.ts';
+import type { CreateVariantResult } from '../../shared/actions/create-variant.ts';
 import { ProductVariantSchema } from '../../shared/domain/product.ts';
 import type { ProductVariant } from '../../shared/domain/product.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { manufacturerRelations, productVariantRevisions, productVariants, products } from '../database/schema.ts';
+import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
+import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -74,6 +78,9 @@ export interface VariantPersistence {
   readonly reactivate: (
     input: VariantLifecyclePersistenceInput,
   ) => Effect.Effect<FailureOutcome, CatalogPersistenceUnavailable | VariantCurrentBasisUnavailable>;
+  readonly recoverCreateVariant: (
+    invocationId: string,
+  ) => Effect.Effect<CatalogActionRecovery<CreateVariantResult>, never, ActionRuntime>;
   readonly retire: (
     input: VariantLifecyclePersistenceInput,
   ) => Effect.Effect<FailureOutcome | SuccessOutcome<'retired'>, CatalogPersistenceUnavailable>;
@@ -169,6 +176,16 @@ export const variantPersistenceForScope = (
   scope: OperationalScope,
 ): VariantPersistence => {
   const { tenantId } = scope;
+  const recoverCreateVariant: VariantPersistence['recoverCreateVariant'] = (invocationId) =>
+    recoverCatalogActionResult(
+      transaction,
+      scope,
+      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-variant', schemaVersion: 1 },
+      {
+        decode: Schema.decodeUnknownEffect(CreateVariantResultSchema),
+        encode: Schema.encodeEffect(CreateVariantResultSchema),
+      },
+    );
   const getVariant = (variantId: string) =>
     transaction
       .select()
@@ -374,5 +391,5 @@ export const variantPersistenceForScope = (
       return yield* basisUnavailable();
     },
   );
-  return { change, create, reactivate, retire };
+  return { change, create, reactivate, recoverCreateVariant, retire };
 };
