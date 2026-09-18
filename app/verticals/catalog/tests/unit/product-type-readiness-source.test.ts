@@ -2,7 +2,15 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { DateTime, Effect, Exit, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { productTypeAssignments, productTypeRevisions, productTypes, products } from '../../src/database/schema.ts';
+import {
+  attributeValueSets,
+  productTypeAssignments,
+  productTypeRevisions,
+  productTypes,
+  productVariantAxes,
+  productVariants,
+  products,
+} from '../../src/database/schema.ts';
 import type { productTypeRevisionAttributes } from '../../src/database/schema.ts';
 import { productTypeReadinessSourceForScope } from '../../src/persistence/product-type-readiness-source.ts';
 
@@ -32,13 +40,35 @@ type Table =
   | typeof productTypeAssignments
   | typeof productTypes
   | typeof productTypeRevisions
-  | typeof productTypeRevisionAttributes;
+  | typeof productTypeRevisionAttributes
+  | typeof attributeValueSets
+  | typeof productVariantAxes
+  | typeof productVariants;
 interface Rows {
   readonly assigned?: boolean;
   readonly foreignRule?: boolean;
+  readonly malformedValueSet?: boolean;
   readonly revision?: number;
 }
 const rowsFor = (table: Table, options: Rows) => {
+  if (table === attributeValueSets) {
+    return options.malformedValueSet === true
+      ? [
+          {
+            attributeDefinitionId: definitionId,
+            attributeValueSetId: '88888888-8888-4888-8888-888888888888',
+            currentRevision: 1,
+            currentState: 'SET',
+            productId,
+            tenantId,
+            variantId: null,
+          },
+        ]
+      : [];
+  }
+  if (table === productVariantAxes || table === productVariants) {
+    return [];
+  }
   if (table === products) {
     return [{ productId }];
   }
@@ -75,7 +105,7 @@ const rowsFor = (table: Table, options: Rows) => {
 const selected = (rows: readonly object[]) => ({
   where: () => {
     const result = Effect.succeed(rows);
-    return Object.assign(result, { for: () => ({ limit: () => result }) });
+    return Object.assign(result, { for: () => result, limit: () => result });
   },
 });
 const transaction = (options: Rows = {}) => ({
@@ -85,6 +115,31 @@ const transaction = (options: Rows = {}) => ({
 });
 
 describe('Product Type Current readiness source', () => {
+  it.effect('fails closed when a recorded Current value set has no owner-verifiable revision', () =>
+    Effect.gen(function* malformedValueSet() {
+      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+      const source = productTypeReadinessSourceForScope(transaction({ malformedValueSet: true }), scope);
+      const result = yield* source.evaluate(productRef, at);
+      expect(result).toMatchObject({ status: 'INDETERMINATE' });
+    }),
+  );
+  it.effect('reads owner-held empty value and Variant inventories before evaluating a typed minimum', () =>
+    Effect.gen(function* evaluate() {
+      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+      const source = productTypeReadinessSourceForScope(transaction(), scope);
+      const result = yield* source.evaluate(productRef, at);
+      expect(result).toMatchObject({ rules: { minimumSatisfied: false }, status: 'INVALID' });
+    }),
+  );
+
+  it.effect('keeps an untyped empty inventory partial, not a Catalog-ready claim', () =>
+    Effect.gen(function* evaluateUntyped() {
+      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+      const source = productTypeReadinessSourceForScope(transaction({ assigned: false }), scope);
+      const result = yield* source.evaluate(productRef, at);
+      expect(result).toMatchObject({ status: 'UNTYPED_PARTIAL' });
+    }),
+  );
   it.effect('returns UNTYPED without fabricating rules', () =>
     Effect.gen(function* untyped() {
       // @ts-expect-error Mock supplies only the selected Drizzle query chain.

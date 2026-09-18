@@ -8,15 +8,15 @@ import type { ProductTypeReadinessSource } from './product-type-readiness-source
 /** A complete, owner-verified Current snapshot; callers must not construct this from browser input. */
 export interface ProductTypeReadinessSnapshot {
   readonly productValues: readonly ProductTypeCurrentValue[];
-  /** Owner-verified complete Product-level value inventory. No producer is wired yet. */
-  readonly productValueSource?: { readonly complete: true; readonly revision: number };
+  /** Exact owner-read value-set/definition revisions; an empty list is valid only with complete inventory proof. */
+  readonly productValueSource?: { readonly complete: true; readonly revisionTokens: readonly string[] };
   readonly source: ProductTypeReadinessSource;
   /** Exact Current Variant inventory verified by the owner in the same read transaction. */
   readonly variantRefs: readonly VariantRef[];
   readonly variants: readonly {
     /** Complete direct Current Variant facts, including attributes outside the Type's allowed set. */
     readonly currentAttributeDefinitionIds?: readonly string[];
-    readonly currentValueSource?: { readonly complete: true; readonly revision: number };
+    readonly currentValueSource?: { readonly complete: true; readonly revisionTokens: readonly string[] };
     /** One result per allowed Variant-level rule, including absent values. */
     readonly effectiveValues: readonly {
       readonly attributeDefinitionId: string;
@@ -34,7 +34,7 @@ export type ProductTypeReadinessEvaluation =
     }
   | {
       readonly assignmentRevision: number;
-      readonly productValueSourceRevision: number;
+      readonly productValueSourceRevisionTokens: readonly string[];
       readonly rules: ProductTypeRulesResult;
       readonly rulesRevision: number;
       readonly rulesRevisionId: string;
@@ -125,8 +125,8 @@ const snapshotProblem = ({
 }: ProductTypeReadinessSnapshot): string | null => {
   if (
     productValueSource?.complete !== true ||
-    !Number.isSafeInteger(productValueSource.revision) ||
-    productValueSource.revision < 1
+    productValueSource.revisionTokens.some((token) => token.length === 0) ||
+    new Set(productValueSource.revisionTokens).size !== productValueSource.revisionTokens.length
   ) {
     return 'Complete Current Product value source is unavailable';
   }
@@ -174,8 +174,8 @@ const snapshotProblem = ({
     variants.some(
       (variant) =>
         variant.currentValueSource?.complete !== true ||
-        !Number.isSafeInteger(variant.currentValueSource.revision) ||
-        variant.currentValueSource.revision < 1 ||
+        variant.currentValueSource.revisionTokens.some((token) => token.length === 0) ||
+        new Set(variant.currentValueSource.revisionTokens).size !== variant.currentValueSource.revisionTokens.length ||
         variant.currentAttributeDefinitionIds === undefined ||
         new Set(variant.currentAttributeDefinitionIds).size !== variant.currentAttributeDefinitionIds.length,
     )
@@ -300,7 +300,7 @@ export const evaluateCurrentProductTypeReadiness = (
   }
   return {
     assignmentRevision: source.assignmentRevision,
-    productValueSourceRevision: productValueSource.revision,
+    productValueSourceRevisionTokens: productValueSource.revisionTokens,
     rules,
     rulesRevision: rulesRevision.revision,
     rulesRevisionId: rulesRevision.revisionId,

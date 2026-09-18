@@ -64,13 +64,13 @@ describe('private Product Type readiness evaluation', () => {
   it('names a missing required value on its own Variant and preserves exact revisions', () => {
     const result = evaluateCurrentProductTypeReadiness({
       productValues: [],
-      productValueSource: { complete: true, revision: 7 },
+      productValueSource: { complete: true, revisionTokens: [] },
       source,
       variantRefs: [variantRef],
       variants: [
         {
           currentAttributeDefinitionIds: [],
-          currentValueSource: { complete: true, revision: 5 },
+          currentValueSource: { complete: true, revisionTokens: [] },
           effectiveValues: [
             {
               attributeDefinitionId: definitionRef.resourceId,
@@ -83,7 +83,7 @@ describe('private Product Type readiness evaluation', () => {
     });
     expect(result).toMatchObject({
       assignmentRevision: 3,
-      productValueSourceRevision: 7,
+      productValueSourceRevisionTokens: [],
       rules: { violations: [{ kind: 'MISSING_REQUIRED', variantId: variantRef.resourceId }] },
       rulesRevision: 2,
       status: 'INVALID',
@@ -95,7 +95,7 @@ describe('private Product Type readiness evaluation', () => {
     expect(
       evaluateCurrentProductTypeReadiness({
         productValues: [],
-        productValueSource: { complete: true, revision: 1 },
+        productValueSource: { complete: true, revisionTokens: [] },
         source: { productRef, status: 'UNTYPED' },
         variantRefs: [],
         variants: [],
@@ -106,13 +106,13 @@ describe('private Product Type readiness evaluation', () => {
   it('names a Current Variant fact as disallowed when the Product has no Type', () => {
     const result = evaluateCurrentProductTypeReadiness({
       productValues: [],
-      productValueSource: { complete: true, revision: 1 },
+      productValueSource: { complete: true, revisionTokens: [] },
       source: { productRef, status: 'UNTYPED' },
       variantRefs: [variantRef],
       variants: [
         {
           currentAttributeDefinitionIds: [definitionRef.resourceId],
-          currentValueSource: { complete: true, revision: 1 },
+          currentValueSource: { complete: true, revisionTokens: [] },
           effectiveValues: [],
           variantRef,
         },
@@ -127,7 +127,7 @@ describe('private Product Type readiness evaluation', () => {
   it('rejects duplicate and foreign Product value inventories', () => {
     const value = { attributeDefinitionRef: definitionRef, valid: true };
     const base = {
-      productValueSource: { complete: true as const, revision: 1 },
+      productValueSource: { complete: true as const, revisionTokens: [] },
       source,
       variantRefs: [],
       variants: [],
@@ -146,7 +146,7 @@ describe('private Product Type readiness evaluation', () => {
   });
 
   it('rejects foreign or incomplete Variant inventories', () => {
-    const base = { productValues: [], productValueSource: { complete: true as const, revision: 1 }, source };
+    const base = { productValues: [], productValueSource: { complete: true as const, revisionTokens: [] }, source };
     expect(
       evaluateCurrentProductTypeReadiness({
         ...base,
@@ -173,13 +173,13 @@ describe('private Product Type readiness evaluation', () => {
     };
     const result = evaluateCurrentProductTypeReadiness({
       productValues: [],
-      productValueSource: { complete: true, revision: 2 },
+      productValueSource: { complete: true, revisionTokens: [] },
       source: optionalSource,
       variantRefs: [variantRef],
       variants: [
         {
           currentAttributeDefinitionIds: [definitionRef.resourceId],
-          currentValueSource: { complete: true, revision: 2 },
+          currentValueSource: { complete: true, revisionTokens: [] },
           effectiveValues: [
             {
               attributeDefinitionId: definitionRef.resourceId,
@@ -199,13 +199,13 @@ describe('private Product Type readiness evaluation', () => {
   it('rejects mismatched effective source revisions', () => {
     const result = evaluateCurrentProductTypeReadiness({
       productValues: [],
-      productValueSource: { complete: true, revision: 2 },
+      productValueSource: { complete: true, revisionTokens: [] },
       source,
       variantRefs: [variantRef],
       variants: [
         {
           currentAttributeDefinitionIds: [],
-          currentValueSource: { complete: true, revision: 5 },
+          currentValueSource: { complete: true, revisionTokens: [] },
           effectiveValues: [
             {
               attributeDefinitionId: definitionRef.resourceId,
@@ -228,7 +228,7 @@ describe('private Product Type readiness evaluation', () => {
     expect(
       evaluateCurrentProductTypeReadiness({
         productValues: [],
-        productValueSource: { complete: true, revision: 2 },
+        productValueSource: { complete: true, revisionTokens: [] },
         source,
         variantRefs: [variantRef],
         variants: [{ effectiveValues: [], variantRef }],
@@ -240,13 +240,13 @@ describe('private Product Type readiness evaluation', () => {
     const disallowedId = '77777777-7777-4777-8777-777777777777';
     const result = evaluateCurrentProductTypeReadiness({
       productValues: [],
-      productValueSource: { complete: true, revision: 2 },
+      productValueSource: { complete: true, revisionTokens: [] },
       source,
       variantRefs: [variantRef],
       variants: [
         {
           currentAttributeDefinitionIds: [definitionRef.resourceId, disallowedId],
-          currentValueSource: { complete: true, revision: 4 },
+          currentValueSource: { complete: true, revisionTokens: [] },
           effectiveValues: [
             {
               attributeDefinitionId: definitionRef.resourceId,
