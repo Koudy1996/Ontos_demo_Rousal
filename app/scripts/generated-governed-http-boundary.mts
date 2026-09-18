@@ -636,6 +636,9 @@ const apiStatementEnd = (source: string, start: number): number | undefined => {
   return nextExport === undefined ? semicolon : Math.min(semicolon, nextExport);
 };
 
+const governedApiDeclarationPrefix = (binding: string): string =>
+  `export const ${binding}(?:\\s*:\\s*[A-Za-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*)?\\s*=\\s*`;
+
 /** Resolve the actual exported root containing the generated slot, never an alias or decoy. */
 export const governedApiBinding = (source: string): string | undefined => {
   const slot = generatedSlotRange(source, GOVERNED_API_SLOT_START, GOVERNED_API_SLOT_END);
@@ -643,7 +646,9 @@ export const governedApiBinding = (source: string): string | undefined => {
     return undefined;
   }
   const candidates = [
-    ...maskComments(source).matchAll(/export const (?<name>[A-Za-z][A-Za-z0-9]*)\s*=\s*HttpApi\.make\(/gu),
+    ...maskComments(source).matchAll(
+      new RegExp(`${governedApiDeclarationPrefix('(?<name>[A-Za-z][A-Za-z0-9]*)')}HttpApi\\.make\\(`, 'gu'),
+    ),
   ]
     .filter((match) => isTopLevelCodePosition(source, match.index))
     .map((match) => match.groups?.name)
@@ -651,7 +656,7 @@ export const governedApiBinding = (source: string): string | undefined => {
       if (name === undefined) {
         return false;
       }
-      const root = assignedExpressionRange(source, new RegExp(`export const ${escapeRegExp(name)}\\s*=\\s*`, 'u'));
+      const root = assignedExpressionRange(source, new RegExp(governedApiDeclarationPrefix(escapeRegExp(name)), 'u'));
       const statementEnd = root === undefined ? undefined : apiStatementEnd(source, root.start);
       return (
         root !== undefined &&
@@ -668,7 +673,7 @@ const governedSharedApiRoot = (source: string): SourceRange | undefined => {
   const apiRoot =
     binding === undefined
       ? undefined
-      : assignedExpressionRange(source, new RegExp(`export const ${escapeRegExp(binding)}\\s*=\\s*`, 'u'));
+      : assignedExpressionRange(source, new RegExp(governedApiDeclarationPrefix(escapeRegExp(binding)), 'u'));
   const slot = generatedSlotRange(source, GOVERNED_API_SLOT_START, GOVERNED_API_SLOT_END);
   if (apiRoot === undefined || slot === undefined) {
     return undefined;

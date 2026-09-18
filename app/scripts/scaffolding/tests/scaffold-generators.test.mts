@@ -6028,6 +6028,12 @@ it.live(
       readFile(path.join(appRoot, 'verticals/party-registry/api/index.ts'), 'utf-8'),
     );
     expect(hasValidGovernedHttpCompositionRoot(shared, handler)).toBe(true);
+    const typedShared = shared.replace(
+      'export const partyRegistryApi = HttpApi.make(',
+      'export const partyRegistryApi: PartyRegistryApi = HttpApi.make(',
+    );
+    expect(typedShared).not.toBe(shared);
+    expect(hasValidGovernedHttpCompositionRoot(typedShared, handler)).toBe(true);
     const typedHandler = handler.replace(
       'const apiRuntime = makePartyRegistryApiRuntime(',
       'const apiRuntime: EffectBffDefinition<typeof partyRegistryApi> & EffectBffRuntime<typeof partyRegistryApi> = makePartyRegistryApiRuntime(',

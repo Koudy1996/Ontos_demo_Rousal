@@ -5,6 +5,7 @@ import {
 } from '@modern-js/bff-effect/microvertical-api';
 import type { MicroVerticalOperationContext } from '@modern-js/bff-effect/microvertical-api';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
+import { identity } from 'effect';
 
 // <generated-governed-http-api-imports>
 import { ActivateLocalOverrideActionApi } from './apis/activate-local-override-action.ts';
@@ -426,9 +427,7 @@ type CatalogApiGroups = GroupsOf<
 
 type CatalogApi = HttpApi.HttpApi<'CatalogApi', CatalogApiGroups>;
 
-const identity: (api: CatalogApi) => CatalogApi = (api) => api;
-
-export const catalogApi = HttpApi.make('CatalogApi')
+export const catalogApi: CatalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(ActivateLocalOverrideActionApi)
