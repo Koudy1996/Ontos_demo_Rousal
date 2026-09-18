@@ -81,7 +81,7 @@ export const ReviseConfigurationUnitActionAlreadyCommittedProblemSchema = makePr
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_REVISE_CONFIGURATION_UNIT'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -90,7 +90,7 @@ export const ReviseConfigurationUnitActionCommitIndeterminateProblemSchema = mak
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_REVISE_CONFIGURATION_UNIT'),
     retryCommand: Schema.Literal(false),
   },
 );
