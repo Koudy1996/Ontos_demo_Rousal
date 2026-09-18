@@ -29,6 +29,7 @@ relevant to the task. An accepted ADR remains current unless a later ADR explici
 | [0022](0022-optional-provider-neutral-email-delivery.md)    | Optional provider-neutral email delivery capability       | Accepted                          |
 | [0023](0023-inventory-reservation-authority-and-commitment-fence.md) | Inventory reservation authority and commitment fence | Accepted |
 | [0024](0024-inventory-demand-before-stock-allocation.md)   | Exact Catalog Selection binds to Stock Item before allocation | Accepted                       |
+| [0025](0025-multiple-authority-homogeneous-inventory-reservations.md) | One Attempt may use multiple authority-homogeneous Reservations | Accepted                       |
 
 ## Status meanings
 
