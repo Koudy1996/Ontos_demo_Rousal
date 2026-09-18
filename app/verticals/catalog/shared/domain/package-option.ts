@@ -42,11 +42,11 @@ export const assessPackageOption = (
   ) {
     return { reason: 'Option role must use its one Package Definition and Variant Tenant', status: 'INVALID' };
   }
-  if (!role.independentlyRequested || role.substitutionWithLooseQuantitySatisfiesRequest) {
-    return { reason: 'Loose Variant quantity satisfies the same legitimate request', status: 'QUANTITY_ONLY' };
-  }
   if (productLifecycle !== 'ACTIVE' || variantLifecycle !== 'ACTIVE' || role.lifecycle !== 'ACTIVE') {
     return { reason: 'Retired or inactive target cannot be newly selected', status: 'UNVERIFIABLE' };
+  }
+  if (!role.independentlyRequested || role.substitutionWithLooseQuantitySatisfiesRequest) {
+    return { reason: 'Loose Variant quantity satisfies the same legitimate request', status: 'QUANTITY_ONLY' };
   }
   return { contentRevision: role.currentContent, optionRef: role.definitionRef, status: 'SELECTABLE' };
 };

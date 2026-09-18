@@ -89,6 +89,9 @@ describe('Package content and Option', () => {
       substitutionWithLooseQuantitySatisfiesRequest: true,
     } as const;
     expect(assessPackageOption(role, 'ACTIVE', 'ACTIVE').status).toBe('QUANTITY_ONLY');
+    expect(assessPackageOption({ ...role, lifecycle: 'RETIRED' }, 'ACTIVE', 'ACTIVE').status).toBe('UNVERIFIABLE');
+    expect(assessPackageOption(role, 'RETIRED', 'ACTIVE').status).toBe('UNVERIFIABLE');
+    expect(assessPackageOption(role, 'ACTIVE', 'RETIRED').status).toBe('UNVERIFIABLE');
     expect(
       assessPackageOption(
         { ...role, independentlyRequested: true, substitutionWithLooseQuantitySatisfiesRequest: false },
