@@ -21,8 +21,11 @@ export const PackageDefinitionReasonSchema = Schema.String.check(
 export const PackageDefinitionEvidenceRefsSchema = Schema.Array(
   Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
 ).check(Schema.isMinLength(1));
+export const PackageDefinitionChangeKindSchema = Schema.Literals(['physical_change', 'correction']);
 export const PackageDefinitionAuditEvidenceSchema = Schema.Struct({
+  changeKind: Schema.optionalKey(PackageDefinitionChangeKindSchema),
   evidenceRefs: PackageDefinitionEvidenceRefsSchema,
+  priorErrorExplanation: Schema.optionalKey(PackageDefinitionReasonSchema),
   reason: PackageDefinitionReasonSchema,
 });
 

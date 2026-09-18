@@ -32,6 +32,15 @@ export const handleRevisePackageDefinition = Effect.fn('RevisePackageDefinitionA
   ) {
     const { tenantId } = context.scope;
     if (
+      (payload.changeKind === 'correction' && payload.priorErrorExplanation === undefined) ||
+      (payload.changeKind === 'physical_change' && payload.priorErrorExplanation !== undefined)
+    ) {
+      return yield* new PackageDefinitionActionError({
+        code: 'package_definition_invalid',
+        reason: 'A correction must explain the prior incorrect content; a physical change must not claim a prior error',
+      });
+    }
+    if (
       [
         payload.expectedCurrent.resourceRef,
         payload.content.form.productRef,
@@ -50,7 +59,16 @@ export const handleRevisePackageDefinition = Effect.fn('RevisePackageDefinitionA
       .revise({ actionInvocationId: context.actionInvocationId, payload, principalId: context.scope.principalId })
       .pipe(Effect.mapError(mapPackagePersistenceError));
     const result = yield* resolvePackageMutation(outcome);
-    yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
+    yield* context.recordAuditEvidence(
+      payload.changeKind === 'correction' && payload.priorErrorExplanation !== undefined
+        ? {
+            changeKind: 'correction',
+            evidenceRefs: payload.evidenceRefs,
+            priorErrorExplanation: payload.priorErrorExplanation,
+            reason: payload.reason,
+          }
+        : { changeKind: 'physical_change', evidenceRefs: payload.evidenceRefs, reason: payload.reason },
+    );
     yield* recordPackageDefinitionAccess(context, result.definitionRef.resourceId);
     return result;
   },

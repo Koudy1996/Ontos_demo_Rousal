@@ -156,6 +156,15 @@ const validEvidence = (
   input.payload.reason === input.payload.reason.trim() &&
   input.payload.evidenceRefs.every((ref) => ref.length > 0 && ref.length <= 1000 && ref === ref.trim());
 
+const validRevisionIntent = (payload: RevisePackageDefinitionPayload): boolean =>
+  payload.changeKind === 'physical_change'
+    ? payload.priorErrorExplanation === undefined
+    : payload.changeKind === 'correction' &&
+      payload.priorErrorExplanation !== undefined &&
+      payload.priorErrorExplanation.length > 0 &&
+      payload.priorErrorExplanation.length <= 1000 &&
+      payload.priorErrorExplanation === payload.priorErrorExplanation.trim();
+
 /** Core owns the transaction and its tenant setting; every query also carries the trusted tenant predicate. */
 export const packagePersistenceForScope = (
   transaction: ScopedTransaction,
@@ -283,6 +292,7 @@ export const packagePersistenceForScope = (
     const { content, expectedCurrent } = input.payload;
     const id = expectedCurrent.resourceRef.resourceId;
     if (
+      !validRevisionIntent(input.payload) ||
       !sameRef(expectedCurrent.resourceRef, tenantId, packageType) ||
       expectedCurrent.revisionId !== undefined ||
       !validContent(content, tenantId, id) ||

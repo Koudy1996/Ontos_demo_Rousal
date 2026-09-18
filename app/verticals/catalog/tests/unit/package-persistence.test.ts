@@ -234,6 +234,7 @@ describe('Package persistence', () => {
         },
       };
       const revisionPayload = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'physical_change',
         content: payload.content,
         evidenceRefs: payload.evidenceRefs,
         expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
@@ -251,9 +252,31 @@ describe('Package persistence', () => {
     }),
   );
 
+  it.effect('rejects an unexplained correction before reading or writing content history', () =>
+    Effect.gen(function* unexplainedCorrection() {
+      const transaction = {
+        select: () => {
+          throw new Error('Missing correction evidence must be rejected first');
+        },
+      };
+      const revisionPayload = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'correction',
+        content: payload.content,
+        evidenceRefs: payload.evidenceRefs,
+        expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
+        reason: 'Correct a claimed error',
+      });
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = packagePersistenceForScope(transaction, scope);
+      const outcome = yield* service.revise({ ...evidence, payload: revisionPayload });
+      expect(Match.value(outcome).pipe(Match.tag('invalid', () => true), Match.orElse(() => false))).toBe(true);
+    }),
+  );
+
   it.effect('keeps effective Current unchanged when a successor is scheduled for the future', () =>
     Effect.gen(function* futureSuccessor() {
       const revisionPayload = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'physical_change',
         content: { ...payload.content, effectiveAt: '2099-01-01T00:00:00.000Z' },
         evidenceRefs: payload.evidenceRefs,
         expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
@@ -306,6 +329,7 @@ describe('Package persistence', () => {
         },
       };
       const revisionPayload = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'physical_change',
         content: { ...payload.content, effectiveAt: '2100-01-01T00:00:00.000Z' },
         evidenceRefs: payload.evidenceRefs,
         expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },

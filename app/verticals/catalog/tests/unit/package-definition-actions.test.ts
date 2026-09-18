@@ -121,8 +121,13 @@ describe('Package Definition governed Action contracts', () => {
         .content.amount,
     ).toBe('10');
     expect(
-      Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({ content, evidenceRefs, expectedCurrent, reason })
-        .expectedCurrent.revision,
+      Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'physical_change',
+        content,
+        evidenceRefs,
+        expectedCurrent,
+        reason,
+      }).expectedCurrent.revision,
     ).toBe(1);
     expect(
       Schema.decodeUnknownSync(RetirePackageDefinitionPayloadSchema)({ evidenceRefs, expectedCurrent, reason }).reason,
@@ -141,6 +146,52 @@ describe('Package Definition governed Action contracts', () => {
     expect(() => Schema.decodeUnknownSync(RetirePackageDefinitionPayloadSchema)({ definitionRef, reason })).toThrow();
   });
 
+  it.effect('requires an explained correction and records its intent without rewriting the prior revision', () =>
+    Effect.gen(function* correctionIntent() {
+      const correction = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'correction',
+        content,
+        evidenceRefs,
+        expectedCurrent,
+        priorErrorExplanation: 'The previously recorded case count was a transcription error',
+        reason: 'Correct the recorded case count against the supplier specification',
+      });
+      const revision = Schema.decodeUnknownSync(PackageDefinitionSelectionRevisionSchema)(expectedCurrent);
+      const trustedRef = Schema.decodeUnknownSync(PackageDefinitionRefSchema)(definitionRef);
+      const recorded: unknown[] = [];
+      const run: ActionHandlerContext<Readonly<Record<string, never>>, PackagePersistence> = {
+        ...context({
+          revise: ({ payload }) => {
+            expect(payload.changeKind).toBe('correction');
+            expect(payload.expectedCurrent.revision).toBe(1);
+            return Effect.succeed({ _tag: 'revised', contentRevision: revision, definitionRef: trustedRef } as const);
+          },
+        }),
+        recordAuditEvidence: (value: Readonly<Record<string, Schema.Json>>) =>
+          Effect.sync(() => {
+            recorded.push(value);
+          }),
+      };
+      yield* handleRevisePackageDefinition(correction, run);
+      expect(recorded).toEqual([
+        expect.objectContaining({
+          changeKind: 'correction',
+          priorErrorExplanation: correction.priorErrorExplanation,
+        }),
+      ]);
+      const { priorErrorExplanation: _omitted, ...missingExplanation } = correction;
+      const error = yield* handleRevisePackageDefinition(missingExplanation, context({ revise: unexpected })).pipe(
+        Effect.flip,
+      );
+      expect(error.code).toBe('package_definition_invalid');
+      const falseCorrection = { ...correction, changeKind: 'physical_change' as const };
+      const falseError = yield* handleRevisePackageDefinition(falseCorrection, context({ revise: unexpected })).pipe(
+        Effect.flip,
+      );
+      expect(falseError.code).toBe('package_definition_invalid');
+    }),
+  );
+
   it.effect('never claims success without authoritative persistence and Current verification', () =>
     Effect.gen(function* noFalseSuccess() {
       const create = Schema.decodeUnknownSync(CreatePackageDefinitionPayloadSchema)({
@@ -150,6 +201,7 @@ describe('Package Definition governed Action contracts', () => {
         reason,
       });
       const revise = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'physical_change',
         content,
         evidenceRefs,
         expectedCurrent,
