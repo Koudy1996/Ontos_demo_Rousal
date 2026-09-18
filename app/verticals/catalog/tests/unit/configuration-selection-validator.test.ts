@@ -188,6 +188,26 @@ describe('configuration selection validator', () => {
     ).toMatchObject({ code: 'OFF_STEP', status: 'INVALID' });
   });
 
+  it('rejects a Unit reference from another Tenant or resource type even when its ID matches', () => {
+    for (const wrongUnit of [
+      { ...unitRef, tenantId: '99999999-9999-4999-8999-999999999999' },
+      { ...unitRef, resourceType: 'commerce.catalog.product' },
+    ]) {
+      expect(
+        validateConfigurationSelection(
+          {
+            ...selection,
+            values: [
+              selection.values[0],
+              { amount: '83', choiceKey: 'length', kind: 'MEASURED_VALUE', unitRef: wrongUnit },
+            ],
+          },
+          basis,
+        ),
+      ).toMatchObject({ code: 'INCOMPATIBLE_UNIT', ruleIds: ['length'], status: 'INVALID' });
+    }
+  });
+
   it('requires exact definition and target evidence without mistaking unknown for unrestricted', () => {
     expect(validateConfigurationSelection(selection, { ...basis, definition: null }).status).toBe('INDETERMINATE');
     expect(validateConfigurationSelection(selection, { ...basis, current: null })).toMatchObject({

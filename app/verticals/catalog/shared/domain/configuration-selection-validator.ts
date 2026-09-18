@@ -137,6 +137,13 @@ const checkMeasurement = (
   choice: ConfigurationMeasuredValueDefinition,
   basis: ConfigurationValidationBasis,
 ): ChoiceScan['decision'] => {
+  if (
+    value.unitRef.moduleId !== choice.unitRef.moduleId ||
+    value.unitRef.resourceType !== choice.unitRef.resourceType ||
+    value.unitRef.tenantId !== choice.unitRef.tenantId
+  ) {
+    return { code: 'INCOMPATIBLE_UNIT', ruleIds: [choice.choiceKey], status: 'INVALID' };
+  }
   const rule = basis.measuredRules[value.choiceKey] ?? null;
   if (rule !== null && rule.unit !== choice.unitRef.resourceId) {
     return { code: 'MEASURED_RULE_UNIT_UNVERIFIED', ruleIds: [rule.ruleId], status: 'INDETERMINATE' };
