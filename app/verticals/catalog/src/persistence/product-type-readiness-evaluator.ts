@@ -212,9 +212,7 @@ const snapshotProblem = ({
   return null;
 };
 
-const evaluateUntypedReadiness = (
-  snapshot: ProductTypeReadinessSnapshot,
-): ProductTypeReadinessEvaluation => {
+const evaluateUntypedReadiness = (snapshot: ProductTypeReadinessSnapshot): ProductTypeReadinessEvaluation => {
   const { productValues, productValueSource, source, variants } = snapshot;
   if (source.status !== 'UNTYPED' || productValueSource === undefined) {
     return { reason: 'Untyped Product source is unavailable', status: 'INDETERMINATE' };

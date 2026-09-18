@@ -58,6 +58,84 @@ const attributeDefinitionResourceType = 'commerce.catalog.attribute-definition' 
 const sameTokens = (actual: readonly string[], expected: readonly string[]): boolean =>
   actual.length === expected.length && actual.every((token, index) => token === expected[index]);
 
+interface UntypedDecisionCheck {
+  readonly reason?: string;
+  readonly revision?: number;
+}
+
+const confirmedDecisionRevision = (
+  decision: typeof productTypeUntypedDecisions.$inferSelect | undefined,
+  basis: {
+    readonly axisRevision: number;
+    readonly hasCurrentStructuredValues: boolean;
+    readonly productId: string;
+    readonly productRevision: number;
+    readonly tenantId: string;
+    readonly valueTokens: readonly string[];
+    readonly variantTokens: readonly string[];
+  },
+): UntypedDecisionCheck => {
+  if (decision === undefined) {
+    return {};
+  }
+  if (
+    decision.tenantId !== basis.tenantId ||
+    decision.productId !== basis.productId ||
+    !Number.isSafeInteger(decision.decisionRevision) ||
+    decision.decisionRevision < 1
+  ) {
+    return { reason: 'Untyped decision provenance or state is invalid' };
+  }
+  if (decision.decisionState === 'REVOKED') {
+    return {};
+  }
+  if (decision.decisionState !== 'CONFIRMED') {
+    return { reason: 'Untyped decision state is invalid' };
+  }
+  if (
+    decision.structuredAttributesRequired ||
+    decision.variantAxesRequired ||
+    decision.productRevision !== basis.productRevision ||
+    decision.axisRevision !== basis.axisRevision ||
+    !sameTokens(basis.valueTokens, decision.valueRevisionTokens) ||
+    !sameTokens(basis.variantTokens, decision.variantRevisionTokens) ||
+    basis.hasCurrentStructuredValues
+  ) {
+    return {
+      reason: 'Confirmed untyped decision no longer matches Current Product, axis, value, or Variant inventory',
+    };
+  }
+  return { revision: decision.decisionRevision };
+};
+
+const inventoryProblem = (
+  inventory: AttributeValueSetValidityBasis,
+  variants: readonly {
+    readonly lifecycleState: string;
+    readonly productId: string;
+    readonly tenantId: string;
+    readonly variantId: string;
+  }[],
+  productRef: ProductRef,
+): string | null => {
+  if (
+    !inventory.complete ||
+    inventory.tenantId !== productRef.tenantId ||
+    inventory.entries.some((entry) => entry.productId !== productRef.resourceId)
+  ) {
+    return 'Complete Current attribute value inventory is unavailable';
+  }
+  if (variants.some((row) => row.tenantId !== productRef.tenantId || row.productId !== productRef.resourceId)) {
+    return 'Current Variant inventory is foreign';
+  }
+  const currentVariants = variants.filter((row) => row.lifecycleState !== 'RETIRED');
+  const ids = new Set(currentVariants.map((row) => row.variantId));
+  return ids.size !== currentVariants.length ||
+    inventory.entries.some((entry) => entry.variantId !== null && !ids.has(entry.variantId))
+    ? 'Current Variant value inventory is incomplete or inconsistent'
+    : null;
+};
+
 interface ProductTypeReadinessService {
   readonly evaluate: (
     productRef: ProductRef,
@@ -154,37 +232,31 @@ export const productTypeReadinessSourceForScope = (
       ],
       { concurrency: 2 },
     );
-    const inventory = yield* reads.readProductTypeValidity([productRef.resourceId]);
-    if (
-      !inventory.complete ||
-      inventory.tenantId !== scope.tenantId ||
-      inventory.entries.some((entry) => entry.productId !== productRef.resourceId)
-    ) {
-      return { reason: 'Complete Current attribute value inventory is unavailable', status: 'INDETERMINATE' };
-    }
-    const variantRows = yield* transaction
-      .select({
-        currentRevision: productVariants.currentRevision,
-        lifecycleState: productVariants.lifecycleState,
-        productId: productVariants.productId,
-        tenantId: productVariants.tenantId,
-        variantId: productVariants.variantId,
-      })
-      .from(productVariants)
-      .where(and(eq(productVariants.tenantId, scope.tenantId), eq(productVariants.productId, productRef.resourceId)))
-      .for('share')
-      .pipe(Effect.mapError(unavailable));
-    if (variantRows.some((row) => row.tenantId !== scope.tenantId || row.productId !== productRef.resourceId)) {
-      return { reason: 'Current Variant inventory is foreign', status: 'INDETERMINATE' };
+    const [inventory, variantRows] = yield* Effect.all(
+      [
+        reads.readProductTypeValidity([productRef.resourceId]),
+        transaction
+          .select({
+            currentRevision: productVariants.currentRevision,
+            lifecycleState: productVariants.lifecycleState,
+            productId: productVariants.productId,
+            tenantId: productVariants.tenantId,
+            variantId: productVariants.variantId,
+          })
+          .from(productVariants)
+          .where(
+            and(eq(productVariants.tenantId, scope.tenantId), eq(productVariants.productId, productRef.resourceId)),
+          )
+          .for('share')
+          .pipe(Effect.mapError(unavailable)),
+      ],
+      { concurrency: 1 },
+    );
+    const problem = inventoryProblem(inventory, variantRows, productRef);
+    if (problem !== null) {
+      return { reason: problem, status: 'INDETERMINATE' };
     }
     const currentVariants = variantRows.filter((row) => row.lifecycleState !== 'RETIRED');
-    const variantIds = new Set(currentVariants.map((row) => row.variantId));
-    if (
-      variantIds.size !== currentVariants.length ||
-      inventory.entries.some((entry) => entry.variantId !== null && !variantIds.has(entry.variantId))
-    ) {
-      return { reason: 'Current Variant value inventory is incomplete or inconsistent', status: 'INDETERMINATE' };
-    }
     const productEntries = inventory.entries.filter((entry) => entry.variantId === null);
     const requiredProductDefinitionIds = new Set<string>();
     if (source.status === 'VERIFIED') {
@@ -279,42 +351,24 @@ export const productTypeReadinessSourceForScope = (
       if (product === undefined || product.tenantId !== scope.tenantId || product.productId !== productRef.resourceId) {
         return { reason: 'Current Product revision is unavailable', status: 'INDETERMINATE' };
       }
-      if (decision !== undefined) {
-        if (
-          decision.tenantId !== scope.tenantId ||
-          decision.productId !== productRef.resourceId ||
-          !Number.isSafeInteger(decision.decisionRevision) ||
-          decision.decisionRevision < 1
-        ) {
-          return { reason: 'Untyped decision provenance is invalid', status: 'INDETERMINATE' };
-        }
-        if (decision.decisionState === 'CONFIRMED') {
-          const valueTokens = productEntries.map((entry) => entry.sourceRevisionToken).toSorted();
-          const variantTokens = [
-            ...currentVariants.map((variant) => `${variant.variantId}:${variant.currentRevision}`),
-            ...inventory.entries
-              .filter((entry) => entry.variantId !== null)
-              .map((entry) => `${entry.variantId}:${entry.sourceRevisionToken}`),
-          ].toSorted();
-          if (
-            decision.structuredAttributesRequired ||
-            decision.variantAxesRequired ||
-            decision.productRevision !== product.currentRevision ||
-            decision.axisRevision !== (axisEvents[0]?.axisRevision ?? 0) ||
-            !sameTokens(valueTokens, decision.valueRevisionTokens) ||
-            !sameTokens(variantTokens, decision.variantRevisionTokens) ||
-            inventory.entries.some((entry) => entry.currentState === 'SET')
-          ) {
-            return {
-              reason: 'Confirmed untyped decision no longer matches Current Product, axis, value, or Variant inventory',
-              status: 'INDETERMINATE',
-            };
-          }
-          confirmedUntypedDecisionRevision = decision.decisionRevision;
-        } else if (decision.decisionState !== 'REVOKED') {
-          return { reason: 'Untyped decision state is invalid', status: 'INDETERMINATE' };
-        }
+      const decisionCheck = confirmedDecisionRevision(decision, {
+        axisRevision: axisEvents[0]?.axisRevision ?? 0,
+        hasCurrentStructuredValues: inventory.entries.some((entry) => entry.currentState === 'SET'),
+        productId: productRef.resourceId,
+        productRevision: product.currentRevision,
+        tenantId: scope.tenantId,
+        valueTokens: productEntries.map((entry) => entry.sourceRevisionToken).toSorted(),
+        variantTokens: [
+          ...currentVariants.map((variant) => `${variant.variantId}:${variant.currentRevision}`),
+          ...inventory.entries
+            .filter((entry) => entry.variantId !== null)
+            .map((entry) => `${entry.variantId}:${entry.sourceRevisionToken}`),
+        ].toSorted(),
+      });
+      if (decisionCheck.reason !== undefined) {
+        return { reason: decisionCheck.reason, status: 'INDETERMINATE' };
       }
+      confirmedUntypedDecisionRevision = decisionCheck.revision;
     }
     return evaluateCurrentProductTypeReadiness({
       confirmedUntypedDecisionRevision,

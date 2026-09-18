@@ -71,6 +71,37 @@ interface Rows {
   readonly specialState?: 'UNKNOWN' | 'NONE' | 'NOT_APPLICABLE';
   readonly staleDecision?: boolean;
 }
+const decisionRows = (options: Rows) =>
+  options.decisionState === undefined
+    ? []
+    : [
+        {
+          axisRevision: 0,
+          decisionRevision: 2,
+          decisionState: options.decisionState,
+          productId,
+          productRevision: options.staleDecision === true ? 2 : 1,
+          structuredAttributesRequired: false,
+          tenantId,
+          valueRevisionTokens: [],
+          variantAxesRequired: false,
+          variantRevisionTokens: [],
+        },
+      ];
+const assignmentRows = (options: Rows) =>
+  options.assigned === false ? [] : [{ assignmentRevision: 3, productId, productTypeId: typeId, tenantId }];
+const revisionRows = (options: Rows) =>
+  options.revision === 3
+    ? []
+    : [
+        {
+          effectiveAt: new Date('2026-09-16T00:00:00.000Z'),
+          productTypeId: typeId,
+          productTypeRevisionId: revisionId,
+          revision: 2,
+          tenantId,
+        },
+      ];
 const rowsFor = (table: Table, options: Rows) => {
   if (table === attributeDefinitions || table === attributeDefinitionRevisions) {
     return [
@@ -144,44 +175,19 @@ const rowsFor = (table: Table, options: Rows) => {
     return [];
   }
   if (table === productTypeUntypedDecisions) {
-    return options.decisionState === undefined
-      ? []
-      : [
-          {
-            axisRevision: 0,
-            decisionRevision: 2,
-            decisionState: options.decisionState,
-            productId,
-            productRevision: options.staleDecision === true ? 2 : 1,
-            structuredAttributesRequired: false,
-            tenantId,
-            valueRevisionTokens: [],
-            variantAxesRequired: false,
-            variantRevisionTokens: [],
-          },
-        ];
+    return decisionRows(options);
   }
   if (table === products) {
     return [{ currentRevision: 1, productId, tenantId }];
   }
   if (table === productTypeAssignments) {
-    return options.assigned === false ? [] : [{ assignmentRevision: 3, productId, productTypeId: typeId, tenantId }];
+    return assignmentRows(options);
   }
   if (table === productTypes) {
     return [{ currentRevision: options.revision ?? 2, productTypeId: typeId, tenantId }];
   }
   if (table === productTypeRevisions) {
-    return options.revision === 3
-      ? []
-      : [
-          {
-            effectiveAt: new Date('2026-09-16T00:00:00.000Z'),
-            productTypeId: typeId,
-            productTypeRevisionId: revisionId,
-            revision: 2,
-            tenantId,
-          },
-        ];
+    return revisionRows(options);
   }
   return [
     {
@@ -325,8 +331,11 @@ describe('Product Type Current readiness source', () => {
   );
   it.effect('attests only a matching latest confirmed unnecessary decision', () =>
     Effect.gen(function* confirmedUntyped() {
-      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
-      const source = productTypeReadinessSourceForScope(transaction({ assigned: false, decisionState: 'CONFIRMED' }), scope);
+      const source = productTypeReadinessSourceForScope(
+        // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+        transaction({ assigned: false, decisionState: 'CONFIRMED' }),
+        scope,
+      );
       expect(yield* source.evaluate(productRef, at)).toMatchObject({
         decisionRevision: 2,
         status: 'CONFIRMED_UNTYPED_MINIMUM',
@@ -335,11 +344,17 @@ describe('Product Type Current readiness source', () => {
   );
   it.effect('fails closed on decision revocation or Product revision drift', () =>
     Effect.gen(function* staleUntyped() {
-      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
-      const revoked = productTypeReadinessSourceForScope(transaction({ assigned: false, decisionState: 'REVOKED' }), scope);
+      const revoked = productTypeReadinessSourceForScope(
+        // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+        transaction({ assigned: false, decisionState: 'REVOKED' }),
+        scope,
+      );
       expect(yield* revoked.evaluate(productRef, at)).toMatchObject({ status: 'UNTYPED_PARTIAL' });
-      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
-      const stale = productTypeReadinessSourceForScope(transaction({ assigned: false, decisionState: 'CONFIRMED', staleDecision: true }), scope);
+      const stale = productTypeReadinessSourceForScope(
+        // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+        transaction({ assigned: false, decisionState: 'CONFIRMED', staleDecision: true }),
+        scope,
+      );
       expect(yield* stale.evaluate(productRef, at)).toMatchObject({ status: 'INDETERMINATE' });
     }),
   );
