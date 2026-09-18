@@ -135,7 +135,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     (count, table) => count + getTableConfig(table).foreignKeys.length,
     0,
   );
-  const expectedInfrastructure = [CATALOG_TABLES.length, 1, expectedPolicyCount, 1, 71, 1, expectedForeignKeyCount];
+  const expectedInfrastructure = [CATALOG_TABLES.length, 1, expectedPolicyCount, 1, 76, 1, expectedForeignKeyCount];
   const actualInfrastructure =
     row === undefined
       ? undefined
