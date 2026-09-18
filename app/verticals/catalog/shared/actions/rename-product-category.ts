@@ -16,4 +16,3 @@ export const RenameProductCategoryPayloadSchema = Schema.Struct({
 });
 export type RenameProductCategoryPayload = typeof RenameProductCategoryPayloadSchema.Type;
 export const RenameProductCategoryResultSchema = CreateProductCategoryResultSchema;
-export type RenameProductCategoryResult = typeof RenameProductCategoryResultSchema.Type;

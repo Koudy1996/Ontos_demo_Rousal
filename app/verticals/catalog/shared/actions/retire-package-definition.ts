@@ -14,4 +14,3 @@ export const RetirePackageDefinitionPayloadSchema = Schema.Struct({
 });
 export type RetirePackageDefinitionPayload = typeof RetirePackageDefinitionPayloadSchema.Type;
 export const RetirePackageDefinitionResultSchema = PackageDefinitionMutationResultSchema;
-export type RetirePackageDefinitionResult = typeof RetirePackageDefinitionResultSchema.Type;

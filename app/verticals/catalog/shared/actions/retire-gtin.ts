@@ -13,4 +13,3 @@ export const RetireGtinPayloadSchema = Schema.Struct({
 });
 export type RetireGtinPayload = typeof RetireGtinPayloadSchema.Type;
 export const RetireGtinResultSchema = Schema.Struct({ revision: Schema.Int });
-export type RetireGtinResult = typeof RetireGtinResultSchema.Type;

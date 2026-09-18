@@ -3,4 +3,3 @@ import { ProductManufacturerMutationResultSchema } from './manufacturer-mutation
 export { SetProductManufacturerPayloadSchema } from './manufacturer-mutations.ts';
 export type { SetProductManufacturerPayload } from './manufacturer-mutations.ts';
 export const SetProductManufacturerResultSchema = ProductManufacturerMutationResultSchema;
-export type SetProductManufacturerResult = typeof SetProductManufacturerResultSchema.Type;

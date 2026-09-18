@@ -28,4 +28,3 @@ export const ReviseAttributeDefinitionResultSchema = Schema.Struct({
   changed: Schema.Boolean,
   revision: CatalogRevisionNumberSchema,
 });
-export type ReviseAttributeDefinitionResult = typeof ReviseAttributeDefinitionResultSchema.Type;

@@ -12,4 +12,3 @@ export const ReplaceProductSizesPayloadSchema = Schema.Struct({
 export type ReplaceProductSizesPayload = typeof ReplaceProductSizesPayloadSchema.Type;
 
 export const ReplaceProductSizesResultSchema = Schema.Struct({ revision: Schema.Number.check(Schema.isInt()) });
-export type ReplaceProductSizesResult = typeof ReplaceProductSizesResultSchema.Type;

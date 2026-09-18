@@ -6,4 +6,3 @@ import {
 export const RetirePackageOptionPayloadSchema = PackageOptionTransitionPayloadSchema;
 export type RetirePackageOptionPayload = typeof RetirePackageOptionPayloadSchema.Type;
 export const RetirePackageOptionResultSchema = PackageOptionTransitionResultSchema;
-export type RetirePackageOptionResult = typeof RetirePackageOptionResultSchema.Type;

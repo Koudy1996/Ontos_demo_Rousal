@@ -14,4 +14,3 @@ export const RetireProductCategoryPayloadSchema = Schema.Struct({
 });
 export type RetireProductCategoryPayload = typeof RetireProductCategoryPayloadSchema.Type;
 export const RetireProductCategoryResultSchema = CreateProductCategoryResultSchema;
-export type RetireProductCategoryResult = typeof RetireProductCategoryResultSchema.Type;

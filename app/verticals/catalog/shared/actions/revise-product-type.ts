@@ -48,4 +48,3 @@ export const ReviseProductTypeResultSchema = Schema.Struct({
   revision: CatalogRevisionNumberSchema,
   unresolvedProductRefs: Schema.Array(ProductRefSchema),
 });
-export type ReviseProductTypeResult = typeof ReviseProductTypeResultSchema.Type;

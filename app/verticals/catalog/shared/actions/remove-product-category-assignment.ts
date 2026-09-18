@@ -12,4 +12,3 @@ export const RemoveProductCategoryAssignmentPayloadSchema = Schema.Struct({
 });
 export type RemoveProductCategoryAssignmentPayload = typeof RemoveProductCategoryAssignmentPayloadSchema.Type;
 export const RemoveProductCategoryAssignmentResultSchema = AddProductCategoryAssignmentResultSchema;
-export type RemoveProductCategoryAssignmentResult = typeof RemoveProductCategoryAssignmentResultSchema.Type;

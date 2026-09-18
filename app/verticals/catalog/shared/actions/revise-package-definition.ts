@@ -19,4 +19,3 @@ export const RevisePackageDefinitionPayloadSchema = Schema.Struct({
 });
 export type RevisePackageDefinitionPayload = typeof RevisePackageDefinitionPayloadSchema.Type;
 export const RevisePackageDefinitionResultSchema = PackageDefinitionMutationResultSchema;
-export type RevisePackageDefinitionResult = typeof RevisePackageDefinitionResultSchema.Type;

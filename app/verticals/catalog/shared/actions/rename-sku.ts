@@ -12,4 +12,3 @@ export const RenameSkuPayloadSchema = Schema.Struct({
 });
 export type RenameSkuPayload = typeof RenameSkuPayloadSchema.Type;
 export const RenameSkuResultSchema = Schema.Struct({ revision: Schema.Int });
-export type RenameSkuResult = typeof RenameSkuResultSchema.Type;

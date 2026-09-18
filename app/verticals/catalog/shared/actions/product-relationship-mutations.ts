@@ -42,4 +42,3 @@ export const ProductRelationshipMutationResultSchema = Schema.Struct({
   relationshipId: RelationshipIdSchema,
   revision: ProductRevisionSchema,
 });
-export type ProductRelationshipMutationResult = typeof ProductRelationshipMutationResultSchema.Type;

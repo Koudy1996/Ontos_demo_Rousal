@@ -71,7 +71,6 @@ export const PublishProductConfigurationResultSchema = Schema.Struct({
   definitionId: DefinitionId,
   revision: Schema.Int,
 });
-export type PublishProductConfigurationResult = typeof PublishProductConfigurationResultSchema.Type;
 
 export class PublishProductConfigurationError extends Schema.TaggedError<PublishProductConfigurationError>()(
   'PublishProductConfigurationError',
