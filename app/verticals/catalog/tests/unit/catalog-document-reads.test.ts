@@ -2,6 +2,7 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
+import { CatalogDocumentOwnerRevisionSchema } from '../../shared/domain/catalog-media-assignment.ts';
 import {
   catalogMediaAssignments,
   catalogMediaAssignmentSets,
@@ -148,6 +149,60 @@ describe('Catalog private document reads', () => {
         .service.current(productRef)
         .pipe(Effect.catchTag('CatalogPersistenceUnavailable', () => Effect.succeed('unavailable' as const)));
       expect(corrupt).toBe('unavailable');
+    }),
+  );
+
+  it.effect('resolves a live reference from owner evidence without pinning or approving a version', () =>
+    Effect.gen(function* liveReference() {
+      const resourceRef = {
+        moduleId: document.ownerModuleId,
+        resourceId: document.ownerResourceId,
+        resourceType: document.ownerResourceType,
+        tenantId,
+      } as const;
+      const current = Schema.decodeUnknownSync(CatalogDocumentOwnerRevisionSchema)({
+        resourceRef,
+        revision: 2,
+        revisionId: '00000000-0000-4000-8000-000000000040',
+      });
+      const result = Option.getOrThrow(
+        yield* serviceWith([[set]], [[document]]).service.current(productRef, [
+          { current, kind: 'AVAILABLE', resourceRef },
+        ]),
+      );
+      expect(result.assignments[0]).toMatchObject({ current: { revision: 2 }, kind: 'AVAILABLE' });
+      expect(result.assignments[0]?.assignment.resourceRef).toEqual(resourceRef);
+    }),
+  );
+
+  it.effect('never substitutes evidence for a different Resource and preserves distinct owner outcomes', () =>
+    Effect.gen(function* outcomes() {
+      const result = Option.getOrThrow(yield* serviceWith([[set]], [[document]]).service.current(productRef));
+      expect(result.assignments[0]?.kind).toBe('OWNER_CHECK_REQUIRED');
+      const foreignResource = {
+        moduleId: document.ownerModuleId,
+        resourceId: variantId,
+        resourceType: document.ownerResourceType,
+        tenantId,
+      } as const;
+      const mismatched = Option.getOrThrow(
+        yield* serviceWith([[set]], [[document]]).service.current(productRef, [
+          { kind: 'ABSENT', resourceRef: foreignResource },
+        ]),
+      );
+      expect(mismatched.assignments[0]?.kind).toBe('OWNER_CHECK_REQUIRED');
+      for (const kind of ['ABSENT', 'FORBIDDEN', 'UNAVAILABLE', 'CURRENT_UNVERIFIED'] as const) {
+        const resourceRef = {
+          moduleId: document.ownerModuleId,
+          resourceId: document.ownerResourceId,
+          resourceType: document.ownerResourceType,
+          tenantId,
+        } as const;
+        const observed = Option.getOrThrow(
+          yield* serviceWith([[set]], [[document]]).service.current(productRef, [{ kind, resourceRef }]),
+        );
+        expect(observed.assignments[0]?.kind).toBe(kind);
+      }
     }),
   );
 });

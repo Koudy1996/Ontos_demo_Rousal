@@ -5,8 +5,9 @@ import { Effect, Option, Schema } from 'effect';
 import {
   CatalogMediaAssignmentSchema,
   evaluateCatalogCurrentUse,
+  sameCatalogDocumentResourceRef,
 } from '../../shared/domain/catalog-media-assignment.ts';
-import type { CatalogCurrentUse } from '../../shared/domain/catalog-media-assignment.ts';
+import type { CatalogCurrentUse, CatalogDocumentAvailability } from '../../shared/domain/catalog-media-assignment.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { catalogMediaAssignments, catalogMediaAssignmentSets, productVariants, products } from '../database/schema.ts';
@@ -24,8 +25,13 @@ interface CatalogDocumentReadResult {
 }
 
 export interface CatalogDocumentReads {
+  /**
+   * `ownerAvailability` is Documents Center evidence for exact Resources. When omitted or absent for
+   * an assignment, the projection stays OWNER_CHECK_REQUIRED and never resolves Current or access.
+   */
   readonly current: (
     target: Target,
+    ownerAvailability?: readonly CatalogDocumentAvailability[],
   ) => Effect.Effect<Option.Option<CatalogDocumentReadResult>, CatalogPersistenceUnavailable>;
 }
 
@@ -53,6 +59,7 @@ const decodeAssignments = Effect.fn('CatalogDocumentReads.decodeAssignments')(fu
   rows: readonly AssignmentRow[],
   set: SetRow,
   target: Target,
+  ownerAvailability: readonly CatalogDocumentAvailability[],
 ) {
   if (
     rows.some(
@@ -73,20 +80,29 @@ const decodeAssignments = Effect.fn('CatalogDocumentReads.decodeAssignments')(fu
   }
   return yield* Effect.forEach(
     active,
-    (row) =>
-      Schema.decodeEffect(CatalogMediaAssignmentSchema)({
+    (row) => {
+      const resourceRef = {
+        moduleId: row.ownerModuleId,
+        resourceId: row.ownerResourceId,
+        resourceType: row.ownerResourceType,
+        tenantId: row.ownerTenantId,
+      };
+      // Evidence is matched by full owner identity; an unmatched Resource never substitutes.
+      const evidence = ownerAvailability.find((candidate) =>
+        sameCatalogDocumentResourceRef(candidate.resourceRef, resourceRef),
+      );
+      return Schema.decodeEffect(CatalogMediaAssignmentSchema)({
         assignmentId: row.assignmentId,
         assignmentRevision: row.currentRevision,
         order: row.position,
         purpose: row.purpose,
-        resourceRef: {
-          moduleId: row.ownerModuleId,
-          resourceId: row.ownerResourceId,
-          resourceType: row.ownerResourceType,
-          tenantId: row.ownerTenantId,
-        },
+        resourceRef,
         target,
-      }).pipe(Effect.map(evaluateCatalogCurrentUse), Effect.mapError(unavailable)),
+      }).pipe(
+        Effect.map((assignment) => evaluateCatalogCurrentUse(assignment, evidence)),
+        Effect.mapError(unavailable),
+      );
+    },
     { concurrency: 1 },
   );
 });
@@ -97,7 +113,10 @@ export const catalogDocumentReadsForScope = (
   scope: OperationalScope,
 ): CatalogDocumentReads => {
   const { tenantId } = scope;
-  const current: CatalogDocumentReads['current'] = Effect.fn('CatalogDocumentReads.current')(function* current(target) {
+  const current: CatalogDocumentReads['current'] = Effect.fn('CatalogDocumentReads.current')(function* current(
+    target,
+    ownerAvailability = [],
+  ) {
     if (!validTarget(target, tenantId)) {
       return yield* unavailable();
     }
@@ -164,7 +183,7 @@ export const catalogDocumentReadsForScope = (
       )
       .pipe(Effect.mapError(unavailable));
     return Option.some({
-      assignments: yield* decodeAssignments(rows, set, target),
+      assignments: yield* decodeAssignments(rows, set, target, ownerAvailability),
       setRevision: set.currentRevision,
     });
   });

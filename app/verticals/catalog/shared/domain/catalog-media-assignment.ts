@@ -1,5 +1,6 @@
 import { Schema } from 'effect';
 
+import { CatalogRevisionIdSchema, CatalogRevisionNumberSchema } from './catalog-revision-reference.ts';
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
@@ -21,6 +22,14 @@ export const CatalogDocumentResourceRefSchema = Schema.Struct({
   ),
 );
 export type CatalogDocumentResourceRef = typeof CatalogDocumentResourceRefSchema.Type;
+
+/** An owner-issued Documents Center revision identity. Catalog never invents, advances, or approves it. */
+export const CatalogDocumentOwnerRevisionSchema = Schema.Struct({
+  resourceRef: CatalogDocumentResourceRefSchema,
+  revision: CatalogRevisionNumberSchema,
+  revisionId: Schema.optionalKey(CatalogRevisionIdSchema),
+});
+export type CatalogDocumentOwnerRevision = typeof CatalogDocumentOwnerRevisionSchema.Type;
 
 export const CatalogMediaAssignmentIdSchema = uuid.pipe(
   Schema.brand('CatalogMediaAssignmentId'),
@@ -79,35 +88,66 @@ export const selectCatalogMediaSet = (
   };
 };
 
-/** The owner must supply this result through its published governed read. */
+/**
+ * The owner must supply this result through its published governed read. `AVAILABLE` carries the
+ * owner-issued Current revision, so Catalog can expose a live reference without pinning or approving
+ * a version. The remaining kinds keep proved absence, denied access, outage, and an unverifiable
+ * Current distinct.
+ */
 export type CatalogDocumentAvailability =
-  | { readonly kind: 'AVAILABLE'; readonly resourceRef: CatalogDocumentResourceRef }
-  | { readonly kind: 'ABSENT'; readonly resourceRef: CatalogDocumentResourceRef }
-  | { readonly kind: 'FORBIDDEN'; readonly resourceRef: CatalogDocumentResourceRef }
-  | { readonly kind: 'UNAVAILABLE'; readonly resourceRef: CatalogDocumentResourceRef }
-  | { readonly kind: 'CURRENT_UNVERIFIED'; readonly resourceRef: CatalogDocumentResourceRef };
-
-export type CatalogCurrentUse =
-  | { readonly assignment: CatalogMediaAssignment; readonly kind: 'AVAILABLE' }
-  | { readonly assignment: CatalogMediaAssignment; readonly kind: 'OWNER_CHECK_REQUIRED' }
   | {
-      readonly assignment: CatalogMediaAssignment;
-      readonly kind: 'ABSENT' | 'FORBIDDEN' | 'UNAVAILABLE' | 'CURRENT_UNVERIFIED';
+      readonly current: CatalogDocumentOwnerRevision;
+      readonly kind: 'AVAILABLE';
+      readonly resourceRef: CatalogDocumentResourceRef;
+    }
+  | {
+      readonly kind: 'ABSENT' | 'CURRENT_UNVERIFIED' | 'FORBIDDEN' | 'UNAVAILABLE';
+      readonly resourceRef: CatalogDocumentResourceRef;
     };
 
-/** Never infer Current from an assignment or silently substitute another Resource. */
+export type CatalogCurrentUse =
+  | {
+      readonly assignment: CatalogMediaAssignment;
+      readonly current: CatalogDocumentOwnerRevision;
+      readonly kind: 'AVAILABLE';
+    }
+  | {
+      readonly assignment: CatalogMediaAssignment;
+      readonly kind:
+        | 'ABSENT'
+        | 'CURRENT_UNVERIFIED'
+        | 'FORBIDDEN'
+        | 'OWNER_CHECK_REQUIRED'
+        | 'RESOURCE_MISMATCH'
+        | 'UNAVAILABLE';
+    };
+
+/** Full owner-qualified Resource identity; a similar name never makes two Resources the same. */
+export const sameCatalogDocumentResourceRef = (
+  left: CatalogDocumentResourceRef,
+  right: CatalogDocumentResourceRef,
+): boolean =>
+  left.moduleId === right.moduleId &&
+  left.resourceId === right.resourceId &&
+  left.resourceType === right.resourceType &&
+  left.tenantId === right.tenantId;
+
+/**
+ * Never infer Current from an assignment or silently substitute another Resource. Missing owner
+ * evidence is indeterminate; evidence for a different Resource is an explicit Catalog relationship
+ * mismatch rather than a new version of the assigned one.
+ */
 export const evaluateCatalogCurrentUse = (
   assignment: CatalogMediaAssignment,
   ownerAvailability?: CatalogDocumentAvailability,
 ): CatalogCurrentUse => {
-  if (
-    ownerAvailability === undefined ||
-    ownerAvailability.resourceRef.moduleId !== assignment.resourceRef.moduleId ||
-    ownerAvailability.resourceRef.resourceType !== assignment.resourceRef.resourceType ||
-    ownerAvailability.resourceRef.resourceId !== assignment.resourceRef.resourceId ||
-    ownerAvailability.resourceRef.tenantId !== assignment.resourceRef.tenantId
-  ) {
+  if (ownerAvailability === undefined) {
     return { assignment, kind: 'OWNER_CHECK_REQUIRED' };
   }
-  return { assignment, kind: ownerAvailability.kind };
+  if (!sameCatalogDocumentResourceRef(ownerAvailability.resourceRef, assignment.resourceRef)) {
+    return { assignment, kind: 'RESOURCE_MISMATCH' };
+  }
+  return ownerAvailability.kind === 'AVAILABLE'
+    ? { assignment, current: ownerAvailability.current, kind: 'AVAILABLE' }
+    : { assignment, kind: ownerAvailability.kind };
 };
