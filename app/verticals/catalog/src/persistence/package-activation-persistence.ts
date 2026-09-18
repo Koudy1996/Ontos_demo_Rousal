@@ -43,6 +43,7 @@ export interface PackageActivationInput {
 /** Promotion is a separate governed operation, never Draft activation. */
 export interface PackagePromotionInput extends PackageActivationInput {
   readonly expectedOptionRevision: number;
+  readonly successorRevision: number;
 }
 
 export interface PackagePromotionSelectionImpact {
@@ -84,7 +85,11 @@ const validEvidence = (input: PackageActivationInput): boolean =>
   input.evidenceRefs.length > 0 &&
   input.evidenceRefs.every((ref) => ref.length > 0 && ref.length <= 300 && ref === ref.trim());
 const validPromotionInput = (input: PackagePromotionInput): boolean =>
-  validEvidence(input) && Number.isSafeInteger(input.expectedOptionRevision) && input.expectedOptionRevision >= 0;
+  validEvidence(input) &&
+  Number.isSafeInteger(input.expectedOptionRevision) &&
+  input.expectedOptionRevision >= 0 &&
+  Number.isSafeInteger(input.successorRevision) &&
+  input.successorRevision === input.expectedRevision + 1;
 
 type Definition = typeof packageDefinitions.$inferSelect;
 type Content = typeof packageContentRevisions.$inferSelect;

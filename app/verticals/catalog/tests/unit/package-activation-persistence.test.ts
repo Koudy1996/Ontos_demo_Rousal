@@ -112,6 +112,22 @@ const fixture = (writes: unknown[], overrides: Overrides = {}) => ({
 });
 
 describe('Package successor promotion persistence', () => {
+  it.effect('fails closed without an owner-issued selection impact proof', () =>
+    Effect.gen(function* missingProof() {
+      const writes: unknown[] = [];
+      const service = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, { definition: { ...definition, currentOptionRevision: 0, lifecycleState: 'ACTIVE' } }),
+        scope,
+        { verify: () => Effect.succeed(true) },
+      );
+      const error = yield* service
+        .promote({ ...input, expectedOptionRevision: 0, successorRevision: 2 })
+        .pipe(Effect.flip);
+      expect(Schema.is(PackageActivationUnavailable)(error)).toBe(true);
+      expect(writes).toEqual([]);
+    }),
+  );
   it.effect('promotes only a due immutable successor under the Definition lock', () =>
     Effect.gen(function* duePromotion() {
       const writes: unknown[] = [];
@@ -133,7 +149,7 @@ describe('Package successor promotion persistence', () => {
         undefined,
         { verify: () => Effect.succeed(true) },
       );
-      const early = yield* service.promote({ ...input, expectedOptionRevision: 0 });
+      const early = yield* service.promote({ ...input, expectedOptionRevision: 0, successorRevision: 2 });
       expect(
         Match.value(early).pipe(
           Match.tag('invalid', () => true),
@@ -155,7 +171,7 @@ describe('Package successor promotion persistence', () => {
         undefined,
         { verify: () => Effect.succeed(true) },
       );
-      const due = yield* dueService.promote({ ...input, expectedOptionRevision: 0 });
+      const due = yield* dueService.promote({ ...input, expectedOptionRevision: 0, successorRevision: 2 });
       expect(
         Match.value(due).pipe(
           Match.tag('promoted', ({ optionRevision, revision }) => [optionRevision, revision]),
@@ -195,7 +211,7 @@ describe('Package successor promotion persistence', () => {
         undefined,
         { verify: () => Effect.succeed(true) },
       );
-      yield* noRole.promote({ ...input, expectedOptionRevision: 1 }).pipe(Effect.flip);
+      yield* noRole.promote({ ...input, expectedOptionRevision: 1, successorRevision: 2 }).pipe(Effect.flip);
       expect(writes).toEqual([]);
       const service = packageActivationPersistenceForScope(
         // @ts-expect-error Mock covers only the exercised Drizzle chain.
@@ -217,7 +233,7 @@ describe('Package successor promotion persistence', () => {
         },
       );
       expect(
-        Match.value(yield* service.promote({ ...input, expectedOptionRevision: 1 })).pipe(
+        Match.value(yield* service.promote({ ...input, expectedOptionRevision: 1, successorRevision: 2 })).pipe(
           Match.tag('promoted', ({ optionRevision, revision }) => [optionRevision, revision]),
           Match.orElse(() => []),
         ),
@@ -245,7 +261,7 @@ describe('Package successor promotion persistence', () => {
       );
       expect(
         Schema.is(PackageActivationUnavailable)(
-          yield* ambiguous.promote({ ...input, expectedOptionRevision: 0 }).pipe(Effect.flip),
+          yield* ambiguous.promote({ ...input, expectedOptionRevision: 0, successorRevision: 2 }).pipe(Effect.flip),
         ),
       ).toBe(true);
       const raced = packageActivationPersistenceForScope(
@@ -256,7 +272,7 @@ describe('Package successor promotion persistence', () => {
         undefined,
         { verify: () => Effect.succeed(true) },
       );
-      const outcome = yield* raced.promote({ ...input, expectedOptionRevision: 0 });
+      const outcome = yield* raced.promote({ ...input, expectedOptionRevision: 0, successorRevision: 2 });
       expect(
         Match.value(outcome).pipe(
           Match.tag('stale', () => true),
