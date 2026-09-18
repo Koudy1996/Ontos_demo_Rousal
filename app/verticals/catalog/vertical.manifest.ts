@@ -45,6 +45,8 @@ import { createProductTypeAction } from './src/actions/create-product-type.actio
 import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
 import { createSetCompositionAction } from './src/actions/create-set-composition.action.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
+import { GtinCurrentApi } from './shared/apis/gtin-current.ts';
+import { GtinHistoryApi } from './shared/apis/gtin-history.ts';
 import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
 import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
@@ -218,6 +220,8 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'brand-history': BrandHistoryApi,
       'catalog-media-current': CatalogMediaCurrentApi,
       'create-product-recovery': CreateProductRecoveryApi,
+      'gtin-current': GtinCurrentApi,
+      'gtin-history': GtinHistoryApi,
       'manufacturer-relation-current': ManufacturerRelationCurrentApi,
       'manufacturer-relation-history': ManufacturerRelationHistoryApi,
       'product-brand-current': ProductBrandCurrentApi,

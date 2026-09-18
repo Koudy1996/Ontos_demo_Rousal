@@ -6,6 +6,8 @@ import { brandCurrentRead } from '../../src/api/brand-current.read.ts';
 import { brandHistoryRead } from '../../src/api/brand-history.read.ts';
 import { catalogMediaCurrentRead } from '../../src/api/catalog-media-current.read.ts';
 import { createProductRecoveryRead } from '../../src/api/create-product-recovery.read.ts';
+import { gtinCurrentRead } from '../../src/api/gtin-current.read.ts';
+import { gtinHistoryRead } from '../../src/api/gtin-history.read.ts';
 import { manufacturerRelationCurrentRead } from '../../src/api/manufacturer-relation-current.read.ts';
 import { manufacturerRelationHistoryRead } from '../../src/api/manufacturer-relation-history.read.ts';
 import { productCategoryClassificationRead } from '../../src/api/product-category-classification.read.ts';
@@ -23,6 +25,8 @@ const reads = [
   brandHistoryRead,
   catalogMediaCurrentRead,
   createProductRecoveryRead,
+  gtinCurrentRead,
+  gtinHistoryRead,
   manufacturerRelationCurrentRead,
   manufacturerRelationHistoryRead,
   productCategoryClassificationRead,
@@ -71,7 +75,12 @@ it('maps every published Action and governed read to one explicit atomic permiss
     let expectedTarget = 'tenant';
     if (readKey === 'commerce.catalog.api.catalog-media-current') {
       expectedTarget = 'resource';
-    } else if (relationshipOrIdentity || readKey === 'commerce.catalog.api.sku-lookup') {
+    } else if (
+      relationshipOrIdentity ||
+      readKey === 'commerce.catalog.api.gtin-current' ||
+      readKey === 'commerce.catalog.api.gtin-history' ||
+      readKey === 'commerce.catalog.api.sku-lookup'
+    ) {
       expectedTarget = 'module';
     }
     expect(read.descriptor.permissionTarget).toBe(expectedTarget);

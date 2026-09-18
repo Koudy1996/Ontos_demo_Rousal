@@ -36,6 +36,8 @@ import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateSetCompositionActionApi } from './apis/create-set-composition-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
+import { GtinCurrentApi } from './apis/gtin-current.ts';
+import { GtinHistoryApi } from './apis/gtin-history.ts';
 import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
 import { MarkGtinUnresolvedActionApi } from './apis/mark-gtin-unresolved-action.ts';
@@ -143,6 +145,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateSetCompositionActionApi)
   .addHttpApi(CreateVariantActionApi)
+  .addHttpApi(GtinCurrentApi)
+  .addHttpApi(GtinHistoryApi)
   .addHttpApi(ManufacturerRelationCurrentApi)
   .addHttpApi(ManufacturerRelationHistoryApi)
   .addHttpApi(MarkGtinUnresolvedActionApi)
@@ -298,6 +302,26 @@ export const catalogPublicOperationContracts = {
     businessTarget: 'product',
     permission: 'commerce.catalog.read.create-product-recovery',
     permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.gtin-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.gtin-current',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.gtin-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.gtin-history',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
     scope: 'tenant',
     version: '1',
   },
@@ -963,6 +987,8 @@ export const catalogAuthorityBundles = {
   CATALOG_READER: [
     'commerce.catalog.read.brand-current',
     'commerce.catalog.read.brand-history',
+    'commerce.catalog.read.gtin-current',
+    'commerce.catalog.read.gtin-history',
     'commerce.catalog.read.media',
     'commerce.catalog.read.manufacturer-relation-current',
     'commerce.catalog.read.manufacturer-relation-history',

@@ -54,6 +54,8 @@ import { createProductTypeActionApiLive } from './create-product-type-action-ser
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createSetCompositionActionApiLive } from './create-set-composition-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
+import { gtinCurrentReadApiLive } from './gtin-current-read-server.ts';
+import { gtinHistoryReadApiLive } from './gtin-history-read-server.ts';
 import { manufacturerRelationCurrentReadApiLive } from './manufacturer-relation-current-read-server.ts';
 import { manufacturerRelationHistoryReadApiLive } from './manufacturer-relation-history-read-server.ts';
 import { markGtinUnresolvedActionApiLive } from './mark-gtin-unresolved-action-server.ts';
@@ -237,6 +239,8 @@ export const makeCatalogApiRuntime = (
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    gtinCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    gtinHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     markGtinUnresolvedActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
