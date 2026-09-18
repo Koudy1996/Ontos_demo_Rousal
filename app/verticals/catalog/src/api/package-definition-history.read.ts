@@ -22,6 +22,58 @@ export const packageDefinitionHistoryEntrypoint = defineTenantModuleEntrypoint({
   role: 'api',
 });
 
+export const readPackageDefinitionHistory = (
+  input: PackageDefinitionHistoryRequest,
+  trustedTenantId: string,
+  services: ReturnType<typeof packageHistoryForScope>,
+) =>
+  Effect.gen(function* () {
+    const reference = input.reference;
+    const missing = () =>
+      new ReadHandlerNotFound({
+        code: 'read_handler_not_found',
+        reason: 'Requested historical revision was not found',
+      });
+    if (reference.resourceRef.tenantId !== trustedTenantId) return yield* missing();
+    const row = yield* services.getContentRevision(reference.resourceRef.resourceId, reference.revision).pipe(
+      Effect.mapError(
+        () =>
+          new ReadHandlerUnavailable({
+            code: 'read_handler_unavailable',
+            reason: 'Package Definition history is temporarily unavailable',
+          }),
+      ),
+    );
+    if (Option.isNone(row)) return yield* missing();
+    const revision = row.value;
+    return {
+      evidence: { resultCount: 1 },
+      result: {
+        historical: true as const,
+        reference,
+        productId: revision.productId,
+        variantId: revision.variantId,
+        lifecycle: revision.lifecycleState,
+        amount: revision.amount,
+        unitResourceType: revision.unitResourceType,
+        unitResourceId: revision.unitResourceId,
+        configurationKey: revision.configurationKey,
+        lowerPackageDefinitionId: revision.lowerPackageDefinitionId,
+        lowerRevision: revision.lowerRevision,
+        lowerCount: revision.lowerCount,
+        setCompositionResourceId: revision.setCompositionResourceId,
+        setCompositionRevision: revision.setCompositionRevision,
+        changeKind: revision.changeKind,
+        priorErrorExplanation: revision.priorErrorExplanation,
+        reason: revision.reason,
+        evidenceRefs: revision.evidenceRefs,
+        effectiveAt: revision.effectiveAt.toISOString(),
+        recordedAt: revision.recordedAt.toISOString(),
+        actionInvocationId: revision.actionInvocationId,
+      },
+    };
+  });
+
 export const packageDefinitionHistoryRead = defineRead(
   {
     accessKind: 'detail',
@@ -40,53 +92,7 @@ export const packageDefinitionHistoryRead = defineRead(
     schemaVersion: '1',
   },
   (input: PackageDefinitionHistoryRequest, context: ReadHandlerContext<ReturnType<typeof packageHistoryForScope>>) =>
-    Effect.gen(function* () {
-      const reference = input.reference;
-      const missing = () =>
-        new ReadHandlerNotFound({
-          code: 'read_handler_not_found',
-          reason: 'Requested Package Definition revision was not retained in this Tenant',
-        });
-      if (reference.resourceRef.tenantId !== context.scope.tenantId || reference.revisionId !== undefined)
-        return yield* missing();
-      const row = yield* context.services.getContentRevision(reference.resourceRef.resourceId, reference.revision).pipe(
-        Effect.mapError(
-          () =>
-            new ReadHandlerUnavailable({
-              code: 'read_handler_unavailable',
-              reason: 'Package Definition history is temporarily unavailable',
-            }),
-        ),
-      );
-      if (Option.isNone(row)) return yield* missing();
-      const revision = row.value;
-      return {
-        evidence: { resultCount: 1 },
-        result: {
-          historical: true as const,
-          reference,
-          productId: revision.productId,
-          variantId: revision.variantId,
-          lifecycle: revision.lifecycleState,
-          amount: revision.amount,
-          unitResourceType: revision.unitResourceType,
-          unitResourceId: revision.unitResourceId,
-          configurationKey: revision.configurationKey,
-          lowerPackageDefinitionId: revision.lowerPackageDefinitionId,
-          lowerRevision: revision.lowerRevision,
-          lowerCount: revision.lowerCount,
-          setCompositionResourceId: revision.setCompositionResourceId,
-          setCompositionRevision: revision.setCompositionRevision,
-          changeKind: revision.changeKind,
-          priorErrorExplanation: revision.priorErrorExplanation,
-          reason: revision.reason,
-          evidenceRefs: revision.evidenceRefs,
-          effectiveAt: revision.effectiveAt.toISOString(),
-          recordedAt: revision.recordedAt.toISOString(),
-          actionInvocationId: revision.actionInvocationId,
-        },
-      };
-    }),
+    readPackageDefinitionHistory(input, context.scope.tenantId, context.services),
   (transaction, scope) => Effect.succeed(packageHistoryForScope(transaction, scope)),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

@@ -2,14 +2,21 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { VariantSelectionRevisionSchema } from '../domain/catalog-selection-evidence.ts';
+import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
+import { VariantRefSchema } from '../resources/variant.ts';
 const uuid = Schema.String.check(Schema.isUUID());
+/** Variant history is sequence-addressed; retained rows do not issue revision IDs. */
+export const VariantHistoryReferenceSchema = Schema.Struct({
+  resourceRef: VariantRefSchema,
+  revision: CatalogRevisionNumberSchema,
+  revisionId: Schema.optionalKey(Schema.Never),
+});
 
-export const VariantHistoryRequestSchema = Schema.Struct({ reference: VariantSelectionRevisionSchema });
+export const VariantHistoryRequestSchema = Schema.Struct({ reference: VariantHistoryReferenceSchema });
 export type VariantHistoryRequest = typeof VariantHistoryRequestSchema.Type;
 export const VariantHistoryResponseSchema = Schema.Struct({
   historical: Schema.Literal(true),
-  reference: VariantSelectionRevisionSchema,
+  reference: VariantHistoryReferenceSchema,
   productId: uuid,
   lifecycle: Schema.String,
   combinationKey: Schema.NullOr(Schema.String),

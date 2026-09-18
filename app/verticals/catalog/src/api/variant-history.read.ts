@@ -19,6 +19,48 @@ export const variantHistoryEntrypoint = defineTenantModuleEntrypoint({
   role: 'api',
 });
 
+export const readVariantHistory = (
+  input: VariantHistoryRequest,
+  trustedTenantId: string,
+  services: ReturnType<typeof variantHistoryForScope>,
+) =>
+  Effect.gen(function* () {
+    const reference = input.reference;
+    const missing = () =>
+      new ReadHandlerNotFound({
+        code: 'read_handler_not_found',
+        reason: 'Requested historical revision was not found',
+      });
+    if (reference.resourceRef.tenantId !== trustedTenantId) return yield* missing();
+    const row = yield* services.getRevision(reference.resourceRef.resourceId, reference.revision).pipe(
+      Effect.mapError(
+        () =>
+          new ReadHandlerUnavailable({
+            code: 'read_handler_unavailable',
+            reason: 'Variant history is temporarily unavailable',
+          }),
+      ),
+    );
+    if (Option.isNone(row)) return yield* missing();
+    const revision = row.value;
+    return {
+      evidence: { resultCount: 1 },
+      result: {
+        historical: true as const,
+        reference,
+        productId: revision.productId,
+        lifecycle: revision.lifecycleState,
+        combinationKey: revision.combinationKey,
+        combinationAxisRevision: revision.combinationAxisRevision,
+        changeKind: revision.changeKind,
+        reason: revision.reason,
+        evidenceRefs: revision.evidenceRefs,
+        recordedAt: revision.recordedAt.toISOString(),
+        actionInvocationId: revision.actionInvocationId,
+      },
+    };
+  });
+
 export const variantHistoryRead = defineRead(
   {
     accessKind: 'detail',
@@ -37,43 +79,7 @@ export const variantHistoryRead = defineRead(
     schemaVersion: '1',
   },
   (input: VariantHistoryRequest, context: ReadHandlerContext<ReturnType<typeof variantHistoryForScope>>) =>
-    Effect.gen(function* () {
-      const reference = input.reference;
-      const missing = () =>
-        new ReadHandlerNotFound({
-          code: 'read_handler_not_found',
-          reason: 'Requested Variant revision was not retained in this Tenant',
-        });
-      if (reference.resourceRef.tenantId !== context.scope.tenantId || reference.revisionId !== undefined)
-        return yield* missing();
-      const row = yield* context.services.getRevision(reference.resourceRef.resourceId, reference.revision).pipe(
-        Effect.mapError(
-          () =>
-            new ReadHandlerUnavailable({
-              code: 'read_handler_unavailable',
-              reason: 'Variant history is temporarily unavailable',
-            }),
-        ),
-      );
-      if (Option.isNone(row)) return yield* missing();
-      const revision = row.value;
-      return {
-        evidence: { resultCount: 1 },
-        result: {
-          historical: true as const,
-          reference,
-          productId: revision.productId,
-          lifecycle: revision.lifecycleState,
-          combinationKey: revision.combinationKey,
-          combinationAxisRevision: revision.combinationAxisRevision,
-          changeKind: revision.changeKind,
-          reason: revision.reason,
-          evidenceRefs: revision.evidenceRefs,
-          recordedAt: revision.recordedAt.toISOString(),
-          actionInvocationId: revision.actionInvocationId,
-        },
-      };
-    }),
+    readVariantHistory(input, context.scope.tenantId, context.services),
   (transaction, scope) => Effect.succeed(variantHistoryForScope(transaction, scope)),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

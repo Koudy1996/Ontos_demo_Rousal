@@ -2,14 +2,21 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { PackageDefinitionSelectionRevisionSchema } from '../domain/catalog-selection-evidence.ts';
+import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
+import { PackageDefinitionRefSchema } from '../resources/package-definition.ts';
 const uuid = Schema.String.check(Schema.isUUID());
+/** Option role revision is independent of the pinned Package content revision. */
+export const PackageOptionHistoryReferenceSchema = Schema.Struct({
+  resourceRef: PackageDefinitionRefSchema,
+  roleRevision: CatalogRevisionNumberSchema,
+  revisionId: Schema.optionalKey(Schema.Never),
+});
 
-export const PackageOptionHistoryRequestSchema = Schema.Struct({ reference: PackageDefinitionSelectionRevisionSchema });
+export const PackageOptionHistoryRequestSchema = Schema.Struct({ reference: PackageOptionHistoryReferenceSchema });
 export type PackageOptionHistoryRequest = typeof PackageOptionHistoryRequestSchema.Type;
 export const PackageOptionHistoryResponseSchema = Schema.Struct({
   historical: Schema.Literal(true),
-  reference: PackageDefinitionSelectionRevisionSchema,
+  reference: PackageOptionHistoryReferenceSchema,
   productId: uuid,
   variantId: uuid,
   contentRevision: Schema.Int,

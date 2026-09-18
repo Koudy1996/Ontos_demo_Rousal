@@ -2,16 +2,23 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { PackageDefinitionSelectionRevisionSchema } from '../domain/catalog-selection-evidence.ts';
+import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
+import { PackageDefinitionRefSchema } from '../resources/package-definition.ts';
 const uuid = Schema.String.check(Schema.isUUID());
+/** Package content history is sequence-addressed; retained rows do not issue revision IDs. */
+export const PackageDefinitionHistoryReferenceSchema = Schema.Struct({
+  resourceRef: PackageDefinitionRefSchema,
+  revision: CatalogRevisionNumberSchema,
+  revisionId: Schema.optionalKey(Schema.Never),
+});
 
 export const PackageDefinitionHistoryRequestSchema = Schema.Struct({
-  reference: PackageDefinitionSelectionRevisionSchema,
+  reference: PackageDefinitionHistoryReferenceSchema,
 });
 export type PackageDefinitionHistoryRequest = typeof PackageDefinitionHistoryRequestSchema.Type;
 export const PackageDefinitionHistoryResponseSchema = Schema.Struct({
   historical: Schema.Literal(true),
-  reference: PackageDefinitionSelectionRevisionSchema,
+  reference: PackageDefinitionHistoryReferenceSchema,
   productId: uuid,
   variantId: uuid,
   lifecycle: Schema.String,
