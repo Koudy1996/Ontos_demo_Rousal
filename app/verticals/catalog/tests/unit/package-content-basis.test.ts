@@ -152,6 +152,13 @@ describe('Package Content Current basis', () => {
         lower: { count: '2', revision: { resourceRef: ref('package-definition', lowerId), revision: 2 } },
       });
       expect(yield* basis.verify({ content: futurePinned, definitionId: packageId, tenantId })).toBe(false);
+      const futureUpper = Schema.decodeUnknownSync(PackageDefinitionContentInputSchema)({
+        ...content,
+        amount: '16',
+        effectiveAt: '2100-01-02T00:00:00.000Z',
+        lower: { count: '2', revision: { resourceRef: ref('package-definition', lowerId), revision: 2 } },
+      });
+      expect(yield* basis.verify({ content: futureUpper, definitionId: packageId, tenantId })).toBe(true);
     }),
   );
 

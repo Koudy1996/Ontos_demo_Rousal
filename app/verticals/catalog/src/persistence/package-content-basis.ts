@@ -334,7 +334,7 @@ export const packageContentBasisForTransaction = (transaction: ScopedTransaction
     if (content.lower === undefined) {
       return true;
     }
-    const at = DateTime.toDateUtc(yield* DateTime.now);
+    const at = DateTime.toDateUtc(DateTime.makeUnsafe(content.effectiveAt));
     const revisions = yield* loadLower(
       transaction,
       content,

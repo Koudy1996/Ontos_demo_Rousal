@@ -106,10 +106,18 @@ const agreesWithLower = (upper: Content, lower: Content): boolean => {
 const fail = (status: Failure['status'], reason: string): Failure => ({ reason, status });
 const missingContentReason = 'Exact Package Content owner proof is missing';
 const revisionValid = (revision: number): boolean => Number.isSafeInteger(revision) && revision > 0;
-const completeContentHistory = (definition: Definition, revisions: readonly Content[], id: string): boolean =>
-  revisionValid(definition.currentRevision) &&
-  revisions.length === definition.currentRevision &&
-  revisions.every((revision) => revision.packageDefinitionId === id);
+const completeContentHistory = (definition: Definition, revisions: readonly Content[], id: string): boolean => {
+  if (!revisionValid(definition.currentRevision) || revisions.length === 0) {
+    return false;
+  }
+  const latest = revisions.length;
+  if (latest !== definition.currentRevision && latest !== definition.currentRevision + 1) {
+    return false;
+  }
+  // The definition pointer can lag exactly one immutable scheduled successor.
+  // Effectivity is checked separately, so conflicting times remain INVALID.
+  return revisions.every((revision) => revision.packageDefinitionId === id);
+};
 const contentAtRevision = (revisions: readonly Content[], revision: number): Content | undefined =>
   revisions.find((row) => row.revision === revision);
 const effectiveContentRevision = (revisions: readonly Content[], at: Date): number | null =>

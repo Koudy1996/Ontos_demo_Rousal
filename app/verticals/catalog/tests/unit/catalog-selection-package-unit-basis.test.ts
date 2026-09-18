@@ -206,12 +206,8 @@ describe('Catalog Selection package and Unit owner basis', () => {
         effectiveAt: new Date('2026-09-18T00:00:00.000Z'),
         revision: 5,
       };
-      const scheduledDefinition = { ...definition, currentRevision: 5 };
       const prior = yield* read(
-        new Map<unknown, unknown>([
-          [packageDefinitions, scheduledDefinition],
-          [packageContentRevisions, [...revisionsWith(content), future]],
-        ]),
+        new Map<unknown, unknown>([[packageContentRevisions, [...revisionsWith(content), future]]]),
       );
       expect(prior).toMatchObject({
         contentPath: [{ amount: '10', revision: 4 }],
@@ -219,15 +215,28 @@ describe('Catalog Selection package and Unit owner basis', () => {
       });
       const after = yield* catalogSelectionPackageUnitBasisForScope(
         // @ts-expect-error The mock supplies only the read chains exercised here.
-        transactionFor(
-          new Map<unknown, unknown>([
-            [packageDefinitions, scheduledDefinition],
-            [packageContentRevisions, [...revisionsWith(content), future]],
-          ]),
-        ),
+        transactionFor(new Map<unknown, unknown>([[packageContentRevisions, [...revisionsWith(content), future]]])),
         scope,
       ).read(selection, new Date('2026-09-18T10:00:00.000Z'));
       expect(after.status).toBe('INVALID');
+      const successorSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        packageOption: {
+          ...selection.packageOption,
+          contentRevision: { resourceRef: ref('commerce.catalog.package-definition', packageId), revision: 5 },
+        },
+      });
+      const successor = yield* catalogSelectionPackageUnitBasisForScope(
+        // @ts-expect-error The mock supplies only the read chains exercised here.
+        transactionFor(
+          new Map<unknown, unknown>([
+            [packageContentRevisions, [...revisionsWith(content), future]],
+            [packageOptionRoleRevisions, { ...role, contentRevision: 5, effectiveAt: future.effectiveAt }],
+          ]),
+        ),
+        scope,
+      ).read(successorSelection, new Date('2026-09-18T10:00:00.000Z'));
+      expect(successor).toMatchObject({ contentPath: [{ amount: '8', revision: 5 }], status: 'CURRENT' });
     }),
   );
 
