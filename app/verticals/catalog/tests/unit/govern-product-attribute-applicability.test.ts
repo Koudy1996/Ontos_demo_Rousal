@@ -29,6 +29,11 @@ const payload = Schema.decodeUnknownSync(GovernProductAttributeApplicabilityPayl
   attributeDefinitionRef,
   evidenceRefs: ['type-rule-review-1'],
   expectedRevision: null,
+  impactConfirmation: {
+    affectedOpenSelectionIds: ['cart-selection-1'],
+    expectedPopulationRevisionToken: 'cart-population-1',
+    remediationEvidenceRefs: ['applicability-remediation-1'],
+  },
   productLevel: true,
   productRef,
   reason: 'Allow this property on the Product',
@@ -67,6 +72,21 @@ describe('govern Product Attribute applicability Action', () => {
     expect(
       Schema.is(GovernProductAttributeApplicabilityPayloadSchema)({
         ...payload,
+        impactConfirmation: { ...payload.impactConfirmation, remediationEvidenceRefs: [] },
+      }),
+    ).toBe(false);
+    expect(
+      Schema.is(GovernProductAttributeApplicabilityPayloadSchema)({
+        ...payload,
+        impactConfirmation: {
+          ...payload.impactConfirmation,
+          affectedOpenSelectionIds: ['cart-selection-1', 'cart-selection-1'],
+        },
+      }),
+    ).toBe(false);
+    expect(
+      Schema.is(GovernProductAttributeApplicabilityPayloadSchema)({
+        ...payload,
         productRef: { ...productRef, moduleId: 'other' },
       }),
     ).toBe(false);
@@ -81,6 +101,7 @@ describe('govern Product Attribute applicability Action', () => {
             attributeDefinitionRef,
             evidenceRefs: payload.evidenceRefs,
             expectedRevision: null,
+            impactConfirmation: payload.impactConfirmation,
             principalId: scope.principalId,
             productLevel: true,
             productRef,

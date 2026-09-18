@@ -11,7 +11,6 @@ import {
   productTypeRevisionAttributes,
   productTypes,
   productVariantAxes,
-  productVariants,
   products,
 } from '../../src/database/schema.ts';
 import {
@@ -19,6 +18,13 @@ import {
   attributeApplicabilityPersistenceForScope,
   mapAttributeApplicabilityWriteError,
 } from '../../src/persistence/attribute-applicability-persistence.ts';
+import { AttributeApplicabilityImpactConfirmationSchema } from '../../shared/actions/govern-product-attribute-applicability.ts';
+import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { CartOpenSelectionReferenceSchema } from '../../shared/domain/catalog-open-selection-population.ts';
+import {
+  CatalogSelectionEvidenceSchema,
+  CatalogSelectionSchema,
+} from '../../shared/domain/catalog-selection-evidence.ts';
 import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -35,6 +41,63 @@ const attributeDefinitionRef = {
   resourceType: 'commerce.catalog.attribute-definition' as const,
   tenantId,
 };
+const variantRef = {
+  moduleId: 'commerce.catalog' as const,
+  resourceId: '88888888-8888-4888-8888-888888888888',
+  resourceType: 'commerce.catalog.variant' as const,
+  tenantId,
+};
+const selection = Schema.decodeUnknownSync(CatalogSelectionSchema)({ productRef, variantRef });
+const assessedAt = '2026-09-18T12:00:00.000Z';
+const basis = [
+  { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
+  { role: 'VARIANT', source: { resourceRef: variantRef, revision: 1 } },
+];
+const validSelectionEvidence = Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema)({
+  assessedAt,
+  basis,
+  membership: {
+    attestationId: 'catalog-membership-attribute-applicability-1',
+    observedAt: assessedAt,
+    productRef,
+    source: 'CATALOG_OWNER_CURRENT_READ',
+    variant: { resourceRef: variantRef, revision: 1 },
+  },
+  purpose: 'CART_VALIDATION',
+  selection,
+  status: 'VALID',
+});
+const invalidSelectionEvidence = Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema)({
+  assessedAt,
+  basis,
+  purpose: 'CART_VALIDATION',
+  reason: 'Selection is no longer valid',
+  selection,
+  status: 'INVALID',
+});
+const openSelection = Schema.decodeUnknownSync(CartOpenSelectionReferenceSchema)({
+  selection,
+  selectionId: 'cart-selection-1',
+});
+const impactConfirmation = Schema.decodeUnknownSync(AttributeApplicabilityImpactConfirmationSchema)({
+  affectedOpenSelectionIds: ['cart-selection-1'],
+  expectedPopulationRevisionToken: 'cart-population-1',
+  remediationEvidenceRefs: ['applicability-remediation-1'],
+});
+const ownerPopulation = (
+  revisionToken = 'cart-population-1',
+  selections = [openSelection],
+): CartOpenSelectionPopulationPort => ({
+  read: () =>
+    Effect.succeed({
+      complete: true,
+      observedAt: assessedAt,
+      revisionToken,
+      selections,
+      tenantId,
+    }),
+});
+const assessValid = () => Effect.succeed({ evidence: validSelectionEvidence });
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
     authContextRef: 'job:attribute-applicability:run:1',
@@ -64,8 +127,7 @@ type ApplicabilityTable =
   | typeof productAttributeApplicability
   | typeof productAttributeApplicabilityRevisions
   | typeof attributeValueSets
-  | typeof productVariantAxes
-  | typeof productVariants;
+  | typeof productVariantAxes;
 type TestValue =
   | Partial<typeof productAttributeApplicability.$inferInsert>
   | Partial<typeof productAttributeApplicabilityRevisions.$inferInsert>;
@@ -177,24 +239,53 @@ describe('Product-local Attribute applicability', () => {
     }),
   );
 
-  it.effect('fails closed when any value, axis, or variant exists on the Product', () =>
-    Effect.gen(function* rejectUsedDraft() {
-      for (const [table, conflictKind] of [
-        [attributeValueSets, 'VALUE_IMPACT'],
-        [productVariantAxes, 'IDENTITY_IMPACT'],
-        [productVariants, 'IDENTITY_IMPACT'],
+  it.effect('requires affected live values and axes to be repaired before removing their level', () =>
+    Effect.gen(function* repairLocalImpact() {
+      const current = [{ currentRevision: 1, productLevel: true, variantLevel: true }];
+      for (const [table, row, input, conflictKind] of [
+        [
+          attributeValueSets,
+          { attributeDefinitionId: attributeDefinitionRef.resourceId, currentState: 'SET', variantId: null },
+          { expectedRevision: 1, productLevel: false, variantLevel: true },
+          'VALUE_IMPACT',
+        ],
+        [
+          productVariantAxes,
+          { attributeDefinitionId: attributeDefinitionRef.resourceId },
+          { expectedRevision: 1, productLevel: true, variantLevel: false },
+          'IDENTITY_IMPACT',
+        ],
       ] as const) {
         const writes: TestWrite[] = [];
         const transaction = transactionWith(
-          new Map([[table, [{ attributeDefinitionId: 'another-definition' }]]]),
+          new Map<ApplicabilityTable, readonly object[]>([
+            [productAttributeApplicability, current],
+            [table, [row]],
+          ]),
           writes,
         );
         // @ts-expect-error Focused transaction double models the query chain.
         const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
-        const error = yield* Effect.flip(persistence.change(base));
+        const error = yield* Effect.flip(persistence.change({ ...base, ...input }));
         expect(error).toMatchObject({ conflict: conflictKind });
         expect(writes).toHaveLength(0);
       }
+    }),
+  );
+
+  it.effect('ignores values for another Attribute Definition on a clean DRAFT declaration', () =>
+    Effect.gen(function* ignoreUnrelatedValues() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(
+        new Map([
+          [attributeValueSets, [{ attributeDefinitionId: 'another-definition', currentState: 'SET', variantId: null }]],
+        ]),
+        writes,
+      );
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      expect(yield* persistence.change(base)).toMatchObject({ revision: 1 });
+      expect(writes).toHaveLength(2);
     }),
   );
 
@@ -287,11 +378,7 @@ describe('Product-local Attribute applicability', () => {
       expect(writes[1]).toMatchObject({
         value: { evidenceRefs: ['type-rule-review-2'], productLevel: false, revision: 2, variantLevel: true },
       });
-      expect(
-        writes.every(
-          ({ table }) => table !== attributeValueSets && table !== productVariantAxes && table !== productVariants,
-        ),
-      ).toBe(true);
+      expect(writes.every(({ table }) => table !== attributeValueSets && table !== productVariantAxes)).toBe(true);
     }),
   );
 
@@ -301,7 +388,16 @@ describe('Product-local Attribute applicability', () => {
       const transaction = transactionWith(
         new Map<ApplicabilityTable, readonly object[]>([
           [productAttributeApplicability, [{ currentRevision: 1, productLevel: false, variantLevel: true }]],
-          [attributeValueSets, [{ attributeDefinitionId: 'other-definition' }]],
+          [
+            attributeValueSets,
+            [
+              {
+                attributeDefinitionId: attributeDefinitionRef.resourceId,
+                currentState: 'SET',
+                variantId: variantRef.resourceId,
+              },
+            ],
+          ],
         ]),
         writes,
       );
@@ -324,6 +420,165 @@ describe('Product-local Attribute applicability', () => {
       const error = yield* Effect.flip(persistence.change(base));
       expect(error).toMatchObject({ conflict: 'SELECTION_IMPACT' });
       expect(writes).toHaveLength(0);
+    }),
+  );
+
+  it.effect('accepts a used applicability change with complete owner impact and remediation evidence', () =>
+    Effect.gen(function* acceptUsedChange() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(
+        new Map<ApplicabilityTable, readonly object[]>([
+          [products, [{ lifecycleState: 'ACTIVE' }]],
+          [productAttributeApplicability, [{ currentRevision: 1, productLevel: true, variantLevel: false }]],
+        ]),
+        writes,
+      );
+      const persistence = yield* attributeApplicabilityPersistenceForScope(
+        // @ts-expect-error Focused transaction double models the query chain.
+        transaction,
+        scope,
+        {
+          assess: assessValid,
+          openSelections: ownerPopulation(),
+        },
+      );
+      expect(
+        yield* persistence.change({
+          ...base,
+          expectedRevision: 1,
+          impactConfirmation,
+          productLevel: false,
+          variantLevel: true,
+        }),
+      ).toMatchObject({ productLevel: false, revision: 2, variantLevel: true });
+      expect(writes).toHaveLength(2);
+      expect(writes[1]).toMatchObject({
+        table: productAttributeApplicabilityRevisions,
+        value: { evidenceRefs: ['applicability-remediation-1'], revision: 2 },
+      });
+    }),
+  );
+
+  it.effect('fails closed when the complete Cart owner population is unavailable or malformed', () =>
+    Effect.gen(function* unavailablePopulation() {
+      const transaction = transactionWith(
+        new Map<ApplicabilityTable, readonly object[]>([
+          [products, [{ lifecycleState: 'ACTIVE' }]],
+          [productAttributeApplicability, [{ currentRevision: 1, productLevel: true, variantLevel: false }]],
+        ]),
+      );
+      const populations: readonly (CartOpenSelectionPopulationPort | undefined)[] = [
+        undefined,
+        { read: () => Effect.succeed({ complete: false, selections: [], tenantId }) },
+      ];
+      for (const openSelections of populations) {
+        const persistence = yield* attributeApplicabilityPersistenceForScope(
+          // @ts-expect-error Focused transaction double models the query chain and malformed owner response.
+          transaction,
+          scope,
+          openSelections === undefined ? {} : { assess: assessValid, openSelections },
+        );
+        const failure = yield* Effect.flip(
+          persistence.change({
+            ...base,
+            expectedRevision: 1,
+            impactConfirmation,
+            productLevel: false,
+            variantLevel: true,
+          }),
+        );
+        expect(Schema.is(CatalogPersistenceUnavailable)(failure)).toBe(true);
+      }
+    }),
+  );
+
+  it.effect('rejects stale impact identity and a population change during the write attempt', () =>
+    Effect.gen(function* rejectStaleImpact() {
+      const transaction = transactionWith(
+        new Map<ApplicabilityTable, readonly object[]>([
+          [products, [{ lifecycleState: 'ACTIVE' }]],
+          [productAttributeApplicability, [{ currentRevision: 1, productLevel: true, variantLevel: false }]],
+        ]),
+      );
+      const stale = yield* attributeApplicabilityPersistenceForScope(
+        // @ts-expect-error Focused transaction double models the query chain.
+        transaction,
+        scope,
+        {
+          assess: assessValid,
+          openSelections: ownerPopulation('newer-population'),
+        },
+      );
+      expect(
+        yield* Effect.flip(
+          stale.change({
+            ...base,
+            expectedRevision: 1,
+            impactConfirmation,
+            productLevel: false,
+            variantLevel: true,
+          }),
+        ),
+      ).toMatchObject({ conflict: 'SELECTION_IMPACT' });
+
+      let reads = 0;
+      const changesDuringWrite: CartOpenSelectionPopulationPort = {
+        read: () => {
+          reads += 1;
+          return ownerPopulation(reads === 1 ? 'cart-population-1' : 'cart-population-2').read({ tenantId });
+        },
+      };
+      const changing = yield* attributeApplicabilityPersistenceForScope(
+        // @ts-expect-error Focused transaction double models the query chain.
+        transaction,
+        scope,
+        {
+          assess: assessValid,
+          openSelections: changesDuringWrite,
+        },
+      );
+      expect(
+        yield* Effect.flip(
+          changing.change({
+            ...base,
+            expectedRevision: 1,
+            impactConfirmation,
+            productLevel: false,
+            variantLevel: true,
+          }),
+        ),
+      ).toMatchObject({ conflict: 'SELECTION_IMPACT' });
+    }),
+  );
+
+  it.effect('rejects impact evidence when an affected selection is not Current-VALID', () =>
+    Effect.gen(function* rejectInvalidSelection() {
+      const transaction = transactionWith(
+        new Map<ApplicabilityTable, readonly object[]>([
+          [products, [{ lifecycleState: 'ACTIVE' }]],
+          [productAttributeApplicability, [{ currentRevision: 1, productLevel: true, variantLevel: false }]],
+        ]),
+      );
+      const persistence = yield* attributeApplicabilityPersistenceForScope(
+        // @ts-expect-error Focused transaction double models the query chain.
+        transaction,
+        scope,
+        {
+          assess: () => Effect.succeed({ evidence: invalidSelectionEvidence }),
+          openSelections: ownerPopulation(),
+        },
+      );
+      expect(
+        yield* Effect.flip(
+          persistence.change({
+            ...base,
+            expectedRevision: 1,
+            impactConfirmation,
+            productLevel: false,
+            variantLevel: true,
+          }),
+        ),
+      ).toMatchObject({ conflict: 'SELECTION_IMPACT' });
     }),
   );
 });

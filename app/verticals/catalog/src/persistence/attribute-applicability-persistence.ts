@@ -3,6 +3,16 @@ import { findPostgresFailure } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 
+import type { AttributeApplicabilityImpactConfirmation } from '../../shared/actions/govern-product-attribute-applicability.ts';
+import type {
+  CartOpenSelectionPopulationPort,
+  CatalogSelectionEvidenceReader,
+} from '../../shared/domain/catalog-open-selection-population.ts';
+import {
+  openSelectionReferencesProduct,
+  readCartOpenSelectionPopulation,
+} from '../../shared/domain/catalog-open-selection-population.ts';
+import { CatalogSelectionEvidenceSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { AttributeDefinitionRef } from '../../shared/resources/attribute-definition.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import {
@@ -14,9 +24,9 @@ import {
   productTypeRevisionAttributes,
   productTypes,
   productVariantAxes,
-  productVariants,
   products,
 } from '../database/schema.ts';
+import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -71,6 +81,7 @@ export interface ChangeAttributeApplicabilityInput {
   readonly attributeDefinitionRef: AttributeDefinitionRef;
   readonly evidenceRefs?: readonly string[];
   readonly expectedRevision: number | null;
+  readonly impactConfirmation?: AttributeApplicabilityImpactConfirmation;
   readonly principalId: string;
   readonly productLevel: boolean;
   readonly productRef: ProductRef;
@@ -90,10 +101,30 @@ export interface AttributeApplicabilityPersistence {
 const validRef = (ref: ProductRef | AttributeDefinitionRef, tenantId: string, resourceType: string) =>
   ref.moduleId === 'commerce.catalog' && ref.resourceType === resourceType && ref.tenantId === tenantId;
 
+const sameIds = (left: readonly string[], right: readonly string[]): boolean =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+const impactUnavailable = (reason: string, cause?: unknown): CatalogPersistenceUnavailable => {
+  const failure = new CatalogPersistenceUnavailable({
+    code: 'catalog_persistence_unavailable',
+    reason,
+  });
+  if (cause !== undefined) {
+    Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  }
+  return failure;
+};
+
+interface AttributeApplicabilityImpactAuthority {
+  readonly assess?: CatalogSelectionEvidenceReader['assess'];
+  readonly openSelections?: CartOpenSelectionPopulationPort;
+}
+
 /** Product-local applicability changes never manufacture, merge, or delete value rows. */
 export const attributeApplicabilityPersistenceForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
+  authority: AttributeApplicabilityImpactAuthority = {},
 ): Effect.Effect<AttributeApplicabilityPersistence> =>
   Effect.succeed({
     // oxlint-disable-next-line eslint/complexity -- Transactional guard chain preserves each typed business conflict and fails closed. expires: 2027-03-31.
@@ -108,7 +139,18 @@ export const attributeApplicabilityPersistenceForScope = (
         input.reason !== input.reason.trim() ||
         input.reason.length < 1 ||
         input.reason.length > 1000 ||
-        (input.evidenceRefs ?? []).some((ref) => ref.length === 0 || ref !== ref.trim())
+        (input.evidenceRefs ?? []).some((ref) => ref.length === 0 || ref !== ref.trim()) ||
+        (input.impactConfirmation !== undefined &&
+          (input.impactConfirmation.expectedPopulationRevisionToken.length === 0 ||
+            input.impactConfirmation.expectedPopulationRevisionToken !==
+              input.impactConfirmation.expectedPopulationRevisionToken.trim() ||
+            input.impactConfirmation.remediationEvidenceRefs.length === 0 ||
+            input.impactConfirmation.remediationEvidenceRefs.some((ref) => ref.length === 0 || ref !== ref.trim()) ||
+            input.impactConfirmation.affectedOpenSelectionIds.some(
+              (selectionId) => selectionId.length === 0 || selectionId !== selectionId.trim(),
+            ) ||
+            new Set(input.impactConfirmation.affectedOpenSelectionIds).size !==
+              input.impactConfirmation.affectedOpenSelectionIds.length))
       ) {
         return yield* conflict('INVALID_INPUT', 'Malformed or cross-Tenant applicability change');
       }
@@ -210,38 +252,118 @@ export const attributeApplicabilityPersistenceForScope = (
       if (current?.productLevel === input.productLevel && current.variantLevel === input.variantLevel) {
         return yield* conflict('INVALID_INPUT', 'Applicability is unchanged');
       }
-      // DRAFT is not a valid exact-selection basis. The locked Product row also
-      // serializes owner writes that could introduce values, axes, or variants.
-      // Used Products remain blocked until #479 supplies impact/repair authority.
-      if (product.lifecycleState !== 'DRAFT') {
-        return yield* conflict('SELECTION_IMPACT', 'Governed selection-impact basis is required');
-      }
-      const [value] = yield* transaction
+      const values = yield* transaction
         .select()
         .from(attributeValueSets)
-        .where(and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.productId, productId)))
-        .limit(1)
+        .where(
+          and(
+            eq(attributeValueSets.tenantId, tenantId),
+            eq(attributeValueSets.productId, productId),
+            eq(attributeValueSets.attributeDefinitionId, attributeDefinitionId),
+          ),
+        )
         .pipe(Effect.mapError(unavailable));
-      if (value !== undefined) {
-        return yield* conflict('VALUE_IMPACT', 'Existing values require explicit repair');
+      const relevantValues = values.filter((value) => value.attributeDefinitionId === attributeDefinitionId);
+      const incompatibleValue = relevantValues.find(
+        (value) =>
+          value.currentState === 'SET' &&
+          ((value.variantId === null && !input.productLevel) || (value.variantId !== null && !input.variantLevel)),
+      );
+      if (incompatibleValue !== undefined) {
+        return yield* conflict(
+          'VALUE_IMPACT',
+          'Affected values must be explicitly repaired before applicability changes',
+        );
       }
       const [axis] = yield* transaction
         .select()
         .from(productVariantAxes)
-        .where(and(eq(productVariantAxes.tenantId, tenantId), eq(productVariantAxes.productId, productId)))
+        .where(
+          and(
+            eq(productVariantAxes.tenantId, tenantId),
+            eq(productVariantAxes.productId, productId),
+            eq(productVariantAxes.attributeDefinitionId, attributeDefinitionId),
+          ),
+        )
+        .for('share')
         .limit(1)
         .pipe(Effect.mapError(unavailable));
-      if (axis !== undefined) {
-        return yield* conflict('IDENTITY_IMPACT', 'Variant Axis requires identity revalidation');
+      if (axis !== undefined && !input.variantLevel) {
+        return yield* conflict(
+          'IDENTITY_IMPACT',
+          'Affected Variant Axis must be repaired before applicability changes',
+        );
       }
-      const [variant] = yield* transaction
-        .select()
-        .from(productVariants)
-        .where(and(eq(productVariants.tenantId, tenantId), eq(productVariants.productId, productId)))
-        .limit(1)
-        .pipe(Effect.mapError(unavailable));
-      if (variant !== undefined) {
-        return yield* conflict('IDENTITY_IMPACT', 'Existing Variant requires impact revalidation');
+
+      const requiresImpactConfirmation =
+        product.lifecycleState !== 'DRAFT' ||
+        relevantValues.some((value) => value.currentState === 'SET') ||
+        axis !== undefined;
+      if (requiresImpactConfirmation) {
+        const confirmation = input.impactConfirmation;
+        if (confirmation === undefined) {
+          return yield* conflict(
+            'SELECTION_IMPACT',
+            'Complete owner impact and explicit remediation evidence are required',
+          );
+        }
+        const { openSelections } = authority;
+        if (openSelections === undefined) {
+          return yield* impactUnavailable('Cart open-selection population authority is unavailable');
+        }
+        const population = yield* readCartOpenSelectionPopulation(openSelections, tenantId).pipe(
+          Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) =>
+            Effect.fail(impactUnavailable(failure.reason, failure)),
+          ),
+        );
+        const matching = population.selections.filter(({ selection }) =>
+          openSelectionReferencesProduct(selection, input.productRef),
+        );
+        const matchingIds = matching.map(({ selectionId }) => selectionId).toSorted();
+        if (new Set(matchingIds).size !== matchingIds.length) {
+          return yield* impactUnavailable('Cart open-selection population contains duplicate identities');
+        }
+        if (
+          population.revisionToken !== confirmation.expectedPopulationRevisionToken ||
+          !sameIds(matchingIds, confirmation.affectedOpenSelectionIds.toSorted())
+        ) {
+          return yield* conflict('SELECTION_IMPACT', 'The declared impact no longer matches Cart owner population');
+        }
+        const assess =
+          authority.assess ??
+          ((request: Parameters<CatalogSelectionEvidenceReader['assess']>[0]) =>
+            catalogSelectionEvidenceForScope(transaction, scope).assess(request));
+        const assessments = yield* Effect.forEach(
+          matching,
+          ({ selection }) => assess({ purpose: 'CART_VALIDATION', selection }),
+          { concurrency: 1 },
+        );
+        if (
+          assessments.some(
+            ({ evidence }) => !Schema.is(CatalogSelectionEvidenceSchema)(evidence) || evidence.status !== 'VALID',
+          )
+        ) {
+          return yield* conflict(
+            'SELECTION_IMPACT',
+            'An affected open selection has no Current-VALID Catalog evidence',
+          );
+        }
+
+        // Re-read the owner population at the write boundary. A changed token or affected set
+        // invalidates the caller's remediation evidence instead of silently using a stale scan.
+        const rechecked = yield* readCartOpenSelectionPopulation(openSelections, tenantId).pipe(
+          Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) =>
+            Effect.fail(impactUnavailable(failure.reason, failure)),
+          ),
+        );
+        const recheckedIds = rechecked.selections
+          .flatMap(({ selection, selectionId }) =>
+            openSelectionReferencesProduct(selection, input.productRef) ? [selectionId] : [],
+          )
+          .toSorted();
+        if (rechecked.revisionToken !== population.revisionToken || !sameIds(recheckedIds, matchingIds)) {
+          return yield* conflict('SELECTION_IMPACT', 'Cart owner population changed during applicability assessment');
+        }
       }
       const revision = (current?.currentRevision ?? 0) + 1;
       const write =
@@ -276,7 +398,9 @@ export const attributeApplicabilityPersistenceForScope = (
           actingPrincipalId: input.principalId,
           actionInvocationId: input.actionInvocationId,
           attributeDefinitionId,
-          evidenceRefs: [...(input.evidenceRefs ?? [])],
+          evidenceRefs: [
+            ...new Set([...(input.evidenceRefs ?? []), ...(input.impactConfirmation?.remediationEvidenceRefs ?? [])]),
+          ],
           productId,
           productLevel: input.productLevel,
           reason: input.reason,

@@ -10,12 +10,16 @@ import {
   GovernProductAttributeApplicabilityResultSchema,
 } from '../../shared/actions/govern-product-attribute-applicability.ts';
 import type { GovernProductAttributeApplicabilityPayload } from '../../shared/actions/govern-product-attribute-applicability.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   AttributeApplicabilityConflict,
   attributeApplicabilityPersistenceForScope,
 } from '../persistence/attribute-applicability-persistence.ts';
-import type { AttributeApplicabilityPersistence } from '../persistence/attribute-applicability-persistence.ts';
+import type {
+  AttributeApplicabilityPersistence,
+  ChangeAttributeApplicabilityInput,
+} from '../persistence/attribute-applicability-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 
@@ -30,7 +34,7 @@ export const handleGovernProductAttributeApplicability = Effect.fn('GovernProduc
     payload: GovernProductAttributeApplicabilityPayload,
     context: ActionHandlerContext<typeof domainEvents, AttributeApplicabilityPersistence>,
   ) {
-    const changed = yield* context.services.change({
+    const changeInput: ChangeAttributeApplicabilityInput = {
       actionInvocationId: context.actionInvocationId,
       attributeDefinitionRef: payload.attributeDefinitionRef,
       evidenceRefs: payload.evidenceRefs ?? [],
@@ -40,7 +44,11 @@ export const handleGovernProductAttributeApplicability = Effect.fn('GovernProduc
       productRef: payload.productRef,
       reason: payload.reason,
       variantLevel: payload.variantLevel,
-    });
+    };
+    if (payload.impactConfirmation !== undefined) {
+      Object.assign(changeInput, { impactConfirmation: payload.impactConfirmation });
+    }
+    const changed = yield* context.services.change(changeInput);
     yield* context.recordDataAccess({
       accessKind: 'read',
       queryHash: `catalog-attribute-applicability-impact:${payload.productRef.resourceId}:${payload.attributeDefinitionRef.resourceId}`,
@@ -50,7 +58,12 @@ export const handleGovernProductAttributeApplicability = Effect.fn('GovernProduc
       targetResourceId: payload.productRef.resourceId,
       targetResourceType: 'commerce.catalog.product',
     });
-    yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs ?? [], reason: payload.reason });
+    yield* context.recordAuditEvidence({
+      evidenceRefs: [
+        ...new Set([...(payload.evidenceRefs ?? []), ...(payload.impactConfirmation?.remediationEvidenceRefs ?? [])]),
+      ],
+      reason: payload.reason,
+    });
     return yield* Schema.decodeEffect(GovernProductAttributeApplicabilityResultSchema)({
       attributeDefinitionRef: payload.attributeDefinitionRef,
       productLevel: changed.productLevel,
@@ -97,9 +110,15 @@ export const governProductAttributeApplicabilityAction = defineAction(
     schemaVersion: '1',
   },
   handleGovernProductAttributeApplicability,
-  (transaction, scope) =>
-    attributeApplicabilityPersistenceForScope(transaction, scope).pipe(
-      Effect.map((services) => ({
+  Effect.fn('GovernProductAttributeApplicabilityAction.services')(
+    function* makeGovernProductAttributeApplicabilityServices(transaction, scope) {
+      const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+      const services = yield* attributeApplicabilityPersistenceForScope(
+        transaction,
+        scope,
+        openSelections === undefined ? undefined : { openSelections },
+      );
+      return {
         ...services,
         captureResult: (
           actionInvocationId: string,
@@ -124,8 +143,9 @@ export const governProductAttributeApplicabilityAction = defineAction(
               return failure;
             }),
           ),
-      })),
-    ),
+      };
+    },
+  ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
