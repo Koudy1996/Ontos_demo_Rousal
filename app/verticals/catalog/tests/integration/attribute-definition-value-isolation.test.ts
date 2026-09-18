@@ -26,6 +26,17 @@ import {
 import type { CatalogTransaction } from '../../src/database/types.ts';
 import { attributeValuesPersistenceForScope } from '../../src/persistence/attribute-values-persistence.ts';
 
+const reference = <ResourceType extends 'attribute-definition' | 'product'>(
+  resourceType: ResourceType,
+  resourceId: string,
+  tenantId: string,
+) => ({
+  moduleId: 'commerce.catalog' as const,
+  resourceId,
+  resourceType: `commerce.catalog.${resourceType}` as const,
+  tenantId,
+});
+
 // Append-only revisions remain in the disposable integration database; fresh IDs isolate every run.
 it.live('keeps two Products using one material definition independent in Current and history', () =>
   Effect.scoped(
@@ -59,12 +70,6 @@ it.live('keeps two Products using one material definition independent in Current
             return yield* operation(transaction);
           }),
         );
-      const reference = (resourceType: 'attribute-definition' | 'product', resourceId: string, tenantId = tenantA) => ({
-        moduleId: 'commerce.catalog' as const,
-        resourceId,
-        resourceType: `commerce.catalog.${resourceType}` as const,
-        tenantId,
-      });
       const setMaterial = (tenantId: string, productId: string, material: string, expectedRevision: number | null) =>
         withTenant(tenantId, (transaction) =>
           Effect.gen(function* persistMaterial() {
@@ -75,7 +80,7 @@ it.live('keeps two Products using one material definition independent in Current
             );
             return yield* service.setProductValues({
               actionInvocationId: randomUUID(),
-              attributeDefinitionRef: reference('attribute-definition', definitionId),
+              attributeDefinitionRef: reference('attribute-definition', definitionId, tenantA),
               expectedRevision,
               principalId,
               productRef: reference('product', productId, tenantId),
@@ -113,8 +118,8 @@ it.live('keeps two Products using one material definition independent in Current
         tenantId: tenantA,
       });
       yield* admin.insert(productTypeRevisions).values({
-        actionInvocationId: randomUUID(),
         actingPrincipalId: principalId,
+        actionInvocationId: randomUUID(),
         effectiveAt: new Date('2020-01-01T00:00:00.000Z'),
         productTypeId: typeId,
         reason: 'Fixture type revision',
@@ -134,8 +139,8 @@ it.live('keeps two Products using one material definition independent in Current
           const actionInvocationId = randomUUID();
           return Effect.gen(function* assignProductType() {
             yield* transaction.insert(productTypeAssignmentEvents).values({
-              actionInvocationId,
               actingPrincipalId: principalId,
+              actionInvocationId,
               assignmentRevision: 1,
               nextProductTypeId: typeId,
               productId,
@@ -190,14 +195,14 @@ it.live('keeps two Products using one material definition independent in Current
           .select()
           .from(attributeValueSets)
           .where(eq(attributeValueSets.attributeValueSetId, second.attributeValueSetId)),
-        items: yield* admin
-          .select()
-          .from(attributeValueItems)
-          .where(eq(attributeValueItems.attributeValueSetId, second.attributeValueSetId)),
         history: yield* admin
           .select()
           .from(attributeValueRevisions)
           .where(eq(attributeValueRevisions.attributeValueSetId, second.attributeValueSetId)),
+        items: yield* admin
+          .select()
+          .from(attributeValueItems)
+          .where(eq(attributeValueItems.attributeValueSetId, second.attributeValueSetId)),
       };
       expect(p2Before.current).toMatchObject([
         { attributeDefinitionId: definitionId, currentRevision: 1, productId: p2 },
