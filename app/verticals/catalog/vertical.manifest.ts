@@ -37,17 +37,27 @@ import { correctGtinAction } from './src/actions/correct-gtin.action.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { correctSkuAction } from './src/actions/correct-sku.action.ts';
 import { createAttributeDefinitionAction } from './src/actions/create-attribute-definition.action.ts';
+import { CreateAttributeDefinitionRecoveryApi } from './shared/apis/create-attribute-definition-recovery.ts';
 import { createBrandAction } from './src/actions/create-brand.action.ts';
+import { CreateBrandRecoveryApi } from './shared/apis/create-brand-recovery.ts';
 import { createConfigurationUnitAction } from './src/actions/create-configuration-unit.action.ts';
+import { CreateConfigurationUnitRecoveryApi } from './shared/apis/create-configuration-unit-recovery.ts';
 import { createControlledAttributeValueAction } from './src/actions/create-controlled-attribute-value.action.ts';
+import { CreateControlledAttributeValueRecoveryApi } from './shared/apis/create-controlled-attribute-value-recovery.ts';
 import { createPackageDefinitionAction } from './src/actions/create-package-definition.action.ts';
+import { CreatePackageDefinitionRecoveryApi } from './shared/apis/create-package-definition-recovery.ts';
 import { createProductAction } from './src/actions/create-product.action.ts';
 import { createProductCategoryAction } from './src/actions/create-product-category.action.ts';
+import { CreateProductCategoryRecoveryApi } from './shared/apis/create-product-category-recovery.ts';
 import { CreateProductRecoveryApi } from './shared/apis/create-product-recovery.ts';
 import { createProductRelationshipAction } from './src/actions/create-product-relationship.action.ts';
+import { CreateProductRelationshipRecoveryApi } from './shared/apis/create-product-relationship-recovery.ts';
 import { createProductTypeAction } from './src/actions/create-product-type.action.ts';
+import { CreateProductTypeRecoveryApi } from './shared/apis/create-product-type-recovery.ts';
 import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
+import { CreateProductUnitRecoveryApi } from './shared/apis/create-product-unit-recovery.ts';
 import { createSetCompositionAction } from './src/actions/create-set-composition.action.ts';
+import { CreateSetCompositionRecoveryApi } from './shared/apis/create-set-composition-recovery.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
 import { CreateVariantRecoveryApi } from './shared/apis/create-variant-recovery.ts';
 import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product-type-unnecessary.action.ts';
@@ -250,7 +260,17 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'catalog-media-current': CatalogMediaCurrentApi,
       'color-current': ColorCurrentApi,
       'color-history': ColorHistoryApi,
+      'create-attribute-definition-recovery': CreateAttributeDefinitionRecoveryApi,
+      'create-brand-recovery': CreateBrandRecoveryApi,
+      'create-configuration-unit-recovery': CreateConfigurationUnitRecoveryApi,
+      'create-controlled-attribute-value-recovery': CreateControlledAttributeValueRecoveryApi,
+      'create-package-definition-recovery': CreatePackageDefinitionRecoveryApi,
+      'create-product-category-recovery': CreateProductCategoryRecoveryApi,
       'create-product-recovery': CreateProductRecoveryApi,
+      'create-product-relationship-recovery': CreateProductRelationshipRecoveryApi,
+      'create-product-type-recovery': CreateProductTypeRecoveryApi,
+      'create-product-unit-recovery': CreateProductUnitRecoveryApi,
+      'create-set-composition-recovery': CreateSetCompositionRecoveryApi,
       'create-variant-recovery': CreateVariantRecoveryApi,
       'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
       'gtin-current': GtinCurrentApi,

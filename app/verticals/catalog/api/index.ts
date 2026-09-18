@@ -45,17 +45,27 @@ import { correctGtinActionApiLive } from './correct-gtin-action-server.ts';
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
 import { correctSkuActionApiLive } from './correct-sku-action-server.ts';
 import { createAttributeDefinitionActionApiLive } from './create-attribute-definition-action-server.ts';
+import { createAttributeDefinitionRecoveryReadApiLive } from './create-attribute-definition-recovery-read-server.ts';
 import { createBrandActionApiLive } from './create-brand-action-server.ts';
+import { createBrandRecoveryReadApiLive } from './create-brand-recovery-read-server.ts';
 import { createConfigurationUnitActionApiLive } from './create-configuration-unit-action-server.ts';
+import { createConfigurationUnitRecoveryReadApiLive } from './create-configuration-unit-recovery-read-server.ts';
 import { createControlledAttributeValueActionApiLive } from './create-controlled-attribute-value-action-server.ts';
+import { createControlledAttributeValueRecoveryReadApiLive } from './create-controlled-attribute-value-recovery-read-server.ts';
 import { createPackageDefinitionActionApiLive } from './create-package-definition-action-server.ts';
+import { createPackageDefinitionRecoveryReadApiLive } from './create-package-definition-recovery-read-server.ts';
 import { createProductActionApiLive } from './create-product-action-server.ts';
 import { createProductCategoryActionApiLive } from './create-product-category-action-server.ts';
+import { createProductCategoryRecoveryReadApiLive } from './create-product-category-recovery-read-server.ts';
 import { createProductRecoveryReadApiLive } from './create-product-recovery-read-server.ts';
 import { createProductRelationshipActionApiLive } from './create-product-relationship-action-server.ts';
+import { createProductRelationshipRecoveryReadApiLive } from './create-product-relationship-recovery-read-server.ts';
 import { createProductTypeActionApiLive } from './create-product-type-action-server.ts';
+import { createProductTypeRecoveryReadApiLive } from './create-product-type-recovery-read-server.ts';
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
+import { createProductUnitRecoveryReadApiLive } from './create-product-unit-recovery-read-server.ts';
 import { createSetCompositionActionApiLive } from './create-set-composition-action-server.ts';
+import { createSetCompositionRecoveryReadApiLive } from './create-set-composition-recovery-read-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
 import { createVariantRecoveryReadApiLive } from './create-variant-recovery-read-server.ts';
 import { decideProductTypeUnnecessaryActionApiLive } from './decide-product-type-unnecessary-action-server.ts';
@@ -247,20 +257,30 @@ export const makeCatalogApiRuntime = (
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createAttributeDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createBrandRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createConfigurationUnitRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createControlledAttributeValueRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createPackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createPackageDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createProductCategoryRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createProductRecoveryReadApiLive.pipe(
       GovernedReadLayer.provide(governedReadRuntimeLive),
       Layer.provide(governedActionRuntimeLive),
     ),
     createProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createProductRelationshipRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createProductTypeRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createProductUnitRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createSetCompositionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     decideProductTypeUnnecessaryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

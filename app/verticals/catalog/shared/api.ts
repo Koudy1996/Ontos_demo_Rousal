@@ -27,17 +27,27 @@ import { CorrectGtinActionApi } from './apis/correct-gtin-action.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
 import { CorrectSkuActionApi } from './apis/correct-sku-action.ts';
 import { CreateAttributeDefinitionActionApi } from './apis/create-attribute-definition-action.ts';
+import { CreateAttributeDefinitionRecoveryApi } from './apis/create-attribute-definition-recovery.ts';
 import { CreateBrandActionApi } from './apis/create-brand-action.ts';
+import { CreateBrandRecoveryApi } from './apis/create-brand-recovery.ts';
 import { CreateConfigurationUnitActionApi } from './apis/create-configuration-unit-action.ts';
+import { CreateConfigurationUnitRecoveryApi } from './apis/create-configuration-unit-recovery.ts';
 import { CreateControlledAttributeValueActionApi } from './apis/create-controlled-attribute-value-action.ts';
+import { CreateControlledAttributeValueRecoveryApi } from './apis/create-controlled-attribute-value-recovery.ts';
 import { CreatePackageDefinitionActionApi } from './apis/create-package-definition-action.ts';
+import { CreatePackageDefinitionRecoveryApi } from './apis/create-package-definition-recovery.ts';
 import { CreateProductActionApi } from './apis/create-product-action.ts';
 import { CreateProductCategoryActionApi } from './apis/create-product-category-action.ts';
+import { CreateProductCategoryRecoveryApi } from './apis/create-product-category-recovery.ts';
 import { CreateProductRecoveryApi } from './apis/create-product-recovery.ts';
 import { CreateProductRelationshipActionApi } from './apis/create-product-relationship-action.ts';
+import { CreateProductRelationshipRecoveryApi } from './apis/create-product-relationship-recovery.ts';
 import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts';
+import { CreateProductTypeRecoveryApi } from './apis/create-product-type-recovery.ts';
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
+import { CreateProductUnitRecoveryApi } from './apis/create-product-unit-recovery.ts';
 import { CreateSetCompositionActionApi } from './apis/create-set-composition-action.ts';
+import { CreateSetCompositionRecoveryApi } from './apis/create-set-composition-recovery.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
 import { CreateVariantRecoveryApi } from './apis/create-variant-recovery.ts';
 import { DecideProductTypeUnnecessaryActionApi } from './apis/decide-product-type-unnecessary-action.ts';
@@ -156,17 +166,27 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CorrectProductActionApi)
   .addHttpApi(CorrectSkuActionApi)
   .addHttpApi(CreateAttributeDefinitionActionApi)
+  .addHttpApi(CreateAttributeDefinitionRecoveryApi)
   .addHttpApi(CreateBrandActionApi)
+  .addHttpApi(CreateBrandRecoveryApi)
   .addHttpApi(CreateConfigurationUnitActionApi)
+  .addHttpApi(CreateConfigurationUnitRecoveryApi)
   .addHttpApi(CreateControlledAttributeValueActionApi)
+  .addHttpApi(CreateControlledAttributeValueRecoveryApi)
   .addHttpApi(CreatePackageDefinitionActionApi)
+  .addHttpApi(CreatePackageDefinitionRecoveryApi)
   .addHttpApi(CreateProductActionApi)
   .addHttpApi(CreateProductCategoryActionApi)
+  .addHttpApi(CreateProductCategoryRecoveryApi)
   .addHttpApi(CreateProductRecoveryApi)
   .addHttpApi(CreateProductRelationshipActionApi)
+  .addHttpApi(CreateProductRelationshipRecoveryApi)
   .addHttpApi(CreateProductTypeActionApi)
+  .addHttpApi(CreateProductTypeRecoveryApi)
   .addHttpApi(CreateProductUnitActionApi)
+  .addHttpApi(CreateProductUnitRecoveryApi)
   .addHttpApi(CreateSetCompositionActionApi)
+  .addHttpApi(CreateSetCompositionRecoveryApi)
   .addHttpApi(CreateVariantActionApi)
   .addHttpApi(CreateVariantRecoveryApi)
   .addHttpApi(DecideProductTypeUnnecessaryActionApi)
