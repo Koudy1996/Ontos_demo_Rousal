@@ -3,6 +3,7 @@ import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
+import { assessCatalogSelection } from '../../shared/domain/catalog-selection-assessment.ts';
 import {
   attributeDefinitionRevisions,
   attributeDefinitions,
@@ -59,14 +60,14 @@ const selection = {
 const selected = (rows: readonly object[]) => ({
   where: () =>
     Object.assign(Effect.succeed(rows), {
-      for: () => ({ limit: () => Effect.succeed(rows) }),
+      for: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
       limit: () => Effect.succeed(rows),
     }),
 });
 const selectedWithOrder = (rows: readonly object[]) => ({
   where: () =>
     Object.assign(Effect.succeed(rows), {
-      for: () => ({ limit: () => Effect.succeed(rows) }),
+      for: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
       limit: () => Effect.succeed(rows),
       orderBy: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
     }),
@@ -258,8 +259,11 @@ describe('Catalog Selection Current basis', () => {
         inheritedRevision?: number,
       ) => {
         const rows = new Map<unknown, readonly object[]>([
-          [products, [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId, revision: 4 }]],
-          [productVariants, [{ currentRevision: 7, lifecycleState: 'ACTIVE', productId, revision: 7, variantId }]],
+          [products, [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId, revision: 4, tenantId }]],
+          [
+            productVariants,
+            [{ currentRevision: 7, lifecycleState: 'ACTIVE', productId, revision: 7, tenantId, variantId }],
+          ],
           [productTypeAssignments, [{ assignmentRevision: 1, productId, productTypeId: typeId, tenantId }]],
           [productTypes, [{ currentRevision, productTypeId: typeId, tenantId }]],
           [
@@ -276,7 +280,10 @@ describe('Catalog Selection Current basis', () => {
           ],
           [productTypeRevisionAttributes, []],
           [productVariantAxes, []],
-          [productVariantAxisEvents, [{ attributeDefinitionIds: [], axisRevision: 3, productId, tenantId }]],
+          [
+            productVariantAxisEvents,
+            [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 3, productId, tenantId }],
+          ],
           [variantUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
           [packageUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
           [productUnits, [{ currentRuleRevision: 2, lifecycleState: 'ACTIVE', unitId }]],
@@ -370,7 +377,13 @@ describe('Catalog Selection Current basis', () => {
             { attributeDefinitionId: definitionId, axisRevision: 3, ordinal: 0, productId, tenantId },
           ]);
           rows.set(productVariantAxisEvents, [
-            { attributeDefinitionIds: [definitionId], axisRevision: 3, productId, tenantId },
+            {
+              attributeDefinitionIds: [definitionId],
+              attributeDefinitionRevisions: [3],
+              axisRevision: 3,
+              productId,
+              tenantId,
+            },
           ]);
           rows.set(attributeDefinitions, [
             { ...definitionRules, attributeDefinitionId: definitionId, currentRevision: 3, tenantId },
@@ -428,25 +441,30 @@ describe('Catalog Selection Current basis', () => {
       };
       const before = yield* readAt(2);
       const after = yield* readAt(3);
-      expect(before.status).toBe('INDETERMINATE');
-      expect(after.status).toBe('INDETERMINATE');
-      expect(before.basis.map(({ role, source }) => [role, source.revision])).toEqual([
-        ['PRODUCT', 4],
-        ['VARIANT', 7],
-        ['PRODUCT_TYPE', 2],
-        ['VARIANT_AXIS', 3],
-        ['UNIT', 2],
-      ]);
-      expect(after.basis.map(({ role, source }) => [role, source.revision])).toEqual([
-        ['PRODUCT', 4],
-        ['VARIANT', 7],
-        ['PRODUCT_TYPE', 3],
-        ['VARIANT_AXIS', 3],
-        ['UNIT', 2],
-      ]);
+      expect(before.status).toBe('OBSERVED');
+      expect(after.status).toBe('OBSERVED');
+      expect(before.basis.map(({ role, source }) => [role, source.revision])).toContainEqual(['PRODUCT_TYPE', 2]);
+      expect(after.basis.map(({ role, source }) => [role, source.revision])).toContainEqual(['PRODUCT_TYPE', 3]);
+      expect(after.basis.map(({ role, source }) => [role, source.revision])).toContainEqual(['UNIT_RULE', 2]);
+      expect(
+        assessCatalogSelection({
+          assessedAt: after.assessedAt,
+          current: after,
+          purpose: 'PURCHASE_ACCEPTANCE',
+          selection,
+        }).status,
+      ).toBe('VALID');
       const pinnedTen = yield* readAt(3, 4);
-      expect(pinnedTen.status).toBe('INDETERMINATE');
+      expect(pinnedTen.status).toBe('OBSERVED');
       expect(pinnedTen.basis.map(({ role, source }) => [role, source.revision])).toContainEqual(['PACKAGE_CONTENT', 4]);
+      expect(
+        assessCatalogSelection({
+          assessedAt: pinnedTen.assessedAt,
+          current: pinnedTen,
+          purpose: 'PURCHASE_ACCEPTANCE',
+          selection: packageSelection,
+        }).status,
+      ).toBe('VALID');
       const nowEight = yield* readAt(3, 5);
       expect(nowEight.status).toBe('INVALID');
       expect(nowEight.selection.packageOption?.contentRevision.revision).toBe(4);
