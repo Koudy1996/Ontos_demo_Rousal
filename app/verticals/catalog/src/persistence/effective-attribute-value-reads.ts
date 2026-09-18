@@ -162,6 +162,7 @@ const malformedSetSnapshot = (
   !Number.isInteger(set.currentRevision) ||
   set.currentRevision < 1 ||
   records[0].changeKind !== set.currentState ||
+  (set.currentState === 'SET' && items.length === 0) ||
   (set.currentState === 'REMOVED' && items.length !== 0) ||
   items.some(
     (item, index) =>

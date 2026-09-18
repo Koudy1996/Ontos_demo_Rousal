@@ -261,6 +261,12 @@ describe('private effective attribute value reads', () => {
       expect((yield* reads.readProductTypeValidity([productId])).complete).toBe(false);
     }),
   );
+  it.effect('does not attest an empty set labelled SET', () =>
+    Effect.gen(function* emptySet() {
+      const reads = yield* serviceWith([productSet], {}).service;
+      expect((yield* reads.readProductTypeValidity([productId])).complete).toBe(false);
+    }),
+  );
   it.effect('rejects foreign references before querying', () =>
     Effect.gen(function* foreignReferences() {
       const { queried, service } = serviceWith([], {});
