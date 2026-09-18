@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 
 import { AttributeDefinitionSchema } from '../../shared/domain/attribute-values.ts';
 import { ProductVariantSchema } from '../../shared/domain/product.ts';
+import type { VariantAxisValue } from '../../shared/domain/variant-axes.ts';
 import { evaluateVariantAxes } from '../../shared/domain/variant-axes.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -53,11 +54,82 @@ const base = {
   axes: [{ attributeDefinitionRef: definition.ref, definitionRevision: 3 }],
   definitions: [{ definition, revision: 3 }],
   isAllowedValue: () => true,
+  isRecordedCombination: () => true,
   productRef: variant('33333333-3333-4333-8333-333333333333').productRef,
   productTypeRules: [{ attributeDefinitionRef: definition.ref, level: 'VARIANT', required: false }] as const,
 };
 
 describe('Variant axes and exact combinations', () => {
+  it('requires exact recorded-Variant evidence, not a Cartesian product of allowed axis values', () => {
+    const lengthDefinition = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
+      ...definition,
+      label: 'Length',
+      meaning: 'Actual length',
+      ref: { ...definition.ref, resourceId: '88888888-8888-4888-8888-888888888888' },
+    });
+    const length80 = { ...white, valueRef: { ...white.valueRef, resourceId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } };
+    const length100 = { ...white, valueRef: { ...white.valueRef, resourceId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' } };
+    const candidate = (id: string, color: typeof white | typeof black, length: typeof length80) => ({
+      effectiveAxisValues: [
+        { attributeDefinitionRef: definition.ref, values: [color] },
+        { attributeDefinitionRef: lengthDefinition.ref, values: [length] },
+      ],
+      variant: variant(id),
+    });
+    const recorded = new Map([
+      ['33333333-3333-4333-8333-333333333333', [white.valueRef.resourceId, length80.valueRef.resourceId]],
+      ['77777777-7777-4777-8777-777777777777', [white.valueRef.resourceId, length100.valueRef.resourceId]],
+      ['cccccccc-cccc-4ccc-8ccc-cccccccccccc', [black.valueRef.resourceId, length80.valueRef.resourceId]],
+    ]);
+    const input = {
+      ...base,
+      axes: [...base.axes, { attributeDefinitionRef: lengthDefinition.ref, definitionRevision: 3 }],
+      definitions: [...base.definitions, { definition: lengthDefinition, revision: 3 }],
+      isRecordedCombination: (item: ReturnType<typeof variant>, selections: readonly VariantAxisValue[]) => {
+        const expected = recorded.get(item.variantRef.resourceId);
+        return (
+          expected !== undefined &&
+          selections.every((selection, index) => {
+            const [value] = selection.values;
+            return value?.kind === 'CONTROLLED' && value.valueRef.resourceId === expected[index];
+          })
+        );
+      },
+      productTypeRules: [
+        ...base.productTypeRules,
+        { attributeDefinitionRef: lengthDefinition.ref, level: 'VARIANT', required: false } as const,
+      ],
+    };
+    expect(
+      evaluateVariantAxes({
+        ...input,
+        candidates: [
+          candidate('33333333-3333-4333-8333-333333333333', white, length80),
+          candidate('77777777-7777-4777-8777-777777777777', white, length100),
+          candidate('cccccccc-cccc-4ccc-8ccc-cccccccccccc', black, length80),
+        ],
+      }).valid,
+    ).toBe(true);
+    expect(
+      evaluateVariantAxes({
+        ...input,
+        candidates: [candidate('dddddddd-dddd-4ddd-8ddd-dddddddddddd', black, length100)],
+      }).issues,
+    ).toContainEqual({ kind: 'UNRECORDED_COMBINATION', variantId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' });
+    expect(
+      evaluateVariantAxes({
+        ...input,
+        candidates: [candidate('33333333-3333-4333-8333-333333333333', black, length100)],
+      }).issues,
+    ).toContainEqual({ kind: 'UNRECORDED_COMBINATION', variantId: '33333333-3333-4333-8333-333333333333' });
+    expect(
+      evaluateVariantAxes({
+        ...input,
+        candidates: [candidate('dddddddd-dddd-4ddd-8ddd-dddddddddddd', black, length100)],
+        isRecordedCombination: () => base.definitions.at(3)?.definition.levels.includes('VARIANT'),
+      }).issues,
+    ).toContainEqual({ kind: 'UNVERIFIABLE_COMBINATION', variantId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' });
+  });
   it('allows only recorded, distinct active combinations and no Cartesian expansion', () => {
     const result = evaluateVariantAxes({
       ...base,

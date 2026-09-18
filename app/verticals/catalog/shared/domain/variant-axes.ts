@@ -38,6 +38,8 @@ export const VariantAxisIssueKindSchema = Schema.Literals([
   'DUPLICATE_AXIS_VALUE',
   'INVALID_VALUE',
   'UNVERIFIABLE_VALUE',
+  'UNRECORDED_COMBINATION',
+  'UNVERIFIABLE_COMBINATION',
   'DUPLICATE_COMBINATION',
   'WRONG_PRODUCT',
 ]);
@@ -74,8 +76,8 @@ const valueKey = (value: AttributeValue): string => {
 };
 
 type AxisInspection =
-  | { readonly issue: VariantAxisIssue; readonly key?: never }
-  | { readonly issue?: never; readonly key: string };
+  | { readonly issue: VariantAxisIssue; readonly key?: never; readonly selection?: never }
+  | { readonly issue?: never; readonly key: string; readonly selection: VariantAxisValue };
 
 const inspectAxisValue = (
   axis: VariantAxis,
@@ -125,7 +127,10 @@ const inspectAxisValue = (
   if (decisions.some((decision) => decision === false)) {
     return { issue: { attributeDefinitionId: id, kind: 'INVALID_VALUE', variantId } };
   }
-  return { key: stableParts([axis.attributeDefinitionRef.tenantId, id, ...keys.toSorted()]) };
+  return {
+    key: stableParts([axis.attributeDefinitionRef.tenantId, id, ...keys.toSorted()]),
+    selection: { attributeDefinitionRef: axis.attributeDefinitionRef, values: checked.normalized },
+  };
 };
 
 const inspectAxisDefinition = (
@@ -156,7 +161,7 @@ const inspectAxisDefinition = (
 
 /**
  * Pure snapshot check. The caller must supply the Current Product Type rules,
- * definitions, allowed-value evidence, and a concurrency-safe write boundary.
+ * definitions, allowed-value and recorded-Variant evidence, and a concurrency-safe write boundary.
  * This helper neither creates a Variant nor certifies Current selectability.
  */
 export const evaluateVariantAxes = (input: {
@@ -166,6 +171,11 @@ export const evaluateVariantAxes = (input: {
   readonly definitions: readonly VariantAxisDefinitionSnapshot[];
   /** Predicate from the authoritative allowed-value snapshot; undefined means unverified. */
   readonly isAllowedValue?: (definition: AttributeDefinition, value: AttributeValue) => boolean | undefined;
+  /** Exact recorded Variant/selection evidence from the same owner-pinned snapshot; never infer a Cartesian product. */
+  readonly isRecordedCombination?: (
+    variant: ProductVariant,
+    selections: readonly VariantAxisValue[],
+  ) => boolean | undefined;
   readonly productRef: ProductVariant['productRef'];
   readonly productTypeRules: readonly ProductTypeAttributeRule[];
 }): VariantAxesResult => {
@@ -213,6 +223,15 @@ export const evaluateVariantAxes = (input: {
         issues.push({ kind: 'INVALID_VALUE', variantId });
       }
       if (axisResults.every((result) => result.key !== undefined) && !extraValue) {
+        const selections = axisResults.flatMap((result) => (result.selection === undefined ? [] : [result.selection]));
+        const recorded = input.isRecordedCombination?.(variant, selections);
+        if (recorded !== true) {
+          issues.push({
+            kind: recorded === false ? 'UNRECORDED_COMBINATION' : 'UNVERIFIABLE_COMBINATION',
+            variantId,
+          });
+          continue;
+        }
         const key = stableParts(
           axisResults.flatMap((result) => (result.key === undefined ? [] : [result.key])).toSorted(),
         );
