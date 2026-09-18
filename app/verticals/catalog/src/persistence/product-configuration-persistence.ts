@@ -754,6 +754,10 @@ export const productConfigurationPersistenceForScope = (
       if (definition !== undefined && last === undefined) {
         return yield* unavailable();
       }
+      if (last !== undefined) {
+        // A new publication must not extend a timeline whose prior evidence is incomplete.
+        yield* readCurrent({ at: last.effectiveAt, definitionId: input.definitionId, productId: input.productId });
+      }
       if (last !== undefined && epoch(input.effectiveFrom) <= epoch(last.effectiveAt)) {
         return { _tag: 'invalid', reason: 'Effective time must follow the preceding activation' };
       }
@@ -958,6 +962,34 @@ export const productConfigurationPersistenceForScope = (
           activation.supersededRevision !== (index === 0 ? null : index) ||
           !Number.isFinite(epoch(activation.effectiveAt)) ||
           (predecessor !== undefined && epoch(activation.effectiveAt) <= epoch(predecessor.effectiveAt))
+        );
+      })
+    ) {
+      return yield* unavailable();
+    }
+    const revisions = yield* transaction
+      .select()
+      .from(productConfigurationDefinitionRevisions)
+      .where(
+        and(
+          eq(productConfigurationDefinitionRevisions.tenantId, tenantId),
+          eq(productConfigurationDefinitionRevisions.definitionId, input.definitionId),
+        ),
+      )
+      .pipe(Effect.mapError(unavailable));
+    if (
+      revisions.length !== ordered.length ||
+      ordered.some((activation) => {
+        const revision = revisions.find((candidate) => candidate.revision === activation.revision);
+        return (
+          revision === undefined ||
+          revision.productId !== input.productId ||
+          revision.state !== 'ACTIVE' ||
+          epoch(revision.effectiveFrom) !== epoch(activation.effectiveAt) ||
+          revision.actionInvocationId !== activation.actionInvocationId ||
+          revision.actingPrincipalId !== activation.actingPrincipalId ||
+          revision.reason !== activation.reason ||
+          !isDeepStrictEqual(revision.evidenceRefs, activation.evidenceRefs)
         );
       })
     ) {

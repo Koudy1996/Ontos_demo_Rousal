@@ -575,14 +575,62 @@ describe('Product Configuration effectiveness timeline', () => {
         { verify: () => Effect.succeed(false) },
         confirmedUnit,
       );
-      const result = yield* noProof.publish({
-        ...input,
-        actionInvocationId: '88888888-8888-4888-8888-888888888888',
-        effectiveFrom: new Date('2026-09-20T00:00:00Z'),
-        expectedRevision: 1,
-      });
-      expect('reason' in result ? result.reason : null).toContain('impact');
+      const result = yield* Effect.exit(
+        noProof.publish({
+          ...input,
+          actionInvocationId: '88888888-8888-4888-8888-888888888888',
+          effectiveFrom: new Date('2026-09-20T00:00:00Z'),
+          expectedRevision: 1,
+        }),
+      );
+      expect(Exit.isFailure(result)).toBe(true);
       expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(1);
+    }),
+  );
+
+  it.effect('refuses to read or extend a timeline with damaged non-Current revision evidence', () =>
+    Effect.gen(function* damagedHistory() {
+      const state = statefulFixture();
+      const service = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        state.transaction,
+        scope,
+        { verify: () => Effect.succeed(true) },
+        confirmedUnit,
+      );
+      yield* service.publish(input);
+      const second = {
+        ...input,
+        actionInvocationId: '77777777-7777-4777-8777-777777777777',
+        effectiveFrom: new Date('2026-09-19T00:00:00Z'),
+        expectedRevision: 1,
+      };
+      yield* service.publish(second);
+      const revisions = state.rows.get(productConfigurationDefinitionRevisions);
+      const first = revisions?.[0];
+      if (first === undefined || revisions === undefined) {
+        return;
+      }
+      state.rows.set(productConfigurationDefinitionRevisions, [
+        { ...first, reason: 'Damaged historical evidence' },
+        ...revisions.slice(1),
+      ]);
+      for (const at of [new Date('2026-09-17T00:00:00Z'), second.effectiveFrom]) {
+        const result = yield* Effect.exit(
+          service.readCurrent({ at, definitionId: input.definitionId, productId: input.productId }),
+        );
+        expect(Exit.isFailure(result)).toBe(true);
+      }
+      const third = yield* Effect.exit(
+        service.publish({
+          ...second,
+          actionInvocationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          effectiveFrom: new Date('2026-09-20T00:00:00Z'),
+          expectedRevision: 2,
+        }),
+      );
+      expect(third).toMatchObject({ _tag: 'Failure' });
+      expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(2);
     }),
   );
 
