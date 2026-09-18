@@ -629,7 +629,7 @@ describe('Product Configuration effectiveness timeline', () => {
           expectedRevision: 2,
         }),
       );
-      expect(third).toMatchObject({ _tag: 'Failure' });
+      expect(Exit.isFailure(third)).toBe(true);
       expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(2);
     }),
   );

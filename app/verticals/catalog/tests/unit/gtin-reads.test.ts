@@ -77,8 +77,8 @@ const fixture = (current: Row | undefined, history: readonly Row[]) => ({
 
 describe('governed GTIN Current and history reads', () => {
   it('publishes code-only governed reads and checks the exact result resource', () => {
-    expect(Schema.decodeUnknownOption(GtinCurrentRequestSchema)({ code })._tag).toBe('Some');
-    expect(Schema.decodeUnknownOption(GtinHistoryRequestSchema)({ code })._tag).toBe('Some');
+    expect(Option.isSome(Schema.decodeUnknownOption(GtinCurrentRequestSchema)({ code }))).toBe(true);
+    expect(Option.isSome(Schema.decodeUnknownOption(GtinHistoryRequestSchema)({ code }))).toBe(true);
     expect(gtinCurrentEntrypoint.access).toBe('read');
     expect(gtinHistoryEntrypoint.access).toBe('historical_read');
     expect(gtinResultPermissionTarget(gtinTargetFromRow({ packageDefinitionId, variantId }, tenantId))).toEqual({
@@ -104,30 +104,34 @@ describe('governed GTIN Current and history reads', () => {
           tenantId,
         });
         expect(
-          Schema.decodeUnknownOption(GtinCurrentResponseSchema)({
-            attributionEvidenceRef: current.value.head.attributionEvidenceRef,
-            code,
-            revision: 2,
-            state: current.value.assignment.state,
-            target: gtinTargetFromRow(current.value.assignment, tenantId),
-          })._tag,
-        ).toBe('Some');
+          Option.isSome(
+            Schema.decodeUnknownOption(GtinCurrentResponseSchema)({
+              attributionEvidenceRef: current.value.head.attributionEvidenceRef,
+              code,
+              revision: 2,
+              state: current.value.assignment.state,
+              target: gtinTargetFromRow(current.value.assignment, tenantId),
+            }),
+          ),
+        ).toBe(true);
       }
       const history = yield* reads.history(code);
       expect(history.map((row) => gtinTargetFromRow(row, tenantId).kind)).toEqual(['VARIANT', 'PACKAGE_LEVEL']);
       expect(
-        Schema.decodeUnknownOption(GtinHistoryResponseSchema)({
-          revisions: history.map((row) => ({
-            attributionEvidenceRef: row.attributionEvidenceRef,
-            effectiveAt: row.effectiveAt.toISOString(),
-            reason: row.reason,
-            recordedAt: row.recordedAt.toISOString(),
-            revision: row.revision,
-            state: row.state,
-            target: gtinTargetFromRow(row, tenantId),
-          })),
-        })._tag,
-      ).toBe('Some');
+        Option.isSome(
+          Schema.decodeUnknownOption(GtinHistoryResponseSchema)({
+            revisions: history.map((row) => ({
+              attributionEvidenceRef: row.attributionEvidenceRef,
+              effectiveAt: row.effectiveAt.toISOString(),
+              reason: row.reason,
+              recordedAt: row.recordedAt.toISOString(),
+              revision: row.revision,
+              state: row.state,
+              target: gtinTargetFromRow(row, tenantId),
+            })),
+          }),
+        ),
+      ).toBe(true);
     }),
   );
 

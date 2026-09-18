@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Effect, Schema } from 'effect';
+import { Effect, Exit, Option, Schema } from 'effect';
 
 import { SkuLookupRequestSchema, SkuLookupResponseSchema } from '../../shared/apis/sku-lookup.ts';
 import {
@@ -16,7 +16,7 @@ const packageOption = { kind: 'PACKAGE_OPTION' as const, packageDefinitionId, te
 
 describe('governed SKU lookup contract', () => {
   it('accepts a code-only request for a post-result resource-authorized read', () => {
-    expect(Schema.decodeUnknownOption(SkuLookupRequestSchema)({ code: 'OLD-10' })._tag).toBe('Some');
+    expect(Option.isSome(Schema.decodeUnknownOption(SkuLookupRequestSchema)({ code: 'OLD-10' }))).toBe(true);
   });
 
   it('derives exactly one exact resource check for either target kind', () => {
@@ -50,14 +50,14 @@ describe('governed SKU lookup contract', () => {
       state: 'HISTORICAL' as const,
       target: variant,
     };
-    expect(Schema.decodeUnknownOption(SkuLookupResponseSchema)(historical)._tag).toBe('Some');
+    expect(Option.isSome(Schema.decodeUnknownOption(SkuLookupResponseSchema)(historical))).toBe(true);
     expect(skuLookupEntrypoint.access).toBe('historical_read');
   });
 
   it.effect('fails closed for ambiguous code with no candidate disclosure', () =>
     Effect.gen(function* ambiguousSkuRead() {
       const exit = yield* Effect.exit(skuLookupResult({ _tag: 'ambiguous' }));
-      expect(exit._tag).toBe('Failure');
+      expect(Exit.isFailure(exit)).toBe(true);
     }),
   );
 });
