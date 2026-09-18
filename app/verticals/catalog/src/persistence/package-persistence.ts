@@ -1,6 +1,6 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Option, Schema } from 'effect';
 
 import type { CreatePackageDefinitionPayload } from '../../shared/actions/create-package-definition.ts';
 import type { RetirePackageDefinitionPayload } from '../../shared/actions/retire-package-definition.ts';
@@ -107,6 +107,26 @@ const unavailable = (cause?: unknown): PackagePersistenceUnavailable => {
   }
   return failure;
 };
+
+/** Exact retained Package content, including its pinned lower and Set revisions. */
+export const packageHistoryForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
+  getContentRevision: (definitionId: string, revision: number) =>
+    transaction
+      .select()
+      .from(packageContentRevisions)
+      .where(
+        and(
+          eq(packageContentRevisions.tenantId, scope.tenantId),
+          eq(packageContentRevisions.packageDefinitionId, definitionId),
+          eq(packageContentRevisions.revision, revision),
+        ),
+      )
+      .limit(1)
+      .pipe(
+        Effect.map((rows) => (rows[0] === undefined ? Option.none() : Option.some(rows[0]))),
+        Effect.mapError(unavailable),
+      ),
+});
 
 const result = Effect.fn('PackagePersistence.result')(function* result(
   tag: 'created' | 'revised' | 'retired',

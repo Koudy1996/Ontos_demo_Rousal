@@ -90,6 +90,26 @@ const unavailable = (cause?: unknown): CatalogPersistenceUnavailable => {
   return failure;
 };
 
+/** Exact retained Variant form; absence never falls back to the Current Variant. */
+export const variantHistoryForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
+  getRevision: (variantId: string, revision: number) =>
+    transaction
+      .select()
+      .from(productVariantRevisions)
+      .where(
+        and(
+          eq(productVariantRevisions.tenantId, scope.tenantId),
+          eq(productVariantRevisions.variantId, variantId),
+          eq(productVariantRevisions.revision, revision),
+        ),
+      )
+      .limit(1)
+      .pipe(
+        Effect.map((rows) => (rows[0] === undefined ? Option.none() : Option.some(rows[0]))),
+        Effect.mapError(unavailable),
+      ),
+});
+
 const basisUnavailable = () =>
   new VariantCurrentBasisUnavailable({
     code: 'variant_current_basis_unavailable',

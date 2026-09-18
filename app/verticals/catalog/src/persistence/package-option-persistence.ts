@@ -94,6 +94,26 @@ const unavailable = (cause?: unknown): PackageOptionPersistenceUnavailable => {
   return error;
 };
 
+/** An Option role revision is distinct from its pinned Package content revision. */
+export const packageOptionHistoryForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
+  getRoleRevision: (definitionId: string, revision: number) =>
+    transaction
+      .select()
+      .from(packageOptionRoleRevisions)
+      .where(
+        and(
+          eq(packageOptionRoleRevisions.tenantId, scope.tenantId),
+          eq(packageOptionRoleRevisions.packageDefinitionId, definitionId),
+          eq(packageOptionRoleRevisions.revision, revision),
+        ),
+      )
+      .limit(1)
+      .pipe(
+        Effect.map((rows) => (rows[0] === undefined ? Option.none() : Option.some(rows[0]))),
+        Effect.mapError(unavailable),
+      ),
+});
+
 export const validPackageOptionRoleFinding = (finding: PackageOptionRoleFinding): boolean =>
   finding.validationReason.length > 0 &&
   finding.validationReason.length <= 1000 &&
