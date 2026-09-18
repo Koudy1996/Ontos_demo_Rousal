@@ -17,6 +17,14 @@ _Avoid_: Product-level stock bucket, warehouse name alone as reservation scope.
 
 **RESERVED** — Quantity constrained by Current Inventory-recognized Reservation obligations for one exact Stock Position. It does not by itself prove that an external physical-stock owner enforces the hold.
 
+**UNKNOWN** — Stock-fact state in which the expected owner/scope is known but the owner cannot currently establish a numeric value.
+
+**MISSING** — Stock-fact state in which no usable evidence exists for an expected fact/scope.
+
+**STALE** — Stock-fact state in which prior evidence exists but no longer qualifies as Current under its owner contract.
+
+**INDETERMINATE** — Stock-fact state in which relevant evidence exists but Current truth cannot be safely resolved because of conflict or uncertain effect outcome.
+
 **Stock Receipt** — Authoritative physical increase of one exact Stock Position for an explicit business reason in a scope whose physical-stock authority permits that transition.
 
 **Stock Issue** — Authoritative physical decrease of one exact Stock Position for an explicit business reason in a scope whose physical-stock authority permits that transition.
