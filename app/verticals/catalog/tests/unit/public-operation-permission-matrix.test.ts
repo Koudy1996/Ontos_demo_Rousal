@@ -4,6 +4,7 @@ import { catalogAuthorityBundles, catalogPublicOperationContracts } from '../../
 import { catalogManifest } from '../../vertical.manifest.ts';
 import { activatePackageDefinitionRecoveryRead } from '../../src/api/activate-package-definition-recovery.read.ts';
 import { activatePackageOptionRecoveryRead } from '../../src/api/activate-package-option-recovery.read.ts';
+import { activateLocalOverrideRecoveryRead } from '../../src/api/activate-local-override-recovery.read.ts';
 import { addProductCategoryAssignmentRecoveryRead } from '../../src/api/add-product-category-assignment-recovery.read.ts';
 import { assertSizeEquivalenceRecoveryRead } from '../../src/api/assert-size-equivalence-recovery.read.ts';
 import { assignCatalogMediaRecoveryRead } from '../../src/api/assign-catalog-media-recovery.read.ts';
@@ -11,6 +12,7 @@ import { assignSkuRecoveryRead } from '../../src/api/assign-sku-recovery.read.ts
 import { changeProductManufacturerRecoveryRead } from '../../src/api/change-product-manufacturer-recovery.read.ts';
 import { changeProductRelationshipRecoveryRead } from '../../src/api/change-product-relationship-recovery.read.ts';
 import { changeVariantRecoveryRead } from '../../src/api/change-variant-recovery.read.ts';
+import { changeLocalOverrideRecoveryRead } from '../../src/api/change-local-override-recovery.read.ts';
 import { confirmGtinRecoveryRead } from '../../src/api/confirm-gtin-recovery.read.ts';
 import { confirmVariantCombinationRecoveryRead } from '../../src/api/confirm-variant-combination-recovery.read.ts';
 import { correctGtinRecoveryRead } from '../../src/api/correct-gtin-recovery.read.ts';
@@ -40,6 +42,7 @@ import { governProductAttributeApplicabilityRecoveryRead } from '../../src/api/g
 import { governVariantAllowedValuesRecoveryRead } from '../../src/api/govern-variant-allowed-values-recovery.read.ts';
 import { governVariantAxesRecoveryRead } from '../../src/api/govern-variant-axes-recovery.read.ts';
 import { markGtinUnresolvedRecoveryRead } from '../../src/api/mark-gtin-unresolved-recovery.read.ts';
+import { importSourceAssertionRecoveryRead } from '../../src/api/import-source-assertion-recovery.read.ts';
 import { moveProductCategoryRecoveryRead } from '../../src/api/move-product-category-recovery.read.ts';
 import { promotePackageDefinitionRecoveryRead } from '../../src/api/promote-package-definition-recovery.read.ts';
 import { publishProductConfigurationRecoveryRead } from '../../src/api/publish-product-configuration-recovery.read.ts';
@@ -60,11 +63,16 @@ import { retireProductRecoveryRead } from '../../src/api/retire-product-recovery
 import { retireProductCategoryRecoveryRead } from '../../src/api/retire-product-category-recovery.read.ts';
 import { retireProductUnitRecoveryRead } from '../../src/api/retire-product-unit-recovery.read.ts';
 import { retireVariantRecoveryRead } from '../../src/api/retire-variant-recovery.read.ts';
+import { releaseLocalOverrideRecoveryRead } from '../../src/api/release-local-override-recovery.read.ts';
 import { brandCurrentRead } from '../../src/api/brand-current.read.ts';
 import { brandHistoryRead } from '../../src/api/brand-history.read.ts';
 import { colorCurrentRead } from '../../src/api/color-current.read.ts';
 import { colorHistoryRead } from '../../src/api/color-history.read.ts';
 import { catalogMediaCurrentRead } from '../../src/api/catalog-media-current.read.ts';
+import { catalogDocumentCurrentRead } from '../../src/api/catalog-document-current.read.ts';
+import { catalogSourceResolutionRead } from '../../src/api/catalog-source-resolution.read.ts';
+import { externalTargetResolutionRead } from '../../src/api/external-target-resolution.read.ts';
+import { selectionEvidenceRead } from '../../src/api/selection-evidence.read.ts';
 import { createProductRecoveryRead } from '../../src/api/create-product-recovery.read.ts';
 import { effectiveAttributeValuesCurrentRead } from '../../src/api/effective-attribute-values-current.read.ts';
 import { gtinCurrentRead } from '../../src/api/gtin-current.read.ts';
@@ -109,6 +117,7 @@ import { setCompositionCurrentRead } from '../../src/api/set-composition-current
 import { setCompositionHistoryRead } from '../../src/api/set-composition-history.read.ts';
 
 const reads = [
+  activateLocalOverrideRecoveryRead,
   activatePackageDefinitionRecoveryRead,
   activatePackageOptionRecoveryRead,
   addProductCategoryAssignmentRecoveryRead,
@@ -118,6 +127,7 @@ const reads = [
   changeProductManufacturerRecoveryRead,
   changeProductRelationshipRecoveryRead,
   changeVariantRecoveryRead,
+  changeLocalOverrideRecoveryRead,
   confirmGtinRecoveryRead,
   confirmVariantCombinationRecoveryRead,
   correctGtinRecoveryRead,
@@ -147,6 +157,7 @@ const reads = [
   governVariantAllowedValuesRecoveryRead,
   governVariantAxesRecoveryRead,
   markGtinUnresolvedRecoveryRead,
+  importSourceAssertionRecoveryRead,
   moveProductCategoryRecoveryRead,
   promotePackageDefinitionRecoveryRead,
   publishProductConfigurationRecoveryRead,
@@ -167,11 +178,16 @@ const reads = [
   retireProductCategoryRecoveryRead,
   retireProductUnitRecoveryRead,
   retireVariantRecoveryRead,
+  releaseLocalOverrideRecoveryRead,
   brandCurrentRead,
   brandHistoryRead,
   colorCurrentRead,
   colorHistoryRead,
   catalogMediaCurrentRead,
+  catalogDocumentCurrentRead,
+  catalogSourceResolutionRead,
+  externalTargetResolutionRead,
+  selectionEvidenceRead,
   createProductRecoveryRead,
   effectiveAttributeValuesCurrentRead,
   gtinCurrentRead,

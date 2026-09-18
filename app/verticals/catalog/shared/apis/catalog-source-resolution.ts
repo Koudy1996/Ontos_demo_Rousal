@@ -2,10 +2,28 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+import { CatalogSourceFactScopeSchema } from '../actions/catalog-source-resolution.ts';
 
-export const CatalogSourceResolutionRequestSchema = Schema.Struct({});
+export const CatalogSourceResolutionRequestSchema = Schema.Struct({ scope: CatalogSourceFactScopeSchema });
 export type CatalogSourceResolutionRequest = typeof CatalogSourceResolutionRequestSchema.Type;
-export const CatalogSourceResolutionResponseSchema = Schema.Struct({ ok: Schema.Literal(true) });
+const AcceptedBaseReferenceSchema = Schema.Struct({
+  assertionId: Schema.String.check(Schema.isUUID()),
+  issuerSystemId: Schema.String,
+  kind: Schema.Literal('ACCEPTED_BASE'),
+  sourceRecordId: Schema.String,
+  sourceRevision: Schema.BigIntFromString,
+});
+const OverrideReferenceSchema = Schema.Struct({
+  evidenceRef: Schema.String,
+  kind: Schema.Literal('LOCAL_OVERRIDE'),
+  revision: Schema.BigIntFromString,
+});
+export const CatalogSourceResolutionResponseSchema = Schema.Union([
+  Schema.Struct({ source: AcceptedBaseReferenceSchema, status: Schema.Literal('CURRENT'), value: Schema.Json }),
+  Schema.Struct({ source: OverrideReferenceSchema, status: Schema.Literal('CURRENT'), value: Schema.Json }),
+  Schema.Struct({ reason: Schema.String, status: Schema.Literals(['ABSENT', 'INVALID', 'NO_AUTHORITY', 'INDETERMINATE']) }),
+]);
+export type CatalogSourceResolutionResponse = typeof CatalogSourceResolutionResponseSchema.Type;
 
 export const CatalogSourceResolutionAuthenticationProblemSchema = makeProblemDetailsSchema(
   'CatalogSourceResolutionAuthenticationProblem',

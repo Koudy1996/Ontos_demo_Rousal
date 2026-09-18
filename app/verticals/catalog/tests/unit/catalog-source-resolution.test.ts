@@ -10,7 +10,12 @@ import type { CatalogLocalOverride } from '../../src/domain/catalog-source-resol
 const scope = { factKey: 'height', targetId: 'product-1', targetKind: 'PRODUCT', tenantId: 'tenant-1' } as const;
 const at = new Date('2026-09-18T12:00:00.000Z');
 const authority = { issuerSystemId: 'source-1', scope, status: 'VERIFIED' } as const;
-const admission = { factOwnership: 'CATALOG_LOCAL', overridePermitted: true, overrideValueValid: true } as const;
+const admission = {
+  assertionAdmission: 'EXTERNAL_SOURCE',
+  factOwnership: 'CATALOG_LOCAL',
+  overridePermitted: true,
+  overrideValueValid: true,
+} as const;
 const valuesEqual = (left: string, right: string): boolean => left === right;
 const base80 = {
   assertionId: 'assertion-r1',

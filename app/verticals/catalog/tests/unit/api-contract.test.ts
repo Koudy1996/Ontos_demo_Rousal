@@ -343,7 +343,9 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
     expect([
       'attribute-definition',
       'brand',
+      'catalog-document',
       'catalog-media',
+      'catalog-source',
       'configuration-unit',
       'controlled-attribute-value',
       'manufacturer-relation',
@@ -354,6 +356,7 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
       'product-type',
       'product-unit',
       'set-composition',
+      'selection-evidence',
       'size-equivalence',
       'variant',
     ]).toContain(contract.businessTarget);
@@ -403,7 +406,12 @@ it('publishes only explicitly implemented atomic permissions with disjoint autho
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.change-variant');
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.create-set-composition');
   expect(catalogAuthorityBundles.PRODUCT_EDITOR).toContain('commerce.catalog.revise-set-composition');
-  // #411B/#481 importer and local-override Actions are deferred.
+  expect(catalogAuthorityBundles.CATALOG_IMPORTER).toEqual(['commerce.catalog.import-source-assertion']);
+  expect(catalogAuthorityBundles.CATALOG_OVERRIDE_MANAGER).toEqual([
+    'commerce.catalog.activate-local-override',
+    'commerce.catalog.change-local-override',
+    'commerce.catalog.release-local-override',
+  ]);
   const bundlePermissions = Object.values(catalogAuthorityBundles).flat();
   expect(new Set(bundlePermissions).size).toBe(bundlePermissions.length);
   expect(bundlePermissions).toHaveLength(contracts.length);
