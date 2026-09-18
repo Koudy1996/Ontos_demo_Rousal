@@ -14,6 +14,8 @@ import {
   attributeValueRevisions,
   attributeValueSets,
   catalogRelations,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
   productTypeAssignments,
   productTypeAssignmentEvents,
   productTypeRevisionAttributes,
@@ -149,6 +151,32 @@ it.live('keeps two Products using one material definition independent in Current
             });
           });
         }),
+      );
+      yield* admin.transaction((transaction) =>
+        Effect.forEach([p1, p2], (productId) =>
+          Effect.gen(function* declareProductMaterial() {
+            yield* transaction.insert(productAttributeApplicability).values({
+              attributeDefinitionId: definitionId,
+              currentRevision: 1,
+              productId,
+              productLevel: true,
+              tenantId: tenantA,
+              variantLevel: false,
+            });
+            yield* transaction.insert(productAttributeApplicabilityRevisions).values({
+              actingPrincipalId: principalId,
+              actionInvocationId: randomUUID(),
+              attributeDefinitionId: definitionId,
+              evidenceRefs: [],
+              productId,
+              productLevel: true,
+              reason: 'Fixture Product material declaration',
+              revision: 1,
+              tenantId: tenantA,
+              variantLevel: false,
+            });
+          }),
+        ),
       );
 
       const first = yield* setMaterial(tenantA, p1, 'steel', null);
