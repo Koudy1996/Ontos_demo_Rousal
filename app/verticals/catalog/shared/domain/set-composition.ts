@@ -95,6 +95,11 @@ const format = ({ coefficient, scale }: Decimal): string => {
   return fractional.length === 0 ? padded.slice(0, -scale) : `${padded.slice(0, -scale)}.${fractional}`;
 };
 
+const sameSetComponent = (left: SetComponent, right: SetComponent): boolean =>
+  sameSelection(left.selection, right.selection) &&
+  sameUnit(left.quantity.unitRef, right.quantity.unitRef) &&
+  format(decimal(left.quantity.amount)) === format(decimal(right.quantity.amount));
+
 /** Evidence-only corrections can preserve actual content; changed component meaning cannot. */
 export const classifySetCompositionChange = (
   previous: SetCompositionRevision,
@@ -108,12 +113,7 @@ export const classifySetCompositionChange = (
   // while repeated identical needs still have to match one-for-one.
   const unmatched = [...previous.components];
   const sameContent = next.components.every((component) => {
-    const index = unmatched.findIndex(
-      (prior) =>
-        sameSelection(prior.selection, component.selection) &&
-        sameUnit(prior.quantity.unitRef, component.quantity.unitRef) &&
-        format(decimal(prior.quantity.amount)) === format(decimal(component.quantity.amount)),
-    );
+    const index = unmatched.findIndex((prior) => sameSetComponent(prior, component));
     if (index === -1) {
       return false;
     }
@@ -149,6 +149,129 @@ export const classifySetCompositionChange = (
     ? 'EVIDENCE_CORRECTION'
     : 'MATERIAL_CHANGE';
 };
+
+/** One explicitly named recorded need whose exact component value is being changed. */
+export const SetComponentRevisionChangeSchema = Schema.Struct({
+  componentId,
+  provenance: SetCompositionRevisionSchema.fields.provenance,
+  quantity: Schema.Struct({ amount: positiveAmount, unitRef: ProductUnitRefSchema }),
+  reference: SetCompositionSelectionRevisionSchema,
+  selection: CatalogSelectionSchema,
+});
+export type SetComponentRevisionChange = typeof SetComponentRevisionChangeSchema.Type;
+
+const SetCompositionRevisionRejectionSchema = Schema.Literals([
+  'SET_COMPONENT_NOT_RECORDED',
+  'SET_COMPONENT_UNCHANGED',
+  'SET_REVISION_KIND_INVALID',
+  'SET_REVISION_NOT_SUCCESSOR',
+  'SET_REVISION_PROVENANCE_INVALID',
+  'SET_REVISION_SELECTION_INVALID',
+]);
+type SetCompositionRevisionRejection = typeof SetCompositionRevisionRejectionSchema.Type;
+
+export type SetCompositionRevisionChange =
+  | { readonly revision: SetCompositionRevision; readonly status: 'CHANGED' }
+  | { readonly code: SetCompositionRevisionRejection; readonly reason: string; readonly status: 'REJECTED' };
+
+const rejected = (code: SetCompositionRevisionRejection, reason: string): SetCompositionRevisionChange => ({
+  code,
+  reason,
+  status: 'REJECTED',
+});
+
+const isExactSuccessorReference = (
+  previous: SetCompositionRevision,
+  reference: SetCompositionRevision['reference'],
+): boolean =>
+  reference.resourceRef.moduleId === previous.reference.resourceRef.moduleId &&
+  reference.resourceRef.resourceType === previous.reference.resourceRef.resourceType &&
+  reference.resourceRef.resourceId === previous.reference.resourceRef.resourceId &&
+  reference.resourceRef.tenantId === previous.reference.resourceRef.tenantId &&
+  reference.revision === previous.reference.revision + 1;
+
+const buildSuccessor = (
+  previous: SetCompositionRevision,
+  change: {
+    readonly expectedKind: SetCompositionRevision['provenance']['changeKind'];
+    readonly input: SetComponentRevisionChange;
+  },
+): SetCompositionRevisionChange => {
+  const { expectedKind, input } = change;
+  const index = previous.components.findIndex((component) => component.componentId === input.componentId);
+  if (index === -1) {
+    return rejected('SET_COMPONENT_NOT_RECORDED', 'The changed need is not recorded in the previous revision');
+  }
+  if (input.provenance.changeKind !== expectedKind) {
+    return rejected('SET_REVISION_KIND_INVALID', `A ${expectedKind} revision is required for this change`);
+  }
+  if (input.provenance.reason.trim().length === 0 || input.provenance.evidenceRefs.length === 0) {
+    return rejected('SET_REVISION_PROVENANCE_INVALID', 'A Set composition change requires a reason and evidence');
+  }
+  if (!isExactSuccessorReference(previous, input.reference)) {
+    return rejected('SET_REVISION_NOT_SUCCESSOR', 'A change must be the next numbered successor of the same Set');
+  }
+  const recorded = previous.components[index];
+  if (recorded === undefined) {
+    return rejected('SET_COMPONENT_NOT_RECORDED', 'The changed need is not recorded in the previous revision');
+  }
+  const replacement: SetComponent = {
+    componentId: input.componentId,
+    quantity: input.quantity,
+    selection: input.selection,
+  };
+  if (sameSetComponent(recorded, replacement)) {
+    return rejected('SET_COMPONENT_UNCHANGED', 'The recorded need keeps the same exact value');
+  }
+  if (expectedKind === 'EVIDENCE_CORRECTION') {
+    if (
+      !sameSelection(recorded.selection, replacement.selection) ||
+      !sameUnit(recorded.quantity.unitRef, replacement.quantity.unitRef)
+    ) {
+      return rejected(
+        'SET_REVISION_SELECTION_INVALID',
+        'An evidence correction cannot change the recorded goods or Unit',
+      );
+    }
+    if (!input.provenance.evidenceRefs.some((ref) => ref.startsWith('original-data-error:'))) {
+      return rejected(
+        'SET_REVISION_PROVENANCE_INVALID',
+        'An evidence correction requires an original-data-error evidence reference',
+      );
+    }
+  }
+  // Build a fresh successor; the accepted previous revision is never mutated or repointed.
+  const candidate = {
+    components: previous.components.map((component, position) => (position === index ? replacement : component)),
+    predecessor: previous.reference,
+    productRef: previous.productRef,
+    provenance: input.provenance,
+    reference: input.reference,
+    variantRef: previous.variantRef,
+  };
+  const decoded = Schema.decodeResult(SetCompositionRevisionSchema)(candidate);
+  return Result.isFailure(decoded)
+    ? rejected('SET_REVISION_SELECTION_INVALID', 'The change does not form a valid Set composition revision')
+    : { revision: Result.getOrThrow(decoded), status: 'CHANGED' };
+};
+
+/**
+ * Replace exactly one recorded need with a materially different exact Selection or Quantity.
+ * The returned successor keeps the previous revision as predecessor and as immutable history.
+ */
+export const replaceSetComponent = (
+  previous: SetCompositionRevision,
+  input: SetComponentRevisionChange,
+): SetCompositionRevisionChange => buildSuccessor(previous, { expectedKind: 'MATERIAL_CHANGE', input });
+
+/**
+ * Correct incorrectly recorded evidence for the same actual goods and Unit.
+ * It still issues a new numbered revision so a used immutable revision keeps its original error.
+ */
+export const correctSetComponentEvidence = (
+  previous: SetCompositionRevision,
+  input: SetComponentRevisionChange,
+): SetCompositionRevisionChange => buildSuccessor(previous, { expectedKind: 'EVIDENCE_CORRECTION', input });
 
 const add = (left: Decimal, right: Decimal): Decimal => {
   const scale = Math.max(left.scale, right.scale);
