@@ -10,8 +10,10 @@ import {
   ReviseSetCompositionResultSchema,
 } from '../../shared/actions/revise-set-composition.ts';
 import { SetCompositionActionError } from '../../shared/actions/set-composition-contract.ts';
+import { OutboxPayloadSchema as SetCompositionRevisedEventSchema } from '../../shared/outbox/commerce-catalog-set-composition-revised-v1.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import type { SetCompositionPersistence } from '../persistence/set-composition-persistence.ts';
+import { createReviseSetCompositionCommerceCatalogSetCompositionRevisedV1OutboxMessage } from './revise-set-composition-commerce-catalog-set-composition-revised-v1.outbox-message.ts';
 import {
   handleSetCompositionMutation,
   setCompositionPersistenceServiceFactory,
@@ -25,6 +27,41 @@ type ReviseSetCompositionServices = SetCompositionPersistence & {
 };
 
 const actionKey = 'commerce.catalog.revise-set-composition';
+const MODULE_KEY = 'commerce.catalog' as const;
+const eventType = 'commerce.catalog.set-composition-revised.v1';
+const domainEvents = { [eventType]: SetCompositionRevisedEventSchema } as const;
+
+export const handleReviseSetComposition = Effect.fn('ReviseSetCompositionAction.handle')(
+  function* handleReviseSetComposition(
+    payload: typeof ReviseSetCompositionPayloadSchema.Type,
+    context: ActionHandlerContext<typeof domainEvents, ReviseSetCompositionServices>,
+  ) {
+    const result = yield* handleSetCompositionMutation('REVISE', payload, context);
+    const eventPayload = {
+      changeId: context.actionInvocationId,
+      changeKind: payload.revision.provenance.changeKind,
+      effectiveFrom: payload.effectiveFrom,
+      lifecycleState: payload.lifecycleState,
+      productRef: payload.revision.productRef,
+      revision: result.revision,
+      tenantId: context.scope.tenantId,
+      variantRef: payload.revision.variantRef,
+    };
+    const event = yield* context.addDomainEvent({
+      eventType,
+      payloadJson: eventPayload,
+      producerModuleKey: MODULE_KEY,
+      subjectModuleKey: MODULE_KEY,
+      subjectResourceId: result.revision.resourceRef.resourceId,
+      subjectResourceType: 'commerce.catalog.set-composition',
+    });
+    yield* context.addOutboxMessage(
+      event,
+      createReviseSetCompositionCommerceCatalogSetCompositionRevisedV1OutboxMessage(eventPayload),
+    );
+    return result;
+  },
+);
 
 export const reviseSetCompositionAction = defineAction(
   {
@@ -35,24 +72,23 @@ export const reviseSetCompositionAction = defineAction(
     actionKey,
     auditProfile: 'standard',
     domainErrorSchema: SetCompositionActionError,
-    domainEvents: {},
+    domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: actionKey,
-      moduleKey: 'commerce.catalog',
+      entrypointKey: 'commerce.catalog.revise-set-composition',
+      moduleKey: MODULE_KEY,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: MODULE_KEY,
     payloadSchema: ReviseSetCompositionPayloadSchema,
     policies: [],
     resultSchema: ReviseSetCompositionResultSchema,
     schemaVersion: '1',
   },
-  (payload, context: ActionHandlerContext<Readonly<Record<string, never>>, ReviseSetCompositionServices>) =>
-    handleSetCompositionMutation('REVISE', payload, context),
+  handleReviseSetComposition,
   (transaction, scope) =>
     setCompositionPersistenceServiceFactory(transaction, scope).pipe(
       Effect.map((services): ReviseSetCompositionServices => ({
@@ -83,4 +119,9 @@ export const reviseSetCompositionAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createReviseSetCompositionCommerceCatalogSetCompositionRevisedV1OutboxMessage } from './revise-set-composition-commerce-catalog-set-composition-revised-v1.outbox-message.ts';
+export { ReviseSetCompositionCommerceCatalogSetCompositionRevisedV1OutboxPayloadSchema } from './revise-set-composition-commerce-catalog-set-composition-revised-v1.outbox-message.ts';
+export { ReviseSetCompositionCommerceCatalogSetCompositionRevisedV1OutboxProducerModuleKey } from './revise-set-composition-commerce-catalog-set-composition-revised-v1.outbox-message.ts';
+export { ReviseSetCompositionCommerceCatalogSetCompositionRevisedV1OutboxTopic } from './revise-set-composition-commerce-catalog-set-composition-revised-v1.outbox-message.ts';
+export type { ReviseSetCompositionCommerceCatalogSetCompositionRevisedV1OutboxPayload } from './revise-set-composition-commerce-catalog-set-composition-revised-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

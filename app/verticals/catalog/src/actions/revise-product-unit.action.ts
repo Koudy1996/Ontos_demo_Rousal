@@ -2,7 +2,7 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug revise-product-unit
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import {
@@ -17,6 +17,8 @@ import {
 } from '../../shared/actions/product-unit-contract.ts';
 import type { ProductUnitPersistence } from '../persistence/product-unit-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-unit-revised-v1.ts';
+import { createReviseProductUnitCommerceCatalogProductUnitRevisedV1OutboxMessage } from './revise-product-unit-commerce-catalog-product-unit-revised-v1.outbox-message.ts';
 import {
   mapProductUnitPersistenceError,
   productUnitPersistenceServiceFactory,
@@ -25,9 +27,12 @@ import {
 
 export type { ReviseProductUnitPayload } from '../../shared/actions/revise-product-unit.ts';
 
+const UNIT_REVISED_EVENT_TYPE = 'commerce.catalog.product-unit-revised.v1';
+const domainEvents = { [UNIT_REVISED_EVENT_TYPE]: OutboxPayloadSchema } as const;
+
 export const handleReviseProductUnit = Effect.fn('ReviseProductUnitAction.handle')(function* handleReviseProductUnit(
   payload: ReviseProductUnitPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence>,
+  context: ActionHandlerContext<typeof domainEvents, ProductUnitPersistence>,
 ) {
   if (payload.expectedCurrent.unit.tenantId !== context.scope.tenantId) {
     return yield* new ProductUnitActionError({
@@ -39,7 +44,41 @@ export const handleReviseProductUnit = Effect.fn('ReviseProductUnitAction.handle
     .revise({ actionInvocationId: context.actionInvocationId, payload, principalId: context.scope.principalId })
     .pipe(Effect.mapError(mapProductUnitPersistenceError));
   const result = yield* resolveProductUnitMutation(outcome);
+  const revised = Match.value(outcome).pipe(
+    Match.tag('revised', () => true),
+    Match.orElse(() => false),
+  );
+  if (
+    !revised ||
+    result.ruleRevision.revision !== payload.expectedCurrent.revision + 1 ||
+    result.unit.resourceId !== payload.expectedCurrent.unit.resourceId ||
+    result.unit.tenantId !== context.scope.tenantId ||
+    result.ruleRevision.unit.resourceId !== result.unit.resourceId ||
+    result.ruleRevision.unit.tenantId !== result.unit.tenantId
+  ) {
+    return yield* new ProductUnitActionError({
+      code: 'product_unit_unavailable',
+      reason: 'Committed Product Unit revision could not be verified',
+    });
+  }
   yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
+  const eventPayload = {
+    revision: result.ruleRevision.revision,
+    tenantId: context.scope.tenantId,
+    unit: result.unit,
+  };
+  const event = yield* context.addDomainEvent({
+    eventType: UNIT_REVISED_EVENT_TYPE,
+    payloadJson: eventPayload,
+    producerModuleKey: result.unit.moduleId,
+    subjectModuleKey: result.unit.moduleId,
+    subjectResourceId: result.unit.resourceId,
+    subjectResourceType: 'commerce.catalog.product-unit',
+  });
+  yield* context.addOutboxMessage(
+    event,
+    createReviseProductUnitCommerceCatalogProductUnitRevisedV1OutboxMessage(eventPayload),
+  );
   return result;
 });
 
@@ -55,11 +94,11 @@ export const reviseProductUnitAction = defineAction(
     auditEvidenceSchema: ProductUnitAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductUnitActionErrorSchema,
-    domainEvents: {},
+    domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
+      entrypointKey: 'commerce.catalog.revise-product-unit',
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -111,4 +150,9 @@ export const reviseProductUnitAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createReviseProductUnitCommerceCatalogProductUnitRevisedV1OutboxMessage } from './revise-product-unit-commerce-catalog-product-unit-revised-v1.outbox-message.ts';
+export { ReviseProductUnitCommerceCatalogProductUnitRevisedV1OutboxPayloadSchema } from './revise-product-unit-commerce-catalog-product-unit-revised-v1.outbox-message.ts';
+export { ReviseProductUnitCommerceCatalogProductUnitRevisedV1OutboxProducerModuleKey } from './revise-product-unit-commerce-catalog-product-unit-revised-v1.outbox-message.ts';
+export { ReviseProductUnitCommerceCatalogProductUnitRevisedV1OutboxTopic } from './revise-product-unit-commerce-catalog-product-unit-revised-v1.outbox-message.ts';
+export type { ReviseProductUnitCommerceCatalogProductUnitRevisedV1OutboxPayload } from './revise-product-unit-commerce-catalog-product-unit-revised-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

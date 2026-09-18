@@ -13,7 +13,10 @@ import { setCompositionComponentCurrentBasisForScope } from '../persistence/set-
 
 type ScopedTransaction = Parameters<typeof setCompositionPersistenceForScope>[0];
 type Scope = Parameters<typeof setCompositionPersistenceForScope>[1];
-type Context = ActionHandlerContext<Readonly<Record<string, never>>, SetCompositionPersistence>;
+type Context = Pick<
+  ActionHandlerContext<Readonly<Record<string, never>>, SetCompositionPersistence>,
+  'actionInvocationId' | 'recordDataAccess' | 'scope' | 'services'
+>;
 
 export const setCompositionBasisForScope = (transaction: ScopedTransaction, scope: Scope): SetCompositionBasis => {
   const current = setCompositionComponentCurrentBasisForScope(transaction, scope);

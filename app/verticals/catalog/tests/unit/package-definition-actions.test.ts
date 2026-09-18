@@ -1,4 +1,4 @@
-import type { ActionHandlerContext } from '@app/core-runtime';
+import type { ActionHandlerContext, DomainEventContractMap } from '@app/core-runtime';
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
@@ -54,9 +54,10 @@ const unavailable = () =>
     new PackagePersistenceUnavailable({ code: 'package_persistence_unavailable', reason: 'No Current basis' }),
   );
 const unexpected = () => Effect.die('Unexpected persistence call');
-const context = (
+type PackageDefinitionRevisedDomainEvents = typeof revisePackageDefinitionAction.descriptor.domainEvents;
+const context = <DomainEvents extends DomainEventContractMap = Readonly<Record<string, never>>>(
   overrides: Partial<PackagePersistence> = {},
-): ActionHandlerContext<Readonly<Record<string, never>>, PackagePersistence> => ({
+): ActionHandlerContext<DomainEvents, PackagePersistence> => ({
   actionInvocationId: '88888888-8888-4888-8888-888888888888',
   addDomainEvent: () => Effect.succeed(Object.create(null)),
   addOutboxMessage: () => Effect.void,
@@ -159,8 +160,8 @@ describe('Package Definition governed Action contracts', () => {
       const revision = Schema.decodeUnknownSync(PackageDefinitionSelectionRevisionSchema)(expectedCurrent);
       const trustedRef = Schema.decodeUnknownSync(PackageDefinitionRefSchema)(definitionRef);
       const recorded: unknown[] = [];
-      const run: ActionHandlerContext<Readonly<Record<string, never>>, PackagePersistence> = {
-        ...context({
+      const run: ActionHandlerContext<PackageDefinitionRevisedDomainEvents, PackagePersistence> = {
+        ...context<PackageDefinitionRevisedDomainEvents>({
           revise: ({ payload }) => {
             expect(payload.changeKind).toBe('correction');
             expect(payload.expectedCurrent.revision).toBe(1);
@@ -180,14 +181,16 @@ describe('Package Definition governed Action contracts', () => {
         }),
       ]);
       const { priorErrorExplanation: _omitted, ...missingExplanation } = correction;
-      const error = yield* handleRevisePackageDefinition(missingExplanation, context({ revise: unexpected })).pipe(
-        Effect.flip,
-      );
+      const error = yield* handleRevisePackageDefinition(
+        missingExplanation,
+        context<PackageDefinitionRevisedDomainEvents>({ revise: unexpected }),
+      ).pipe(Effect.flip);
       expect(error.code).toBe('package_definition_invalid');
       const falseCorrection = { ...correction, changeKind: 'physical_change' as const };
-      const falseError = yield* handleRevisePackageDefinition(falseCorrection, context({ revise: unexpected })).pipe(
-        Effect.flip,
-      );
+      const falseError = yield* handleRevisePackageDefinition(
+        falseCorrection,
+        context<PackageDefinitionRevisedDomainEvents>({ revise: unexpected }),
+      ).pipe(Effect.flip);
       expect(falseError.code).toBe('package_definition_invalid');
     }),
   );

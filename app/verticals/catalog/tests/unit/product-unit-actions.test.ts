@@ -1,4 +1,4 @@
-import type { ActionHandlerContext } from '@app/core-runtime';
+import type { ActionHandlerContext, DomainEventContractMap } from '@app/core-runtime';
 import { ActionTransactionError, TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { bindActionTestServices, makeActionTestHarness } from '@app/core-runtime/testing/actions';
 import { describe, expect, it } from 'effect-rstest';
@@ -21,6 +21,7 @@ import {
 } from '../../src/actions/set-product-unit-target-divisibility.action.ts';
 import { ProductUnitPersistenceUnavailable } from '../../src/persistence/product-unit-persistence.ts';
 import type { ProductUnitPersistence } from '../../src/persistence/product-unit-persistence.ts';
+import type { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-unit-revised-v1.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const otherTenantId = '22222222-2222-4222-8222-222222222222';
@@ -92,9 +93,12 @@ const unavailable = () =>
     new ProductUnitPersistenceUnavailable({ code: 'product_unit_persistence_unavailable', reason: 'No basis' }),
   );
 const unexpected = () => Effect.die('Persistence should not run');
-const context = (
+type ProductUnitRevisedDomainEvents = Readonly<
+  Record<'commerce.catalog.product-unit-revised.v1', typeof OutboxPayloadSchema>
+>;
+const context = <DomainEvents extends DomainEventContractMap = Readonly<Record<string, never>>>(
   overrides: Partial<ProductUnitPersistence> = {},
-): ActionHandlerContext<Readonly<Record<string, never>>, ProductUnitPersistence> => ({
+): ActionHandlerContext<DomainEvents, ProductUnitPersistence> => ({
   actionInvocationId: '88888888-8888-4888-8888-888888888888',
   addDomainEvent: () => Effect.succeed(Object.create(null)),
   addOutboxMessage: () => Effect.void,
@@ -226,7 +230,7 @@ describe('Product Unit governed Actions', () => {
     Effect.gen(function* unavailableWrites() {
       const errors = yield* Effect.all([
         handleCreateProductUnit(create, context()).pipe(Effect.flip),
-        handleReviseProductUnit(revise, context()).pipe(Effect.flip),
+        handleReviseProductUnit(revise, context<ProductUnitRevisedDomainEvents>()).pipe(Effect.flip),
         handleRetireProductUnit(retire, context()).pipe(Effect.flip),
         handleSetProductUnitTargetDivisibility(divisibility, context()).pipe(Effect.flip),
       ]);

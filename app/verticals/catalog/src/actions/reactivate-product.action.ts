@@ -11,6 +11,7 @@ import {
 } from '../../shared/actions/reactivate-product.ts';
 import type { ReactivateProductPayload, ReactivateProductResult } from '../../shared/actions/reactivate-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-lifecycle-changed-v1.ts';
 import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
@@ -24,6 +25,7 @@ import {
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { createReactivateProductCommerceCatalogProductLifecycleChangedV1OutboxMessage } from './reactivate-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
 
 type ReactivateProductServices = CatalogPersistence & {
   readonly captureResult: (
@@ -38,10 +40,11 @@ export type { ReactivateProductPayload } from '../../shared/actions/reactivate-p
 const MODULE_KEY = 'commerce.catalog' as const;
 const ACTION_KEY = 'commerce.catalog.reactivate-product' as const;
 const domainEvents = {
+  'commerce.catalog.product-lifecycle-changed.v1': OutboxPayloadSchema,
   'commerce.catalog.product-reactivated.v1': ReactivateProductResultSchema,
 } as const;
 
-const execute = Effect.fn('ReactivateProductAction.execute')(function* execute(
+export const handleReactivateProduct = Effect.fn('ReactivateProductAction.execute')(function* execute(
   payload: ReactivateProductPayload,
   context: ActionHandlerContext<typeof domainEvents, CatalogPersistence>,
 ) {
@@ -78,6 +81,23 @@ const execute = Effect.fn('ReactivateProductAction.execute')(function* execute(
     result.product.productRef.resourceId,
     result,
   );
+  const eventPayload = {
+    changeKind: 'ACTIVATED' as const,
+    lifecycle: 'ACTIVE' as const,
+    productRef: result.product.productRef,
+    revision: result.product.revision,
+    tenantId: context.scope.tenantId,
+  };
+  const event = yield* recordProductEvent(
+    context,
+    'commerce.catalog.product-lifecycle-changed.v1',
+    result.product.productRef.resourceId,
+    eventPayload,
+  );
+  yield* context.addOutboxMessage(
+    event,
+    createReactivateProductCommerceCatalogProductLifecycleChangedV1OutboxMessage(eventPayload),
+  );
   return result;
 });
 
@@ -95,8 +115,8 @@ export const reactivateProductAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
-      moduleKey: MODULE_KEY,
+      entrypointKey: 'commerce.catalog.reactivate-product',
+      moduleKey: 'commerce.catalog',
       role: 'action',
     }),
     idempotency: 'required',
@@ -107,7 +127,7 @@ export const reactivateProductAction = defineAction(
     resultSchema: ReactivateProductResultSchema,
     schemaVersion: '1',
   },
-  execute,
+  handleReactivateProduct,
   (transaction, scope) =>
     catalogPersistenceServiceFactory(transaction, scope).pipe(
       Effect.map((services): ReactivateProductServices => ({
@@ -129,4 +149,9 @@ export const reactivateProductAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createReactivateProductCommerceCatalogProductLifecycleChangedV1OutboxMessage } from './reactivate-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { ReactivateProductCommerceCatalogProductLifecycleChangedV1OutboxPayloadSchema } from './reactivate-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { ReactivateProductCommerceCatalogProductLifecycleChangedV1OutboxProducerModuleKey } from './reactivate-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { ReactivateProductCommerceCatalogProductLifecycleChangedV1OutboxTopic } from './reactivate-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export type { ReactivateProductCommerceCatalogProductLifecycleChangedV1OutboxPayload } from './reactivate-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

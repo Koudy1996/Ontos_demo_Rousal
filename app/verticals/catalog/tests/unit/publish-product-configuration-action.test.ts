@@ -22,6 +22,7 @@ import {
 import type { ProductConfigurationPersistence } from '../../src/persistence/product-configuration-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 import { catalogResultSnapshots } from '../../src/database/schema.ts';
+import type { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-configuration-published-v1.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const principalId = '22222222-2222-4222-8222-222222222222';
@@ -57,7 +58,10 @@ const scope = {
 };
 const context = (
   services: ProductConfigurationPersistence,
-): ActionHandlerContext<Readonly<Record<string, never>>, ProductConfigurationPersistence> => ({
+): ActionHandlerContext<
+  { 'commerce.catalog.product-configuration-published.v1': typeof OutboxPayloadSchema },
+  ProductConfigurationPersistence
+> => ({
   actionInvocationId: '33333333-3333-4333-8333-333333333333',
   addDomainEvent: () => Effect.succeed(Object.create(null)),
   addOutboxMessage: () => Effect.void,

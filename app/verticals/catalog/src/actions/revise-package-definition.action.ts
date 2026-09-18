@@ -14,21 +14,27 @@ import {
   PackageDefinitionActionError,
   PackageDefinitionAuditEvidenceSchema,
 } from '../../shared/actions/package-definition-contract.ts';
+import { OutboxPayloadSchema } from '@app/catalog/outbox/commerce-catalog-package-definition-revised-v1';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import type { PackagePersistence } from '../persistence/package-persistence.ts';
+import { createRevisePackageDefinitionCommerceCatalogPackageDefinitionRevisedV1OutboxMessage } from './revise-package-definition-commerce-catalog-package-definition-revised-v1.outbox-message.ts';
 import {
   mapPackagePersistenceError,
   packageDefinitionPersistenceServiceFactory,
-  recordPackageDefinitionAccess,
   resolvePackageMutation,
 } from './package-definition-action-support.ts';
 
 export type { RevisePackageDefinitionPayload } from '../../shared/actions/revise-package-definition.ts';
 
+const MODULE_KEY = 'commerce.catalog' as const;
+const domainEvents = {
+  'commerce.catalog.package-definition-revised.v1': OutboxPayloadSchema,
+} as const;
+
 export const handleRevisePackageDefinition = Effect.fn('RevisePackageDefinitionAction.handle')(
   function* handleRevisePackageDefinition(
     payload: RevisePackageDefinitionPayload,
-    context: ActionHandlerContext<Readonly<Record<string, never>>, PackagePersistence>,
+    context: ActionHandlerContext<typeof domainEvents, PackagePersistence>,
   ) {
     const { tenantId } = context.scope;
     if (
@@ -69,7 +75,34 @@ export const handleRevisePackageDefinition = Effect.fn('RevisePackageDefinitionA
           }
         : { changeKind: 'physical_change', evidenceRefs: payload.evidenceRefs, reason: payload.reason },
     );
-    yield* recordPackageDefinitionAccess(context, result.definitionRef.resourceId);
+    yield* context.recordDataAccess({
+      accessKind: 'read',
+      queryHash: `catalog-package-definition:${result.definitionRef.resourceId}`,
+      resultCount: 1,
+      servingModuleKey: MODULE_KEY,
+      targetModuleKey: MODULE_KEY,
+      targetResourceId: result.definitionRef.resourceId,
+      targetResourceType: 'commerce.catalog.package-definition',
+    });
+    const eventPayload = {
+      changeKind: payload.changeKind,
+      contentRevision: result.contentRevision,
+      definitionRef: result.definitionRef,
+      effectiveAt: payload.content.effectiveAt,
+      tenantId,
+    };
+    const event = yield* context.addDomainEvent({
+      eventType: 'commerce.catalog.package-definition-revised.v1',
+      payloadJson: eventPayload,
+      producerModuleKey: MODULE_KEY,
+      subjectModuleKey: MODULE_KEY,
+      subjectResourceId: result.definitionRef.resourceId,
+      subjectResourceType: 'commerce.catalog.package-definition',
+    });
+    yield* context.addOutboxMessage(
+      event,
+      createRevisePackageDefinitionCommerceCatalogPackageDefinitionRevisedV1OutboxMessage(eventPayload),
+    );
     return result;
   },
 );
@@ -86,17 +119,17 @@ export const revisePackageDefinitionAction = defineAction(
     auditEvidenceSchema: PackageDefinitionAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: PackageDefinitionActionErrorSchema,
-    domainEvents: {},
+    domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
-      moduleKey: 'commerce.catalog',
+      entrypointKey: 'commerce.catalog.revise-package-definition',
+      moduleKey: MODULE_KEY,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: MODULE_KEY,
     payloadSchema: RevisePackageDefinitionPayloadSchema,
     policies: [],
     resultSchema: RevisePackageDefinitionResultSchema,
@@ -142,4 +175,9 @@ export const revisePackageDefinitionAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createRevisePackageDefinitionCommerceCatalogPackageDefinitionRevisedV1OutboxMessage } from './revise-package-definition-commerce-catalog-package-definition-revised-v1.outbox-message.ts';
+export { RevisePackageDefinitionCommerceCatalogPackageDefinitionRevisedV1OutboxPayloadSchema } from './revise-package-definition-commerce-catalog-package-definition-revised-v1.outbox-message.ts';
+export { RevisePackageDefinitionCommerceCatalogPackageDefinitionRevisedV1OutboxProducerModuleKey } from './revise-package-definition-commerce-catalog-package-definition-revised-v1.outbox-message.ts';
+export { RevisePackageDefinitionCommerceCatalogPackageDefinitionRevisedV1OutboxTopic } from './revise-package-definition-commerce-catalog-package-definition-revised-v1.outbox-message.ts';
+export type { RevisePackageDefinitionCommerceCatalogPackageDefinitionRevisedV1OutboxPayload } from './revise-package-definition-commerce-catalog-package-definition-revised-v1.outbox-message.ts';
 // </generated-outbox-message-exports>
