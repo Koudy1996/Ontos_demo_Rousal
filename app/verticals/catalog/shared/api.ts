@@ -37,7 +37,9 @@ import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateSetCompositionActionApi } from './apis/create-set-composition-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
+import { DecideProductTypeUnnecessaryActionApi } from './apis/decide-product-type-unnecessary-action.ts';
 import { EffectiveAttributeValuesCurrentApi } from './apis/effective-attribute-values-current.ts';
+import { GovernProductAttributeApplicabilityActionApi } from './apis/govern-product-attribute-applicability-action.ts';
 import { GovernVariantAxesActionApi } from './apis/govern-variant-axes-action.ts';
 import { GtinCurrentApi } from './apis/gtin-current.ts';
 import { GtinHistoryApi } from './apis/gtin-history.ts';
@@ -54,6 +56,7 @@ import { ProductHistoryApi } from './apis/product-history.ts';
 import { ProductRelationshipCurrentApi } from './apis/product-relationship-current.ts';
 import { ProductRelationshipHistoryApi } from './apis/product-relationship-history.ts';
 import { ProductSizeCurrentApi } from './apis/product-size-current.ts';
+import { PromotePackageDefinitionActionApi } from './apis/promote-package-definition-action.ts';
 import { PublishProductConfigurationActionApi } from './apis/publish-product-configuration-action.ts';
 import { QuantityPreparationApi } from './apis/quantity-preparation.ts';
 import { ReactivateBrandActionApi } from './apis/reactivate-brand-action.ts';
@@ -154,7 +157,9 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateSetCompositionActionApi)
   .addHttpApi(CreateVariantActionApi)
+  .addHttpApi(DecideProductTypeUnnecessaryActionApi)
   .addHttpApi(EffectiveAttributeValuesCurrentApi)
+  .addHttpApi(GovernProductAttributeApplicabilityActionApi)
   .addHttpApi(GovernVariantAxesActionApi)
   .addHttpApi(GtinCurrentApi)
   .addHttpApi(GtinHistoryApi)
@@ -171,6 +176,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductRelationshipCurrentApi)
   .addHttpApi(ProductRelationshipHistoryApi)
   .addHttpApi(ProductSizeCurrentApi)
+  .addHttpApi(PromotePackageDefinitionActionApi)
   .addHttpApi(PublishProductConfigurationActionApi)
   .addHttpApi(QuantityPreparationApi)
   .addHttpApi(ReactivateBrandActionApi)

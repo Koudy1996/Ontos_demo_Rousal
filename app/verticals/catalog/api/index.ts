@@ -55,7 +55,9 @@ import { createProductTypeActionApiLive } from './create-product-type-action-ser
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createSetCompositionActionApiLive } from './create-set-composition-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
+import { decideProductTypeUnnecessaryActionApiLive } from './decide-product-type-unnecessary-action-server.ts';
 import { effectiveAttributeValuesCurrentReadApiLive } from './effective-attribute-values-current-read-server.ts';
+import { governProductAttributeApplicabilityActionApiLive } from './govern-product-attribute-applicability-action-server.ts';
 import { governVariantAxesActionApiLive } from './govern-variant-axes-action-server.ts';
 import { gtinCurrentReadApiLive } from './gtin-current-read-server.ts';
 import { gtinHistoryReadApiLive } from './gtin-history-read-server.ts';
@@ -72,6 +74,7 @@ import { productHistoryReadApiLive } from './product-history-read-server.ts';
 import { productRelationshipCurrentReadApiLive } from './product-relationship-current-read-server.ts';
 import { productRelationshipHistoryReadApiLive } from './product-relationship-history-read-server.ts';
 import { productSizeCurrentReadApiLive } from './product-size-current-read-server.ts';
+import { promotePackageDefinitionActionApiLive } from './promote-package-definition-action-server.ts';
 import { publishProductConfigurationActionApiLive } from './publish-product-configuration-action-server.ts';
 import { quantityPreparationReadApiLive } from './quantity-preparation-read-server.ts';
 import { reactivateBrandActionApiLive } from './reactivate-brand-action-server.ts';
@@ -248,7 +251,9 @@ export const makeCatalogApiRuntime = (
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    decideProductTypeUnnecessaryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     effectiveAttributeValuesCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    governProductAttributeApplicabilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     governVariantAxesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     gtinCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     gtinHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
@@ -265,6 +270,7 @@ export const makeCatalogApiRuntime = (
     productRelationshipCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productRelationshipHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productSizeCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    promotePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     publishProductConfigurationActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     quantityPreparationReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reactivateBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
