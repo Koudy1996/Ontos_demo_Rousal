@@ -28,8 +28,8 @@ const variantRef = {
   tenantId,
 } as const;
 const corrected = {
-  kind: 'EVIDENCED_CORRECTION',
   evidenceRefs: ['supplier-measurement-1'],
+  kind: 'EVIDENCED_CORRECTION',
   reason: 'Record was wrong; item is unchanged',
 };
 const base = { attributeDefinitionRef, expectedRevision: 1, productRef, reason: 'Correct measured dimension' };
@@ -69,11 +69,11 @@ describe('Product attribute change classification', () => {
   it.effect('rejects a new realization from the in-place Product write path', () =>
     Effect.gen(function* realization() {
       const classification = Schema.decodeUnknownSync(ProductAttributeChangeClassificationSchema)({
-        kind: 'NEW_REALIZATION',
         evidenceRefs: ['supplier-revision-2'],
-        reason: 'Manufacturer changed dimensions',
-        previousVariantRef: variantRef,
+        kind: 'NEW_REALIZATION',
         newVariantRef: { ...variantRef, resourceId: '55555555-5555-4555-8555-555555555555' },
+        previousVariantRef: variantRef,
+        reason: 'Manufacturer changed dimensions',
       });
       const result = yield* requireProductAttributeCorrection(classification, productRef).pipe(
         Effect.catchTag('ProductAttributeChangeConflict', (error) => Effect.succeed(error.code)),

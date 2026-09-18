@@ -40,6 +40,7 @@ const context = (overrides: Partial<VariantPersistence>) => {
     change: unexpected,
     create: unexpected,
     reactivate: unexpected,
+    recoverCreateVariant: unexpected,
     retire: unexpected,
     ...overrides,
   };

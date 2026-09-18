@@ -116,15 +116,15 @@ describe('Product Unit governed Actions', () => {
       const captured: unknown[] = [];
       const services = {
         ...context().services,
+        captureResult: (id: string, result: CreateProductUnitResult) =>
+          Effect.sync(() => {
+            captured.push({ id, result });
+          }),
         create: () =>
           Effect.succeed({
             _tag: 'created' as const,
-            ruleRevision: { revision: 1, ...rule, unit: unitRef },
-            unit: unitRef,
-          }),
-        captureResult: (id: string, result: unknown) =>
-          Effect.sync(() => {
-            captured.push({ id, result });
+            ruleRevision: { revision: 1, ...create.rule, unit: create.unitRef },
+            unit: create.unitRef,
           }),
       };
       const harness = yield* makeActionTestHarness({

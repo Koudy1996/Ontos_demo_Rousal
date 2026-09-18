@@ -431,9 +431,9 @@ describe('Variant Axis Current basis', () => {
   it.effect('lists only three explicitly recorded combinations and excludes an unconfirmed draft', () =>
     Effect.gen(function* readsOnlyRecorded() {
       const recorded = [
-        { variantId, combinationKey: 'a'.repeat(64) },
-        { variantId: '88888888-8888-4888-8888-888888888888', combinationKey: 'b'.repeat(64) },
-        { variantId: '99999999-9999-4999-8999-999999999999', combinationKey: 'c'.repeat(64) },
+        { combinationKey: 'a'.repeat(64), variantId },
+        { combinationKey: 'b'.repeat(64), variantId: '88888888-8888-4888-8888-888888888888' },
+        { combinationKey: 'c'.repeat(64), variantId: '99999999-9999-4999-8999-999999999999' },
       ];
       const transaction = transactionWith(
         new Map([
@@ -449,12 +449,12 @@ describe('Variant Axis Current basis', () => {
                 tenantId,
               })),
               {
-                variantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-                combinationKey: null,
                 combinationAxisRevision: null,
+                combinationKey: null,
                 lifecycleState: 'WORK_IN_PROGRESS',
                 productId,
                 tenantId,
+                variantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
               },
             ],
           ],
@@ -477,13 +477,13 @@ describe('Variant Axis Current basis', () => {
             productVariants,
             [
               {
-                variantId,
                 axisRevision: 2,
-                combinationKey: 'a'.repeat(64),
                 combinationAxisRevision: 2,
+                combinationKey: 'a'.repeat(64),
                 lifecycleState: 'ACTIVE',
                 productId,
                 tenantId,
+                variantId,
               },
             ],
           ],

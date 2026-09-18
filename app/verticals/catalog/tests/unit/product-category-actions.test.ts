@@ -118,17 +118,17 @@ const removeContext = (overrides: Partial<CategoryPersistence>) =>
 describe('Catalog Product Category Actions', () => {
   it.effect('captures the decoded category result before the Action commit and does not rerun it on replay', () =>
     Effect.gen(function* categoryCaptureTest() {
-      const captured: Array<{ actionInvocationId: string; result: unknown }> = [];
+      const captured: { actionInvocationId: string; result: unknown }[] = [];
       const harness = yield* makeActionTestHarness({
         actionPermission: 'allowed',
         services: [
           bindActionTestServices(createProductCategoryAction, {
             ...defaultServices,
-            createCategory: () => Effect.succeed({ _tag: 'created', category, changed: true, hierarchyRevision: 1 }),
             captureResult: (actionInvocationId, result) =>
               Effect.sync(() => {
                 captured.push({ actionInvocationId, result });
               }),
+            createCategory: () => Effect.succeed({ _tag: 'created', category, changed: true, hierarchyRevision: 1 }),
           }),
         ],
       });
@@ -159,7 +159,6 @@ describe('Catalog Product Category Actions', () => {
         services: [
           bindActionTestServices(createProductCategoryAction, {
             ...defaultServices,
-            createCategory: () => Effect.succeed({ _tag: 'created', category, changed: true, hierarchyRevision: 1 }),
             captureResult: () =>
               Effect.fail(
                 new ActionTransactionError({
@@ -167,6 +166,7 @@ describe('Catalog Product Category Actions', () => {
                   reason: 'Catalog result capture failed',
                 }),
               ),
+            createCategory: () => Effect.succeed({ _tag: 'created', category, changed: true, hierarchyRevision: 1 }),
           }),
         ],
       });

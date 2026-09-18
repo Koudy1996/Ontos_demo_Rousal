@@ -188,13 +188,13 @@ describe('Size usage persistence preflight', () => {
     Effect.gen(function* test() {
       const sizeL = '00000000-0000-4000-8000-000000000005';
       const sizeXs = '00000000-0000-4000-8000-000000000008';
-      // @ts-expect-error The focused test supplies only the read query shape.
       const firstProduct = sizeUsagePersistenceForScope(
+        // @ts-expect-error The focused test supplies only the read query shape.
         readTransaction(true, [0, 1], [sizeRef.resourceId, sizeL]),
         scope,
       );
-      // @ts-expect-error The focused test supplies only the read query shape.
       const secondProduct = sizeUsagePersistenceForScope(
+        // @ts-expect-error The focused test supplies only the read query shape.
         readTransaction(true, [0, 1, 2], [sizeXs, sizeRef.resourceId, sizeL]),
         scope,
       );

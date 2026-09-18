@@ -34,25 +34,38 @@ const productRef = {
   tenantId: scope.tenantId,
 } as const;
 
+const returnSnapshotRow =
+  (rows: (typeof catalogResultSnapshots.$inferInsert)[], row: typeof catalogResultSnapshots.$inferInsert) => () => {
+    rows.push(row);
+    return Effect.succeed([row]);
+  };
+
+const successfulSnapshotTransaction = (rows: (typeof catalogResultSnapshots.$inferInsert)[]) => ({
+  insert: (table: typeof catalogResultSnapshots) => {
+    expect(table).toBe(catalogResultSnapshots);
+    return {
+      values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
+        onConflictDoNothing: () => ({
+          returning: returnSnapshotRow(rows, row),
+        }),
+      }),
+    };
+  },
+});
+
+const failedSnapshotTransaction = {
+  insert: () => ({
+    values: () => ({
+      onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('database unavailable')) }),
+    }),
+  }),
+};
+
 describe('Product Type Action result capture', () => {
   it.effect('captures exact decoded results under each declared Action identity', () =>
     Effect.gen(function* captureResults() {
       const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
-      const transaction = {
-        insert: (table: typeof catalogResultSnapshots) => {
-          expect(table).toBe(catalogResultSnapshots);
-          return {
-            values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
-              onConflictDoNothing: () => ({
-                returning: () => {
-                  rows.push(row);
-                  return Effect.succeed([row]);
-                },
-              }),
-            }),
-          };
-        },
-      };
+      const transaction = successfulSnapshotTransaction(rows);
       const cases = [
         [createProductTypeAction, { productTypeRef, revision: 1 }],
         [
@@ -86,20 +99,22 @@ describe('Product Type Action result capture', () => {
 
   it.effect('fails the success hook when the snapshot write fails', () =>
     Effect.gen(function* rejectCaptureFailure() {
-      const transaction = {
-        insert: () => ({
-          values: () => ({
-            onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('database unavailable')) }),
-          }),
-        }),
-      };
+      const transaction = failedSnapshotTransaction;
       // @ts-expect-error The focused transaction mock implements only the failing snapshot insert chain.
       const services = yield* getActionServiceFactory(createProductTypeAction)(transaction, scope);
       const hook = getActionDecodedSuccessHook(createProductTypeAction);
       expect(hook).toBeDefined();
       if (hook !== undefined) {
         const failure = yield* Effect.flip(
-          hook({ actionInvocationId, result: { productTypeRef, revision: 1 }, scope, services }),
+          hook({
+            actionInvocationId,
+            result: Schema.decodeUnknownSync(createProductTypeAction.descriptor.resultSchema)({
+              productTypeRef,
+              revision: 1,
+            }),
+            scope,
+            services,
+          }),
         );
         expect(failure).toMatchObject({ code: 'action_transaction_failed' });
       }

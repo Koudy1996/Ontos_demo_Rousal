@@ -113,6 +113,7 @@ describe('Product Type impact scan basis', () => {
     const entry = {
       attributeDefinitionId: 'capacity',
       attributeValueSetId: 'set-1',
+      confirmsRequiredFact: true,
       currentState: 'SET' as const,
       definitionRevision: 3,
       productId: 'p1',
