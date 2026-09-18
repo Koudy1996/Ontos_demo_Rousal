@@ -3,10 +3,12 @@ import { Schema } from 'effect';
 
 import { ChangeVariantPayloadSchema } from '../../shared/actions/change-variant.ts';
 import { CreateVariantPayloadSchema } from '../../shared/actions/create-variant.ts';
+import { GovernVariantAxesPayloadSchema } from '../../shared/actions/govern-variant-axes.ts';
 import { ReactivateVariantPayloadSchema } from '../../shared/actions/reactivate-variant.ts';
 import { RetireVariantPayloadSchema } from '../../shared/actions/retire-variant.ts';
 import { changeVariantAction } from '../../src/actions/change-variant.action.ts';
 import { createVariantAction } from '../../src/actions/create-variant.action.ts';
+import { governVariantAxesAction } from '../../src/actions/govern-variant-axes.action.ts';
 import { reactivateVariantAction } from '../../src/actions/reactivate-variant.action.ts';
 import { retireVariantAction } from '../../src/actions/retire-variant.action.ts';
 
@@ -84,8 +86,10 @@ describe('Variant Action payload contracts', () => {
     expect(
       decode({
         classification: 'EVIDENCED_RECORD_CORRECTION',
+        currentProductRef: productRef,
         evidenceRefs: ['drawing'],
         expectedVariantRevision: 2,
+        originalDataErrorEvidenceRef: 'drawing',
         reason: 'Correct wrong record',
         variantRef,
       }).classification,
@@ -111,6 +115,7 @@ describe('Variant Action payload contracts', () => {
     expect(
       decode({
         classification: 'SAME_MEANING_RENAME',
+        currentProductRef: productRef,
         evidenceRefs: ['name-record'],
         expectedVariantRevision: 2,
         reason: 'Same form, clearer name',
@@ -120,6 +125,7 @@ describe('Variant Action payload contracts', () => {
     expect(
       decode({
         classification: 'EVIDENCED_PARENT_CORRECTION',
+        currentProductRef: productRef,
         evidenceRefs: ['original-parent-record'],
         expectedVariantRevision: 2,
         reason: 'Wrong parent recorded',
@@ -127,6 +133,48 @@ describe('Variant Action payload contracts', () => {
         variantRef,
       }).targetProductRef?.resourceId,
     ).toBe('77777777-7777-4777-8777-777777777777');
+
+    expect(() =>
+      decode({
+        classification: 'EVIDENCED_RECORD_CORRECTION',
+        evidenceRefs: ['drawing'],
+        expectedVariantRevision: 2,
+        reason: 'Legacy request lacks its Current Product evidence',
+        variantRef,
+      }),
+    ).toThrow();
+  });
+
+  it('versions the evidenced Variant-axis contract and rejects its legacy wire shape', () => {
+    const decode = Schema.decodeUnknownSync(GovernVariantAxesPayloadSchema);
+    const attributeDefinitionRef = {
+      moduleId: 'commerce.catalog',
+      resourceId: '88888888-8888-4888-8888-888888888888',
+      resourceType: 'commerce.catalog.attribute-definition',
+      tenantId,
+    } as const;
+    const current = decode({
+      axes: [{ attributeDefinitionRef, definitionRevision: 3, expectedAllowanceRevision: 1 }],
+      classification: {
+        evidenceRefs: ['axis-review'],
+        kind: 'AXIS_ADDITION',
+        reason: 'Distinguishes exact forms',
+      },
+      expectedAxisRevision: 1,
+      productRef,
+      reason: 'Distinguishes exact forms',
+    });
+    expect(current.axes[0]?.expectedAllowanceRevision).toBe(1);
+    expect(governVariantAxesAction.descriptor.schemaVersion).toBe('2');
+
+    expect(() =>
+      decode({
+        axes: [{ attributeDefinitionRef, definitionRevision: 3 }],
+        expectedAxisRevision: 1,
+        productRef,
+        reason: 'Legacy request has no decision or allowance revision evidence',
+      }),
+    ).toThrow();
   });
 
   it('requires an optimistic revision and identity evidence for reactivation', () => {
@@ -158,5 +206,6 @@ describe('Variant Action payload contracts', () => {
       expect(action.descriptor.legalEntityScope).toBe('forbidden');
       expect(action.descriptor.owningModuleKey).toBe('commerce.catalog');
     }
+    expect(changeVariantAction.descriptor.schemaVersion).toBe('3');
   });
 });

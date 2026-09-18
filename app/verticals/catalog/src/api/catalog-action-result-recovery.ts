@@ -24,6 +24,27 @@ export type CatalogActionRecovery<Result> =
   | { readonly status: 'indeterminate' }
   | { readonly status: 'unavailable' };
 
+/**
+ * Recover the current snapshot version first, then older compatible result encodings. An
+ * unavailable current lookup can mean that the committed row belongs to an older Action schema;
+ * every other status is authoritative and stops the search.
+ */
+export const recoverCatalogActionResultVersions = Effect.fn('CatalogActionResultRecovery.recoverVersions')(<
+  Result,
+  Failure,
+  Requirements,
+>(
+  schemaVersions: readonly [number, ...number[]],
+  recover: (schemaVersion: number) => Effect.Effect<CatalogActionRecovery<Result>, Failure, Requirements>,
+): Effect.Effect<CatalogActionRecovery<Result>, Failure, Requirements> => {
+  const initial: CatalogActionRecovery<Result> = { status: 'unavailable' };
+  return Effect.reduce(
+    schemaVersions,
+    (): CatalogActionRecovery<Result> => initial,
+    (outcome, schemaVersion) => (outcome.status === 'unavailable' ? recover(schemaVersion) : Effect.succeed(outcome)),
+  );
+});
+
 /** The caller supplies trusted scope and an owner-scoped transaction; neither comes from request payload. */
 export const recoverCatalogActionResult = Effect.fn('CatalogActionResultRecovery.recover')(function* recover<Result>(
   transaction: ScopedTransaction,

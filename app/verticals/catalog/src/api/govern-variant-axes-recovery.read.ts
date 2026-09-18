@@ -13,7 +13,7 @@ import {
 } from '../../shared/apis/govern-variant-axes-recovery.ts';
 import type { GovernVariantAxesRecoveryRequest } from '../../shared/apis/govern-variant-axes-recovery.ts';
 import { GovernVariantAxesResultSchema } from '../../shared/actions/govern-variant-axes.ts';
-import { recoverCatalogActionResult } from './catalog-action-result-recovery.ts';
+import { recoverCatalogActionResult, recoverCatalogActionResultVersions } from './catalog-action-result-recovery.ts';
 
 interface RecoveryService {
   readonly recover: (invocationId: string) => ReturnType<typeof recoverResult>;
@@ -34,16 +34,24 @@ const recoverResult = (
   transaction: Parameters<typeof recoverCatalogActionResult>[0],
   scope: Parameters<typeof recoverCatalogActionResult>[1],
   invocationId: string,
-) =>
-  recoverCatalogActionResult(
-    transaction,
-    scope,
-    { actionInvocationId: invocationId, actionKey: 'commerce.catalog.govern-variant-axes', schemaVersion: 1 },
-    {
-      decode: Schema.decodeUnknownEffect(GovernVariantAxesResultSchema),
-      encode: Schema.encodeEffect(GovernVariantAxesResultSchema),
-    },
+) => {
+  const codec = {
+    decode: Schema.decodeUnknownEffect(GovernVariantAxesResultSchema),
+    encode: Schema.encodeEffect(GovernVariantAxesResultSchema),
+  };
+  return recoverCatalogActionResultVersions([2, 1], (schemaVersion) =>
+    recoverCatalogActionResult(
+      transaction,
+      scope,
+      {
+        actionInvocationId: invocationId,
+        actionKey: 'commerce.catalog.govern-variant-axes',
+        schemaVersion,
+      },
+      codec,
+    ),
   );
+};
 
 const recoverGovernVariantAxes = Effect.fn('GovernVariantAxesRecoveryRead.recover')(function* recover(
   input: GovernVariantAxesRecoveryRequest,

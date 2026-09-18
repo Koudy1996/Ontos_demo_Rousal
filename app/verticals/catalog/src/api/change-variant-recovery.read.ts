@@ -13,10 +13,10 @@ import {
 } from '../../shared/apis/change-variant-recovery.ts';
 import type { ChangeVariantRecoveryRequest } from '../../shared/apis/change-variant-recovery.ts';
 import { ChangeVariantResultSchema } from '../../shared/actions/change-variant.ts';
-import { recoverCatalogActionResult } from './catalog-action-result-recovery.ts';
+import { recoverCatalogActionResult, recoverCatalogActionResultVersions } from './catalog-action-result-recovery.ts';
 
 interface RecoveryService {
-  readonly recover: (invocationId: string) => ReturnType<typeof recoverResult>;
+  readonly recover: (invocationId: string) => ReturnType<typeof recoverChangeVariantResult>;
 }
 
 const notFound = () =>
@@ -30,20 +30,24 @@ const unavailable = () =>
     reason: 'The original change variant outcome cannot be verified yet',
   });
 
-const recoverResult = (
+export const recoverChangeVariantResult = (
   transaction: Parameters<typeof recoverCatalogActionResult>[0],
   scope: Parameters<typeof recoverCatalogActionResult>[1],
   invocationId: string,
-) =>
-  recoverCatalogActionResult(
-    transaction,
-    scope,
-    { actionInvocationId: invocationId, actionKey: 'commerce.catalog.change-variant', schemaVersion: 1 },
-    {
-      decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
-      encode: Schema.encodeEffect(ChangeVariantResultSchema),
-    },
+) => {
+  const codec = {
+    decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
+    encode: Schema.encodeEffect(ChangeVariantResultSchema),
+  };
+  return recoverCatalogActionResultVersions([3, 2, 1], (schemaVersion) =>
+    recoverCatalogActionResult(
+      transaction,
+      scope,
+      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.change-variant', schemaVersion },
+      codec,
+    ),
   );
+};
 
 const recoverChangeVariant = Effect.fn('ChangeVariantRecoveryRead.recover')(function* recover(
   input: ChangeVariantRecoveryRequest,
@@ -89,6 +93,8 @@ export const changeVariantRecoveryRead = defineRead(
   (input, context: ReadHandlerContext<RecoveryService>) =>
     recoverChangeVariant(input, context).pipe(Effect.map((result) => ({ evidence: { resultCount: 1 }, result }))),
   (transaction, scope) =>
-    Effect.succeed({ recover: (invocationId: string) => recoverResult(transaction, scope, invocationId) }),
+    Effect.succeed({
+      recover: (invocationId: string) => recoverChangeVariantResult(transaction, scope, invocationId),
+    }),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

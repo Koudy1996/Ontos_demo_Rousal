@@ -38,6 +38,7 @@ type ChangeVariantServices = ChangeVariantHandlerServices & {
   ) => Effect.Effect<void, ActionTransactionError>;
 };
 const ACTION_KEY = 'commerce.catalog.change-variant' as const;
+const ACTION_SCHEMA_VERSION = 3 as const;
 
 const operationForPayload = (payload: ChangeVariantPayload): VariantUseChangeOperation => {
   if (payload.classification === 'SAME_MEANING_RENAME') {
@@ -163,7 +164,7 @@ export const changeVariantAction = defineAction(
     payloadSchema: ChangeVariantPayloadSchema,
     policies: [],
     resultSchema: ChangeVariantResultSchema,
-    schemaVersion: '2',
+    schemaVersion: '3',
   },
   handleChangeVariant,
   Effect.fn('ChangeVariantAction.makeServices')(function* makeChangeVariantServices(transaction, scope) {
@@ -176,7 +177,7 @@ export const changeVariantAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 2 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: ACTION_SCHEMA_VERSION },
             {
               decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
               encode: Schema.encodeEffect(ChangeVariantResultSchema),
