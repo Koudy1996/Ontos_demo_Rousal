@@ -6,8 +6,8 @@ For Inventory-specific terms, this context together with Accepted Inventory ADRs
 
 ## Stock model
 
-**Stock Item** — Inventory Resource identifying one stock-bearing subject whose units are interchangeable for the same Inventory stock requirement. Product, Variant, SKU, display name, or external identifier is not Stock Item identity.
-_Avoid_: Product as stock identity, SKU as stock identity, source item code as canonical identity.
+**Stock Item** — Durable Inventory Resource representing exactly one exact Catalog Selection meaning for Launch. Each exact Catalog Selection has exactly one Stock Item, and one Stock Item does not represent several materially different Catalog Selections. Product, Variant, SKU, display name, external identifier, Package contents, Set components, or similarity do not replace this exact one-to-one binding. A material change of the Catalog Selection meaning, including material Package Content, Set Composition, or Product Configuration meaning, requires a new Stock Item rather than redefining the old one.
+_Avoid_: Product or SKU as stock identity, one Stock Item shared by several exact Catalog Selections, one Catalog Selection decomposed into several Stock Items.
 
 **Stock Location** — Durable Inventory Resource identifying one explicit operational stock scope in which stock facts are interpreted. It is not a Storefront, postal address, pickup point, hostname, or legacy `store` label.
 
@@ -18,26 +18,30 @@ _Avoid_: warehouse name alone as reservation scope, Product-level stock bucket.
 
 **RESERVED** — Quantity currently constrained by Inventory-recognized Reservation obligations for one exact Stock Position. It describes Inventory obligation meaning; by itself it does not prove that an external physical-stock owner enforces the hold.
 
-## Stock demand and mapping
+### Quantity and Unit invariant
 
-**Stock Basis** — Inventory meaning chosen by one Stock Mapping Revision for how an exact Catalog Selection is represented as physical demand, for example one finished/package Stock Item or exact component requirements. For Launch it is determined before Stock Location or Stock Position allocation and does not change merely because another location has different stock available.
-_Avoid_: availability-driven remapping, Location-specific fallback stock basis.
+Inventory consumes the exact purchase Quantity and explicit Unit supplied by the purchase/Catalog contract and does not reinterpret them.
 
-**Stock Requirement** — Exact Inventory-owned physical demand derived from one exact Catalog Selection and purchase Quantity under one Stock Mapping Revision before any Stock Position allocation is selected. It identifies the required Stock Item, Quantity/Unit, provenance, and every physical-feasibility constraint needed to decide whether an allocation truly satisfies the demand.
+- Inventory does not convert one Unit into another merely for stock handling.
+- Product Configuration attributes are not silently converted into purchase Quantity.
+- Attributes of one stock unit describe that unit; they are not summed across several units to fabricate another Quantity.
+- Example: two `piece` units each having attribute `length = 500 mm` are `2 piece`, not `1000 mm`.
+- If the exact stock Unit itself is `millimeter`, then `ON_HAND = 1000 millimeter` genuinely means one thousand millimeters of that Stock Item.
+- A Package selected and quantified in Package units remains Package quantity; Inventory does not convert it to the count of contained pieces.
+- A Set remains the exact Set Stock Item; Inventory does not decompose it into component stock.
 
-**Stock Requirement Feasibility** — Business meaning that determines whether Quantity arithmetic alone is sufficient to satisfy one Stock Requirement. Additively divisible demand may be satisfied by compatible summed allocations; indivisible, contiguous, single-source, required physical form, or otherwise constrained demand requires owner-valid evidence that the proposed physical allocation is actually realizable.
-_Avoid_: assuming equal total Quantity always means physical fulfillability, inferring contiguity or required package/set form from aggregate ON_HAND.
+## Stock demand and allocation
 
-**Stock Allocation** — Exact assignment of all or part of one Stock Requirement to one Stock Position. Allocation decides where demand is satisfied; it does not change the requirement's Stock Basis, Catalog meaning, Quantity, or physical-feasibility semantics.
-_Avoid_: Location allocation treated as remapping, availability-driven substitution.
+**Catalog-to-Stock Binding** — Inventory-owned one-to-one relation between one exact Catalog Selection meaning and one exact Stock Item. The relation must be unambiguous and historically explainable. It is not inferred from Product, Variant, SKU, Package contents, Set components, source identifiers, or current stock availability. This term describes the business relation and does not require a separate durable Resource or generic mapping engine.
 
-**Stock Mapping Revision** — Immutable Inventory-owned evidence of how one exact Catalog Selection and purchase Quantity were translated into one Stock Basis and its Stock Requirements. Later allocation or mapping changes do not reinterpret an existing Reservation, Commitment Protection, or Accepted Order history.
+**Stock Requirement** — Exact Inventory-owned demand for one exact Stock Item derived from one exact Catalog Selection plus the unchanged requested Quantity and Unit. One exact selection demand produces one Stock Requirement. Missing or conflicting Catalog-to-Stock Binding is a non-success; Launch does not use `NO_STOCK_REQUIRED` for supported Catalog Selections.
 
-**Stocked Purchase** — Prospective purchase whose Current Stock Mapping yields one or more constrained physical Stock Requirements. Standard Launch Stocked Purchase requires enforceable Reservation evidence and Commitment Protection before Order commitment; preorder, backorder, made-to-order, or order-to-source acceptance without that guarantee is a separate business capability.
+**Stock Allocation** — Exact assignment of all or part of one Stock Requirement Quantity to one Stock Position for the same Stock Item and Unit. One Requirement may be satisfied by one or more Stock Allocations across multiple Stock Positions/Locations; the allocation quantities must together cover the exact requested Quantity without Unit conversion, substitution, decomposition, or remapping.
+_Avoid_: Location allocation treated as a new Catalog meaning, Package/Set decomposition, Unit conversion, availability-driven substitution.
 
 ## Reservations and commitment
 
-**Inventory Reservation** — Durable Inventory Resource representing one exact stock obligation. Normal runtime provisional Reservations are bound to one exact Order Commitment Attempt; a migration-origin obligation may start directly in committed meaning only when it is bound to an already-proven imported Order and preserves explicit source lineage rather than fabricating a historical Attempt.
+**Inventory Reservation** — Durable Inventory Resource representing one exact stock obligation. Normal runtime provisional Reservations are bound to one exact Order Commitment Attempt and may cover the Attempt's exact Stock Requirements; a migration-origin obligation may start directly in committed meaning only when it is bound to an already-proven imported Order and preserves explicit source lineage rather than fabricating a historical Attempt.
 _Avoid_: Cart line as Reservation identity, synthetic Order Commitment Attempt created only to satisfy migration shape.
 
 **Reservation Authority** — Owner capable of enforcing one exact Reservation obligation in the applicable scope and therefore of issuing authoritative Reservation evidence. It may be Inventory, an External Business System, or absent; Availability, an Integration Route, or a provider adapter does not gain this authority merely by consuming or transporting evidence.
