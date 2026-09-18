@@ -9,6 +9,13 @@ type DefinitionRef = AttributeDefinition['ref'];
 
 export interface VariantAxis {
   readonly attributeDefinitionRef: DefinitionRef;
+  /** Exact definition rules used to interpret this Product's axis. */
+  readonly definitionRevision: number;
+}
+
+export interface VariantAxisDefinitionSnapshot {
+  readonly definition: AttributeDefinition;
+  readonly revision: number;
 }
 
 export interface VariantAxisValue {
@@ -26,6 +33,7 @@ export const VariantAxisIssueKindSchema = Schema.Literals([
   'DUPLICATE_AXIS',
   'DISALLOWED_AXIS',
   'MISSING_DEFINITION',
+  'STALE_DEFINITION',
   'MISSING_AXIS',
   'DUPLICATE_AXIS_VALUE',
   'INVALID_VALUE',
@@ -72,7 +80,7 @@ type AxisInspection =
 const inspectAxisValue = (
   axis: VariantAxis,
   candidate: VariantAxisCandidate,
-  definitions: readonly AttributeDefinition[],
+  definitions: readonly VariantAxisDefinitionSnapshot[],
   conversions: readonly UnitConversion[] | undefined,
   allowedValue: ((definition: AttributeDefinition, value: AttributeValue) => boolean | undefined) | undefined,
 ): AxisInspection => {
@@ -88,11 +96,15 @@ const inspectAxisValue = (
   if (match === undefined || match.values.length === 0) {
     return { issue: { attributeDefinitionId: id, kind: 'MISSING_AXIS', variantId } };
   }
-  const matchingDefinitions = definitions.filter((item) => sameRef(item.ref, axis.attributeDefinitionRef));
-  const [definition] = matchingDefinitions;
-  if (matchingDefinitions.length !== 1 || definition === undefined) {
+  const matchingDefinitions = definitions.filter((item) => sameRef(item.definition.ref, axis.attributeDefinitionRef));
+  const [snapshot] = matchingDefinitions;
+  if (matchingDefinitions.length !== 1 || snapshot === undefined) {
     return { issue: { attributeDefinitionId: id, kind: 'MISSING_DEFINITION', variantId } };
   }
+  if (snapshot.revision !== axis.definitionRevision) {
+    return { issue: { attributeDefinitionId: id, kind: 'STALE_DEFINITION', variantId } };
+  }
+  const { definition } = snapshot;
   const checked = validateAttributeValues(definition, match.values, conversions);
   const keys = checked.normalized.map(valueKey);
   if (
@@ -116,6 +128,32 @@ const inspectAxisValue = (
   return { key: stableParts([axis.attributeDefinitionRef.tenantId, id, ...keys.toSorted()]) };
 };
 
+const inspectAxisDefinition = (
+  axis: VariantAxis,
+  definitions: readonly VariantAxisDefinitionSnapshot[],
+  productTenantId: string,
+  variantRuleIds: ReadonlySet<string>,
+): VariantAxisIssue | undefined => {
+  const id = axis.attributeDefinitionRef.resourceId;
+  const key = stableParts([axis.attributeDefinitionRef.tenantId, id]);
+  const matches = definitions.filter((item) => sameRef(item.definition.ref, axis.attributeDefinitionRef));
+  const [snapshot] = matches;
+  if (matches.length !== 1 || snapshot === undefined || snapshot.definition.ref.tenantId !== productTenantId) {
+    return { attributeDefinitionId: id, kind: 'MISSING_DEFINITION' };
+  }
+  if (
+    !Number.isSafeInteger(axis.definitionRevision) ||
+    axis.definitionRevision < 1 ||
+    snapshot.revision !== axis.definitionRevision
+  ) {
+    return { attributeDefinitionId: id, kind: 'STALE_DEFINITION' };
+  }
+  if (!new Set(snapshot.definition.levels).has('VARIANT') || !variantRuleIds.has(key)) {
+    return { attributeDefinitionId: id, kind: 'DISALLOWED_AXIS' };
+  }
+  return undefined;
+};
+
 /**
  * Pure snapshot check. The caller must supply the Current Product Type rules,
  * definitions, allowed-value evidence, and a concurrency-safe write boundary.
@@ -125,7 +163,7 @@ export const evaluateVariantAxes = (input: {
   readonly axes: readonly VariantAxis[];
   readonly candidates: readonly VariantAxisCandidate[];
   readonly conversions?: readonly UnitConversion[];
-  readonly definitions: readonly AttributeDefinition[];
+  readonly definitions: readonly VariantAxisDefinitionSnapshot[];
   /** Predicate from the authoritative allowed-value snapshot; undefined means unverified. */
   readonly isAllowedValue?: (definition: AttributeDefinition, value: AttributeValue) => boolean | undefined;
   readonly productRef: ProductVariant['productRef'];
@@ -146,14 +184,9 @@ export const evaluateVariantAxes = (input: {
       issues.push({ attributeDefinitionId: id, kind: 'DUPLICATE_AXIS' });
     }
     axisIds.add(key);
-    const definitions = input.definitions.filter((item) => sameRef(item.ref, axis.attributeDefinitionRef));
-    const [definition] = definitions;
-    if (definitions.length !== 1 || definition === undefined || definition.ref.tenantId !== input.productRef.tenantId) {
-      issues.push({ attributeDefinitionId: id, kind: 'MISSING_DEFINITION' });
-      continue;
-    }
-    if (!new Set(definition.levels).has('VARIANT') || !variantRuleIds.has(key)) {
-      issues.push({ attributeDefinitionId: id, kind: 'DISALLOWED_AXIS' });
+    const definitionIssue = inspectAxisDefinition(axis, input.definitions, input.productRef.tenantId, variantRuleIds);
+    if (definitionIssue !== undefined) {
+      issues.push(definitionIssue);
     }
   }
 

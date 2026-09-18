@@ -50,8 +50,8 @@ const black = {
 const values = (actual: typeof white | typeof black) =>
   [{ attributeDefinitionRef: definition.ref, values: [actual] }] as const;
 const base = {
-  axes: [{ attributeDefinitionRef: definition.ref }],
-  definitions: [definition],
+  axes: [{ attributeDefinitionRef: definition.ref, definitionRevision: 3 }],
+  definitions: [{ definition, revision: 3 }],
   isAllowedValue: () => true,
   productRef: variant('33333333-3333-4333-8333-333333333333').productRef,
   productTypeRules: [{ attributeDefinitionRef: definition.ref, level: 'VARIANT', required: false }] as const,
@@ -126,7 +126,7 @@ describe('Variant axes and exact combinations', () => {
       evaluateVariantAxes({
         ...base,
         candidates: [{ effectiveAxisValues: values(white), variant: active }],
-        isAllowedValue: () => base.definitions.at(1)?.levels.includes('VARIANT'),
+        isAllowedValue: () => base.definitions.at(1)?.definition.levels.includes('VARIANT'),
       }).issues[0]?.kind,
     ).toBe('UNVERIFIABLE_VALUE');
   });
@@ -149,7 +149,7 @@ describe('Variant axes and exact combinations', () => {
             variant: active,
           },
         ],
-        definitions: [multiple],
+        definitions: [{ definition: multiple, revision: 3 }],
       }).issues[0]?.kind,
     ).toBe('INVALID_VALUE');
   });
@@ -168,7 +168,7 @@ describe('Variant axes and exact combinations', () => {
             variant: second,
           },
         ],
-        definitions: [multiple],
+        definitions: [{ definition: multiple, revision: 3 }],
       }).issues,
     ).toContainEqual({
       conflictingVariantId: first.variantRef.resourceId,
@@ -198,5 +198,24 @@ describe('Variant axes and exact combinations', () => {
     expect(evaluateVariantAxes({ ...base, candidates: [], productTypeRules: [] }).issues[0]?.kind).toBe(
       'DISALLOWED_AXIS',
     );
+  });
+
+  it('pins axis meaning and value rules to an exact Definition revision', () => {
+    const candidate = {
+      effectiveAxisValues: values(white),
+      variant: variant('33333333-3333-4333-8333-333333333333'),
+    };
+    const changedMeaning = { ...definition, meaning: 'Display color' };
+    expect(
+      evaluateVariantAxes({
+        ...base,
+        candidates: [candidate],
+        definitions: [{ definition: changedMeaning, revision: 4 }],
+      }).issues,
+    ).toContainEqual({ attributeDefinitionId: definition.ref.resourceId, kind: 'STALE_DEFINITION' });
+    expect(evaluateVariantAxes({ ...base, candidates: [candidate], definitions: [] }).issues).toContainEqual({
+      attributeDefinitionId: definition.ref.resourceId,
+      kind: 'MISSING_DEFINITION',
+    });
   });
 });
