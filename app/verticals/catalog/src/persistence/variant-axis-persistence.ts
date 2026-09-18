@@ -6,6 +6,7 @@ import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import {
   attributeDefinitions,
+  attributeDefinitionRevisions,
   attributeValueItems,
   attributeValueSets,
   productTypeAssignments,
@@ -87,6 +88,10 @@ const malformedAxisSnapshot = (
   productId: string,
 ): boolean =>
   (event !== undefined && (event.tenantId !== tenantId || event.productId !== productId)) ||
+  (event !== undefined &&
+    (event.attributeDefinitionRevisions === null ||
+      event.attributeDefinitionRevisions.length !== event.attributeDefinitionIds.length ||
+      event.attributeDefinitionRevisions.some((revision) => !Number.isSafeInteger(revision) || revision < 1))) ||
   rows.some((row) => row.tenantId !== tenantId || row.productId !== productId) ||
   (event === undefined && rows.length !== 0) ||
   (event !== undefined &&
@@ -95,7 +100,10 @@ const malformedAxisSnapshot = (
         (row, index) =>
           row.axisRevision !== event.axisRevision ||
           row.ordinal !== index ||
-          row.attributeDefinitionId !== event.attributeDefinitionIds[index],
+          row.attributeDefinitionId !== event.attributeDefinitionIds[index] ||
+          row.definitionRevision !== event.attributeDefinitionRevisions?.[index] ||
+          !Number.isSafeInteger(row.definitionRevision) ||
+          (row.definitionRevision ?? 0) < 1,
       )));
 
 /** Constructed only inside Core's already-scoped read or Action transaction. */
@@ -127,24 +135,49 @@ export const variantAxisPersistenceForScope = (
       definition.attributeDefinitionId !== row.attributeDefinitionId ||
       !Number.isSafeInteger(definition.currentRevision) ||
       definition.currentRevision < 1 ||
-      !new Set(definition.applicableLevels).has('VARIANT')
+      !Number.isSafeInteger(row.definitionRevision) ||
+      (row.definitionRevision ?? 0) < 1 ||
+      definition.currentRevision < (row.definitionRevision ?? 0)
     ) {
       return yield* basisUnavailable();
     }
-    const attributeReads = yield* effectiveAttributeValueReadsForScope(transaction, scope);
-    const definitionProof = yield* attributeReads.readDefinitionCurrent({
-      moduleId: catalogModuleId,
-      resourceId: row.attributeDefinitionId,
-      resourceType: 'commerce.catalog.attribute-definition',
-      tenantId,
-    });
+    const [pinned] = yield* transaction
+      .select()
+      .from(attributeDefinitionRevisions)
+      .where(
+        and(
+          eq(attributeDefinitionRevisions.tenantId, tenantId),
+          eq(attributeDefinitionRevisions.attributeDefinitionId, row.attributeDefinitionId),
+          eq(attributeDefinitionRevisions.revision, row.definitionRevision ?? 0),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
     if (
-      !definitionProof.complete ||
-      definitionProof.tenantId !== tenantId ||
-      definitionProof.attributeDefinitionId !== row.attributeDefinitionId ||
-      definitionProof.revision !== definition.currentRevision
+      pinned === undefined ||
+      pinned.tenantId !== tenantId ||
+      pinned.attributeDefinitionId !== row.attributeDefinitionId ||
+      pinned.revision !== row.definitionRevision ||
+      !new Set(pinned.applicableLevels).has('VARIANT')
     ) {
       return yield* basisUnavailable();
+    }
+    if (row.definitionRevision === definition.currentRevision) {
+      const attributeReads = yield* effectiveAttributeValueReadsForScope(transaction, scope);
+      const definitionProof = yield* attributeReads.readDefinitionCurrent({
+        moduleId: catalogModuleId,
+        resourceId: row.attributeDefinitionId,
+        resourceType: 'commerce.catalog.attribute-definition',
+        tenantId,
+      });
+      if (
+        !definitionProof.complete ||
+        definitionProof.tenantId !== tenantId ||
+        definitionProof.attributeDefinitionId !== row.attributeDefinitionId ||
+        definitionProof.revision !== definition.currentRevision
+      ) {
+        return yield* basisUnavailable();
+      }
     }
     const [rule] = yield* transaction
       .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
@@ -164,7 +197,7 @@ export const variantAxisPersistenceForScope = (
       return yield* basisUnavailable();
     }
     let inheritable = false;
-    if (new Set(definition.applicableLevels).has('PRODUCT')) {
+    if (new Set(pinned.applicableLevels).has('PRODUCT')) {
       const [productRule] = yield* transaction
         .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
         .from(productTypeRevisionAttributes)
@@ -185,12 +218,12 @@ export const variantAxisPersistenceForScope = (
     // Product-specific allowed set and cannot authorize Current selection.
     return {
       attributeDefinitionId: row.attributeDefinitionId,
-      controlledValueKind: definition.controlledValueKind,
-      definitionRevision: definition.currentRevision,
+      controlledValueKind: pinned.controlledValueKind,
+      definitionRevision: pinned.revision,
       inheritable,
-      multiplicity: definition.multiplicity,
+      multiplicity: pinned.multiplicity,
       ordinal: row.ordinal,
-      valueKind: definition.valueKind,
+      valueKind: pinned.valueKind,
     } satisfies CurrentVariantAxis;
   });
 

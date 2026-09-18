@@ -80,8 +80,31 @@ type AxisTable =
 const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) => {
   const rows = new Map<AxisTable, readonly object[]>([
     [products, [{ productId }]],
-    [productVariantAxisEvents, [{ attributeDefinitionIds: [definitionId], axisRevision: 1, productId, tenantId }]],
-    [productVariantAxes, [{ attributeDefinitionId: definitionId, axisRevision: 1, ordinal: 0, productId, tenantId }]],
+    [
+      productVariantAxisEvents,
+      [
+        {
+          attributeDefinitionIds: [definitionId],
+          attributeDefinitionRevisions: [3],
+          axisRevision: 1,
+          productId,
+          tenantId,
+        },
+      ],
+    ],
+    [
+      productVariantAxes,
+      [
+        {
+          attributeDefinitionId: definitionId,
+          axisRevision: 1,
+          definitionRevision: 3,
+          ordinal: 0,
+          productId,
+          tenantId,
+        },
+      ],
+    ],
     [productTypeAssignments, [{ productTypeId: typeId }]],
     [productTypes, [{ currentRevision: 2 }]],
     [productTypeRevisions, [{ revision: 2 }]],
@@ -152,6 +175,90 @@ describe('Variant Axis Current basis', () => {
           valueKind: 'CONTROLLED',
         }),
       ]);
+    }),
+  );
+
+  it.effect('reads the pinned Definition revision after the current Definition advances', () =>
+    Effect.gen(function* readsPinnedRevision() {
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle read-chain mock.
+        transactionWith(
+          new Map([
+            [
+              attributeDefinitions,
+              [
+                {
+                  ...definitionRules,
+                  attributeDefinitionId: definitionId,
+                  currentRevision: 4,
+                  meaning: 'New meaning',
+                  tenantId,
+                },
+              ],
+            ],
+          ]),
+        ),
+        scope,
+      );
+      const current = yield* persistence.readCurrent(productRef);
+      expect(current.axes[0]).toEqual(expect.objectContaining({ definitionRevision: 3, valueKind: 'CONTROLLED' }));
+    }),
+  );
+
+  it.effect('rejects axis rows without pinned revision evidence', () =>
+    Effect.gen(function* rejectsUnpinnedAxis() {
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle read-chain mock.
+        transactionWith(
+          new Map([
+            [
+              productVariantAxes,
+              [
+                {
+                  attributeDefinitionId: definitionId,
+                  axisRevision: 1,
+                  definitionRevision: null,
+                  ordinal: 0,
+                  productId,
+                  tenantId,
+                },
+              ],
+            ],
+          ]),
+        ),
+        scope,
+      );
+      expect(Schema.is(VariantAxisBasisUnavailable)(yield* Effect.flip(persistence.readCurrent(productRef)))).toBe(
+        true,
+      );
+    }),
+  );
+
+  it.effect('rejects an event whose pinned revisions disagree with the live axes', () =>
+    Effect.gen(function* rejectsMismatchedEvidence() {
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle read-chain mock.
+        transactionWith(
+          new Map([
+            [
+              productVariantAxisEvents,
+              [
+                {
+                  attributeDefinitionIds: [definitionId],
+                  attributeDefinitionRevisions: [2],
+                  axisRevision: 1,
+                  productId,
+                  tenantId,
+                },
+              ],
+            ],
+          ]),
+        ),
+        scope,
+      );
+      expect(Schema.is(VariantAxisBasisUnavailable)(yield* Effect.flip(persistence.readCurrent(productRef)))).toBe(
+        true,
+      );
     }),
   );
 
