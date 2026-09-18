@@ -10,6 +10,8 @@
     "./domain/product": "./shared/domain/product.ts",
     "./domain/product-change-classification": "./shared/domain/product-change-classification.ts",
     "./domain/product-forms": "./shared/domain/product-form-separation.ts",
+    "./outbox/commerce-catalog-brand-descriptive-changed-v1": "./shared/outbox/commerce-catalog-brand-descriptive-changed-v1.ts",
+    "./outbox/commerce-catalog-product-lifecycle-changed-v1": "./shared/outbox/commerce-catalog-product-lifecycle-changed-v1.ts",
     "./outbox/commerce-catalog-product-relationship-changed-v1": "./shared/outbox/commerce-catalog-product-relationship-changed-v1.ts",
     "./resources/attribute-definition": "./shared/resources/attribute-definition.ts",
     "./resources/brand": "./shared/resources/brand.ts",

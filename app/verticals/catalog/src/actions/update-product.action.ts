@@ -8,6 +8,7 @@ import { Effect, Match, Schema } from 'effect';
 import { UpdateProductPayloadSchema, UpdateProductResultSchema } from '../../shared/actions/update-product.ts';
 import type { UpdateProductPayload, UpdateProductResult } from '../../shared/actions/update-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-lifecycle-changed-v1.ts';
 import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
@@ -21,6 +22,7 @@ import {
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { createUpdateProductCommerceCatalogProductLifecycleChangedV1OutboxMessage } from './update-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
 
 type UpdateProductServices = CatalogPersistence & {
   readonly captureResult: (
@@ -35,10 +37,11 @@ export type { UpdateProductPayload } from '../../shared/actions/update-product.t
 const MODULE_KEY = 'commerce.catalog' as const;
 const ACTION_KEY = 'commerce.catalog.update-product' as const;
 const domainEvents = {
+  'commerce.catalog.product-lifecycle-changed.v1': OutboxPayloadSchema,
   'commerce.catalog.product-updated.v1': UpdateProductResultSchema,
 } as const;
 
-const execute = Effect.fn('UpdateProductAction.execute')(function* execute(
+export const handleUpdateProduct = Effect.fn('UpdateProductAction.execute')(function* execute(
   payload: UpdateProductPayload,
   context: ActionHandlerContext<typeof domainEvents, CatalogPersistence>,
 ) {
@@ -86,6 +89,27 @@ const execute = Effect.fn('UpdateProductAction.execute')(function* execute(
       result.product.productRef.resourceId,
       result,
     );
+    // This Action supplies no descriptive fields to persistence, so a changed ACTIVE target
+    // is exactly a DRAFT -> ACTIVE transition, not a cosmetic update of an active Product.
+    if (payload.targetLifecycle === 'ACTIVE' && result.product.lifecycle === 'ACTIVE') {
+      const eventPayload = {
+        changeKind: 'ACTIVATED' as const,
+        lifecycle: 'ACTIVE' as const,
+        productRef: result.product.productRef,
+        revision: result.product.revision,
+        tenantId: context.scope.tenantId,
+      };
+      const event = yield* recordProductEvent(
+        context,
+        'commerce.catalog.product-lifecycle-changed.v1',
+        result.product.productRef.resourceId,
+        eventPayload,
+      );
+      yield* context.addOutboxMessage(
+        event,
+        createUpdateProductCommerceCatalogProductLifecycleChangedV1OutboxMessage(eventPayload),
+      );
+    }
   }
   return result;
 });
@@ -104,8 +128,8 @@ export const updateProductAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
-      moduleKey: MODULE_KEY,
+      entrypointKey: 'commerce.catalog.update-product',
+      moduleKey: 'commerce.catalog',
       role: 'action',
     }),
     idempotency: 'required',
@@ -116,7 +140,7 @@ export const updateProductAction = defineAction(
     resultSchema: UpdateProductResultSchema,
     schemaVersion: '1',
   },
-  execute,
+  handleUpdateProduct,
   (transaction, scope) =>
     catalogPersistenceServiceFactory(transaction, scope).pipe(
       Effect.map((services): UpdateProductServices => ({
@@ -138,4 +162,9 @@ export const updateProductAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createUpdateProductCommerceCatalogProductLifecycleChangedV1OutboxMessage } from './update-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { UpdateProductCommerceCatalogProductLifecycleChangedV1OutboxPayloadSchema } from './update-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { UpdateProductCommerceCatalogProductLifecycleChangedV1OutboxProducerModuleKey } from './update-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { UpdateProductCommerceCatalogProductLifecycleChangedV1OutboxTopic } from './update-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export type { UpdateProductCommerceCatalogProductLifecycleChangedV1OutboxPayload } from './update-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

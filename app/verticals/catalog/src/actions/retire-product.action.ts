@@ -8,6 +8,7 @@ import { DateTime, Effect, Match, Schema } from 'effect';
 import { RetireProductPayloadSchema, RetireProductResultSchema } from '../../shared/actions/retire-product.ts';
 import type { RetireProductPayload, RetireProductResult } from '../../shared/actions/retire-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-lifecycle-changed-v1.ts';
 import {
   ProductActionErrorSchema,
   catalogPersistenceServiceFactory,
@@ -20,6 +21,7 @@ import {
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { createRetireProductCommerceCatalogProductLifecycleChangedV1OutboxMessage } from './retire-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
 
 type RetireProductServices = CatalogPersistence & {
   readonly captureResult: (
@@ -34,10 +36,11 @@ export type { RetireProductPayload } from '../../shared/actions/retire-product.t
 const MODULE_KEY = 'commerce.catalog' as const;
 const ACTION_KEY = 'commerce.catalog.retire-product' as const;
 const domainEvents = {
+  'commerce.catalog.product-lifecycle-changed.v1': OutboxPayloadSchema,
   'commerce.catalog.product-retired.v1': RetireProductResultSchema,
 } as const;
 
-const execute = Effect.fn('RetireProductAction.execute')(function* execute(
+export const handleRetireProduct = Effect.fn('RetireProductAction.execute')(function* execute(
   payload: RetireProductPayload,
   context: ActionHandlerContext<typeof domainEvents, CatalogPersistence>,
 ) {
@@ -76,6 +79,23 @@ const execute = Effect.fn('RetireProductAction.execute')(function* execute(
     result.product.productRef.resourceId,
     result,
   );
+  const eventPayload = {
+    changeKind: 'RETIRED' as const,
+    lifecycle: 'RETIRED' as const,
+    productRef: result.product.productRef,
+    revision: result.product.revision,
+    tenantId: context.scope.tenantId,
+  };
+  const event = yield* recordProductEvent(
+    context,
+    'commerce.catalog.product-lifecycle-changed.v1',
+    result.product.productRef.resourceId,
+    eventPayload,
+  );
+  yield* context.addOutboxMessage(
+    event,
+    createRetireProductCommerceCatalogProductLifecycleChangedV1OutboxMessage(eventPayload),
+  );
   return result;
 });
 
@@ -93,8 +113,8 @@ export const retireProductAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
-      moduleKey: MODULE_KEY,
+      entrypointKey: 'commerce.catalog.retire-product',
+      moduleKey: 'commerce.catalog',
       role: 'action',
     }),
     idempotency: 'required',
@@ -105,7 +125,7 @@ export const retireProductAction = defineAction(
     resultSchema: RetireProductResultSchema,
     schemaVersion: '1',
   },
-  execute,
+  handleRetireProduct,
   (transaction, scope) =>
     catalogPersistenceServiceFactory(transaction, scope).pipe(
       Effect.map((services): RetireProductServices => ({
@@ -127,4 +147,9 @@ export const retireProductAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createRetireProductCommerceCatalogProductLifecycleChangedV1OutboxMessage } from './retire-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { RetireProductCommerceCatalogProductLifecycleChangedV1OutboxPayloadSchema } from './retire-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { RetireProductCommerceCatalogProductLifecycleChangedV1OutboxProducerModuleKey } from './retire-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export { RetireProductCommerceCatalogProductLifecycleChangedV1OutboxTopic } from './retire-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
+export type { RetireProductCommerceCatalogProductLifecycleChangedV1OutboxPayload } from './retire-product-commerce-catalog-product-lifecycle-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

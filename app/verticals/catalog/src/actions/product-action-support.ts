@@ -94,7 +94,7 @@ export const recordProductEvent = Effect.fn('CatalogProductAction.recordEvent')(
   productId: string,
   payloadJson: Schema.Schema.Type<typeof Schema.Json>,
 ) {
-  yield* context.addDomainEvent({
+  return yield* context.addDomainEvent({
     eventType,
     payloadJson,
     producerModuleKey: CATALOG_MODULE_KEY,
