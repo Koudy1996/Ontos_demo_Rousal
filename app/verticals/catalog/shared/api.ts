@@ -224,7 +224,207 @@ export const catalogFoundationApi = HttpApi.make('CatalogApiFoundation').add(
   ),
 );
 
-export const catalogApi = HttpApi.make('CatalogApi')
+type GroupsOf<Api> = Api extends HttpApi.HttpApi<string, infer Groups> ? Groups : never;
+
+type CatalogApiGroups = GroupsOf<
+  | typeof catalogFoundationApi
+  | typeof ActivateLocalOverrideActionApi
+  | typeof ActivateLocalOverrideRecoveryApi
+  | typeof ActivatePackageDefinitionActionApi
+  | typeof ActivatePackageDefinitionRecoveryApi
+  | typeof ActivatePackageOptionActionApi
+  | typeof ActivatePackageOptionRecoveryApi
+  | typeof AddProductCategoryAssignmentActionApi
+  | typeof AddProductCategoryAssignmentRecoveryApi
+  | typeof AssertSizeEquivalenceActionApi
+  | typeof AssertSizeEquivalenceRecoveryApi
+  | typeof AssignCatalogMediaActionApi
+  | typeof AssignCatalogMediaRecoveryApi
+  | typeof AssignSkuActionApi
+  | typeof AssignSkuRecoveryApi
+  | typeof BrandCurrentApi
+  | typeof BrandHistoryApi
+  | typeof CatalogDocumentCurrentApi
+  | typeof CatalogMediaCurrentApi
+  | typeof CatalogSourceResolutionApi
+  | typeof ChangeLocalOverrideActionApi
+  | typeof ChangeLocalOverrideRecoveryApi
+  | typeof ChangeProductManufacturerActionApi
+  | typeof ChangeProductManufacturerRecoveryApi
+  | typeof ChangeProductRelationshipActionApi
+  | typeof ChangeProductRelationshipRecoveryApi
+  | typeof ChangeVariantActionApi
+  | typeof ChangeVariantRecoveryApi
+  | typeof ColorCurrentApi
+  | typeof ColorHistoryApi
+  | typeof ConfirmGtinActionApi
+  | typeof ConfirmGtinRecoveryApi
+  | typeof ConfirmVariantCombinationActionApi
+  | typeof ConfirmVariantCombinationRecoveryApi
+  | typeof CorrectGtinActionApi
+  | typeof CorrectGtinRecoveryApi
+  | typeof CorrectProductActionApi
+  | typeof CorrectProductRecoveryApi
+  | typeof CorrectSkuActionApi
+  | typeof CorrectSkuRecoveryApi
+  | typeof CreateAttributeDefinitionActionApi
+  | typeof CreateAttributeDefinitionRecoveryApi
+  | typeof CreateBrandActionApi
+  | typeof CreateBrandRecoveryApi
+  | typeof CreateConfigurationUnitActionApi
+  | typeof CreateConfigurationUnitRecoveryApi
+  | typeof CreateControlledAttributeValueActionApi
+  | typeof CreateControlledAttributeValueRecoveryApi
+  | typeof CreatePackageDefinitionActionApi
+  | typeof CreatePackageDefinitionRecoveryApi
+  | typeof CreateProductActionApi
+  | typeof CreateProductCategoryActionApi
+  | typeof CreateProductCategoryRecoveryApi
+  | typeof CreateProductRecoveryApi
+  | typeof CreateProductRelationshipActionApi
+  | typeof CreateProductRelationshipRecoveryApi
+  | typeof CreateProductTypeActionApi
+  | typeof CreateProductTypeRecoveryApi
+  | typeof CreateProductUnitActionApi
+  | typeof CreateProductUnitRecoveryApi
+  | typeof CreateSetCompositionActionApi
+  | typeof CreateSetCompositionRecoveryApi
+  | typeof CreateVariantActionApi
+  | typeof CreateVariantRecoveryApi
+  | typeof DecideProductTypeUnnecessaryActionApi
+  | typeof DecideProductTypeUnnecessaryRecoveryApi
+  | typeof EffectiveAttributeValuesCurrentApi
+  | typeof ExternalTargetResolutionApi
+  | typeof GovernProductAttributeApplicabilityActionApi
+  | typeof GovernProductAttributeApplicabilityRecoveryApi
+  | typeof GovernVariantAllowedValuesActionApi
+  | typeof GovernVariantAllowedValuesRecoveryApi
+  | typeof GovernVariantAxesActionApi
+  | typeof GovernVariantAxesRecoveryApi
+  | typeof GtinCurrentApi
+  | typeof GtinHistoryApi
+  | typeof ImportSourceAssertionActionApi
+  | typeof ImportSourceAssertionRecoveryApi
+  | typeof ListRecordedVariantsApi
+  | typeof ManufacturerRelationCurrentApi
+  | typeof ManufacturerRelationHistoryApi
+  | typeof MarkGtinUnresolvedActionApi
+  | typeof MarkGtinUnresolvedRecoveryApi
+  | typeof MoveProductCategoryActionApi
+  | typeof MoveProductCategoryRecoveryApi
+  | typeof PackageDefinitionHistoryApi
+  | typeof PackageOptionHistoryApi
+  | typeof ProductBrandCurrentApi
+  | typeof ProductBrandHistoryApi
+  | typeof ProductCategoryClassificationApi
+  | typeof ProductCategoryHistoryApi
+  | typeof ProductDetailApi
+  | typeof ProductHistoryApi
+  | typeof ProductRelationshipCurrentApi
+  | typeof ProductRelationshipHistoryApi
+  | typeof ProductSizeCurrentApi
+  | typeof PromotePackageDefinitionActionApi
+  | typeof PromotePackageDefinitionRecoveryApi
+  | typeof PublishProductConfigurationActionApi
+  | typeof PublishProductConfigurationRecoveryApi
+  | typeof QuantityPreparationApi
+  | typeof ReactivateBrandActionApi
+  | typeof ReactivateBrandRecoveryApi
+  | typeof ReactivateControlledAttributeValueActionApi
+  | typeof ReactivateControlledAttributeValueRecoveryApi
+  | typeof ReactivateProductActionApi
+  | typeof ReactivateProductRecoveryApi
+  | typeof ReactivateVariantActionApi
+  | typeof ReactivateVariantRecoveryApi
+  | typeof ReleaseLocalOverrideActionApi
+  | typeof ReleaseLocalOverrideRecoveryApi
+  | typeof RemoveCatalogMediaActionApi
+  | typeof RemoveCatalogMediaRecoveryApi
+  | typeof RemoveProductAttributeValuesActionApi
+  | typeof RemoveProductAttributeValuesRecoveryApi
+  | typeof RemoveProductCategoryAssignmentActionApi
+  | typeof RemoveProductCategoryAssignmentRecoveryApi
+  | typeof RemoveProductLocalizedFactsActionApi
+  | typeof RemoveProductLocalizedFactsRecoveryApi
+  | typeof RemoveProductManufacturerActionApi
+  | typeof RemoveProductManufacturerRecoveryApi
+  | typeof RemoveProductRelationshipActionApi
+  | typeof RemoveProductRelationshipRecoveryApi
+  | typeof RemoveVariantAttributeOverrideActionApi
+  | typeof RemoveVariantAttributeOverrideRecoveryApi
+  | typeof RemoveVariantLocalizedFactsActionApi
+  | typeof RemoveVariantLocalizedFactsRecoveryApi
+  | typeof RenameAttributeDefinitionActionApi
+  | typeof RenameAttributeDefinitionRecoveryApi
+  | typeof RenameBrandActionApi
+  | typeof RenameBrandRecoveryApi
+  | typeof RenameControlledAttributeValueActionApi
+  | typeof RenameControlledAttributeValueRecoveryApi
+  | typeof RenameProductCategoryActionApi
+  | typeof RenameProductCategoryRecoveryApi
+  | typeof RenameSkuActionApi
+  | typeof RenameSkuRecoveryApi
+  | typeof ReorderCatalogMediaActionApi
+  | typeof ReorderCatalogMediaRecoveryApi
+  | typeof ReplaceProductSizesActionApi
+  | typeof ReplaceProductSizesRecoveryApi
+  | typeof RetireBrandActionApi
+  | typeof RetireBrandRecoveryApi
+  | typeof RetireConfigurationUnitActionApi
+  | typeof RetireConfigurationUnitRecoveryApi
+  | typeof RetireControlledAttributeValueActionApi
+  | typeof RetireControlledAttributeValueRecoveryApi
+  | typeof RetireGtinActionApi
+  | typeof RetireGtinRecoveryApi
+  | typeof RetirePackageDefinitionActionApi
+  | typeof RetirePackageDefinitionRecoveryApi
+  | typeof RetirePackageOptionActionApi
+  | typeof RetirePackageOptionRecoveryApi
+  | typeof RetireProductActionApi
+  | typeof RetireProductCategoryActionApi
+  | typeof RetireProductCategoryRecoveryApi
+  | typeof RetireProductRecoveryApi
+  | typeof RetireProductUnitActionApi
+  | typeof RetireProductUnitRecoveryApi
+  | typeof RetireVariantActionApi
+  | typeof RetireVariantRecoveryApi
+  | typeof ReviseAttributeDefinitionActionApi
+  | typeof ReviseAttributeDefinitionRecoveryApi
+  | typeof ReviseConfigurationUnitActionApi
+  | typeof ReviseConfigurationUnitRecoveryApi
+  | typeof RevisePackageDefinitionActionApi
+  | typeof RevisePackageDefinitionRecoveryApi
+  | typeof ReviseProductTypeActionApi
+  | typeof ReviseProductTypeRecoveryApi
+  | typeof ReviseProductUnitActionApi
+  | typeof ReviseProductUnitRecoveryApi
+  | typeof ReviseSetCompositionActionApi
+  | typeof ReviseSetCompositionRecoveryApi
+  | typeof SelectionEvidenceApi
+  | typeof SetCompositionCurrentApi
+  | typeof SetCompositionHistoryApi
+  | typeof SetProductAttributeValuesActionApi
+  | typeof SetProductAttributeValuesRecoveryApi
+  | typeof SetProductBrandActionApi
+  | typeof SetProductBrandRecoveryApi
+  | typeof SetProductLocalizedFactsActionApi
+  | typeof SetProductLocalizedFactsRecoveryApi
+  | typeof SetProductManufacturerActionApi
+  | typeof SetProductManufacturerRecoveryApi
+  | typeof SetProductTypeActionApi
+  | typeof SetProductTypeRecoveryApi
+  | typeof SetProductUnitTargetDivisibilityActionApi
+  | typeof SetProductUnitTargetDivisibilityRecoveryApi
+  | typeof SetVariantAttributeOverrideActionApi
+  | typeof SetVariantAttributeOverrideRecoveryApi
+  | typeof SetVariantLocalizedFactsActionApi
+  | typeof SetVariantLocalizedFactsRecoveryApi
+  | typeof SkuLookupApi
+  | typeof UpdateProductActionApi
+  | typeof UpdateProductRecoveryApi
+  | typeof VariantHistoryApi
+>;
+export const catalogApi: HttpApi.HttpApi<'CatalogApi', CatalogApiGroups> = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(ActivateLocalOverrideActionApi)
@@ -499,14 +699,6 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.api.activate-package-definition-recovery': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: packageDefinitionBusinessTarget,
-    permission: 'commerce.catalog.read.activate-package-definition-recovery',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
   'commerce.catalog.api.activate-local-override-recovery': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: catalogSourceBusinessTarget,
@@ -515,58 +707,10 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.api.catalog-document-current': {
+  'commerce.catalog.api.activate-package-definition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'catalog-document',
-    permission: 'commerce.catalog.read.catalog-document-current',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.catalog-source-resolution': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.read.catalog-source-resolution',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.change-local-override-recovery': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.read.change-local-override-recovery',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.import-source-assertion-recovery': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.read.import-source-assertion-recovery',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.external-target-resolution': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.read.external-target-resolution',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.release-local-override-recovery': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.read.release-local-override-recovery',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.selection-evidence': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'selection-evidence',
-    permission: 'commerce.catalog.read.selection-evidence',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.read.activate-package-definition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -631,6 +775,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.catalog-document-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'catalog-document',
+    permission: 'commerce.catalog.read.catalog-document-current',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.catalog-media-current': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'catalog-media',
@@ -638,6 +790,22 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'resource',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.catalog-source-resolution': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.catalog-source-resolution',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.change-local-override-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.change-local-override-recovery',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -837,6 +1005,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.external-target-resolution': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.external-target-resolution',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.govern-product-attribute-applicability-recovery': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
@@ -878,6 +1054,14 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.import-source-assertion-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.import-source-assertion-recovery',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -1076,6 +1260,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'variant',
     permission: 'commerce.catalog.read.reactivate-variant-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.release-local-override-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.release-local-override-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -1328,6 +1520,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.selection-evidence': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'selection-evidence',
+    permission: 'commerce.catalog.read.selection-evidence',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.set-composition-current': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: setCompositionBusinessTarget,
@@ -1454,6 +1654,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'variant',
     permission: 'commerce.catalog.assign-sku',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.change-local-override': {
+    authorityBundle: 'CATALOG_OVERRIDE_MANAGER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.change-local-override',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -1650,6 +1858,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.import-source-assertion': {
+    authorityBundle: 'CATALOG_IMPORTER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.import-source-assertion',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.mark-gtin-unresolved': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'variant',
@@ -1710,6 +1926,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'variant',
     permission: 'commerce.catalog.reactivate-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.release-local-override': {
+    authorityBundle: 'CATALOG_OVERRIDE_MANAGER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.release-local-override',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -1978,30 +2202,6 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.change-local-override': {
-    authorityBundle: 'CATALOG_OVERRIDE_MANAGER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.change-local-override',
-    permissionKind: 'action_execution',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.import-source-assertion': {
-    authorityBundle: 'CATALOG_IMPORTER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.import-source-assertion',
-    permissionKind: 'action_execution',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.release-local-override': {
-    authorityBundle: 'CATALOG_OVERRIDE_MANAGER',
-    businessTarget: catalogSourceBusinessTarget,
-    permission: 'commerce.catalog.release-local-override',
-    permissionKind: 'action_execution',
-    scope: 'tenant',
-    version: '1',
-  },
   'commerce.catalog.set-product-localized-facts': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
@@ -2095,13 +2295,13 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.revise-product-unit',
     'commerce.catalog.set-product-unit-target-divisibility',
   ],
+  CATALOG_IMPORTER: ['commerce.catalog.import-source-assertion'],
   CATALOG_LIFECYCLE_MANAGER: [
     'commerce.catalog.reactivate-product',
     'commerce.catalog.reactivate-variant',
     'commerce.catalog.retire-product',
     'commerce.catalog.retire-variant',
   ],
-  CATALOG_IMPORTER: ['commerce.catalog.import-source-assertion'],
   CATALOG_OVERRIDE_MANAGER: [
     'commerce.catalog.activate-local-override',
     'commerce.catalog.change-local-override',
