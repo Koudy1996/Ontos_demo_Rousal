@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 
 import { CatalogResourceRefSchema } from './catalog-revision-reference.ts';
+import { CatalogLocaleSchema } from './product-descriptive-facts.ts';
 
 const text = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500), Schema.isTrimmed());
 const colorRef = CatalogResourceRefSchema.check(
@@ -31,15 +32,31 @@ export const ColorDistinctionEvidenceSchema = Schema.Union([
 ]);
 export type ColorDistinctionEvidence = typeof ColorDistinctionEvidenceSchema.Type;
 
+export const ColorLocalizedNameSchema = Schema.Struct({ locale: CatalogLocaleSchema, name: text });
+export type ColorLocalizedName = typeof ColorLocalizedNameSchema.Type;
+
 /** The Tenant-qualified controlled-value reference, not the name/group/preview, is identity. */
 export const ColorSchema = Schema.Struct({
   displayName: text,
   distinctionEvidence: ColorDistinctionEvidenceSchema,
   groupName: Schema.optionalKey(text),
+  localizedNames: Schema.optionalKey(Schema.Array(ColorLocalizedNameSchema)),
   preview: Schema.optionalKey(ColorPreviewSchema),
   ref: colorRef,
-});
+}).check(
+  Schema.makeFilter(({ localizedNames }) =>
+    localizedNames === undefined || new Set(localizedNames.map(({ locale }) => locale)).size === localizedNames.length
+      ? undefined
+      : 'A Color may have only one name per locale',
+  ),
+);
 export type Color = typeof ColorSchema.Type;
+
+/** A missing translation remains missing; the display label is not relabeled as that locale. */
+export const lookupColorLocalizedName = (
+  color: Color,
+  locale: typeof CatalogLocaleSchema.Type,
+): ColorLocalizedName | undefined => color.localizedNames?.find((entry) => entry.locale === locale);
 
 export const sameColorIdentity = (left: Color, right: Color): boolean =>
   left.ref.tenantId === right.ref.tenantId && left.ref.resourceId === right.ref.resourceId;

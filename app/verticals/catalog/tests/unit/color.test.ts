@@ -5,6 +5,7 @@ import {
   ColorHistoricalReferenceSchema,
   ColorRevisionDecisionSchema,
   ColorSchema,
+  lookupColorLocalizedName,
   sameColorIdentity,
 } from '../../shared/domain/color.ts';
 
@@ -59,6 +60,29 @@ describe('Catalog Color meaning', () => {
       Schema.is(ColorSchema)({ ...swatch, distinctionEvidence: { ...swatch.distinctionEvidence, sourceScope: ' ' } }),
     ).toBe(false);
     expect(Schema.is(ColorSchema)({ ...first, preview: { hex: '#xyzxyz', kind: 'HEX' } })).toBe(false);
+  });
+
+  it('keeps locale-specific names separate from identity and does not invent translations', () => {
+    const color = Schema.decodeUnknownSync(ColorSchema)({
+      ...first,
+      localizedNames: [
+        { locale: 'en', name: 'Anthracite' },
+        { locale: 'cs', name: 'Antracit' },
+      ],
+    });
+    expect(lookupColorLocalizedName(color, 'cs')?.name).toBe('Antracit');
+    expect(lookupColorLocalizedName(color, 'de')).toBeUndefined();
+    expect(sameColorIdentity(color, { ...color, displayName: 'Dark grey', localizedNames: [] })).toBe(true);
+    expect(
+      Schema.is(ColorSchema)({
+        ...color,
+        localizedNames: [
+          { locale: 'en', name: 'Anthracite' },
+          { locale: 'cs', name: 'Antracit' },
+          { locale: 'cs', name: 'Šedá' },
+        ],
+      }),
+    ).toBe(false);
   });
 
   it('allows an evidenced same-meaning rename while requiring a new identity for changed meaning', () => {
