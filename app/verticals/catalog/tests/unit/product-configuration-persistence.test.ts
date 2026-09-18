@@ -413,4 +413,25 @@ describe('Product Configuration effectiveness timeline', () => {
       expect(state.rows.get(productConfigurationDefinitionRevisions)).toHaveLength(1);
     }),
   );
+
+  it.effect('does not issue Current choice evidence from a retired Definition revision', () =>
+    Effect.gen(function* retiredRevision() {
+      const state = statefulFixture();
+      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
+        verify: () => Effect.succeed(true),
+      });
+      yield* service.publish(input);
+      const rows = state.rows.get(productConfigurationDefinitionRevisions);
+      const published = rows?.[0];
+      if (published === undefined) {
+        return;
+      }
+      state.rows.set(productConfigurationDefinitionRevisions, [{ ...published, state: 'RETIRED' }]);
+      const result = yield* Effect.exit(
+        service.readCurrent({ at: input.effectiveFrom, definitionId: input.definitionId, productId: input.productId }),
+      );
+      expect(Exit.isFailure(result)).toBe(true);
+    }),
+  );
 });

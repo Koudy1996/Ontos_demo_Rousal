@@ -88,6 +88,17 @@ describe('Current Product Configuration evaluator', () => {
     Effect.gen(function* validatesEvidence() {
       const before = JSON.stringify(values);
       expect(yield* evaluate()).toMatchObject({
+        choiceRevisions: expect.arrayContaining([
+          expect.objectContaining({
+            choiceKey: 'mount',
+            evidenceRefs: ['owner:publication:2'],
+            kind: 'SINGLE_CHOICE',
+            options: expect.arrayContaining([expect.objectContaining({ meaning: 'A', optionKey: 'A' })]),
+            ownerModuleId: 'commerce.catalog',
+            revision: 2,
+          }),
+          expect.objectContaining({ choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' }),
+        ]),
         definitionRevision: 2,
         rules: expect.arrayContaining([
           expect.objectContaining({ evidenceRefs: ['owner:publication:2'], revision: 2, ruleId: 'choice:mount' }),

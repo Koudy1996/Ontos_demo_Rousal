@@ -36,8 +36,22 @@ interface CurrentConfigurationRuleEvidence {
   readonly ruleId: string;
 }
 
+/** Exact owner-recorded meanings, not a claim about external Attribute or Unit Current state. */
+export interface CurrentConfigurationChoiceEvidence {
+  readonly choiceKey: string;
+  readonly evidenceRefs: readonly string[];
+  readonly kind: 'SINGLE_CHOICE' | 'MEASURED_VALUE';
+  readonly meaning: string;
+  readonly options: readonly { readonly meaning: string; readonly optionKey: string }[];
+  readonly ownerModuleId: 'commerce.catalog';
+  readonly required: boolean;
+  readonly revision: number;
+  readonly unitId?: string;
+}
+
 export type CurrentConfigurationAssessment = {
   readonly assessedAt: Date;
+  readonly choiceRevisions: readonly CurrentConfigurationChoiceEvidence[];
   readonly definitionId: string;
   readonly definitionRevision?: number;
   readonly effectiveFrom?: Date;
@@ -288,6 +302,23 @@ export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurati
     const matching = revision === undefined ? undefined : applicableRules(revision, input.target);
     const evidence: CurrentConfigurationAssessment = {
       assessedAt: input.at,
+      choiceRevisions:
+        revision?.choices.map((choice) => {
+          const attested: CurrentConfigurationChoiceEvidence = {
+            choiceKey: choice.choiceKey,
+            evidenceRefs: revision.definitionEvidenceRefs,
+            kind: choice.kind,
+            meaning: choice.meaning,
+            options: (choice.options ?? []).map((option) => ({ meaning: option.meaning, optionKey: option.optionKey })),
+            ownerModuleId: 'commerce.catalog',
+            required: choice.required,
+            revision: revision.revision,
+          };
+          if (choice.unitId !== undefined) {
+            Object.assign(attested, { unitId: choice.unitId });
+          }
+          return attested;
+        }) ?? [],
       definitionId: input.target.definitionId,
       rules: matching?.evidence ?? [],
       status: 'VALID',
