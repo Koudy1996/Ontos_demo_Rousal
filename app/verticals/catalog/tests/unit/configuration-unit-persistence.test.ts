@@ -74,6 +74,33 @@ const fixture = () => {
 };
 
 describe('Configuration Unit revision chain', () => {
+  it.effect('rejects an overlapping successor without changing the existing Current proof', () =>
+    Effect.gen(function* rejectsOverlap() {
+      // @ts-expect-error Mock covers the scoped Drizzle select/insert chains used here.
+      const persistence = configurationUnitPersistenceForScope(fixture(), scope);
+      const bounded = Schema.decodeUnknownSync(CreateConfigurationUnitPayloadSchema)({
+        ...createPayload,
+        effectiveTo: '2026-12-01T00:00:00.000Z',
+      });
+      expect((yield* persistence.create({ ...evidence, payload: bounded })).status).toBe('CREATED');
+      const overlapping = Schema.decodeUnknownSync(ReviseConfigurationUnitPayloadSchema)({
+        dimension: 'length',
+        effectiveFrom: '2026-11-01T00:00:00.000Z',
+        evidenceRefs: ['owner:engineering:2'],
+        expectedRevision: 1,
+        meaning: 'Changed meaning',
+        reason: 'Proposed overlap',
+        unitRef,
+      });
+      expect((yield* persistence.revise({ ...evidence, payload: overlapping })).status).toBe('INVALID');
+      const current = yield* persistence.readCurrent(unitId, new Date('2026-11-15T00:00:00Z'));
+      expect(current.status).toBe('CONFIRMED');
+      if (current.status === 'CONFIRMED') {
+        expect(current.revision.revision).toBe(1);
+      }
+    }),
+  );
+
   it.effect('retains historical R1, supersedes it at R2, and rejects a stale concurrent writer', () =>
     Effect.gen(function* testChain() {
       const transaction = fixture();
