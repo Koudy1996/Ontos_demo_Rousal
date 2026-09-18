@@ -1,5 +1,6 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { ActionTransactionError, TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { bindActionTestServices, makeActionTestHarness } from '@app/core-runtime/testing/actions';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
@@ -110,6 +111,64 @@ const context = (
 });
 
 describe('Product Unit governed Actions', () => {
+  it.effect('captures decoded success once and rolls back when capture fails', () =>
+    Effect.gen(function* captureUnitResult() {
+      const captured: unknown[] = [];
+      const services = {
+        ...context().services,
+        create: () =>
+          Effect.succeed({
+            _tag: 'created' as const,
+            ruleRevision: { revision: 1, ...rule, unit: unitRef },
+            unit: unitRef,
+          }),
+        captureResult: (id: string, result: unknown) =>
+          Effect.sync(() => {
+            captured.push({ id, result });
+          }),
+      };
+      const harness = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [bindActionTestServices(createProductUnitAction, services)],
+      });
+      const request = {
+        payload: create,
+        principal: {
+          authBindingId: '99999999-9999-4999-8999-999999999999',
+          authContextRef: 'better-auth-session:unit-capture',
+          authMethod: 'session' as const,
+          principalId: scope.principalId,
+          tenantId,
+        },
+        registration: createProductUnitAction,
+        transport: { correlationId: 'unit-capture', idempotencyKey: 'unit-capture-once' },
+      };
+      const result = yield* harness.runtime.runAction(request);
+      expect(captured).toEqual([{ id: expect.any(String), result }]);
+      expect(harness.snapshot().committed).toHaveLength(1);
+      yield* harness.runtime.runAction(request).pipe(Effect.flip);
+      expect(captured).toHaveLength(1);
+
+      const failed = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [
+          bindActionTestServices(createProductUnitAction, {
+            ...services,
+            captureResult: () =>
+              Effect.fail(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+              ),
+          }),
+        ],
+      });
+      const error = yield* failed.runtime.runAction(request).pipe(Effect.flip);
+      expect(error).toMatchObject({ code: 'action_transaction_failed' });
+      expect(failed.snapshot().committed).toHaveLength(0);
+    }),
+  );
   it('exports all four direct result types for owner API contracts', () => {
     const result = {
       ruleRevision: { revision: 1, rounding: 'UP' as const, step: '0.01', unit: unitRef },

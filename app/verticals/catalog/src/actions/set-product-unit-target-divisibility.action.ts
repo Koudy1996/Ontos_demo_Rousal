@@ -2,8 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug set-product-unit-target-divisibility
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import {
   SetProductUnitTargetDivisibilityPayloadSchema,
@@ -16,6 +16,7 @@ import {
   ProductUnitAuditEvidenceSchema,
 } from '../../shared/actions/product-unit-contract.ts';
 import type { ProductUnitPersistence } from '../persistence/product-unit-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   mapProductUnitPersistenceError,
   productUnitPersistenceServiceFactory,
@@ -75,7 +76,36 @@ export const setProductUnitTargetDivisibilityAction = defineAction(
     schemaVersion: '1',
   },
   handleSetProductUnitTargetDivisibility,
-  productUnitPersistenceServiceFactory,
+  (transaction, scope) =>
+    productUnitPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof SetProductUnitTargetDivisibilityResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            {
+              actionInvocationId,
+              actionKey: 'commerce.catalog.set-product-unit-target-divisibility',
+              schemaVersion: 1,
+            },
+            {
+              decode: Schema.decodeUnknownEffect(SetProductUnitTargetDivisibilityResultSchema),
+              encode: Schema.encodeEffect(SetProductUnitTargetDivisibilityResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
