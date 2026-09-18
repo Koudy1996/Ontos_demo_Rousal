@@ -3,6 +3,7 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { ProductRefSchema } from '../resources/product.ts';
+import { CatalogRevisionResourceIdSchema } from '../domain/catalog-revision-reference.ts';
 
 export const ProductSizeCurrentRequestSchema = Schema.Struct({ productRef: ProductRefSchema });
 export type ProductSizeCurrentRequest = typeof ProductSizeCurrentRequestSchema.Type;
@@ -12,7 +13,7 @@ export const ProductSizeCurrentResponseSchema = Schema.Struct({
   sizes: Schema.Array(
     Schema.Struct({
       position: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-      sizeId: Schema.String.check(Schema.isUUID()),
+      sizeId: CatalogRevisionResourceIdSchema,
     }),
   ),
 });

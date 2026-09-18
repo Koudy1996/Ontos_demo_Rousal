@@ -62,9 +62,13 @@ export const productSizeCurrentRead = defineRead(
     input: ProductSizeCurrentRequest,
     context: ReadHandlerContext<Pick<SizeUsagePersistence, 'read'> & Pick<CatalogPersistence, 'getCurrent'>>,
   ) {
-    if (input.productRef.tenantId !== context.scope.tenantId) return yield* notFound();
+    if (input.productRef.tenantId !== context.scope.tenantId) {
+      return yield* notFound();
+    }
     const product = yield* context.services.getCurrent(input.productRef.resourceId).pipe(Effect.mapError(unavailable));
-    if (Option.isNone(product)) return yield* notFound();
+    if (Option.isNone(product)) {
+      return yield* notFound();
+    }
     const usage = yield* context.services.read(input.productRef.resourceId).pipe(Effect.mapError(unavailable));
     const result = {
       productRef: input.productRef,
@@ -76,8 +80,8 @@ export const productSizeCurrentRead = defineRead(
   (transaction, scope) =>
     catalogPersistenceForScope(transaction, scope).pipe(
       Effect.map((catalog) => ({
-        read: sizeUsagePersistenceForScope(transaction, scope).read,
         getCurrent: catalog.getCurrent,
+        read: sizeUsagePersistenceForScope(transaction, scope).read,
       })),
     ),
   () => ({ kind: 'module', moduleId: moduleKey }),
