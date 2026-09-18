@@ -29,8 +29,13 @@ export const ProductChangeClassificationSchema = Schema.Union([
     evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
     kind: Schema.Literal('NEW_PRODUCT'),
     newProductRef: ProductReferenceSchema,
-    previousProductRef: Schema.optionalKey(ProductReferenceSchema),
     reason: ProductReasonSchema,
+    /**
+     * A different common business identity always replaces a named previous Product. A genuinely
+     * unrelated Product is created through #414, never classified as a change, so the original
+     * reference can never start denoting another thing without an explicit distinction.
+     */
+    previousProductRef: ProductReferenceSchema,
   }),
   Schema.Struct({
     affectsOpenSelection: Schema.Literal(true),
@@ -62,10 +67,7 @@ export const classifyProductChange = (
   change: ProductChangeClassification,
 ): Effect.Effect<ProductChangeClassification, ProductChangeClassificationConflict> => {
   if (change.kind === 'NEW_PRODUCT') {
-    if (
-      change.previousProductRef !== undefined &&
-      change.previousProductRef.tenantId !== change.newProductRef.tenantId
-    ) {
+    if (change.previousProductRef.tenantId !== change.newProductRef.tenantId) {
       return Effect.fail(
         new ProductChangeClassificationConflict({
           code: 'product_change_classification_conflict',
@@ -73,7 +75,7 @@ export const classifyProductChange = (
         }),
       );
     }
-    if (change.previousProductRef?.resourceId === change.newProductRef.resourceId) {
+    if (change.previousProductRef.resourceId === change.newProductRef.resourceId) {
       return Effect.fail(
         new ProductChangeClassificationConflict({
           code: 'product_change_classification_conflict',

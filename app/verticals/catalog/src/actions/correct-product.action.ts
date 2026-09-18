@@ -48,7 +48,7 @@ const domainEvents = {
   'commerce.catalog.selection-revalidation-required.v1': ProductSelectionRevalidationRequiredSchema,
 } as const;
 
-const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
+export const handleCorrectProduct = Effect.fn('CorrectProductAction.execute')(function* execute(
   payload: CorrectProductPayload,
   context: ActionHandlerContext<typeof domainEvents, CatalogPersistence>,
 ) {
@@ -195,7 +195,7 @@ export const correctProductAction = defineAction(
     resultSchema: CorrectProductResultSchema,
     schemaVersion: '1',
   },
-  execute,
+  handleCorrectProduct,
   (transaction, scope) =>
     catalogPersistenceServiceFactory(transaction, scope).pipe(
       Effect.map((services): CorrectProductServices => ({
