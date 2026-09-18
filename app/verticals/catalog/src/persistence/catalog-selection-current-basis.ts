@@ -312,9 +312,17 @@ const readOneConfigurationChoice = Effect.fn('CatalogSelectionCurrentBasis.readO
       return { basis, reason: 'Selected Configuration choice lacks owner meaning', status: 'INDETERMINATE' as const };
     }
     if (choice.unit !== undefined) {
-      const unit = assessment.unitRevisions.find((item) => item.ref.resourceId === choice.unit?.resourceRef.resourceId);
+      const selectedRef = choice.unit.resourceRef;
+      const unit = assessment.unitRevisions.find(
+        (item) =>
+          item.ref.moduleId === selectedRef.moduleId &&
+          item.ref.resourceType === selectedRef.resourceType &&
+          item.ref.tenantId === selectedRef.tenantId &&
+          item.ref.resourceId === selectedRef.resourceId,
+      );
       if (
         choice.unit.revisionId !== undefined ||
+        !validDependentRef(selectedRef, scope.tenantId, catalogUnitType) ||
         recorded.unitRevision !== choice.unit.revision ||
         unit?.revision !== choice.unit.revision ||
         unit.ref.tenantId !== scope.tenantId
@@ -707,6 +715,14 @@ export const catalogSelectionCurrentBasisForScope = (transaction: ScopedTransact
     });
     if (!validRequest(selection, purpose, scope.tenantId)) {
       return result('INDETERMINATE', 'Selection scope or purpose cannot be verified');
+    }
+    if (
+      selection.configuration?.choices.some(
+        (choice) =>
+          choice.unit !== undefined && !validDependentRef(choice.unit.resourceRef, scope.tenantId, catalogUnitType),
+      ) === true
+    ) {
+      return result('INVALID', 'Selected Configuration Unit reference is not a Catalog Unit in the trusted Tenant');
     }
 
     const [product] = yield* transaction

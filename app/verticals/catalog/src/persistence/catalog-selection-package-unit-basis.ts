@@ -508,7 +508,17 @@ const assessBinding = (
 export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
   read: Effect.fn('CatalogSelectionPackageUnitBasis.read')(function* read(selection: CatalogSelection, now: Date) {
     const { tenantId } = scope;
-    if (!Schema.is(CatalogSelectionSchema)(selection) || selection.productRef.tenantId !== tenantId) {
+    if (
+      !Schema.is(CatalogSelectionSchema)(selection) ||
+      selection.productRef.tenantId !== tenantId ||
+      selection.configuration?.choices.some(
+        (choice) =>
+          choice.unit !== undefined &&
+          (choice.unit.resourceRef.moduleId !== 'commerce.catalog' ||
+            choice.unit.resourceRef.resourceType !== 'commerce.catalog.unit' ||
+            choice.unit.resourceRef.tenantId !== tenantId),
+      ) === true
+    ) {
       return fail('INVALID', 'Selection is malformed or outside the trusted Tenant');
     }
     if (Option.isNone(DateTime.make(now))) {
@@ -603,7 +613,12 @@ export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTran
           (choice) =>
             choice.kind === 'MEASURED_VALUE' &&
             !assessment.unitRevisions.some(
-              (unit) => unit.ref.resourceId === choice.unitId && unit.revision === choice.unitRevision,
+              (unit) =>
+                unit.ref.moduleId === 'commerce.catalog' &&
+                unit.ref.resourceType === 'commerce.catalog.unit' &&
+                unit.ref.tenantId === tenantId &&
+                unit.ref.resourceId === choice.unitId &&
+                unit.revision === choice.unitRevision,
             ),
         )
       ) {

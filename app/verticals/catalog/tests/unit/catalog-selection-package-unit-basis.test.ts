@@ -134,6 +134,42 @@ const read = (overrides = new Map<unknown, unknown>()) =>
   catalogSelectionPackageUnitBasisForScope(transactionFor(overrides), scope).read(selection, now);
 
 describe('Catalog Selection package and Unit owner basis', () => {
+  it.effect('rejects a non-Unit Configuration reference even when its Unit ID and revision match', () =>
+    Effect.gen(function* wrongUnitRef() {
+      for (const [field, value] of [
+        ['resourceType', 'commerce.catalog.product'],
+        ['tenantId', '99999999-9999-4999-8999-999999999999'],
+      ]) {
+        const configured = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+          ...selection,
+          configuration: {
+            choices: [
+              {
+                choiceKey: 'length',
+                unit: { resourceRef: ref('commerce.catalog.unit', unitId), revision: 3 },
+                value: '83',
+              },
+            ],
+            definition: { resourceRef: ref('commerce.catalog.configuration-definition', packageId), revision: 2 },
+            productRef: selection.productRef,
+            variantRef: selection.variantRef,
+          },
+        });
+        const unitRef = configured.configuration?.choices[0]?.unit?.resourceRef;
+        if (unitRef === undefined) {
+          throw new Error('Fixture must contain a Unit reference');
+        }
+        Object.defineProperty(unitRef, field, { configurable: true, value });
+        const result = yield* catalogSelectionPackageUnitBasisForScope(
+          // @ts-expect-error The mock supplies only the exercised read chains.
+          transactionFor(),
+          scope,
+        ).read(configured, now);
+        expect(result.status).toBe('INVALID');
+      }
+    }),
+  );
+
   it.effect('attests exact Current Option content and target Unit without a purchase quantity', () =>
     Effect.gen(function* current() {
       const result = yield* read();

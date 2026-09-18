@@ -98,6 +98,63 @@ const packageEffectiveDate = (index: number, selectedAt: Date): Date => {
 };
 
 describe('Catalog Selection Current basis', () => {
+  it.effect('rejects a selected non-Unit reference before projecting its matching ID', () =>
+    Effect.gen(function* wrongUnitRef() {
+      const unitId = '55555555-5555-4555-8555-555555555555';
+      const configured = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        configuration: {
+          choices: [
+            {
+              choiceKey: 'length',
+              unit: {
+                resourceRef: {
+                  moduleId: 'commerce.catalog',
+                  resourceId: unitId,
+                  resourceType: 'commerce.catalog.unit',
+                  tenantId,
+                },
+                revision: 3,
+              },
+              value: '83',
+            },
+          ],
+          definition: {
+            resourceRef: {
+              moduleId: 'commerce.catalog',
+              resourceId: '77777777-7777-4777-8777-777777777777',
+              resourceType: 'commerce.catalog.configuration-definition',
+              tenantId,
+            },
+            revision: 2,
+          },
+          productRef: selection.productRef,
+          variantRef: selection.variantRef,
+        },
+      });
+      const transaction = {
+        select: () => {
+          throw new Error('invalid Unit must not reach owner reads');
+        },
+      };
+      // @ts-expect-error Invalid input must be rejected before any Drizzle read.
+      const reader = catalogSelectionCurrentBasisForScope(transaction, scope);
+      for (const [field, value] of [
+        ['resourceType', 'commerce.catalog.product'],
+        ['tenantId', '99999999-9999-4999-8999-999999999999'],
+      ]) {
+        const bad = structuredClone(configured);
+        const unitRef = bad.configuration?.choices[0]?.unit?.resourceRef;
+        if (unitRef === undefined) {
+          throw new Error('Fixture must contain a Unit reference');
+        }
+        Object.defineProperty(unitRef, field, { configurable: true, value });
+        const result = yield* reader.read({ purpose: 'PURCHASE_ACCEPTANCE', selection: bad });
+        expect(result).toMatchObject({ basis: [], status: 'INVALID' });
+      }
+    }),
+  );
+
   it.effect('never queries a foreign tenant selection', () =>
     Effect.gen(function* foreignTenant() {
       const transaction = {
