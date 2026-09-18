@@ -4,6 +4,7 @@ import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import {
   CatalogSourceAssertionIdSchema,
+  CatalogSourceFactValueSchema,
   CatalogSourceFactScopeSchema,
   CatalogSourceIssuerSystemIdSchema,
   CatalogSourceRecordIdSchema,
@@ -24,8 +25,16 @@ const OverrideReferenceSchema = Schema.Struct({
   revision: Schema.BigIntFromString,
 });
 export const CatalogSourceResolutionResponseSchema = Schema.Union([
-  Schema.Struct({ source: AcceptedBaseReferenceSchema, status: Schema.Literal('CURRENT'), value: Schema.Json }),
-  Schema.Struct({ source: OverrideReferenceSchema, status: Schema.Literal('CURRENT'), value: Schema.Json }),
+  Schema.Struct({
+    source: AcceptedBaseReferenceSchema,
+    status: Schema.Literal('CURRENT'),
+    value: CatalogSourceFactValueSchema,
+  }),
+  Schema.Struct({
+    source: OverrideReferenceSchema,
+    status: Schema.Literal('CURRENT'),
+    value: CatalogSourceFactValueSchema,
+  }),
   Schema.Struct({
     reason: Schema.String,
     status: Schema.Literals(['ABSENT', 'INVALID', 'NO_AUTHORITY', 'INDETERMINATE']),

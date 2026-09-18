@@ -16,6 +16,7 @@ import type {
   CatalogSourceResolutionRequest,
   CatalogSourceResolutionResponse,
 } from '../../shared/apis/catalog-source-resolution.ts';
+import { CatalogSourceFactValueSchema } from '../../shared/actions/catalog-source-resolution.ts';
 import type { CatalogSourceAssertion } from '../domain/catalog-source-resolution.ts';
 import { resolveCatalogSourceFact } from '../domain/catalog-source-resolution.ts';
 import { catalogFactAdmissionForScope } from '../domain/catalog-source-admission.ts';
@@ -95,6 +96,9 @@ export const readCatalogSourceResolution = Effect.fn('CatalogSourceResolutionRea
     if (resolved.status !== 'CURRENT') {
       return resolved;
     }
+    const value = yield* Schema.decodeUnknownEffect(CatalogSourceFactValueSchema)(resolved.value).pipe(
+      Effect.mapError(unavailable),
+    );
     if (resolved.source === 'LOCAL_OVERRIDE') {
       const override = overrides.find(
         (candidate) => candidate.lifecycle === 'ACTIVE' && valuesEqual(candidate.value, resolved.value),
@@ -105,7 +109,7 @@ export const readCatalogSourceResolution = Effect.fn('CatalogSourceResolutionRea
       return {
         source: { evidenceRef: override.evidenceRef, kind: 'LOCAL_OVERRIDE', revision: override.revision },
         status: 'CURRENT',
-        value: resolved.value,
+        value,
       };
     }
     const base = newestBase(acceptedBases, at);
@@ -121,7 +125,7 @@ export const readCatalogSourceResolution = Effect.fn('CatalogSourceResolutionRea
         sourceRevision: base.sourceRevision,
       },
       status: 'CURRENT',
-      value: resolved.value,
+      value,
     };
   },
 );

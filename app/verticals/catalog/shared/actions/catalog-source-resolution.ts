@@ -8,6 +8,7 @@ import {
 
 const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
 const boundedText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
+const positiveDecimal = Schema.String.check(Schema.isPattern(/^(?:0|[1-9]\d*)(?:\.\d+)?$/u), Schema.isMaxLength(100));
 const sourceRevision = Schema.BigIntFromString.check(Schema.isGreaterThanOrEqualToBigInt(0n));
 const overrideRevision = Schema.BigIntFromString.check(Schema.isGreaterThanOrEqualToBigInt(1n));
 
@@ -39,6 +40,10 @@ export const CatalogSourceRecordIdSchema = Schema.String.check(
   Schema.isMaxLength(300),
   Schema.isTrimmed(),
 ).pipe(Schema.brand('CatalogSourceRecordId'), Schema.decodeTo(Schema.String));
+const CatalogSourceUnitIdSchema = checkedUuid.pipe(Schema.brand('CatalogSourceUnitId'), Schema.decodeTo(checkedUuid));
+const CatalogSourceMeasurementSchema = Schema.Struct({ amount: positiveDecimal, unitId: CatalogSourceUnitIdSchema });
+export const CatalogSourceFactValueSchema = Schema.Union([boundedText, CatalogSourceMeasurementSchema]);
+export type CatalogSourceFactValue = typeof CatalogSourceFactValueSchema.Type;
 
 export const CatalogSourceFactScopeSchema = Schema.Struct({
   factKey: CatalogSourceFactKeySchema,
@@ -56,7 +61,7 @@ export const CatalogSourceAssertionSchema = Schema.Struct({
   scope: CatalogSourceFactScopeSchema,
   sourceRecordId: CatalogSourceRecordIdSchema,
   sourceRevision,
-  value: Schema.Json,
+  value: CatalogSourceFactValueSchema,
   valueFingerprint: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/u)),
 });
 
@@ -126,7 +131,7 @@ const OverrideCommonSchema = {
 export const ActivateLocalOverridePayloadSchema = Schema.Struct({
   ...OverrideCommonSchema,
   classification: Schema.optionalKey(ProductChangeClassificationSchema),
-  value: Schema.Json,
+  value: CatalogSourceFactValueSchema,
 });
 export type ActivateLocalOverridePayload = typeof ActivateLocalOverridePayloadSchema.Type;
 
@@ -134,7 +139,7 @@ export const ChangeLocalOverridePayloadSchema = Schema.Struct({
   ...OverrideCommonSchema,
   classification: Schema.optionalKey(ProductChangeClassificationSchema),
   expectedRevision: overrideRevision,
-  value: Schema.Json,
+  value: CatalogSourceFactValueSchema,
 });
 export type ChangeLocalOverridePayload = typeof ChangeLocalOverridePayloadSchema.Type;
 
