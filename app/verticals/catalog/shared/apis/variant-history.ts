@@ -8,7 +8,7 @@ import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
 /** Variant history is sequence-addressed; retained rows do not issue revision IDs. */
-export const VariantHistoryReferenceSchema = Schema.Struct({
+const VariantHistoryReferenceSchema = Schema.Struct({
   resourceRef: VariantRefSchema,
   revision: CatalogRevisionNumberSchema,
   revisionId: Schema.optionalKey(Schema.Never),
@@ -29,7 +29,6 @@ export const VariantHistoryResponseSchema = Schema.Struct({
   recordedAt: ProductInstantSchema,
   reference: VariantHistoryReferenceSchema,
 });
-export type VariantHistoryResponse = typeof VariantHistoryResponseSchema.Type;
 
 export const VariantHistoryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'VariantHistoryAuthenticationProblem',

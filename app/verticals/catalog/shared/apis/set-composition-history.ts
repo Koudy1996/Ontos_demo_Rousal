@@ -5,7 +5,7 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi'
 import { CatalogResourceRefSchema, CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
 import { SetCompositionRevisionSchema } from '../domain/set-composition.ts';
 
-export const SetCompositionHistoryReferenceSchema = Schema.Struct({
+const SetCompositionHistoryReferenceSchema = Schema.Struct({
   resourceRef: CatalogResourceRefSchema.check(
     Schema.makeFilter((ref) =>
       ref.resourceType === 'commerce.catalog.set-composition' ? undefined : 'Expected Set Composition Resource',
@@ -23,7 +23,6 @@ export const SetCompositionHistoryResponseSchema = Schema.Struct({
   lifecycleState: Schema.Literals(['DRAFT', 'ACTIVE', 'RETIRED']),
   revision: SetCompositionRevisionSchema,
 });
-export type SetCompositionHistoryResponse = typeof SetCompositionHistoryResponseSchema.Type;
 
 export const SetCompositionHistoryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'SetCompositionHistoryAuthenticationProblem',

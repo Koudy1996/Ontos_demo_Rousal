@@ -21,7 +21,6 @@ export const BrandHistoryResponseSchema = Schema.Struct({
     }),
   ),
 });
-export type BrandHistoryResponse = typeof BrandHistoryResponseSchema.Type;
 
 export const BrandHistoryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'BrandHistoryAuthenticationProblem',

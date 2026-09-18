@@ -15,7 +15,6 @@ export const BrandCurrentResponseSchema = Schema.Struct({
   recordedAt: ProductInstantSchema,
   revision: Schema.Int,
 });
-export type BrandCurrentResponse = typeof BrandCurrentResponseSchema.Type;
 
 export const BrandCurrentAuthenticationProblemSchema = makeProblemDetailsSchema(
   'BrandCurrentAuthenticationProblem',

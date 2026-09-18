@@ -15,7 +15,6 @@ export const SkuLookupResponseSchema = Schema.Union([
   }),
   Schema.TaggedStruct('not_found', {}),
 ]);
-export type SkuLookupResponse = typeof SkuLookupResponseSchema.Type;
 
 export const SkuLookupAuthenticationProblemSchema = makeProblemDetailsSchema('SkuLookupAuthenticationProblem', 401);
 export const SkuLookupInvalidProblemSchema = makeProblemDetailsSchema('SkuLookupInvalidProblem', 400);

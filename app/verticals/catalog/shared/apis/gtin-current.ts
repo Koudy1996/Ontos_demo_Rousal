@@ -14,7 +14,6 @@ export const GtinCurrentResponseSchema = Schema.Struct({
   state: GtinStateSchema,
   target: GtinTargetSchema,
 });
-export type GtinCurrentResponse = typeof GtinCurrentResponseSchema.Type;
 
 export const GtinCurrentAuthenticationProblemSchema = makeProblemDetailsSchema('GtinCurrentAuthenticationProblem', 401);
 export const GtinCurrentInvalidProblemSchema = makeProblemDetailsSchema('GtinCurrentInvalidProblem', 400);

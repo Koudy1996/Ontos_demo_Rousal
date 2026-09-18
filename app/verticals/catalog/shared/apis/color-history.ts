@@ -24,7 +24,6 @@ export const ColorHistoryResponseSchema = Schema.Struct({
     }),
   ),
 });
-export type ColorHistoryResponse = typeof ColorHistoryResponseSchema.Type;
 
 export const ColorHistoryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ColorHistoryAuthenticationProblem',

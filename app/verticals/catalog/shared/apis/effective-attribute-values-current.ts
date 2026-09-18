@@ -33,7 +33,6 @@ export const EffectiveAttributeValuesCurrentResponseSchema = Schema.Union([
     status: Schema.Literals(['INVALID_AUTHORITY', 'INVALID_VALUE', 'STALE_BASIS']),
   }),
 ]);
-export type EffectiveAttributeValuesCurrentResponse = typeof EffectiveAttributeValuesCurrentResponseSchema.Type;
 
 export const EffectiveAttributeValuesCurrentAuthenticationProblemSchema = makeProblemDetailsSchema(
   'EffectiveAttributeValuesCurrentAuthenticationProblem',

@@ -21,7 +21,6 @@ export const GtinHistoryResponseSchema = Schema.Struct({
     }),
   ),
 });
-export type GtinHistoryResponse = typeof GtinHistoryResponseSchema.Type;
 
 export const GtinHistoryAuthenticationProblemSchema = makeProblemDetailsSchema('GtinHistoryAuthenticationProblem', 401);
 export const GtinHistoryInvalidProblemSchema = makeProblemDetailsSchema('GtinHistoryInvalidProblem', 400);

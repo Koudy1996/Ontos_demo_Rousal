@@ -9,7 +9,7 @@ import { ProductUnitRefSchema } from '../resources/product-unit.ts';
 import { PackageDefinitionRefSchema } from '../resources/package-definition.ts';
 
 /** Package content history is sequence-addressed; retained rows do not issue revision IDs. */
-export const PackageDefinitionHistoryReferenceSchema = Schema.Struct({
+const PackageDefinitionHistoryReferenceSchema = Schema.Struct({
   resourceRef: PackageDefinitionRefSchema,
   revision: CatalogRevisionNumberSchema,
   revisionId: Schema.optionalKey(Schema.Never),
@@ -42,7 +42,6 @@ export const PackageDefinitionHistoryResponseSchema = Schema.Struct({
   unitResourceType: Schema.String,
   variantId: ProductVariantIdSchema,
 });
-export type PackageDefinitionHistoryResponse = typeof PackageDefinitionHistoryResponseSchema.Type;
 
 export const PackageDefinitionHistoryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'PackageDefinitionHistoryAuthenticationProblem',

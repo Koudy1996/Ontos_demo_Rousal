@@ -10,7 +10,7 @@ export const CatalogMediaCurrentRequestSchema = Schema.Struct({
   target: Schema.Union([ProductRefSchema, VariantRefSchema]),
 });
 export type CatalogMediaCurrentRequest = typeof CatalogMediaCurrentRequestSchema.Type;
-export const CatalogMediaCurrentItemSchema = Schema.Struct({
+const CatalogMediaCurrentItemSchema = Schema.Struct({
   assignment: CatalogMediaAssignmentSchema,
   ownerAvailability: Schema.Literal('UNVERIFIED'),
 });

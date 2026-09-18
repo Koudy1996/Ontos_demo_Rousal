@@ -34,7 +34,6 @@ export const ProductSizeCurrentResponseSchema = Schema.Struct({
     }),
   ),
 });
-export type ProductSizeCurrentResponse = typeof ProductSizeCurrentResponseSchema.Type;
 
 export const ProductSizeCurrentAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ProductSizeCurrentAuthenticationProblem',

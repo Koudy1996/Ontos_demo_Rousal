@@ -8,7 +8,7 @@ import { ProductRefSchema } from '../resources/product.ts';
 import { PackageDefinitionRefSchema } from '../resources/package-definition.ts';
 
 /** Option role revision is independent of the pinned Package content revision. */
-export const PackageOptionHistoryReferenceSchema = Schema.Struct({
+const PackageOptionHistoryReferenceSchema = Schema.Struct({
   resourceRef: PackageDefinitionRefSchema,
   revisionId: Schema.optionalKey(Schema.Never),
   roleRevision: CatalogRevisionNumberSchema,
@@ -31,7 +31,6 @@ export const PackageOptionHistoryResponseSchema = Schema.Struct({
   validationReason: Schema.String,
   variantId: ProductVariantIdSchema,
 });
-export type PackageOptionHistoryResponse = typeof PackageOptionHistoryResponseSchema.Type;
 
 export const PackageOptionHistoryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'PackageOptionHistoryAuthenticationProblem',

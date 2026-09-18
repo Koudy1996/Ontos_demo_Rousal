@@ -14,7 +14,6 @@ export type ManufacturerRelationHistoryRequest = typeof ManufacturerRelationHist
 export const ManufacturerRelationHistoryResponseSchema = Schema.Struct({
   revisions: ManufacturerRelationHistorySchema,
 });
-export type ManufacturerRelationHistoryResponse = typeof ManufacturerRelationHistoryResponseSchema.Type;
 
 export const ManufacturerRelationHistoryAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ManufacturerRelationHistoryAuthenticationProblem',

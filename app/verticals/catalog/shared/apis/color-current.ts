@@ -19,7 +19,6 @@ export const ColorCurrentResponseSchema = Schema.Struct({
   revision: Schema.Int,
   valueRef: ControlledAttributeValueRefSchema,
 });
-export type ColorCurrentResponse = typeof ColorCurrentResponseSchema.Type;
 
 export const ColorCurrentAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ColorCurrentAuthenticationProblem',

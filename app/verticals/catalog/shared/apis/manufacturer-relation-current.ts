@@ -37,7 +37,6 @@ export const ManufacturerRelationCurrentResponseSchema = Schema.Struct({
     }),
   ]),
 });
-export type ManufacturerRelationCurrentResponse = typeof ManufacturerRelationCurrentResponseSchema.Type;
 
 export const ManufacturerRelationCurrentAuthenticationProblemSchema = makeProblemDetailsSchema(
   'ManufacturerRelationCurrentAuthenticationProblem',
