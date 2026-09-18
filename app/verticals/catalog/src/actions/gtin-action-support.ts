@@ -42,6 +42,8 @@ export const completeGtinChange = Effect.fn('GtinAction.completeChange')(functio
   const result = yield* Match.value(outcome).pipe(
     Match.tag('confirmed', ({ revision }) => Effect.succeed({ revision })),
     Match.tag('corrected', ({ revision }) => Effect.succeed({ revision })),
+    Match.tag('retired', ({ revision }) => Effect.succeed({ revision })),
+    Match.tag('unresolved', ({ revision }) => Effect.succeed({ revision })),
     Match.tag('invalid', ({ reason }) => Effect.fail(new GtinActionInvalid({ code: 'gtin_action_invalid', reason }))),
     Match.tag('not_found', () =>
       Effect.fail(
@@ -50,12 +52,6 @@ export const completeGtinChange = Effect.fn('GtinAction.completeChange')(functio
     ),
     Match.tag('stale', ({ actualRevision }) =>
       Effect.fail(new GtinActionStale({ actualRevision, code: 'gtin_action_stale' })),
-    ),
-    Match.tag('retired', () =>
-      Effect.fail(new GtinActionConflict({ code: 'gtin_action_conflict', reason: 'GTIN attribution is retired' })),
-    ),
-    Match.tag('unresolved', () =>
-      Effect.fail(new GtinActionConflict({ code: 'gtin_action_conflict', reason: 'GTIN attribution is unresolved' })),
     ),
     Match.exhaustive,
   );

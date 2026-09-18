@@ -143,7 +143,15 @@ const gtinFormat = (length: number): GtinFormat | undefined => {
   }
 };
 
-/** GS1 modulo-10 check digit; no SKU trimming or case normalization applies here. */
+/**
+ * GS1 General Specifications 26.0.0 (January 2026),
+ * https://ref.gs1.org/standards/genspecs/: this Catalog boundary accepts only
+ * GTIN-8, GTIN-12, GTIN-13, and GTIN-14 digit strings and checks their GS1
+ * modulo-10 check digit. `commercial-code.test.ts` covers all four formats,
+ * a bad check digit, surrounding whitespace, and non-digits. This formal
+ * check does not prove attribution, allocation, or broader GS1 compliance.
+ * No SKU trimming or case normalization applies here.
+ */
 export const validateGtin = (
   code: string,
 ):

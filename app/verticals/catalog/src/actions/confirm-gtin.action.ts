@@ -31,7 +31,14 @@ const handleConfirmGtin = Effect.fn('ConfirmGtinAction.handle')(function* handle
   return yield* completeGtinChange(outcome, payload, context);
 });
 
-export const confirmGtinAction = defineAction(
+export const confirmGtinAction: ActionRegistration<
+  typeof ConfirmGtinPayloadSchema,
+  typeof ConfirmGtinResultSchema,
+  typeof GtinActionErrorSchema,
+  Readonly<Record<string, never>>,
+  'commerce.catalog',
+  GtinServices
+> = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
@@ -59,14 +66,7 @@ export const confirmGtinAction = defineAction(
   },
   handleConfirmGtin,
   gtinServicesForScope,
-) as ActionRegistration<
-  typeof ConfirmGtinPayloadSchema,
-  typeof ConfirmGtinResultSchema,
-  typeof GtinActionErrorSchema,
-  Readonly<Record<string, never>>,
-  'commerce.catalog',
-  GtinServices
->;
+);
 
 // <generated-outbox-message-exports>
 // </generated-outbox-message-exports>

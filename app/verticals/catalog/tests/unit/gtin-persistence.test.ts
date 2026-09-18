@@ -323,9 +323,19 @@ describe('GTIN exact-target persistence', () => {
     Effect.gen(function* changesLifecycle() {
       const writes: object[] = [];
       const existing = { currentRevision: 1, packageDefinitionId: null, productId, state: 'CONFIRMED', variantId };
-      // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
-      const service = gtinPersistenceForScope(fixture(writes, { existing }), scope);
-      const lifecycle = { ...input, attributionEvidenceRef: 'case:disputed-gtin', expectedRevision: 1 };
+      const head = { ...existing, attributionEvidenceRef: input.attributionEvidenceRef, revision: 1 };
+      const service = gtinPersistenceForScope(
+        // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+        fixture(writes, { existing, revisionRows: [[], [head], [], [head]] }),
+        scope,
+      );
+      const lifecycle = {
+        ...input,
+        attributionEvidenceRef: 'case:disputed-gtin',
+        expectedRevision: 1,
+        previousTarget: input.target,
+        supersededEvidenceRef: input.attributionEvidenceRef,
+      };
       expect(outcomeKind(yield* service.markUnresolved(lifecycle))).toBe('unresolved');
       expect(
         outcomeKind(
@@ -356,6 +366,38 @@ describe('GTIN exact-target persistence', () => {
         target: { kind: 'PACKAGE_LEVEL', packageDefinitionId, tenantId },
       });
       expect(outcomeKind(result)).toBe('invalid');
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('does not change lifecycle without matching exact target and superseded evidence', () =>
+    Effect.gen(function* rejectsUnprovenLifecycle() {
+      const writes: object[] = [];
+      const existing = { currentRevision: 1, packageDefinitionId: null, productId, state: 'CONFIRMED', variantId };
+      const head = { ...existing, attributionEvidenceRef: input.attributionEvidenceRef, revision: 1 };
+      const service = gtinPersistenceForScope(
+        // @ts-expect-error Mock covers the exercised scoped Drizzle chain.
+        fixture(writes, { existing, revisionRows: [[], [head], [], [head]] }),
+        scope,
+      );
+      const lifecycle = {
+        ...input,
+        attributionEvidenceRef: 'case:disputed-gtin',
+        expectedRevision: 1,
+        previousTarget: input.target,
+        supersededEvidenceRef: 'wrong-proof',
+      };
+      expect(outcomeKind(yield* service.markUnresolved(lifecycle))).toBe('invalid');
+      expect(
+        outcomeKind(
+          yield* service.retire({
+            ...lifecycle,
+            actionInvocationId: '88888888-8888-4888-8888-888888888888',
+            previousTarget: { kind: 'PACKAGE_LEVEL', packageDefinitionId, tenantId },
+            supersededEvidenceRef: input.attributionEvidenceRef,
+          }),
+        ),
+      ).toBe('invalid');
       expect(writes).toEqual([]);
     }),
   );

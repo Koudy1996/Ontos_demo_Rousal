@@ -3,10 +3,16 @@ import { Schema } from 'effect';
 
 import { mapConfirmGtinActionProblem } from '../../api/confirm-gtin-action-problems.ts';
 import { mapCorrectGtinActionProblem } from '../../api/correct-gtin-action-problems.ts';
+import { mapMarkGtinUnresolvedActionProblem } from '../../api/mark-gtin-unresolved-action-problems.ts';
+import { mapRetireGtinActionProblem } from '../../api/retire-gtin-action-problems.ts';
 import { ConfirmGtinPayloadSchema } from '../../shared/actions/confirm-gtin.ts';
 import { CorrectGtinPayloadSchema } from '../../shared/actions/correct-gtin.ts';
+import { MarkGtinUnresolvedPayloadSchema } from '../../shared/actions/mark-gtin-unresolved.ts';
+import { RetireGtinPayloadSchema } from '../../shared/actions/retire-gtin.ts';
 import { confirmGtinAction } from '../../src/actions/confirm-gtin.action.ts';
 import { correctGtinAction } from '../../src/actions/correct-gtin.action.ts';
+import { markGtinUnresolvedAction } from '../../src/actions/mark-gtin-unresolved.action.ts';
+import { retireGtinAction } from '../../src/actions/retire-gtin.action.ts';
 import { GtinActionInvalid, GtinActionStale } from '../../src/actions/gtin-action-support.ts';
 import { GtinPersistenceUnavailable } from '../../src/persistence/gtin-persistence.ts';
 
@@ -70,13 +76,28 @@ describe('governed GTIN Action contracts', () => {
   });
 
   it('publishes explicit permission and required idempotency for both writes', () => {
-    for (const action of [confirmGtinAction, correctGtinAction]) {
+    for (const action of [confirmGtinAction, correctGtinAction, markGtinUnresolvedAction, retireGtinAction]) {
       expect(action.descriptor.idempotency).toBe('required');
       expect(action.descriptor.legalEntityScope).toBe('forbidden');
       expect(action.descriptor.entrypoint.authorization).toEqual({
         kind: 'action_execution',
         provisioning: 'explicit',
       });
+    }
+  });
+
+  it('requires exact prior target, revision, and superseded evidence for lifecycle changes', () => {
+    const lifecycle = {
+      ...base,
+      expectedRevision: 1,
+      previousTarget: target,
+      supersededEvidenceRef: 'supplier:earlier-proof',
+    };
+    for (const schema of [MarkGtinUnresolvedPayloadSchema, RetireGtinPayloadSchema]) {
+      expect(Schema.decodeUnknownSync(schema)(lifecycle).previousTarget).toEqual(target);
+      expect(() => Schema.decodeUnknownSync(schema)({ ...lifecycle, expectedRevision: 0 })).toThrow();
+      expect(() => Schema.decodeUnknownSync(schema)({ ...lifecycle, supersededEvidenceRef: '' })).toThrow();
+      expect(() => Schema.decodeUnknownSync(schema)({ ...lifecycle, previousTarget: null })).toThrow();
     }
   });
 
@@ -91,5 +112,12 @@ describe('governed GTIN Action contracts', () => {
     expect(stale.status).toBe(409);
     expect(invalid.status).toBe(422);
     expect(unavailable.status).toBe(503);
+    expect(
+      mapMarkGtinUnresolvedActionProblem(new GtinActionStale({ actualRevision: 2, code: 'gtin_action_stale' })).status,
+    ).toBe(409);
+    expect(
+      mapRetireGtinActionProblem(new GtinActionInvalid({ code: 'gtin_action_invalid', reason: 'Unverified target' }))
+        .status,
+    ).toBe(422);
   });
 });

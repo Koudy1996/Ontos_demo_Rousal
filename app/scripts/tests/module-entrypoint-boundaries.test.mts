@@ -8,7 +8,10 @@ import { Cause, ConfigProvider, Effect, Exit, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
 
 import { checkModuleEntrypointBoundaries as checkModuleEntrypointBoundariesEffect } from '../check-module-entrypoint-boundaries.mts';
-import { hasGeneratedGovernedServerContract } from '../generated-governed-http-boundary.mts';
+import {
+  hasGeneratedActionRegistrationBinding,
+  hasGeneratedGovernedServerContract,
+} from '../generated-governed-http-boundary.mts';
 import { hasGeneratedGovernedClientContract, hasGeneratedSourceHeader } from '../generated-module-api-boundary.mts';
 import {
   assertPublishedCrossMicroVerticalContractUsage,
@@ -20,6 +23,34 @@ import {
 } from '../published-outbox-contracts.mts';
 
 const EXPECTED_EFFECT_FAILURE = 'Expected the Effect to fail';
+const acceptsTypedGtinBinding = (source: string) =>
+  hasGeneratedActionRegistrationBinding(source, 'confirmGtin', 'ConfirmGtin', 'commerce.catalog');
+
+it('accepts a typed Codesmith Action binding but rejects spoofed or mismatched registration types', () => {
+  const binding = `export const confirmGtinAction: ActionRegistration<
+    typeof ConfirmGtinPayloadSchema,
+    typeof ConfirmGtinResultSchema,
+    typeof GtinActionErrorSchema,
+    Readonly<Record<string, never>>,
+    'commerce.catalog',
+    GtinServices
+  > = defineAction(
+    { domainErrorSchema: GtinActionErrorSchema, payloadSchema: ConfirmGtinPayloadSchema,
+      resultSchema: ConfirmGtinResultSchema, actionKey: 'commerce.catalog.confirm-gtin' },
+    handleConfirmGtin, gtinServicesForScope,
+  );`;
+  expect(acceptsTypedGtinBinding(binding)).toBe(true);
+  expect(acceptsTypedGtinBinding(binding.replace("'commerce.catalog'", "'other.module'"))).toBe(false);
+  expect(acceptsTypedGtinBinding(binding.replace('typeof ConfirmGtinResultSchema', 'typeof WrongResultSchema'))).toBe(
+    false,
+  );
+  expect(
+    acceptsTypedGtinBinding(
+      binding.replace('domainErrorSchema: GtinActionErrorSchema', 'domainErrorSchema: WrongErrorSchema'),
+    ),
+  ).toBe(false);
+  expect(acceptsTypedGtinBinding(`const decoy = \`${binding}\`;`)).toBe(false);
+});
 
 it('recognizes real provenance comments after import sorting and rejects string decoys', () => {
   const header =

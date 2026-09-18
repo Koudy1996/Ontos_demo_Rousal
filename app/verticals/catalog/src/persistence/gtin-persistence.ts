@@ -42,7 +42,10 @@ interface CorrectGtinInput extends GtinChangeEvidence {
   readonly target: GtinTarget;
 }
 
-type GtinLifecycleInput = GtinChangeEvidence;
+interface GtinLifecycleInput extends GtinChangeEvidence {
+  readonly previousTarget: GtinTarget;
+  readonly supersededEvidenceRef: string;
+}
 
 const GtinPersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('confirmed', { revision: Schema.Int }),
@@ -159,7 +162,7 @@ const replayLifecycleMatches = (
 const correctionHeadMatches = (
   head: typeof commercialGtinAssignmentRevisions.$inferSelect | undefined,
   existing: typeof commercialGtinAssignments.$inferSelect,
-  input: CorrectGtinInput,
+  input: Pick<CorrectGtinInput, 'previousTarget' | 'supersededEvidenceRef'>,
 ): boolean =>
   head !== undefined &&
   head.attributionEvidenceRef === input.supersededEvidenceRef &&
@@ -396,13 +399,27 @@ export const gtinPersistenceForScope = (transaction: ScopedTransaction, scope: O
     input: GtinLifecycleInput,
   ) {
     const problem = evidenceProblem(input, tenantId);
-    if (problem !== undefined || input.expectedRevision === 0) {
-      return { _tag: 'invalid', reason: problem ?? 'Lifecycle transition requires an existing GTIN' } as const;
+    if (
+      problem !== undefined ||
+      input.expectedRevision === 0 ||
+      input.previousTarget.tenantId !== tenantId ||
+      !validText(input.supersededEvidenceRef)
+    ) {
+      return {
+        _tag: 'invalid',
+        reason: problem ?? 'Lifecycle transition requires exact prior attribution evidence',
+      } as const;
     }
     const state = transition === 'retired' ? 'RETIRED' : 'UNRESOLVED';
     const [priorInvocation] = yield* loadPrior(input.actionInvocationId);
     if (priorInvocation !== undefined) {
-      if (!replayLifecycleMatches(priorInvocation, input, state)) {
+      const [before] = yield* loadRevision(input.code, priorInvocation.revision - 1);
+      if (
+        !replayLifecycleMatches(priorInvocation, input, state) ||
+        before === undefined ||
+        before.attributionEvidenceRef !== input.supersededEvidenceRef ||
+        !storedTargetMatches(before, input.previousTarget)
+      ) {
         return { _tag: 'invalid', reason: invocationConflict } as const;
       }
       return { _tag: transition, revision: priorInvocation.revision } as const;
@@ -416,6 +433,13 @@ export const gtinPersistenceForScope = (transaction: ScopedTransaction, scope: O
     }
     if (existing.state === 'RETIRED' || (transition === 'unresolved' && existing.state !== 'CONFIRMED')) {
       return { _tag: 'invalid', reason: 'GTIN lifecycle transition is not valid from its current state' } as const;
+    }
+    const [head] = yield* loadRevision(input.code, existing.currentRevision);
+    if (!correctionHeadMatches(head, existing, input)) {
+      return {
+        _tag: 'invalid',
+        reason: 'Lifecycle transition must cite the retained exact target and current evidence',
+      } as const;
     }
     return yield* persist(
       input,
