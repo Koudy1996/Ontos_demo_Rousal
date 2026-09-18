@@ -75,6 +75,7 @@ describe('SKU Package Option Current proof', () => {
       productId: 'product-a',
       variantId: 'variant-a',
     },
+    effectiveContentRevision: 4,
     now,
     productLifecycle: 'ACTIVE',
     role: {
@@ -94,6 +95,7 @@ describe('SKU Package Option Current proof', () => {
   it('accepts only pinned active role and content for an independent Option', () => {
     expect(currentPackageOptionSnapshotMatches(active)).toBe(true);
     expect(currentPackageOptionSnapshotMatches({ ...active, contentRevision: 3 })).toBe(false);
+    expect(currentPackageOptionSnapshotMatches({ ...active, effectiveContentRevision: 3 })).toBe(false);
     expect(currentPackageOptionSnapshotMatches({ ...active, role: { ...active.role, contentRevision: 3 } })).toBe(
       false,
     );
@@ -103,6 +105,22 @@ describe('SKU Package Option Current proof', () => {
     ).toBe(false);
     expect(
       currentPackageOptionSnapshotMatches({ ...active, role: { ...active.role, looseUnitsSubstitutable: true } }),
+    ).toBe(false);
+  });
+
+  it('accepts the exact effective content when a later revision is pending', () => {
+    expect(
+      currentPackageOptionSnapshotMatches({
+        ...active,
+        definition: { ...active.definition, currentRevision: 5 },
+      }),
+    ).toBe(true);
+    expect(
+      currentPackageOptionSnapshotMatches({
+        ...active,
+        contentRevision: 5,
+        definition: { ...active.definition, currentRevision: 5 },
+      }),
     ).toBe(false);
   });
 

@@ -1,10 +1,11 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, desc, eq, isNull, ne } from 'drizzle-orm';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Match, Schema } from 'effect';
 
 import { normalizeSku } from '../../shared/domain/commercial-code.ts';
 import type { SkuTarget } from '../../shared/domain/commercial-code.ts';
 import { SkuTargetSchema } from '../../shared/actions/assign-sku.ts';
+import { resolveEffectiveRevision } from './package-persistence.ts';
 import {
   commercialSkuAssignmentRevisions,
   commercialSkuReservations,
@@ -33,6 +34,7 @@ export interface SkuCurrentOptionSnapshot {
     typeof packageDefinitions.$inferSelect,
     'currentOptionRevision' | 'currentRevision' | 'lifecycleState' | 'optionState' | 'productId' | 'variantId'
   >;
+  readonly effectiveContentRevision: number;
   readonly now: Date;
   readonly productLifecycle: string;
   readonly role: Pick<
@@ -59,13 +61,15 @@ export const currentPackageOptionSnapshotMatches = (snapshot: SkuCurrentOptionSn
     definition.currentRevision > 0 &&
     definition.currentOptionRevision > 0 &&
     content.lifecycleState === 'ACTIVE' &&
-    snapshot.contentRevision === definition.currentRevision &&
+    snapshot.effectiveContentRevision > 0 &&
+    snapshot.effectiveContentRevision <= definition.currentRevision &&
+    snapshot.contentRevision === snapshot.effectiveContentRevision &&
     content.productId === definition.productId &&
     content.variantId === definition.variantId &&
     content.unitResourceType === 'commerce.catalog.product-unit' &&
     role.state === 'ACTIVE' &&
     role.revision === definition.currentOptionRevision &&
-    role.contentRevision === definition.currentRevision &&
+    role.contentRevision === snapshot.effectiveContentRevision &&
     role.productId === definition.productId &&
     role.variantId === definition.variantId &&
     role.independentlyRequested &&
@@ -334,7 +338,8 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       if (definition === undefined) {
         return null;
       }
-      const [[content], [role], [variant], [product]] = yield* Effect.all(
+      const now = DateTime.toDateUtc(yield* DateTime.now);
+      const [contents, [role], [variant], [product]] = yield* Effect.all(
         [
           transaction
             .select()
@@ -343,11 +348,9 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
               and(
                 eq(packageContentRevisions.tenantId, tenantId),
                 eq(packageContentRevisions.packageDefinitionId, definition.packageDefinitionId),
-                eq(packageContentRevisions.revision, definition.currentRevision),
               ),
             )
-            .for('update')
-            .limit(1),
+            .for('update'),
           transaction
             .select()
             .from(packageOptionRoleRevisions)
@@ -381,7 +384,20 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
         ] as const,
         { concurrency: 1 },
       ).pipe(Effect.mapError(unavailable));
-      if (content === undefined || role === undefined || variant === undefined || product === undefined) {
+      const effective = resolveEffectiveRevision(contents, now);
+      const effectiveRevision = Match.value(effective).pipe(
+        Match.tag('resolved', (resolved) => resolved.revision),
+        Match.tag('invalid', () => null),
+        Match.exhaustive,
+      );
+      const content = contents.find((row) => row.revision === effectiveRevision);
+      if (
+        content === undefined ||
+        contents.length !== definition.currentRevision ||
+        role === undefined ||
+        variant === undefined ||
+        product === undefined
+      ) {
         return yield* unavailable();
       }
       const [unit] = yield* transaction
@@ -394,12 +410,12 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       if (unit === undefined) {
         return yield* unavailable();
       }
-      const now = DateTime.toDateUtc(yield* DateTime.now);
       if (
         !currentPackageOptionSnapshotMatches({
           content,
           contentRevision: content.revision,
           definition,
+          effectiveContentRevision: effectiveRevision ?? 0,
           now,
           productLifecycle: product.lifecycleState,
           role,
