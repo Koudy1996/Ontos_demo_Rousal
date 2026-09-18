@@ -98,6 +98,8 @@ import { RevisePackageDefinitionActionApi } from './apis/revise-package-definiti
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
 import { ReviseProductUnitActionApi } from './apis/revise-product-unit-action.ts';
 import { ReviseSetCompositionActionApi } from './apis/revise-set-composition-action.ts';
+import { SetCompositionCurrentApi } from './apis/set-composition-current.ts';
+import { SetCompositionHistoryApi } from './apis/set-composition-history.ts';
 import { SetProductAttributeValuesActionApi } from './apis/set-product-attribute-values-action.ts';
 import { SetProductBrandActionApi } from './apis/set-product-brand-action.ts';
 import { SetProductLocalizedFactsActionApi } from './apis/set-product-localized-facts-action.ts';
@@ -223,6 +225,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReviseProductTypeActionApi)
   .addHttpApi(ReviseProductUnitActionApi)
   .addHttpApi(ReviseSetCompositionActionApi)
+  .addHttpApi(SetCompositionCurrentApi)
+  .addHttpApi(SetCompositionHistoryApi)
   .addHttpApi(SetProductAttributeValuesActionApi)
   .addHttpApi(SetProductBrandActionApi)
   .addHttpApi(SetProductLocalizedFactsActionApi)
@@ -478,6 +482,22 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'package-definition',
     permission: 'commerce.catalog.read.package-option-history',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-composition-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'set-composition',
+    permission: 'commerce.catalog.read.set-composition-current',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-composition-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'set-composition',
+    permission: 'commerce.catalog.read.set-composition-history',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -1179,6 +1199,8 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.variant-history',
     'commerce.catalog.read.package-definition-history',
     'commerce.catalog.read.package-option-history',
+    'commerce.catalog.read.set-composition-current',
+    'commerce.catalog.read.set-composition-history',
     'commerce.catalog.read.product-size-current',
     'commerce.catalog.read.product-relationship',
     'commerce.catalog.read.product-relationship-history',

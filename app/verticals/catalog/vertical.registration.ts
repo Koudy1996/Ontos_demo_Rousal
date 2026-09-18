@@ -189,6 +189,8 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'product-relationship-history': () => import('./src/api/product-relationship-history-client.ts'),
       'product-size-current': () => import('./src/api/product-size-current-client.ts'),
       'quantity-preparation': () => import('./src/api/quantity-preparation-client.ts'),
+      'set-composition-current': () => import('./src/api/set-composition-current-client.ts'),
+      'set-composition-history': () => import('./src/api/set-composition-history-client.ts'),
       'sku-lookup': () => import('./src/api/sku-lookup-client.ts'),
       'variant-history': () => import('./src/api/variant-history-client.ts'),
       // </generated-module-registration-apis>

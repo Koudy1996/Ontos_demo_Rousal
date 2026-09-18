@@ -113,6 +113,8 @@ import { revisePackageDefinitionAction } from './src/actions/revise-package-defi
 import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
 import { reviseProductUnitAction } from './src/actions/revise-product-unit.action.ts';
 import { reviseSetCompositionAction } from './src/actions/revise-set-composition.action.ts';
+import { SetCompositionCurrentApi } from './shared/apis/set-composition-current.ts';
+import { SetCompositionHistoryApi } from './shared/apis/set-composition-history.ts';
 import { setProductAttributeValuesAction } from './src/actions/set-product-attribute-values.action.ts';
 import { setProductBrandAction } from './src/actions/set-product-brand.action.ts';
 import { setProductLocalizedFactsAction } from './src/actions/set-product-localized-facts.action.ts';
@@ -264,6 +266,8 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'product-relationship-history': ProductRelationshipHistoryApi,
       'product-size-current': ProductSizeCurrentApi,
       'quantity-preparation': QuantityPreparationApi,
+      'set-composition-current': SetCompositionCurrentApi,
+      'set-composition-history': SetCompositionHistoryApi,
       'sku-lookup': SkuLookupApi,
       'variant-history': VariantHistoryApi,
       // </generated-module-manifest-apis>

@@ -116,6 +116,8 @@ import { revisePackageDefinitionActionApiLive } from './revise-package-definitio
 import { reviseProductTypeActionApiLive } from './revise-product-type-action-server.ts';
 import { reviseProductUnitActionApiLive } from './revise-product-unit-action-server.ts';
 import { reviseSetCompositionActionApiLive } from './revise-set-composition-action-server.ts';
+import { setCompositionCurrentReadApiLive } from './set-composition-current-read-server.ts';
+import { setCompositionHistoryReadApiLive } from './set-composition-history-read-server.ts';
 import { setProductAttributeValuesActionApiLive } from './set-product-attribute-values-action-server.ts';
 import { setProductBrandActionApiLive } from './set-product-brand-action-server.ts';
 import { setProductLocalizedFactsActionApiLive } from './set-product-localized-facts-action-server.ts';
@@ -317,6 +319,8 @@ export const makeCatalogApiRuntime = (
     reviseProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setCompositionCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    setCompositionHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

@@ -27,6 +27,8 @@ import { productRelationshipCurrentRead } from '../../src/api/product-relationsh
 import { productRelationshipHistoryRead } from '../../src/api/product-relationship-history.read.ts';
 import { quantityPreparationRead } from '../../src/api/quantity-preparation.read.ts';
 import { skuLookupRead } from '../../src/api/sku-lookup.read.ts';
+import { setCompositionCurrentRead } from '../../src/api/set-composition-current.read.ts';
+import { setCompositionHistoryRead } from '../../src/api/set-composition-history.read.ts';
 
 const reads = [
   brandCurrentRead,
@@ -54,6 +56,8 @@ const reads = [
   productRelationshipHistoryRead,
   quantityPreparationRead,
   skuLookupRead,
+  setCompositionCurrentRead,
+  setCompositionHistoryRead,
 ] as const;
 
 it('maps every published Action and governed read to one explicit atomic permission and bundle', () => {
