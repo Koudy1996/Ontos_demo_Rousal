@@ -2,6 +2,34 @@ import { expect, it } from 'effect-rstest';
 
 import { catalogAuthorityBundles, catalogPublicOperationContracts } from '../../shared/api.ts';
 import { catalogManifest } from '../../vertical.manifest.ts';
+import { createVariantRecoveryRead } from '../../src/api/create-variant-recovery.read.ts';
+import { updateProductRecoveryRead } from '../../src/api/update-product-recovery.read.ts';
+import { createAttributeDefinitionRecoveryRead } from '../../src/api/create-attribute-definition-recovery.read.ts';
+import { createBrandRecoveryRead } from '../../src/api/create-brand-recovery.read.ts';
+import { createConfigurationUnitRecoveryRead } from '../../src/api/create-configuration-unit-recovery.read.ts';
+import { createControlledAttributeValueRecoveryRead } from '../../src/api/create-controlled-attribute-value-recovery.read.ts';
+import { createPackageDefinitionRecoveryRead } from '../../src/api/create-package-definition-recovery.read.ts';
+import { createProductCategoryRecoveryRead } from '../../src/api/create-product-category-recovery.read.ts';
+import { createProductRelationshipRecoveryRead } from '../../src/api/create-product-relationship-recovery.read.ts';
+import { createProductTypeRecoveryRead } from '../../src/api/create-product-type-recovery.read.ts';
+import { createProductUnitRecoveryRead } from '../../src/api/create-product-unit-recovery.read.ts';
+import { createSetCompositionRecoveryRead } from '../../src/api/create-set-composition-recovery.read.ts';
+import { reviseAttributeDefinitionRecoveryRead } from '../../src/api/revise-attribute-definition-recovery.read.ts';
+import { reviseConfigurationUnitRecoveryRead } from '../../src/api/revise-configuration-unit-recovery.read.ts';
+import { revisePackageDefinitionRecoveryRead } from '../../src/api/revise-package-definition-recovery.read.ts';
+import { reviseProductTypeRecoveryRead } from '../../src/api/revise-product-type-recovery.read.ts';
+import { reviseProductUnitRecoveryRead } from '../../src/api/revise-product-unit-recovery.read.ts';
+import { reviseSetCompositionRecoveryRead } from '../../src/api/revise-set-composition-recovery.read.ts';
+import { retireBrandRecoveryRead } from '../../src/api/retire-brand-recovery.read.ts';
+import { retireConfigurationUnitRecoveryRead } from '../../src/api/retire-configuration-unit-recovery.read.ts';
+import { retireControlledAttributeValueRecoveryRead } from '../../src/api/retire-controlled-attribute-value-recovery.read.ts';
+import { retireGtinRecoveryRead } from '../../src/api/retire-gtin-recovery.read.ts';
+import { retirePackageDefinitionRecoveryRead } from '../../src/api/retire-package-definition-recovery.read.ts';
+import { retirePackageOptionRecoveryRead } from '../../src/api/retire-package-option-recovery.read.ts';
+import { retireProductRecoveryRead } from '../../src/api/retire-product-recovery.read.ts';
+import { retireProductCategoryRecoveryRead } from '../../src/api/retire-product-category-recovery.read.ts';
+import { retireProductUnitRecoveryRead } from '../../src/api/retire-product-unit-recovery.read.ts';
+import { retireVariantRecoveryRead } from '../../src/api/retire-variant-recovery.read.ts';
 import { brandCurrentRead } from '../../src/api/brand-current.read.ts';
 import { brandHistoryRead } from '../../src/api/brand-history.read.ts';
 import { colorCurrentRead } from '../../src/api/color-current.read.ts';
@@ -31,6 +59,34 @@ import { setCompositionCurrentRead } from '../../src/api/set-composition-current
 import { setCompositionHistoryRead } from '../../src/api/set-composition-history.read.ts';
 
 const reads = [
+  createVariantRecoveryRead,
+  updateProductRecoveryRead,
+  createAttributeDefinitionRecoveryRead,
+  createBrandRecoveryRead,
+  createConfigurationUnitRecoveryRead,
+  createControlledAttributeValueRecoveryRead,
+  createPackageDefinitionRecoveryRead,
+  createProductCategoryRecoveryRead,
+  createProductRelationshipRecoveryRead,
+  createProductTypeRecoveryRead,
+  createProductUnitRecoveryRead,
+  createSetCompositionRecoveryRead,
+  reviseAttributeDefinitionRecoveryRead,
+  reviseConfigurationUnitRecoveryRead,
+  revisePackageDefinitionRecoveryRead,
+  reviseProductTypeRecoveryRead,
+  reviseProductUnitRecoveryRead,
+  reviseSetCompositionRecoveryRead,
+  retireBrandRecoveryRead,
+  retireConfigurationUnitRecoveryRead,
+  retireControlledAttributeValueRecoveryRead,
+  retireGtinRecoveryRead,
+  retirePackageDefinitionRecoveryRead,
+  retirePackageOptionRecoveryRead,
+  retireProductRecoveryRead,
+  retireProductCategoryRecoveryRead,
+  retireProductUnitRecoveryRead,
+  retireVariantRecoveryRead,
   brandCurrentRead,
   brandHistoryRead,
   colorCurrentRead,
@@ -60,6 +116,33 @@ const reads = [
   setCompositionHistoryRead,
 ] as const;
 
+const expectedPermissionTarget = (readKey: string) => {
+  if (
+    readKey === 'commerce.catalog.api.catalog-media-current' ||
+    readKey === 'commerce.catalog.api.quantity-preparation'
+  ) {
+    return 'resource';
+  }
+  if (readKey.endsWith('-recovery')) {
+    return 'tenant';
+  }
+  if (
+    readKey.includes('brand') ||
+    readKey.includes('manufacturer-relation') ||
+    readKey.includes('product-relationship') ||
+    readKey === 'commerce.catalog.api.product-size-current' ||
+    readKey === 'commerce.catalog.api.color-current' ||
+    readKey === 'commerce.catalog.api.color-history' ||
+    readKey === 'commerce.catalog.api.effective-attribute-values-current' ||
+    readKey === 'commerce.catalog.api.gtin-current' ||
+    readKey === 'commerce.catalog.api.gtin-history' ||
+    readKey === 'commerce.catalog.api.sku-lookup'
+  ) {
+    return 'module';
+  }
+  return 'tenant';
+};
+
 it('maps every published Action and governed read to one explicit atomic permission and bundle', () => {
   const actionKeys = catalogManifest.publicSurface.actions.map((action) => action.descriptor.actionKey);
   const readKeys = reads.map((read) => read.descriptor.readKey);
@@ -88,28 +171,7 @@ it('maps every published Action and governed read to one explicit atomic permiss
       scope: 'tenant',
     });
     expect(entrypoint.scope).toBe('tenant');
-    const relationshipOrIdentity =
-      readKey.includes('brand') ||
-      readKey.includes('manufacturer-relation') ||
-      readKey.includes('product-relationship');
-    let expectedTarget = 'tenant';
-    if (
-      readKey === 'commerce.catalog.api.catalog-media-current' ||
-      readKey === 'commerce.catalog.api.quantity-preparation'
-    ) {
-      expectedTarget = 'resource';
-    } else if (
-      relationshipOrIdentity ||
-      readKey === 'commerce.catalog.api.product-size-current' ||
-      readKey === 'commerce.catalog.api.color-current' ||
-      readKey === 'commerce.catalog.api.color-history' ||
-      readKey === 'commerce.catalog.api.effective-attribute-values-current' ||
-      readKey === 'commerce.catalog.api.gtin-current' ||
-      readKey === 'commerce.catalog.api.gtin-history' ||
-      readKey === 'commerce.catalog.api.sku-lookup'
-    ) {
-      expectedTarget = 'module';
-    }
+    const expectedTarget = expectedPermissionTarget(readKey);
     expect(read.descriptor.permissionTarget).toBe(expectedTarget);
     if ('resourcePermission' in read.descriptor && read.descriptor.resourcePermission !== undefined) {
       expect(contract).toMatchObject({ permissionTarget: expectedTarget, resourcePermission: 'read' });

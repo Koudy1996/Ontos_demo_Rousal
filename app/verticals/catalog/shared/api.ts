@@ -94,21 +94,37 @@ import { RenameSkuActionApi } from './apis/rename-sku-action.ts';
 import { ReorderCatalogMediaActionApi } from './apis/reorder-catalog-media-action.ts';
 import { ReplaceProductSizesActionApi } from './apis/replace-product-sizes-action.ts';
 import { RetireBrandActionApi } from './apis/retire-brand-action.ts';
+import { RetireBrandRecoveryApi } from './apis/retire-brand-recovery.ts';
 import { RetireConfigurationUnitActionApi } from './apis/retire-configuration-unit-action.ts';
+import { RetireConfigurationUnitRecoveryApi } from './apis/retire-configuration-unit-recovery.ts';
 import { RetireControlledAttributeValueActionApi } from './apis/retire-controlled-attribute-value-action.ts';
+import { RetireControlledAttributeValueRecoveryApi } from './apis/retire-controlled-attribute-value-recovery.ts';
 import { RetireGtinActionApi } from './apis/retire-gtin-action.ts';
+import { RetireGtinRecoveryApi } from './apis/retire-gtin-recovery.ts';
 import { RetirePackageDefinitionActionApi } from './apis/retire-package-definition-action.ts';
+import { RetirePackageDefinitionRecoveryApi } from './apis/retire-package-definition-recovery.ts';
 import { RetirePackageOptionActionApi } from './apis/retire-package-option-action.ts';
+import { RetirePackageOptionRecoveryApi } from './apis/retire-package-option-recovery.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
+import { RetireProductCategoryRecoveryApi } from './apis/retire-product-category-recovery.ts';
+import { RetireProductRecoveryApi } from './apis/retire-product-recovery.ts';
 import { RetireProductUnitActionApi } from './apis/retire-product-unit-action.ts';
+import { RetireProductUnitRecoveryApi } from './apis/retire-product-unit-recovery.ts';
 import { RetireVariantActionApi } from './apis/retire-variant-action.ts';
+import { RetireVariantRecoveryApi } from './apis/retire-variant-recovery.ts';
 import { ReviseAttributeDefinitionActionApi } from './apis/revise-attribute-definition-action.ts';
+import { ReviseAttributeDefinitionRecoveryApi } from './apis/revise-attribute-definition-recovery.ts';
 import { ReviseConfigurationUnitActionApi } from './apis/revise-configuration-unit-action.ts';
+import { ReviseConfigurationUnitRecoveryApi } from './apis/revise-configuration-unit-recovery.ts';
 import { RevisePackageDefinitionActionApi } from './apis/revise-package-definition-action.ts';
+import { RevisePackageDefinitionRecoveryApi } from './apis/revise-package-definition-recovery.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
+import { ReviseProductTypeRecoveryApi } from './apis/revise-product-type-recovery.ts';
 import { ReviseProductUnitActionApi } from './apis/revise-product-unit-action.ts';
+import { ReviseProductUnitRecoveryApi } from './apis/revise-product-unit-recovery.ts';
 import { ReviseSetCompositionActionApi } from './apis/revise-set-composition-action.ts';
+import { ReviseSetCompositionRecoveryApi } from './apis/revise-set-composition-recovery.ts';
 import { SetCompositionCurrentApi } from './apis/set-composition-current.ts';
 import { SetCompositionHistoryApi } from './apis/set-composition-history.ts';
 import { SetProductAttributeValuesActionApi } from './apis/set-product-attribute-values-action.ts';
@@ -233,21 +249,37 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReorderCatalogMediaActionApi)
   .addHttpApi(ReplaceProductSizesActionApi)
   .addHttpApi(RetireBrandActionApi)
+  .addHttpApi(RetireBrandRecoveryApi)
   .addHttpApi(RetireConfigurationUnitActionApi)
+  .addHttpApi(RetireConfigurationUnitRecoveryApi)
   .addHttpApi(RetireControlledAttributeValueActionApi)
+  .addHttpApi(RetireControlledAttributeValueRecoveryApi)
   .addHttpApi(RetireGtinActionApi)
+  .addHttpApi(RetireGtinRecoveryApi)
   .addHttpApi(RetirePackageDefinitionActionApi)
+  .addHttpApi(RetirePackageDefinitionRecoveryApi)
   .addHttpApi(RetirePackageOptionActionApi)
+  .addHttpApi(RetirePackageOptionRecoveryApi)
   .addHttpApi(RetireProductActionApi)
   .addHttpApi(RetireProductCategoryActionApi)
+  .addHttpApi(RetireProductCategoryRecoveryApi)
+  .addHttpApi(RetireProductRecoveryApi)
   .addHttpApi(RetireProductUnitActionApi)
+  .addHttpApi(RetireProductUnitRecoveryApi)
   .addHttpApi(RetireVariantActionApi)
+  .addHttpApi(RetireVariantRecoveryApi)
   .addHttpApi(ReviseAttributeDefinitionActionApi)
+  .addHttpApi(ReviseAttributeDefinitionRecoveryApi)
   .addHttpApi(ReviseConfigurationUnitActionApi)
+  .addHttpApi(ReviseConfigurationUnitRecoveryApi)
   .addHttpApi(RevisePackageDefinitionActionApi)
+  .addHttpApi(RevisePackageDefinitionRecoveryApi)
   .addHttpApi(ReviseProductTypeActionApi)
+  .addHttpApi(ReviseProductTypeRecoveryApi)
   .addHttpApi(ReviseProductUnitActionApi)
+  .addHttpApi(ReviseProductUnitRecoveryApi)
   .addHttpApi(ReviseSetCompositionActionApi)
+  .addHttpApi(ReviseSetCompositionRecoveryApi)
   .addHttpApi(SetCompositionCurrentApi)
   .addHttpApi(SetCompositionHistoryApi)
   .addHttpApi(SetProductAttributeValuesActionApi)
@@ -348,6 +380,16 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.catalog-media-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'catalog-media',
+    permission: 'commerce.catalog.read.media',
+    permissionKind: 'context_permission',
+    permissionTarget: 'resource',
+    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.color-current': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'controlled-attribute-value',
@@ -368,13 +410,51 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.api.catalog-media-current': {
+  'commerce.catalog.api.create-attribute-definition-recovery': {
     authorityBundle: 'CATALOG_READER',
-    businessTarget: 'catalog-media',
-    permission: 'commerce.catalog.read.media',
+    businessTarget: 'attribute-definition',
+    permission: 'commerce.catalog.read.create-attribute-definition-recovery',
     permissionKind: 'context_permission',
-    permissionTarget: 'resource',
-    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-brand-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'brand',
+    permission: 'commerce.catalog.read.create-brand-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-configuration-unit-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'configuration-unit',
+    permission: 'commerce.catalog.read.create-configuration-unit-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-controlled-attribute-value-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'controlled-attribute-value',
+    permission: 'commerce.catalog.read.create-controlled-attribute-value-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-package-definition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.create-package-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-product-category-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-category',
+    permission: 'commerce.catalog.read.create-product-category-recovery',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -382,6 +462,38 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
     permission: 'commerce.catalog.read.create-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-product-relationship-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-relationship',
+    permission: 'commerce.catalog.read.create-product-relationship-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-product-type-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-type',
+    permission: 'commerce.catalog.read.create-product-type-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-product-unit-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-unit',
+    permission: 'commerce.catalog.read.create-product-unit-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-set-composition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'set-composition',
+    permission: 'commerce.catalog.read.create-set-composition-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -394,10 +506,10 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.api.update-product-recovery': {
+  'commerce.catalog.api.effective-attribute-values-current': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
-    permission: 'commerce.catalog.read.update-product-recovery',
+    permission: 'commerce.catalog.read.effective-attribute-values-current',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -439,6 +551,22 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.package-definition-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.package-definition-history',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.package-option-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.package-option-history',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -486,58 +614,10 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.api.effective-attribute-values-current': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product',
-    permission: 'commerce.catalog.read.effective-attribute-values-current',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
   'commerce.catalog.api.product-history': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
     permission: 'commerce.catalog.read.product-history',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.variant-history': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'variant',
-    permission: 'commerce.catalog.read.variant-history',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.package-definition-history': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
-    permission: 'commerce.catalog.read.package-definition-history',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.package-option-history': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'package-definition',
-    permission: 'commerce.catalog.read.package-option-history',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.set-composition-current': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'set-composition',
-    permission: 'commerce.catalog.read.set-composition-current',
-    permissionKind: 'context_permission',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.api.set-composition-history': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'set-composition',
-    permission: 'commerce.catalog.read.set-composition-history',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -581,6 +661,150 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.retire-brand-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'brand',
+    permission: 'commerce.catalog.read.retire-brand-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-configuration-unit-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'configuration-unit',
+    permission: 'commerce.catalog.read.retire-configuration-unit-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-controlled-attribute-value-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'controlled-attribute-value',
+    permission: 'commerce.catalog.read.retire-controlled-attribute-value-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-gtin-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.retire-gtin-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-package-definition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.retire-package-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-package-option-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.retire-package-option-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-product-category-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-category',
+    permission: 'commerce.catalog.read.retire-product-category-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-product-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.retire-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-product-unit-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-unit',
+    permission: 'commerce.catalog.read.retire-product-unit-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.retire-variant-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.retire-variant-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.revise-attribute-definition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'attribute-definition',
+    permission: 'commerce.catalog.read.revise-attribute-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.revise-configuration-unit-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'configuration-unit',
+    permission: 'commerce.catalog.read.revise-configuration-unit-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.revise-package-definition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'package-definition',
+    permission: 'commerce.catalog.read.revise-package-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.revise-product-type-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-type',
+    permission: 'commerce.catalog.read.revise-product-type-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.revise-product-unit-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-unit',
+    permission: 'commerce.catalog.read.revise-product-unit-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.revise-set-composition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'set-composition',
+    permission: 'commerce.catalog.read.revise-set-composition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-composition-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'set-composition',
+    permission: 'commerce.catalog.read.set-composition-current',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-composition-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'set-composition',
+    permission: 'commerce.catalog.read.set-composition-history',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.sku-lookup': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
@@ -588,6 +812,22 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.update-product-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.update-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.variant-history': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.variant-history',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -751,30 +991,6 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.decide-product-type-unnecessary': {
-    authorityBundle: 'PRODUCT_EDITOR',
-    businessTarget: 'product',
-    permission: 'commerce.catalog.decide-product-type-unnecessary',
-    permissionKind: 'action_execution',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.govern-product-attribute-applicability': {
-    authorityBundle: 'PRODUCT_EDITOR',
-    businessTarget: 'product',
-    permission: 'commerce.catalog.govern-product-attribute-applicability',
-    permissionKind: 'action_execution',
-    scope: 'tenant',
-    version: '1',
-  },
-  'commerce.catalog.promote-package-definition': {
-    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
-    businessTarget: packageDefinitionBusinessTarget,
-    permission: 'commerce.catalog.promote-package-definition',
-    permissionKind: 'action_execution',
-    scope: 'tenant',
-    version: '1',
-  },
   'commerce.catalog.create-set-composition': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'set-composition',
@@ -787,6 +1003,22 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'variant',
     permission: 'commerce.catalog.create-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.decide-product-type-unnecessary': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.decide-product-type-unnecessary',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.govern-product-attribute-applicability': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.govern-product-attribute-applicability',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -811,6 +1043,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: productCategoryBusinessTarget,
     permission: 'commerce.catalog.move-product-category',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.promote-package-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.promote-package-definition',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -1219,6 +1459,32 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.retire-variant',
   ],
   CATALOG_READER: [
+    'commerce.catalog.read.create-attribute-definition-recovery',
+    'commerce.catalog.read.create-brand-recovery',
+    'commerce.catalog.read.create-configuration-unit-recovery',
+    'commerce.catalog.read.create-controlled-attribute-value-recovery',
+    'commerce.catalog.read.create-package-definition-recovery',
+    'commerce.catalog.read.create-product-category-recovery',
+    'commerce.catalog.read.create-product-relationship-recovery',
+    'commerce.catalog.read.create-product-type-recovery',
+    'commerce.catalog.read.create-product-unit-recovery',
+    'commerce.catalog.read.create-set-composition-recovery',
+    'commerce.catalog.read.revise-attribute-definition-recovery',
+    'commerce.catalog.read.revise-configuration-unit-recovery',
+    'commerce.catalog.read.revise-package-definition-recovery',
+    'commerce.catalog.read.revise-product-type-recovery',
+    'commerce.catalog.read.revise-product-unit-recovery',
+    'commerce.catalog.read.revise-set-composition-recovery',
+    'commerce.catalog.read.retire-brand-recovery',
+    'commerce.catalog.read.retire-configuration-unit-recovery',
+    'commerce.catalog.read.retire-controlled-attribute-value-recovery',
+    'commerce.catalog.read.retire-gtin-recovery',
+    'commerce.catalog.read.retire-package-definition-recovery',
+    'commerce.catalog.read.retire-package-option-recovery',
+    'commerce.catalog.read.retire-product-recovery',
+    'commerce.catalog.read.retire-product-category-recovery',
+    'commerce.catalog.read.retire-product-unit-recovery',
+    'commerce.catalog.read.retire-variant-recovery',
     'commerce.catalog.read.brand-current',
     'commerce.catalog.read.brand-history',
     'commerce.catalog.read.color-current',

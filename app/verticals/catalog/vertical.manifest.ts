@@ -109,21 +109,37 @@ import { renameSkuAction } from './src/actions/rename-sku.action.ts';
 import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.action.ts';
 import { replaceProductSizesAction } from './src/actions/replace-product-sizes.action.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
+import { RetireBrandRecoveryApi } from './shared/apis/retire-brand-recovery.ts';
 import { retireConfigurationUnitAction } from './src/actions/retire-configuration-unit.action.ts';
+import { RetireConfigurationUnitRecoveryApi } from './shared/apis/retire-configuration-unit-recovery.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
+import { RetireControlledAttributeValueRecoveryApi } from './shared/apis/retire-controlled-attribute-value-recovery.ts';
 import { retireGtinAction } from './src/actions/retire-gtin.action.ts';
+import { RetireGtinRecoveryApi } from './shared/apis/retire-gtin-recovery.ts';
 import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
+import { RetirePackageDefinitionRecoveryApi } from './shared/apis/retire-package-definition-recovery.ts';
 import { retirePackageOptionAction } from './src/actions/retire-package-option.action.ts';
+import { RetirePackageOptionRecoveryApi } from './shared/apis/retire-package-option-recovery.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
+import { RetireProductCategoryRecoveryApi } from './shared/apis/retire-product-category-recovery.ts';
+import { RetireProductRecoveryApi } from './shared/apis/retire-product-recovery.ts';
 import { retireProductUnitAction } from './src/actions/retire-product-unit.action.ts';
+import { RetireProductUnitRecoveryApi } from './shared/apis/retire-product-unit-recovery.ts';
 import { retireVariantAction } from './src/actions/retire-variant.action.ts';
+import { RetireVariantRecoveryApi } from './shared/apis/retire-variant-recovery.ts';
 import { reviseAttributeDefinitionAction } from './src/actions/revise-attribute-definition.action.ts';
+import { ReviseAttributeDefinitionRecoveryApi } from './shared/apis/revise-attribute-definition-recovery.ts';
 import { reviseConfigurationUnitAction } from './src/actions/revise-configuration-unit.action.ts';
+import { ReviseConfigurationUnitRecoveryApi } from './shared/apis/revise-configuration-unit-recovery.ts';
 import { revisePackageDefinitionAction } from './src/actions/revise-package-definition.action.ts';
+import { RevisePackageDefinitionRecoveryApi } from './shared/apis/revise-package-definition-recovery.ts';
 import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
+import { ReviseProductTypeRecoveryApi } from './shared/apis/revise-product-type-recovery.ts';
 import { reviseProductUnitAction } from './src/actions/revise-product-unit.action.ts';
+import { ReviseProductUnitRecoveryApi } from './shared/apis/revise-product-unit-recovery.ts';
 import { reviseSetCompositionAction } from './src/actions/revise-set-composition.action.ts';
+import { ReviseSetCompositionRecoveryApi } from './shared/apis/revise-set-composition-recovery.ts';
 import { SetCompositionCurrentApi } from './shared/apis/set-composition-current.ts';
 import { SetCompositionHistoryApi } from './shared/apis/set-composition-history.ts';
 import { setProductAttributeValuesAction } from './src/actions/set-product-attribute-values.action.ts';
@@ -289,6 +305,22 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'product-relationship-history': ProductRelationshipHistoryApi,
       'product-size-current': ProductSizeCurrentApi,
       'quantity-preparation': QuantityPreparationApi,
+      'retire-brand-recovery': RetireBrandRecoveryApi,
+      'retire-configuration-unit-recovery': RetireConfigurationUnitRecoveryApi,
+      'retire-controlled-attribute-value-recovery': RetireControlledAttributeValueRecoveryApi,
+      'retire-gtin-recovery': RetireGtinRecoveryApi,
+      'retire-package-definition-recovery': RetirePackageDefinitionRecoveryApi,
+      'retire-package-option-recovery': RetirePackageOptionRecoveryApi,
+      'retire-product-category-recovery': RetireProductCategoryRecoveryApi,
+      'retire-product-recovery': RetireProductRecoveryApi,
+      'retire-product-unit-recovery': RetireProductUnitRecoveryApi,
+      'retire-variant-recovery': RetireVariantRecoveryApi,
+      'revise-attribute-definition-recovery': ReviseAttributeDefinitionRecoveryApi,
+      'revise-configuration-unit-recovery': ReviseConfigurationUnitRecoveryApi,
+      'revise-package-definition-recovery': RevisePackageDefinitionRecoveryApi,
+      'revise-product-type-recovery': ReviseProductTypeRecoveryApi,
+      'revise-product-unit-recovery': ReviseProductUnitRecoveryApi,
+      'revise-set-composition-recovery': ReviseSetCompositionRecoveryApi,
       'set-composition-current': SetCompositionCurrentApi,
       'set-composition-history': SetCompositionHistoryApi,
       'sku-lookup': SkuLookupApi,

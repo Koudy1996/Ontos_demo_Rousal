@@ -112,21 +112,37 @@ import { renameSkuActionApiLive } from './rename-sku-action-server.ts';
 import { reorderCatalogMediaActionApiLive } from './reorder-catalog-media-action-server.ts';
 import { replaceProductSizesActionApiLive } from './replace-product-sizes-action-server.ts';
 import { retireBrandActionApiLive } from './retire-brand-action-server.ts';
+import { retireBrandRecoveryReadApiLive } from './retire-brand-recovery-read-server.ts';
 import { retireConfigurationUnitActionApiLive } from './retire-configuration-unit-action-server.ts';
+import { retireConfigurationUnitRecoveryReadApiLive } from './retire-configuration-unit-recovery-read-server.ts';
 import { retireControlledAttributeValueActionApiLive } from './retire-controlled-attribute-value-action-server.ts';
+import { retireControlledAttributeValueRecoveryReadApiLive } from './retire-controlled-attribute-value-recovery-read-server.ts';
 import { retireGtinActionApiLive } from './retire-gtin-action-server.ts';
+import { retireGtinRecoveryReadApiLive } from './retire-gtin-recovery-read-server.ts';
 import { retirePackageDefinitionActionApiLive } from './retire-package-definition-action-server.ts';
+import { retirePackageDefinitionRecoveryReadApiLive } from './retire-package-definition-recovery-read-server.ts';
 import { retirePackageOptionActionApiLive } from './retire-package-option-action-server.ts';
+import { retirePackageOptionRecoveryReadApiLive } from './retire-package-option-recovery-read-server.ts';
 import { retireProductActionApiLive } from './retire-product-action-server.ts';
 import { retireProductCategoryActionApiLive } from './retire-product-category-action-server.ts';
+import { retireProductCategoryRecoveryReadApiLive } from './retire-product-category-recovery-read-server.ts';
+import { retireProductRecoveryReadApiLive } from './retire-product-recovery-read-server.ts';
 import { retireProductUnitActionApiLive } from './retire-product-unit-action-server.ts';
+import { retireProductUnitRecoveryReadApiLive } from './retire-product-unit-recovery-read-server.ts';
 import { retireVariantActionApiLive } from './retire-variant-action-server.ts';
+import { retireVariantRecoveryReadApiLive } from './retire-variant-recovery-read-server.ts';
 import { reviseAttributeDefinitionActionApiLive } from './revise-attribute-definition-action-server.ts';
+import { reviseAttributeDefinitionRecoveryReadApiLive } from './revise-attribute-definition-recovery-read-server.ts';
 import { reviseConfigurationUnitActionApiLive } from './revise-configuration-unit-action-server.ts';
+import { reviseConfigurationUnitRecoveryReadApiLive } from './revise-configuration-unit-recovery-read-server.ts';
 import { revisePackageDefinitionActionApiLive } from './revise-package-definition-action-server.ts';
+import { revisePackageDefinitionRecoveryReadApiLive } from './revise-package-definition-recovery-read-server.ts';
 import { reviseProductTypeActionApiLive } from './revise-product-type-action-server.ts';
+import { reviseProductTypeRecoveryReadApiLive } from './revise-product-type-recovery-read-server.ts';
 import { reviseProductUnitActionApiLive } from './revise-product-unit-action-server.ts';
+import { reviseProductUnitRecoveryReadApiLive } from './revise-product-unit-recovery-read-server.ts';
 import { reviseSetCompositionActionApiLive } from './revise-set-composition-action-server.ts';
+import { reviseSetCompositionRecoveryReadApiLive } from './revise-set-composition-recovery-read-server.ts';
 import { setCompositionCurrentReadApiLive } from './set-composition-current-read-server.ts';
 import { setCompositionHistoryReadApiLive } from './set-composition-history-read-server.ts';
 import { setProductAttributeValuesActionApiLive } from './set-product-attribute-values-action-server.ts';
@@ -327,21 +343,37 @@ export const makeCatalogApiRuntime = (
     reorderCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     replaceProductSizesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireBrandRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireConfigurationUnitRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireControlledAttributeValueRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireGtinRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retirePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retirePackageDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retirePackageOptionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retirePackageOptionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireProductCategoryRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    retireProductRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireProductUnitRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     retireVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireVariantRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reviseAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseAttributeDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reviseConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseConfigurationUnitRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     revisePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    revisePackageDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reviseProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseProductTypeRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reviseProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseProductUnitRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reviseSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseSetCompositionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setCompositionCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setCompositionHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
