@@ -14,7 +14,7 @@ import {
 import type { SetCompositionCurrentRequest } from '../../shared/apis/set-composition-current.ts';
 import { setCompositionPersistenceForScope } from '../persistence/set-composition-persistence.ts';
 
-export const setCompositionCurrentEntrypoint = defineTenantModuleEntrypoint({
+const setCompositionCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.set-composition-current' },
   entrypointKey: 'commerce.catalog.api.set-composition-current',

@@ -25,7 +25,7 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
-export const packageOptionHistoryEntrypoint = defineTenantModuleEntrypoint({
+const packageOptionHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.package-option-history' },
   entrypointKey: 'commerce.catalog.api.package-option-history',

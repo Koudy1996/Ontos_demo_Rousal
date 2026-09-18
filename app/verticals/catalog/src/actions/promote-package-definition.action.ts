@@ -38,7 +38,7 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
-export const handlePromotePackageDefinition = Effect.fn('PromotePackageDefinitionAction.handle')(
+const handlePromotePackageDefinition = Effect.fn('PromotePackageDefinitionAction.handle')(
   function* handlePromotePackageDefinition(
     payload: PromotePackageDefinitionPayload,
     context: ActionHandlerContext<Readonly<Record<string, never>>, PackageActivationPersistence>,
@@ -110,7 +110,7 @@ export const handlePromotePackageDefinition = Effect.fn('PromotePackageDefinitio
 );
 
 /** Owner-issued selection and Option-role proofs are absent; the service fails closed. */
-export const promotePackageDefinitionPersistenceServiceFactory = (
+const promotePackageDefinitionPersistenceServiceFactory = (
   transaction: Parameters<typeof packageActivationPersistenceForScope>[0],
   scope: Parameters<typeof packageActivationPersistenceForScope>[1],
 ) =>

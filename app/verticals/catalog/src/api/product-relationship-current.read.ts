@@ -22,7 +22,7 @@ import { productRelationshipReadsForScope } from '../persistence/product-relatio
 const readKey = 'commerce.catalog.api.product-relationship-current';
 const moduleKey = 'commerce.catalog';
 
-export const productRelationshipCurrentEntrypoint = defineTenantModuleEntrypoint({
+const productRelationshipCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-relationship' },
   entrypointKey: readKey,

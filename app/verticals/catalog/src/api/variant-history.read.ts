@@ -22,7 +22,7 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
-export const variantHistoryEntrypoint = defineTenantModuleEntrypoint({
+const variantHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.variant-history' },
   entrypointKey: 'commerce.catalog.api.variant-history',

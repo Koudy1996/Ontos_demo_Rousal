@@ -21,7 +21,7 @@ import type { CategoryClassificationPersistence } from '../persistence/category-
 
 const moduleKey = 'commerce.catalog';
 
-export const productCategoryClassificationEntrypoint = defineTenantModuleEntrypoint({
+const productCategoryClassificationEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-category-classification' },
   entrypointKey: 'commerce.catalog.api.product-category-classification',

@@ -32,7 +32,6 @@ export {
   MarkGtinUnresolvedPayloadSchema,
   MarkGtinUnresolvedResultSchema,
 } from '../../shared/actions/mark-gtin-unresolved.ts';
-export type { MarkGtinUnresolvedPayload, MarkGtinUnresolvedResult } from '../../shared/actions/mark-gtin-unresolved.ts';
 
 const handleMarkGtinUnresolved = Effect.fn('MarkGtinUnresolvedAction.handle')(function* handleMarkGtinUnresolved(
   payload: MarkGtinUnresolvedPayload,

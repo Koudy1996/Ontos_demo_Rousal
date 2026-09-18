@@ -69,7 +69,7 @@ export const readEffectiveAttributeValuesCurrent = Effect.fn('EffectiveAttribute
   },
 );
 
-export const effectiveAttributeValuesCurrentEntrypoint = defineTenantModuleEntrypoint({
+const effectiveAttributeValuesCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.effective-attribute-values-current' },
   entrypointKey: 'commerce.catalog.api.effective-attribute-values-current',

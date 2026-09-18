@@ -14,7 +14,7 @@ import {
 import type { SetCompositionHistoryRequest } from '../../shared/apis/set-composition-history.ts';
 import { setCompositionPersistenceForScope } from '../persistence/set-composition-persistence.ts';
 
-export const setCompositionHistoryEntrypoint = defineTenantModuleEntrypoint({
+const setCompositionHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.set-composition-history' },
   entrypointKey: 'commerce.catalog.api.set-composition-history',

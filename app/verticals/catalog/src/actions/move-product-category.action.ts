@@ -23,14 +23,8 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export {
-  MoveProductCategoryPayloadSchema,
-  MoveProductCategoryResultSchema,
-} from '../../shared/actions/move-product-category.ts';
-export type {
-  MoveProductCategoryPayload,
-  MoveProductCategoryResult,
-} from '../../shared/actions/move-product-category.ts';
+export { MoveProductCategoryPayloadSchema } from '../../shared/actions/move-product-category.ts';
+export type { MoveProductCategoryPayload } from '../../shared/actions/move-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-moved.v1': MoveProductCategoryResultSchema } as const;
 

@@ -19,14 +19,7 @@ import type { AttributeApplicabilityPersistence } from '../persistence/attribute
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 
-export {
-  GovernProductAttributeApplicabilityPayloadSchema,
-  GovernProductAttributeApplicabilityResultSchema,
-} from '../../shared/actions/govern-product-attribute-applicability.ts';
-export type {
-  GovernProductAttributeApplicabilityPayload,
-  GovernProductAttributeApplicabilityResult,
-} from '../../shared/actions/govern-product-attribute-applicability.ts';
+export type { GovernProductAttributeApplicabilityPayload } from '../../shared/actions/govern-product-attribute-applicability.ts';
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 const ACTION_KEY = 'commerce.catalog.govern-product-attribute-applicability' as const;

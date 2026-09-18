@@ -21,7 +21,7 @@ import { productRelationshipReadsForScope } from '../persistence/product-relatio
 const historyReadKey = 'commerce.catalog.api.product-relationship-history';
 const catalogModuleKey = 'commerce.catalog';
 
-export const productRelationshipHistoryEntrypoint = defineTenantModuleEntrypoint({
+const productRelationshipHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-relationship-history' },
   entrypointKey: historyReadKey,

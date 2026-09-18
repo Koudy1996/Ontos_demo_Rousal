@@ -16,11 +16,7 @@ import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import { VariantAxisWriteConflict, variantAxisPersistenceForScope } from '../persistence/variant-axis-persistence.ts';
 import type { VariantAxisPersistence } from '../persistence/variant-axis-persistence.ts';
 
-export {
-  GovernVariantAxesPayloadSchema,
-  GovernVariantAxesResultSchema,
-} from '../../shared/actions/govern-variant-axes.ts';
-export type { GovernVariantAxesPayload, GovernVariantAxesResult } from '../../shared/actions/govern-variant-axes.ts';
+export type { GovernVariantAxesPayload } from '../../shared/actions/govern-variant-axes.ts';
 
 const moduleKey = 'commerce.catalog' as const;
 const actionKey = 'commerce.catalog.govern-variant-axes' as const;

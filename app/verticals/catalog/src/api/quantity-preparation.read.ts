@@ -21,7 +21,7 @@ import { catalogQuantityPreparationForScope } from '../persistence/catalog-quant
 const readKey = 'commerce.catalog.api.quantity-preparation';
 const moduleKey = 'commerce.catalog';
 
-export const quantityPreparationEntrypoint = defineTenantModuleEntrypoint({
+const quantityPreparationEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.quantity-preparation' },
   entrypointKey: readKey,

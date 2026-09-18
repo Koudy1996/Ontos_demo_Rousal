@@ -31,7 +31,7 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
-export const productSizeCurrentEntrypoint = defineTenantModuleEntrypoint({
+const productSizeCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.product-size-current' },
   entrypointKey: 'commerce.catalog.api.product-size-current',

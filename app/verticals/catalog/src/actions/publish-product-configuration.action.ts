@@ -19,8 +19,6 @@ import type {
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 
-export { PublishProductConfigurationPayloadSchema } from '../../shared/actions/publish-product-configuration.ts';
-export type { PublishProductConfigurationPayload } from '../../shared/actions/publish-product-configuration.ts';
 const ACTION_KEY = 'commerce.catalog.publish-product-configuration' as const;
 
 const unavailable = () =>
@@ -29,7 +27,7 @@ const unavailable = () =>
     reason: 'Selection-impact proof is unavailable',
   });
 const selectionImpact: ConfigurationSelectionImpact = { verify: () => Effect.fail(unavailable()) };
-export const publishProductConfigurationPersistenceServiceFactory = (
+const publishProductConfigurationPersistenceServiceFactory = (
   transaction: Parameters<typeof productConfigurationPersistenceForScope>[0],
   scope: Parameters<typeof productConfigurationPersistenceForScope>[1],
 ) => Effect.succeed(productConfigurationPersistenceForScope(transaction, scope, selectionImpact));

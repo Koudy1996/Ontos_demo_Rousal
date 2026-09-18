@@ -21,7 +21,7 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
-export const colorCurrentEntrypoint = defineTenantModuleEntrypoint({
+const colorCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.color-current' },
   entrypointKey: 'commerce.catalog.api.color-current',

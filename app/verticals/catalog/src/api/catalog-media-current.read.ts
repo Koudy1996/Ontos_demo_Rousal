@@ -22,7 +22,7 @@ import { catalogMediaReadsForScope } from '../persistence/catalog-media-reads.ts
 const readKey = 'commerce.catalog.api.catalog-media-current';
 const moduleKey = 'commerce.catalog';
 
-export const catalogMediaCurrentEntrypoint = defineTenantModuleEntrypoint({
+const catalogMediaCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.media' },
   entrypointKey: readKey,
