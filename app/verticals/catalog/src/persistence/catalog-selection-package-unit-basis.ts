@@ -521,6 +521,7 @@ const assessOmittedConfiguration = Effect.fn('CatalogSelectionPackageUnitBasis.a
     variantId: string,
     packageDefinitionId: string | undefined,
     now: Date,
+    selectedDefinitionId?: string,
   ) {
     const definitions = yield* transaction
       .select({ definitionId: productConfigurationDefinitions.definitionId })
@@ -531,8 +532,11 @@ const assessOmittedConfiguration = Effect.fn('CatalogSelectionPackageUnitBasis.a
           eq(productConfigurationDefinitions.productId, productId),
         ),
       );
+    if (selectedDefinitionId !== undefined && !definitions.some((item) => item.definitionId === selectedDefinitionId)) {
+      return fail('INDETERMINATE', 'Selected Configuration definition is absent from owner applicability');
+    }
     const results = yield* Effect.forEach(
-      definitions,
+      definitions.filter((definition) => definition.definitionId !== selectedDefinitionId),
       (definition) => {
         const target: TrustedConfigurationTarget = { definitionId: definition.definitionId, productId, variantId };
         if (packageDefinitionId !== undefined) {
@@ -673,7 +677,7 @@ const assessSelectionConfiguration = Effect.fn('CatalogSelectionPackageUnitBasis
       );
       return failure ?? { status: 'PROVEN' as const };
     }
-    return yield* assessSelectedConfiguration(
+    const selected = yield* assessSelectedConfiguration(
       transaction,
       scope,
       selection.configuration,
@@ -682,6 +686,19 @@ const assessSelectionConfiguration = Effect.fn('CatalogSelectionPackageUnitBasis
       packageDefinitionId,
       now,
     );
+    if (selected.status !== 'PROVEN') {
+      return selected;
+    }
+    const remainingFailure = yield* assessOmittedConfiguration(
+      transaction,
+      scope,
+      productId,
+      variantId,
+      packageDefinitionId,
+      now,
+      selection.configuration.definition.resourceRef.resourceId,
+    );
+    return remainingFailure ?? selected;
   },
 );
 

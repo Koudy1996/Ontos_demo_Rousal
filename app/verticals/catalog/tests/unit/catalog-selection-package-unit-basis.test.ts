@@ -1,4 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import type { SQL } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
@@ -139,12 +140,12 @@ const contentRows = (overrides: Map<unknown, unknown>) => {
   return Effect.succeed(Array.isArray(result) ? result : [result]);
 };
 const makeLimit = (table: ReadTable, overrides: Map<unknown, unknown>) => () => queryResult(table, overrides);
-const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>, projected: boolean) => () => {
+const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>, projected: boolean) => (condition?: SQL) => {
   if (table === packageContentRevisions) {
     return contentRows(overrides);
   }
   if (
-    (table === productConfigurationDefinitions && projected) ||
+    table === productConfigurationDefinitions ||
     table === productConfigurationRevisionActivations ||
     table === productConfigurationDefinitionRevisions ||
     table === productConfigurationChoices ||
@@ -160,10 +161,20 @@ const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>, projected
     } else if (value !== undefined && value !== null) {
       entries = [value];
     }
-    if (table === productConfigurationDefinitionRevisions) {
-      return Object.assign(Effect.succeed(entries), { limit: () => Effect.succeed(entries.slice(0, 1)) });
+    const bound =
+      condition?.toQuery({
+        escapeName: (name) => name,
+        escapeParam: () => '?',
+        escapeString: (text) => text,
+      }).params ?? [];
+    const matched = entries.filter((entry) => !('definitionId' in entry) || bound.includes(entry.definitionId));
+    if (table === productConfigurationDefinitions && !projected) {
+      return { limit: () => Effect.succeed(matched.slice(0, 1)) };
     }
-    return Effect.succeed(entries);
+    if (table === productConfigurationDefinitionRevisions) {
+      return Object.assign(Effect.succeed(matched), { limit: () => Effect.succeed(matched.slice(0, 1)) });
+    }
+    return Effect.succeed(table === productConfigurationDefinitions ? entries : matched);
   }
   return { limit: makeLimit(table, overrides) };
 };
@@ -239,7 +250,7 @@ describe('Catalog Selection package and Unit owner basis', () => {
     }),
   );
 
-  it.effect('rejects omitted required length and type from an applicable owner definition', () =>
+  it.effect('rejects required length/type both when omitted and when another Configuration A is complete', () =>
     Effect.gen(function* requiredConfiguration() {
       const effectiveAt = new Date('2026-09-16T00:00:00.000Z');
       const actionInvocationId = '88888888-8888-4888-8888-888888888888';
@@ -254,6 +265,7 @@ describe('Catalog Selection package and Unit owner basis', () => {
             {
               actingPrincipalId,
               actionInvocationId,
+              definitionId: packageId,
               effectiveAt,
               evidenceRefs,
               reason,
@@ -282,6 +294,7 @@ describe('Catalog Selection package and Unit owner basis', () => {
           productConfigurationChoices,
           ['length', 'type'].map((choiceKey) => ({
             choiceKey,
+            definitionId: packageId,
             kind: 'SINGLE_CHOICE',
             label: choiceKey,
             meaning: choiceKey,
@@ -294,6 +307,7 @@ describe('Catalog Selection package and Unit owner basis', () => {
           productConfigurationChoiceOptions,
           ['length', 'type'].map((choiceKey) => ({
             choiceKey,
+            definitionId: packageId,
             label: 'A',
             meaning: 'A',
             optionKey: 'A',
@@ -304,6 +318,7 @@ describe('Catalog Selection package and Unit owner basis', () => {
           ['length', 'type'].map((choiceKey) => ({
             allowed: true,
             choiceKey,
+            definitionId: packageId,
             evidenceRefs,
             optionKey: 'A',
             packageDefinitionId: null,
@@ -332,6 +347,145 @@ describe('Catalog Selection package and Unit owner basis', () => {
         scope,
       ).read(complete, now);
       expect(completeResult).toMatchObject({ status: 'CURRENT' });
+
+      const otherDefinitionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const otherActionInvocationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      ownerRows.set(productConfigurationDefinitions, [
+        { currentRevision: 1, definitionId: packageId, productId },
+        { currentRevision: 1, definitionId: otherDefinitionId, productId },
+      ]);
+      ownerRows.set(productConfigurationRevisionActivations, [
+        {
+          actingPrincipalId,
+          actionInvocationId,
+          definitionId: packageId,
+          effectiveAt,
+          evidenceRefs,
+          reason,
+          revision: 1,
+          supersededRevision: null,
+        },
+        {
+          actingPrincipalId,
+          actionInvocationId: otherActionInvocationId,
+          definitionId: otherDefinitionId,
+          effectiveAt,
+          evidenceRefs,
+          reason,
+          revision: 1,
+          supersededRevision: null,
+        },
+      ]);
+      ownerRows.set(productConfigurationDefinitionRevisions, [
+        {
+          actingPrincipalId,
+          actionInvocationId,
+          definitionId: packageId,
+          effectiveFrom: effectiveAt,
+          evidenceRefs,
+          productId,
+          reason,
+          revision: 1,
+          state: 'ACTIVE',
+        },
+        {
+          actingPrincipalId,
+          actionInvocationId: otherActionInvocationId,
+          definitionId: otherDefinitionId,
+          effectiveFrom: effectiveAt,
+          evidenceRefs,
+          productId,
+          reason,
+          revision: 1,
+          state: 'ACTIVE',
+        },
+      ]);
+      ownerRows.set(productConfigurationChoices, [
+        ...['length', 'type'].map((choiceKey) => ({
+          choiceKey,
+          definitionId: packageId,
+          label: choiceKey,
+          meaning: choiceKey,
+          required: true,
+          unitId: null,
+          valueKind: 'SINGLE_CHOICE',
+        })),
+        ...['length', 'type'].map((choiceKey) => ({
+          choiceKey,
+          definitionId: otherDefinitionId,
+          label: choiceKey,
+          meaning: choiceKey,
+          required: true,
+          unitId: null,
+          valueKind: 'SINGLE_CHOICE',
+        })),
+      ]);
+      ownerRows.set(productConfigurationChoiceOptions, [
+        ...['length', 'type'].map((choiceKey) => ({
+          choiceKey,
+          definitionId: packageId,
+          label: 'A',
+          meaning: 'A',
+          optionKey: 'A',
+        })),
+        ...['length', 'type'].map((choiceKey) => ({
+          choiceKey,
+          definitionId: otherDefinitionId,
+          label: 'A',
+          meaning: 'A',
+          optionKey: 'A',
+        })),
+      ]);
+      ownerRows.set(productConfigurationOptionAllowances, [
+        ...['length', 'type'].map((choiceKey) => ({
+          allowed: true,
+          choiceKey,
+          definitionId: packageId,
+          evidenceRefs,
+          optionKey: 'A',
+          packageDefinitionId: null,
+          variantId: null,
+        })),
+        ...['length', 'type'].map((choiceKey) => ({
+          allowed: true,
+          choiceKey,
+          definitionId: otherDefinitionId,
+          evidenceRefs,
+          optionKey: 'A',
+          packageDefinitionId: null,
+          variantId: null,
+        })),
+      ]);
+      const otherRequired = yield* catalogSelectionPackageUnitBasisForScope(
+        // @ts-expect-error The mock supplies only the read chains exercised here.
+        transactionFor(ownerRows),
+        scope,
+      ).read(complete, now);
+      expect(otherRequired).toMatchObject({
+        reason: 'Configuration Current proof: REQUIRED_CHOICE_MISSING',
+        status: 'INVALID',
+      });
+      ownerRows.set(productConfigurationRevisionActivations, [
+        {
+          actingPrincipalId,
+          actionInvocationId,
+          definitionId: packageId,
+          effectiveAt,
+          evidenceRefs,
+          reason,
+          revision: 1,
+          supersededRevision: null,
+        },
+      ]);
+      const unknownOther = yield* catalogSelectionPackageUnitBasisForScope(
+        // @ts-expect-error The mock supplies only the read chains exercised here.
+        transactionFor(ownerRows),
+        scope,
+      ).read(complete, now);
+      expect(unknownOther).toMatchObject({
+        reason: 'Configuration applicability proof is unavailable',
+        status: 'INDETERMINATE',
+      });
     }),
   );
 
