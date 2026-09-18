@@ -93,7 +93,14 @@ export const replaceProductSizesAction = defineAction(
   },
   handleReplaceProductSizes,
   (transaction, scope) =>
-    Effect.succeed({
+    Effect.succeed<
+      SizeUsagePersistence & {
+        captureResult: (
+          actionInvocationId: string,
+          result: typeof ReplaceProductSizesResultSchema.Type,
+        ) => Effect.Effect<void, ActionTransactionError>;
+      }
+    >({
       ...sizeUsagePersistenceForScope(transaction, scope),
       captureResult: (actionInvocationId: string, result: typeof ReplaceProductSizesResultSchema.Type) =>
         captureCatalogActionResult(

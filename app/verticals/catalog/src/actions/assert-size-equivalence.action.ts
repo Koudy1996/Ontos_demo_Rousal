@@ -87,7 +87,14 @@ export const assertSizeEquivalenceAction = defineAction(
   },
   handleAssertSizeEquivalence,
   (transaction, scope) =>
-    Effect.succeed({
+    Effect.succeed<
+      SizeUsagePersistence & {
+        captureResult: (
+          actionInvocationId: string,
+          result: typeof AssertSizeEquivalenceResultSchema.Type,
+        ) => Effect.Effect<void, ActionTransactionError>;
+      }
+    >({
       ...sizeUsagePersistenceForScope(transaction, scope),
       captureResult: (actionInvocationId: string, result: typeof AssertSizeEquivalenceResultSchema.Type) =>
         captureCatalogActionResult(

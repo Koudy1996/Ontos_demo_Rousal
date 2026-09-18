@@ -26,6 +26,7 @@ export {
 export type { CreateProductTypePayload, CreateProductTypeResult } from '../../shared/actions/create-product-type.ts';
 
 const domainEvents = {} as const;
+const actionKey = 'commerce.catalog.create-product-type' as const;
 
 /** Core supplies the transaction, tenant, principal, permission and idempotency boundary. */
 const handleCreateProductType = Effect.fn('CreateProductTypeAction.handle')(function* handleCreateProductType(
@@ -50,7 +51,7 @@ export const createProductTypeAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.create-product-type.access.v1',
     },
-    actionKey: 'commerce.catalog.create-product-type',
+    actionKey,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([ProductTypeCreateConflict, CatalogPersistenceUnavailable]),
@@ -58,7 +59,7 @@ export const createProductTypeAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.create-product-type',
+      entrypointKey: actionKey,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -73,28 +74,39 @@ export const createProductTypeAction = defineAction(
   handleCreateProductType,
   (transaction, scope) =>
     productTypeCreatePersistenceForScope(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof CreateProductTypeResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.create-product-type', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(CreateProductTypeResultSchema),
-              encode: Schema.encodeEffect(CreateProductTypeResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
+      Effect.map(
+        (
+          services,
+        ): ProductTypeCreatePersistence & {
+          captureResult: (
+            actionInvocationId: string,
+            result: typeof CreateProductTypeResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (actionInvocationId: string, result: typeof CreateProductTypeResultSchema.Type) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              { actionInvocationId, actionKey, schemaVersion: 1 },
+              {
+                decode: Schema.decodeUnknownEffect(CreateProductTypeResultSchema),
+                encode: Schema.encodeEffect(CreateProductTypeResultSchema),
+              },
+              result,
+            ).pipe(
+              Effect.mapError((cause) =>
+                Object.assign(
+                  new ActionTransactionError({
+                    code: 'action_transaction_failed',
+                    reason: 'Catalog result capture failed',
+                  }),
+                  { cause },
+                ),
+              ),
             ),
-          ),
-      })),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
