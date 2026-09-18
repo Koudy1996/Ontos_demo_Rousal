@@ -17,6 +17,7 @@ import { retireControlledAttributeValueAction } from '../../src/actions/retire-c
 import { setProductAttributeValuesAction } from '../../src/actions/set-product-attribute-values.action.ts';
 import { setVariantAttributeOverrideAction } from '../../src/actions/set-variant-attribute-override.action.ts';
 import { catalogResultSnapshots } from '../../src/database/schema.ts';
+import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revision-reference.ts';
 
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
@@ -29,13 +30,17 @@ const scope = {
 };
 const actionInvocationId = '00000000-0000-4000-8000-000000000003';
 const ref = (resourceType: string) => ({
-  moduleId: 'commerce.catalog',
+  moduleId: 'commerce.catalog' as const,
   resourceId: '00000000-0000-4000-8000-000000000004',
   resourceType,
   tenantId: scope.tenantId,
 });
-const definitionRef = ref('commerce.catalog.attribute-definition');
+const definitionRef = {
+  ...ref('commerce.catalog.attribute-definition'),
+  resourceType: 'commerce.catalog.attribute-definition' as const,
+};
 const controlledValueRef = ref('commerce.catalog.controlled-attribute-value');
+const revision = Schema.decodeUnknownSync(CatalogRevisionNumberSchema)(1);
 const cases = [
   [
     'create-attribute-definition',
@@ -45,23 +50,23 @@ const cases = [
   [
     'rename-attribute-definition',
     renameAttributeDefinitionAction,
-    { attributeDefinitionRef: definitionRef, revision: 1, changed: true },
+    { attributeDefinitionRef: definitionRef, changed: true, revision },
   ],
   ['create-controlled-attribute-value', createControlledAttributeValueAction, { controlledValueRef, revision: 1 }],
   [
     'rename-controlled-attribute-value',
     renameControlledAttributeValueAction,
-    { controlledValueRef, revision: 1, changed: true },
+    { changed: true, controlledValueRef, revision },
   ],
   [
     'retire-controlled-attribute-value',
     retireControlledAttributeValueAction,
-    { controlledValueRef, revision: 1, changed: true, lifecycle: 'RETIRED' },
+    { changed: true, controlledValueRef, lifecycle: 'RETIRED', revision },
   ],
   [
     'reactivate-controlled-attribute-value',
     reactivateControlledAttributeValueAction,
-    { controlledValueRef, revision: 1, changed: true, lifecycle: 'ACTIVE' },
+    { changed: true, controlledValueRef, lifecycle: 'ACTIVE', revision },
   ],
   [
     'set-product-attribute-values',
@@ -85,28 +90,36 @@ const cases = [
   ],
 ] as const;
 
+const storeRow =
+  (rows: (typeof catalogResultSnapshots.$inferInsert)[], row: typeof catalogResultSnapshots.$inferInsert) => () => {
+    rows.push(row);
+    return Effect.succeed([row]);
+  };
+const snapshotTransaction = (rows: (typeof catalogResultSnapshots.$inferInsert)[]) => ({
+  insert: (table: typeof catalogResultSnapshots) => {
+    expect(table).toBe(catalogResultSnapshots);
+    return {
+      values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
+        onConflictDoNothing: () => ({ returning: storeRow(rows, row) }),
+      }),
+    };
+  },
+});
+const failedSnapshotTransaction = {
+  insert: () => ({
+    values: () => ({ onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('unavailable')) }) }),
+  }),
+};
+
 describe('Attribute Action result capture', () => {
   it.effect('stores each decoded result with its exact Action identity in the supplied transaction', () =>
     Effect.gen(function* capturesResults() {
       const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
-      const transaction = {
-        insert: (table: typeof catalogResultSnapshots) => {
-          expect(table).toBe(catalogResultSnapshots);
-          return {
-            values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
-              onConflictDoNothing: () => ({
-                returning: () => {
-                  rows.push(row);
-                  return Effect.succeed([row]);
-                },
-              }),
-            }),
-          };
-        },
-      };
+      const transaction = snapshotTransaction(rows);
       for (const [name, action, result] of cases) {
         // @ts-expect-error Focused mock implements only the snapshot insert chain.
         const services = yield* getActionServiceFactory(action)(transaction, scope);
+        // @ts-expect-error Heterogeneous Action tuple; the paired result is checked by the hook below.
         const hook = getActionDecodedSuccessHook(action);
         expect(hook).toBeDefined();
         if (hook !== undefined) {
@@ -121,20 +134,14 @@ describe('Attribute Action result capture', () => {
 
   it.effect('aborts decoded success when snapshot storage fails', () =>
     Effect.gen(function* rejectsStorageFailure() {
-      const transaction = {
-        insert: () => ({
-          values: () => ({
-            onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('unavailable')) }),
-          }),
-        }),
-      };
+      const transaction = failedSnapshotTransaction;
       // @ts-expect-error Focused mock implements only the failing snapshot insert chain.
       const services = yield* getActionServiceFactory(createAttributeDefinitionAction)(transaction, scope);
       const hook = getActionDecodedSuccessHook(createAttributeDefinitionAction);
       expect(hook).toBeDefined();
       if (hook !== undefined) {
         const failure = yield* Effect.flip(
-          hook({ actionInvocationId, result: { attributeDefinitionRef: definitionRef, revision: 1 }, scope, services }),
+          hook({ actionInvocationId, result: { attributeDefinitionRef: definitionRef, revision }, scope, services }),
         );
         expect(failure).toMatchObject({ code: 'action_transaction_failed' });
       }

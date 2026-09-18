@@ -39,7 +39,12 @@ const details = {
   preview: { hex: '#333333', kind: 'HEX' },
 } as const;
 const revisedDetails = { ...details, localizedNames: [{ locale: 'cs-CZ', name: 'Tmavý antracit' }] } as const;
-const revision = (number: number, name: string, colorDetails: unknown, lifecycleState = 'ACTIVE') => ({
+const revision = (
+  number: number,
+  name: string,
+  colorDetails: typeof details | typeof revisedDetails | null,
+  lifecycleState = 'ACTIVE',
+) => ({
   actingPrincipalId: scope.principalId,
   actionInvocationId: '55555555-5555-4555-8555-555555555555',
   attributeDefinitionId: definitionId,
@@ -66,7 +71,7 @@ const mock = (rows: Map<Table, object[]>) => ({
 
 describe('Color governed reads', () => {
   it.effect('keeps stable identity and exact swatch/preview snapshots across rename', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* stableColorHistory() {
       const rows = new Map<Table, object[]>([
         [
           controlledAttributeValues,
@@ -97,9 +102,15 @@ describe('Color governed reads', () => {
       expect(history[0]?.displayName).toBe('Antracit');
       expect(history[0]?.colorDetails).toEqual(details);
       expect(history[1]?.colorDetails).toEqual(revisedDetails);
-      expect(
-        Schema.is(ColorCurrentResponseSchema)({ ...current.value, recordedAt: current.value.recordedAt.toISOString() }),
-      ).toBe(true);
+      expect(Option.isSome(current)).toBe(true);
+      if (Option.isSome(current)) {
+        expect(
+          Schema.is(ColorCurrentResponseSchema)({
+            ...current.value,
+            recordedAt: current.value.recordedAt.toISOString(),
+          }),
+        ).toBe(true);
+      }
       expect(
         Schema.is(ColorHistoryResponseSchema)({
           revisions: history.map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() })),
@@ -109,7 +120,7 @@ describe('Color governed reads', () => {
   );
 
   it.effect('retains retired Color without making it assignable', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* retiredColor() {
       const rows = new Map<Table, object[]>([
         [
           controlledAttributeValues,
@@ -135,7 +146,7 @@ describe('Color governed reads', () => {
   );
 
   it.effect('does not invent missing legacy provenance and fails closed on inconsistent heads', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* legacyColor() {
       const rows = new Map<Table, object[]>([
         [
           controlledAttributeValues,
@@ -176,7 +187,7 @@ describe('Color governed reads', () => {
   );
 
   it.effect('does not find a missing or non-Color value and rejects another Tenant', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* missingColor() {
       const rows = new Map<Table, object[]>();
       // @ts-expect-error Mock implements only the exercised transaction reads.
       const reads = colorReadsForScope(mock(rows), scope);

@@ -13,6 +13,7 @@ import { retirePackageDefinitionAction } from '../../src/actions/retire-package-
 import { retirePackageOptionAction } from '../../src/actions/retire-package-option.action.ts';
 import { revisePackageDefinitionAction } from '../../src/actions/revise-package-definition.action.ts';
 import { catalogResultSnapshots } from '../../src/database/schema.ts';
+import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revision-reference.ts';
 
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
@@ -30,7 +31,10 @@ const definitionRef = {
   resourceType: 'commerce.catalog.package-definition',
   tenantId: scope.tenantId,
 } as const;
-const contentRevision = { resourceRef: definitionRef, revision: 2 };
+const contentRevision = {
+  resourceRef: definitionRef,
+  revision: Schema.decodeUnknownSync(CatalogRevisionNumberSchema)(2),
+};
 const definitions = [
   ['create-package-definition', createPackageDefinitionAction],
   ['revise-package-definition', revisePackageDefinitionAction],
@@ -42,28 +46,38 @@ const options = [
   ['retire-package-option', retirePackageOptionAction],
 ] as const;
 
+const storeRow =
+  (rows: (typeof catalogResultSnapshots.$inferInsert)[], row: typeof catalogResultSnapshots.$inferInsert) => () => {
+    rows.push(row);
+    return Effect.succeed([row]);
+  };
+const snapshotTransaction = (rows: (typeof catalogResultSnapshots.$inferInsert)[]) => ({
+  insert: (table: typeof catalogResultSnapshots) => {
+    expect(table).toBe(catalogResultSnapshots);
+    return {
+      values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
+        onConflictDoNothing: () => ({ returning: storeRow(rows, row) }),
+      }),
+    };
+  },
+});
+const failedSnapshotTransaction = {
+  insert: () => ({
+    values: () => ({
+      onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('snapshot storage unavailable')) }),
+    }),
+  }),
+};
+
 describe('Package Action result capture', () => {
   it.effect('stores exact decoded results and Action identities in the supplied transaction', () =>
     Effect.gen(function* capturesPackageResults() {
       const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
-      const transaction = {
-        insert: (table: typeof catalogResultSnapshots) => {
-          expect(table).toBe(catalogResultSnapshots);
-          return {
-            values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
-              onConflictDoNothing: () => ({
-                returning: () => {
-                  rows.push(row);
-                  return Effect.succeed([row]);
-                },
-              }),
-            }),
-          };
-        },
-      };
+      const transaction = snapshotTransaction(rows);
       for (const [, action] of definitions) {
         // @ts-expect-error Focused transaction mock implements only the snapshot insert chain.
         const services = yield* getActionServiceFactory(action)(transaction, scope);
+        // @ts-expect-error Heterogeneous Action tuple; each result is paired with its Action below.
         const hook = getActionDecodedSuccessHook(action);
         expect(hook).toBeDefined();
         if (hook !== undefined) {
@@ -93,7 +107,9 @@ describe('Package Action result capture', () => {
         [...definitions, ...options].map(([name]) => ({ actionKey: `commerce.catalog.${name}`, schemaVersion: 1 })),
       );
       expect(
-        rows.slice(0, 4).every((row) => row.encodedResult !== null && 'contentRevision' in row.encodedResult),
+        rows
+          .slice(0, 4)
+          .every((row) => Schema.is(Schema.Struct({ contentRevision: Schema.Unknown }))(row.encodedResult)),
       ).toBe(true);
       expect(rows.slice(4).map((row) => row.encodedResult)).toMatchObject([
         { optionRevision: 3, state: 'ACTIVE' },
@@ -104,13 +120,7 @@ describe('Package Action result capture', () => {
 
   it.effect('fails the decoded-success hook if snapshot storage fails', () =>
     Effect.gen(function* rejectsSnapshotFailure() {
-      const transaction = {
-        insert: () => ({
-          values: () => ({
-            onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('snapshot storage unavailable')) }),
-          }),
-        }),
-      };
+      const transaction = failedSnapshotTransaction;
       // @ts-expect-error Focused transaction mock implements only the failing snapshot insert chain.
       const services = yield* getActionServiceFactory(createPackageDefinitionAction)(transaction, scope);
       const hook = getActionDecodedSuccessHook(createPackageDefinitionAction);

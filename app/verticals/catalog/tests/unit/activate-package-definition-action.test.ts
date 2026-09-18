@@ -43,7 +43,7 @@ const context = (activate: PackageActivationPersistence['activate']) =>
     recordAuditEvidence: () => Effect.void,
     recordDataAccess: () => Effect.void,
     scope,
-    services: { activate },
+    services: { activate, promote: () => Effect.die('unused') },
   }) satisfies ActionHandlerContext<Readonly<Record<string, never>>, PackageActivationPersistence>;
 
 describe('Activate Package Definition Action', () => {

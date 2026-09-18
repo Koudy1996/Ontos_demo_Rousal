@@ -119,7 +119,7 @@ describe('effective Package content revision', () => {
 it('migrates pre-intent content rows as unclassified without inventing a physical change', () => {
   const migration = readFileSync(
     new URL('../../drizzle/20260918054950_thick_agent_zero/migration.sql', import.meta.url),
-    'utf8',
+    'utf-8',
   );
   expect(migration).toContain('ADD COLUMN "change_kind" text DEFAULT \'legacy_unclassified\' NOT NULL');
   expect(migration).toContain('"change_kind" = \'correction\'');
@@ -339,9 +339,13 @@ describe('Package persistence', () => {
 
   it.effect('persists a correction explanation in a new row without changing the historical revision', () =>
     Effect.gen(function* corrected() {
-      const prior = { effectiveAt: new Date('2026-01-01T00:00:00.000Z'), revision: 1, amount: '10' };
+      const prior = { amount: '10', effectiveAt: new Date('2026-01-01T00:00:00.000Z'), revision: 1 };
       const writes: (typeof packageContentRevisions.$inferInsert)[] = [];
       let contentReads = 0;
+      const readContent = () => {
+        contentReads += 1;
+        return Effect.succeed(contentReads === 1 ? [prior] : []);
+      };
       const transaction = {
         insert: (table: typeof packageContentRevisions) => ({
           values: (value: typeof packageContentRevisions.$inferInsert) => {
@@ -356,10 +360,7 @@ describe('Package persistence', () => {
               ? futureDefinitionSelection()
               : {
                   where: () => ({
-                    limit: () => {
-                      contentReads += 1;
-                      return Effect.succeed(contentReads === 1 ? [prior] : []);
-                    },
+                    limit: readContent,
                   }),
                 },
         }),
@@ -384,7 +385,7 @@ describe('Package persistence', () => {
           Match.orElse(() => false),
         ),
       ).toBe(true);
-      expect(prior).toEqual({ effectiveAt: new Date('2026-01-01T00:00:00.000Z'), revision: 1, amount: '10' });
+      expect(prior).toEqual({ amount: '10', effectiveAt: new Date('2026-01-01T00:00:00.000Z'), revision: 1 });
       expect(writes).toEqual([
         expect.objectContaining({
           amount: '8',

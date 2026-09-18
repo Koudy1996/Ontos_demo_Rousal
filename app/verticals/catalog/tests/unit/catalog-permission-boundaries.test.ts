@@ -110,6 +110,7 @@ describe('Catalog permission boundaries (#477)', () => {
         change: unexpected,
         create: unexpected,
         reactivate: unexpected,
+        recoverCreateVariant: unexpected,
         retire: unexpected,
       };
       const scope = {

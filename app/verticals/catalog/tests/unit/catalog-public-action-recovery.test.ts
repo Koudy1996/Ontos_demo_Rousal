@@ -1,4 +1,4 @@
-import { ReadHandlerNotFound, ReadHandlerUnavailable } from '@app/core-runtime';
+import { ActionRuntime, ReadHandlerNotFound, ReadHandlerUnavailable } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
@@ -24,6 +24,10 @@ const scope = {
   correlationId: 'test',
   principalId: '22222222-2222-4222-8222-222222222222',
   tenantId: '11111111-1111-4111-8111-111111111111',
+};
+const unusedRuntime = {
+  resolveActionCommit: () => Effect.die('Mocked recovery must not resolve an Action commit'),
+  runAction: () => Effect.die('Mocked recovery must not run an Action'),
 };
 
 describe('typed public Catalog Action recovery', () => {
@@ -54,11 +58,18 @@ describe('typed public Catalog Action recovery', () => {
           recoverCreateVariant: () => Effect.succeed({ status }),
           retire: () => Effect.die('unused'),
         };
-        const failure = yield* recoverCreateVariant(
+        const failedAsExpected = yield* recoverCreateVariant(
           { invocationId },
           { readKey: 'commerce.catalog.api.create-variant-recovery', scope, services },
-        ).pipe(Effect.flip);
-        expect(Schema.is(status === 'absent' ? ReadHandlerNotFound : ReadHandlerUnavailable)(failure)).toBe(true);
+        ).pipe(
+          Effect.provideService(ActionRuntime, unusedRuntime),
+          Effect.match({
+            onFailure: (failure) =>
+              Schema.is(status === 'absent' ? ReadHandlerNotFound : ReadHandlerUnavailable)(failure),
+            onSuccess: () => false,
+          }),
+        );
+        expect(failedAsExpected).toBe(true);
       }),
     );
     it.effect(`maps update Product ${status} without inventing a result`, () =>
@@ -75,11 +86,18 @@ describe('typed public Catalog Action recovery', () => {
           retire: () => Effect.die('unused'),
           update: () => Effect.die('unused'),
         };
-        const failure = yield* recoverUpdateProduct(
+        const failedAsExpected = yield* recoverUpdateProduct(
           { invocationId },
           { readKey: 'commerce.catalog.api.update-product-recovery', scope, services },
-        ).pipe(Effect.flip);
-        expect(Schema.is(status === 'absent' ? ReadHandlerNotFound : ReadHandlerUnavailable)(failure)).toBe(true);
+        ).pipe(
+          Effect.provideService(ActionRuntime, unusedRuntime),
+          Effect.match({
+            onFailure: (failure) =>
+              Schema.is(status === 'absent' ? ReadHandlerNotFound : ReadHandlerUnavailable)(failure),
+            onSuccess: () => false,
+          }),
+        );
+        expect(failedAsExpected).toBe(true);
       }),
     );
   }
