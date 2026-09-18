@@ -45,16 +45,23 @@ describe('Catalog Product domain', () => {
         'Product must be ACTIVE',
         'Product needs a current localized Catalog name',
         'Product needs at least one ACTIVE Variant',
+        'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
       ],
     });
-    expect(catalogReadiness(active, ['  Standard Product  '])).toEqual({ catalogReady: true, reasons: [] });
+    expect(catalogReadiness(active, ['  Standard Product  '])).toEqual({
+      catalogReady: false,
+      reasons: ['Current Product Type, required facts, Variant axes, Unit and dependent content are not verified'],
+    });
     expect(catalogReadiness(active, [])).toEqual({
       catalogReady: false,
-      reasons: ['Product needs a current localized Catalog name'],
+      reasons: [
+        'Product needs a current localized Catalog name',
+        'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
+      ],
     });
     expect(catalogReadiness(active, ['Police Alfa'])).toEqual({
-      catalogReady: true,
-      reasons: [],
+      catalogReady: false,
+      reasons: ['Current Product Type, required facts, Variant axes, Unit and dependent content are not verified'],
     });
     expect(Schema.decodeUnknownSync(ProductRefSchema)(productRef)).toEqual(productRef);
     expect(productRef.resourceId).toBe(productId);
@@ -71,7 +78,10 @@ describe('Catalog Product domain', () => {
 
     expect(readiness).toEqual({
       catalogReady: false,
-      reasons: ['Product needs at least one ACTIVE Variant'],
+      reasons: [
+        'Product needs at least one ACTIVE Variant',
+        'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
+      ],
     });
     expect(
       catalogReadiness(
@@ -81,7 +91,13 @@ describe('Catalog Product domain', () => {
         },
         ['Standard Product'],
       ),
-    ).toEqual({ catalogReady: false, reasons: ['Product needs at least one ACTIVE Variant'] });
+    ).toEqual({
+      catalogReady: false,
+      reasons: [
+        'Product needs at least one ACTIVE Variant',
+        'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
+      ],
+    });
     expect(() => Schema.decodeUnknownSync(ProductVariantSchema)({ lifecycle: 'INVALID', variantId })).toThrow();
   });
 
@@ -128,8 +144,8 @@ describe('Catalog Product domain', () => {
     expect(product.productRef).toEqual(productRef);
     expect(history.revisions[0]?.productRef).toEqual(productRef);
     expect(Schema.decodeUnknownSync(CatalogReadinessSchema)(catalogReadiness(product, ['Standard Product']))).toEqual({
-      catalogReady: true,
-      reasons: [],
+      catalogReady: false,
+      reasons: ['Current Product Type, required facts, Variant axes, Unit and dependent content are not verified'],
     });
   });
 

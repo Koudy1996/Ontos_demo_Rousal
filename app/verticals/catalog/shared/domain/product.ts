@@ -161,6 +161,10 @@ export const catalogReadiness = (
   if (!product.variants.some(({ lifecycle }) => lifecycle === 'ACTIVE')) {
     reasons.push('Product needs at least one ACTIVE Variant');
   }
+  // Row state and a localized name are necessary, never sufficient, for a
+  // concrete Current selection. #479 must supply owner-issued proof of the
+  // effective Type, required facts, axes, Unit and dependent content first.
+  reasons.push('Current Product Type, required facts, Variant axes, Unit and dependent content are not verified');
   return { catalogReady: reasons.length === 0, reasons };
 };
 

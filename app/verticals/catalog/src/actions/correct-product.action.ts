@@ -56,6 +56,20 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
       reason: 'A material or new Product realization requires its owning Variant or Product creation Action',
     });
   }
+  if (payload.classification.variantRef !== undefined) {
+    return yield* new ProductCorrectionRequired({
+      code: 'product_correction_required',
+      productRef: payload.productRef,
+      reason: 'A Product-level correction affects every Variant; it cannot be scoped to one Variant',
+    });
+  }
+  if (payload.description !== undefined && !payload.classification.affectsOpenSelection) {
+    return yield* new ProductCorrectionRequired({
+      code: 'product_correction_required',
+      productRef: payload.productRef,
+      reason: 'A description correction requires Current selection revalidation',
+    });
+  }
   if (
     payload.classification.productRef.resourceId !== payload.productRef.resourceId ||
     payload.classification.productRef.tenantId !== payload.productRef.tenantId ||
@@ -87,7 +101,6 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
     productId: payload.productRef.resourceId,
     reason: payload.reason,
     tenantId: context.scope.tenantId,
-    variantId: payload.classification.variantRef?.resourceId,
   });
   const correction = yield* Match.value(outcome).pipe(
     Match.tag('corrected', ({ changed, product }) => Effect.succeed({ changed, product })),
@@ -118,14 +131,7 @@ const execute = Effect.fn('CorrectProductAction.execute')(function* execute(
   };
   let selectionRevalidation: ProductSelectionRevalidation = { kind: 'NOT_REQUIRED' };
   if (payload.classification.affectsOpenSelection) {
-    selectionRevalidation =
-      payload.classification.variantRef === undefined
-        ? requiredBase
-        : {
-            ...requiredBase,
-            affectedVariantProductRef: correction.product.productRef,
-            affectedVariantRef: payload.classification.variantRef,
-          };
+    selectionRevalidation = requiredBase;
   }
   const result = { ...correction, classification: payload.classification, selectionRevalidation };
   const auditEvidence = { evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason };

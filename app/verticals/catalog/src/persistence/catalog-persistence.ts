@@ -88,7 +88,7 @@ interface CorrectProductPersistenceInput {
   readonly productId: string;
   readonly reason: string;
   readonly tenantId: string;
-  readonly variantId: string | undefined;
+  readonly variantId?: string;
 }
 
 const CreateProductCreatedSchema = Schema.TaggedStruct('created', {

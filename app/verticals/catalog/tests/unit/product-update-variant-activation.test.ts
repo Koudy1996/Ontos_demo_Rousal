@@ -72,7 +72,7 @@ const makeTransaction = (getLocalizedName: () => string | null, lifecycleState: 
 });
 
 describe('Product update Variant activation', () => {
-  it.effect('derives Current readiness from localized names instead of the legacy label', () =>
+  it.effect('does not claim Current readiness from a localized name and ACTIVE rows alone', () =>
     Effect.gen(function* checkCurrentName() {
       let localizedName: string | null = null;
       const transaction = makeTransaction(() => localizedName, 'ACTIVE');
@@ -82,7 +82,7 @@ describe('Product update Variant activation', () => {
       expect(Option.getOrThrow(withoutTranslation).catalogReady).toBe(false);
       localizedName = 'Police Alfa';
       const withTranslation = yield* persistence.getCurrent(productId);
-      expect(Option.getOrThrow(withTranslation).catalogReady).toBe(true);
+      expect(Option.getOrThrow(withTranslation).catalogReady).toBe(false);
     }),
   );
 
