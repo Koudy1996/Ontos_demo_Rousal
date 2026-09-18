@@ -70,7 +70,7 @@ export const CorrectSkuActionAlreadyCommittedProblemSchema = makeProblemDetailsS
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_CORRECT_SKU'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -79,7 +79,7 @@ export const CorrectSkuActionCommitIndeterminateProblemSchema = makeProblemDetai
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_CORRECT_SKU'),
     retryCommand: Schema.Literal(false),
   },
 );

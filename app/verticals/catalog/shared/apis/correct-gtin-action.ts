@@ -76,7 +76,7 @@ export const CorrectGtinActionAlreadyCommittedProblemSchema = makeProblemDetails
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_CORRECT_GTIN'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -85,7 +85,7 @@ export const CorrectGtinActionCommitIndeterminateProblemSchema = makeProblemDeta
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_CORRECT_GTIN'),
     retryCommand: Schema.Literal(false),
   },
 );

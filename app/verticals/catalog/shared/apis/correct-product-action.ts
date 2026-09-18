@@ -81,7 +81,7 @@ export const CorrectProductActionAlreadyCommittedProblemSchema = makeProblemDeta
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_CORRECT_PRODUCT'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -90,7 +90,7 @@ export const CorrectProductActionCommitIndeterminateProblemSchema = makeProblemD
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_CORRECT_PRODUCT'),
     retryCommand: Schema.Literal(false),
   },
 );

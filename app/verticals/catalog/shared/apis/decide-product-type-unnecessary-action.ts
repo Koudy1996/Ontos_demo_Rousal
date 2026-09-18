@@ -75,7 +75,7 @@ export const DecideProductTypeUnnecessaryActionAlreadyCommittedProblemSchema = m
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_DECIDE_PRODUCT_TYPE_UNNECESSARY'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -84,7 +84,7 @@ export const DecideProductTypeUnnecessaryActionCommitIndeterminateProblemSchema 
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_DECIDE_PRODUCT_TYPE_UNNECESSARY'),
     retryCommand: Schema.Literal(false),
   },
 );
