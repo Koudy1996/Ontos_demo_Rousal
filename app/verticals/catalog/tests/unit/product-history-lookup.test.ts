@@ -64,6 +64,7 @@ const services: CatalogPersistence = {
   getHistory: () => Effect.succeed(Option.some(history)),
   reactivate: () => Effect.die('unused'),
   recoverCreateProduct: () => Effect.die('unused'),
+  recoverUpdateProduct: () => Effect.die('unused'),
   retire: () => Effect.die('unused'),
   update: () => Effect.die('unused'),
 };

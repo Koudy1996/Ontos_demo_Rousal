@@ -19,6 +19,8 @@ import {
 import type { ProductRef } from '../../shared/resources/product.ts';
 import { CreateProductResultSchema } from '../../shared/actions/create-product.ts';
 import type { CreateProductResult } from '../../shared/actions/create-product.ts';
+import { UpdateProductResultSchema } from '../../shared/actions/update-product.ts';
+import type { UpdateProductResult } from '../../shared/actions/update-product.ts';
 import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
 import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
@@ -381,6 +383,9 @@ export interface CatalogPersistence {
   readonly recoverCreateProduct: (
     invocationId: string,
   ) => Effect.Effect<CatalogActionRecovery<CreateProductResult>, never, ActionRuntime>;
+  readonly recoverUpdateProduct: (
+    invocationId: string,
+  ) => Effect.Effect<CatalogActionRecovery<UpdateProductResult>, never, ActionRuntime>;
   readonly retire: (
     input: RetireProductPersistenceInput,
   ) => Effect.Effect<RetireProductPersistenceOutcome, CatalogPersistenceConflict | CatalogPersistenceUnavailable>;
@@ -403,6 +408,17 @@ export const catalogPersistenceForScope = (
       {
         decode: Schema.decodeUnknownEffect(CreateProductResultSchema),
         encode: Schema.encodeEffect(CreateProductResultSchema),
+      },
+    );
+
+  const recoverUpdateProduct: CatalogPersistence['recoverUpdateProduct'] = (invocationId) =>
+    recoverCatalogActionResult(
+      transaction,
+      scope,
+      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.update-product', schemaVersion: 1 },
+      {
+        decode: Schema.decodeUnknownEffect(UpdateProductResultSchema),
+        encode: Schema.encodeEffect(UpdateProductResultSchema),
       },
     );
 
@@ -944,6 +960,7 @@ export const catalogPersistenceForScope = (
       getHistory,
       reactivate,
       recoverCreateProduct,
+      recoverUpdateProduct,
       retire,
       update,
     }),

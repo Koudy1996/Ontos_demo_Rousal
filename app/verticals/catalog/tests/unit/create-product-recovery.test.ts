@@ -70,6 +70,7 @@ const services = (recover: CatalogPersistence['recoverCreateProduct']): CatalogP
   getHistory: () => Effect.die('unused'),
   reactivate: () => Effect.die('unused'),
   recoverCreateProduct: recover,
+  recoverUpdateProduct: () => Effect.die('unused'),
   retire: () => Effect.die('unused'),
   update: () => Effect.die('unused'),
 });

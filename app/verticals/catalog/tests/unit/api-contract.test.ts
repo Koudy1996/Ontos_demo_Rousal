@@ -223,6 +223,7 @@ it.effect('rejects a foreign Product before resolving tenant-local persistence',
       getHistory: () => Effect.die('unused'),
       reactivate: () => Effect.die('unused'),
       recoverCreateProduct: () => Effect.die('unused'),
+      recoverUpdateProduct: () => Effect.die('unused'),
       retire: () => Effect.die('unused'),
       update: () => Effect.die('unused'),
     };
@@ -286,6 +287,7 @@ it.effect(
         getHistory: () => Effect.die('unused'),
         reactivate: () => Effect.die('unused'),
         recoverCreateProduct: () => Effect.die('unused'),
+        recoverUpdateProduct: () => Effect.die('unused'),
         retire: () => Effect.die('unused'),
         update: () => Effect.die('unused'),
       };
