@@ -1,9 +1,10 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { DateTime, Effect, Match } from 'effect';
 
 import type { SetProductUnitTargetDivisibilityPayload } from '../../shared/actions/set-product-unit-target-divisibility.ts';
-import { packageDefinitions, productVariants, products } from '../database/schema.ts';
+import { packageContentRevisions, packageDefinitions, productVariants, products } from '../database/schema.ts';
+import { resolveEffectiveRevision } from './package-persistence.ts';
 import { ProductUnitPersistenceUnavailable } from './product-unit-persistence.ts';
 
 const unavailable = (cause: unknown) => {
@@ -28,6 +29,37 @@ const validTargetSources = (target: VerifyTarget, expectedSources: VerifySources
   (target.targetType === 'commerce.catalog.variant'
     ? expectedSources.packageDefinition === undefined
     : expectedSources.packageDefinition !== undefined);
+
+const packageRevisionStatus = (
+  revisions: readonly (typeof packageContentRevisions.$inferSelect)[],
+  definition: typeof packageDefinitions.$inferSelect,
+  expectedRevision: number,
+  tenantId: string,
+  at: Date,
+): 'valid' | 'invalid' | 'stale' => {
+  if (revisions.length !== definition.currentRevision) {
+    return 'invalid';
+  }
+  const revision = Match.value(resolveEffectiveRevision(revisions, at)).pipe(
+    Match.tag('invalid', () => null),
+    Match.tag('resolved', ({ revision: effective }) => effective),
+    Match.exhaustive,
+  );
+  if (revision === null) {
+    return 'invalid';
+  }
+  const content = revisions.find((row) => row.revision === revision);
+  if (
+    content?.lifecycleState !== 'ACTIVE' ||
+    content.productId !== definition.productId ||
+    content.variantId !== definition.variantId ||
+    content.packageDefinitionId !== definition.packageDefinitionId ||
+    content.tenantId !== tenantId
+  ) {
+    return 'invalid';
+  }
+  return expectedRevision === revision ? 'valid' : 'stale';
+};
 
 export const productUnitTargetBasisForScope = (transaction: ScopedTransaction, scope: OperationalScope) => {
   const basis = {
@@ -58,8 +90,24 @@ export const productUnitTargetBasisForScope = (transaction: ScopedTransaction, s
         if (expectedSources.packageDefinition?.resourceRef.resourceId !== packageRow.packageDefinitionId) {
           return 'invalid' as const;
         }
-        if (expectedSources.packageDefinition.revision !== packageRow.currentRevision) {
-          return 'stale' as const;
+        const revisions = yield* transaction
+          .select()
+          .from(packageContentRevisions)
+          .where(
+            and(
+              eq(packageContentRevisions.tenantId, scope.tenantId),
+              eq(packageContentRevisions.packageDefinitionId, packageRow.packageDefinitionId),
+            ),
+          );
+        const status = packageRevisionStatus(
+          revisions,
+          packageRow,
+          expectedSources.packageDefinition.revision,
+          scope.tenantId,
+          DateTime.toDateUtc(yield* DateTime.now),
+        );
+        if (status !== 'valid') {
+          return status;
         }
         ({ variantId } = packageRow);
         packageProductId = packageRow.productId;
