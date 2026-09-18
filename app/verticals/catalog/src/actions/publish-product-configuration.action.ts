@@ -18,8 +18,13 @@ import type {
 } from '../persistence/product-configuration-persistence.ts';
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-configuration-published-v1.ts';
+import { createPublishProductConfigurationCommerceCatalogProductConfigurationPublishedV1OutboxMessage } from './publish-product-configuration-commerce-catalog-product-configuration-published-v1.outbox-message.ts';
 
 const ACTION_KEY = 'commerce.catalog.publish-product-configuration' as const;
+const MODULE_KEY = 'commerce.catalog' as const;
+const CONFIGURATION_PUBLISHED_EVENT_TYPE = 'commerce.catalog.product-configuration-published.v1' as const;
+const domainEvents = { [CONFIGURATION_PUBLISHED_EVENT_TYPE]: OutboxPayloadSchema } as const;
 
 const unavailable = () =>
   new ProductConfigurationPersistenceUnavailable({
@@ -43,7 +48,7 @@ const error = (
 export const handlePublishProductConfiguration = Effect.fn('PublishProductConfigurationAction.handle')(
   function* publishProductConfiguration(
     payload: typeof PublishProductConfigurationPayloadSchema.Type,
-    context: ActionHandlerContext<Readonly<Record<string, never>>, ProductConfigurationPersistence>,
+    context: ActionHandlerContext<typeof domainEvents, ProductConfigurationPersistence>,
   ) {
     const outcome = yield* context.services
       .publish({
@@ -62,7 +67,50 @@ export const handlePublishProductConfiguration = Effect.fn('PublishProductConfig
         }),
       );
     return yield* Match.value(outcome).pipe(
-      Match.tag('published', ({ revision }) => Effect.succeed({ definitionId: payload.definitionId, revision })),
+      Match.tag(
+        'published',
+        Effect.fn('PublishProductConfigurationAction.published')(function* recordPublication({
+          revision,
+        }: {
+          revision: number;
+        }) {
+          const eventPayload = yield* Schema.decodeEffect(OutboxPayloadSchema)({
+            definitionRef: {
+              moduleId: MODULE_KEY,
+              resourceId: payload.definitionId,
+              resourceType: 'commerce.catalog.product-configuration-definition' as const,
+              tenantId: context.scope.tenantId,
+            },
+            productRef: {
+              moduleId: MODULE_KEY,
+              resourceId: payload.productId,
+              resourceType: 'commerce.catalog.product' as const,
+              tenantId: context.scope.tenantId,
+            },
+            revision,
+            tenantId: context.scope.tenantId,
+          }).pipe(
+            Effect.mapError((cause) => {
+              const failure = error('product_configuration_unavailable', 'Publication event identity is invalid');
+              Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+              return failure;
+            }),
+          );
+          const event = yield* context.addDomainEvent({
+            eventType: CONFIGURATION_PUBLISHED_EVENT_TYPE,
+            payloadJson: eventPayload,
+            producerModuleKey: MODULE_KEY,
+            subjectModuleKey: eventPayload.definitionRef.moduleId,
+            subjectResourceId: eventPayload.definitionRef.resourceId,
+            subjectResourceType: eventPayload.definitionRef.resourceType,
+          });
+          yield* context.addOutboxMessage(
+            event,
+            createPublishProductConfigurationCommerceCatalogProductConfigurationPublishedV1OutboxMessage(eventPayload),
+          );
+          return { definitionId: payload.definitionId, revision };
+        }),
+      ),
       Match.tag('invalid', ({ reason }) => Effect.fail(error('product_configuration_invalid', reason))),
       Match.tag('incompatible', ({ reason }) => Effect.fail(error('product_configuration_invalid', reason))),
       Match.tag('not_found', () => Effect.fail(error('product_configuration_not_found', 'Definition was not found'))),
@@ -81,17 +129,17 @@ export const publishProductConfigurationAction = defineAction(
     actionKey: ACTION_KEY,
     auditProfile: 'standard',
     domainErrorSchema: PublishProductConfigurationError,
-    domainEvents: {},
+    domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
-      moduleKey: 'commerce.catalog',
+      entrypointKey: 'commerce.catalog.publish-product-configuration',
+      moduleKey: MODULE_KEY,
       role: 'action',
     }),
     idempotency: 'required',
     legalEntityScope: 'forbidden',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: MODULE_KEY,
     payloadSchema: PublishProductConfigurationPayloadSchema,
     policies: [],
     resultSchema: PublishProductConfigurationResultSchema,
@@ -129,4 +177,9 @@ export const publishProductConfigurationAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createPublishProductConfigurationCommerceCatalogProductConfigurationPublishedV1OutboxMessage } from './publish-product-configuration-commerce-catalog-product-configuration-published-v1.outbox-message.ts';
+export { PublishProductConfigurationCommerceCatalogProductConfigurationPublishedV1OutboxPayloadSchema } from './publish-product-configuration-commerce-catalog-product-configuration-published-v1.outbox-message.ts';
+export { PublishProductConfigurationCommerceCatalogProductConfigurationPublishedV1OutboxProducerModuleKey } from './publish-product-configuration-commerce-catalog-product-configuration-published-v1.outbox-message.ts';
+export { PublishProductConfigurationCommerceCatalogProductConfigurationPublishedV1OutboxTopic } from './publish-product-configuration-commerce-catalog-product-configuration-published-v1.outbox-message.ts';
+export type { PublishProductConfigurationCommerceCatalogProductConfigurationPublishedV1OutboxPayload } from './publish-product-configuration-commerce-catalog-product-configuration-published-v1.outbox-message.ts';
 // </generated-outbox-message-exports>
