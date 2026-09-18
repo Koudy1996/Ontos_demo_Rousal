@@ -104,6 +104,8 @@ const serviceWith = (
     readonly malformedItem?: boolean;
     readonly malformedRevision?: boolean;
     readonly malformedValueSnapshot?: boolean;
+    readonly malformedValueSnapshotSetId?: string;
+    readonly staleSnapshotDefinitionRevision?: boolean;
   } = {},
 ) => {
   const queried: QueryTable[] = [];
@@ -124,11 +126,14 @@ const serviceWith = (
         revision: set.currentRevision,
         tenantId,
         valueSnapshot: {
-          attributeDefinitionRevision: 2,
+          attributeDefinitionRevision: options.staleSnapshotDefinitionRevision === true ? 1 : 2,
           productTypeId: '88888888-8888-4888-8888-888888888888',
           productTypeRevision: 3,
           sourceProductValueRevision: null,
-          values: options.malformedValueSnapshot === true ? [{ kind: 'TEXT', text: 'wrong' }] : revisionValues,
+          values:
+            options.malformedValueSnapshot === true || options.malformedValueSnapshotSetId === set.attributeValueSetId
+              ? [{ kind: 'TEXT', text: 'wrong' }]
+              : revisionValues,
         },
       },
     ];
@@ -307,6 +312,41 @@ describe('private effective attribute value reads', () => {
         values: [{ kind: 'TEXT', text: 'aluminium' }],
         variantRevision: 2,
       });
+    }),
+  );
+
+  it.effect('rejects an inherited Product value that differs from its immutable snapshot', () =>
+    Effect.gen(function* driftedProduct() {
+      const reads = yield* serviceWith([productSet], { [productSetId]: 'steel' }, { malformedValueSnapshot: true })
+        .service;
+      expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+    }),
+  );
+
+  it.effect('rejects a Variant override that differs from its immutable snapshot', () =>
+    Effect.gen(function* driftedVariant() {
+      const reads = yield* serviceWith(
+        [productSet, variantSet],
+        {
+          [productSetId]: 'steel',
+          [variantSetId]: 'aluminium',
+        },
+        { malformedValueSnapshotSetId: variantSetId },
+      ).service;
+      expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+    }),
+  );
+
+  it.effect('rejects a Current value whose snapshot cites an outdated definition', () =>
+    Effect.gen(function* staleDefinition() {
+      const reads = yield* serviceWith(
+        [productSet],
+        { [productSetId]: 'steel' },
+        {
+          staleSnapshotDefinitionRevision: true,
+        },
+      ).service;
+      expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
     }),
   );
 

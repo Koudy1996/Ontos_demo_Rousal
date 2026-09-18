@@ -721,6 +721,15 @@ export const effectiveAttributeValueReadsForScope = (
         if (set.currentState !== 'SET' && set.currentState !== 'REMOVED') {
           return { snapshot: null, valid: false };
         }
+        const revisionSnapshot = Schema.decodeUnknownOption(ValueRevisionSnapshotSchema)(records[0]?.valueSnapshot);
+        if (
+          Option.isNone(revisionSnapshot) ||
+          !isDeepStrictEqual(revisionSnapshot.value.values, values.value) ||
+          (set.currentState === 'SET' &&
+            revisionSnapshot.value.attributeDefinitionRevision !== definition.currentRevision)
+        ) {
+          return { snapshot: null, valid: false };
+        }
         const snapshot: AttributeValueSetSnapshot = {
           revision: set.currentRevision,
           state: set.currentState,
