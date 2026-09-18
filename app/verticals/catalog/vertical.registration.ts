@@ -274,6 +274,13 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
         import('./src/api/set-product-attribute-values-recovery-client.ts'),
       'set-product-brand-recovery': () => import('./src/api/set-product-brand-recovery-client.ts'),
       'set-product-localized-facts-recovery': () => import('./src/api/set-product-localized-facts-recovery-client.ts'),
+      'set-product-manufacturer-recovery': () => import('./src/api/set-product-manufacturer-recovery-client.ts'),
+      'set-product-type-recovery': () => import('./src/api/set-product-type-recovery-client.ts'),
+      'set-product-unit-target-divisibility-recovery': () =>
+        import('./src/api/set-product-unit-target-divisibility-recovery-client.ts'),
+      'set-variant-attribute-override-recovery': () =>
+        import('./src/api/set-variant-attribute-override-recovery-client.ts'),
+      'set-variant-localized-facts-recovery': () => import('./src/api/set-variant-localized-facts-recovery-client.ts'),
       'sku-lookup': () => import('./src/api/sku-lookup-client.ts'),
       'update-product-recovery': () => import('./src/api/update-product-recovery-client.ts'),
       'variant-history': () => import('./src/api/variant-history-client.ts'),

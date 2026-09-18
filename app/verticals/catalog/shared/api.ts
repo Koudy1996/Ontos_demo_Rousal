@@ -173,10 +173,15 @@ import { SetProductBrandRecoveryApi } from './apis/set-product-brand-recovery.ts
 import { SetProductLocalizedFactsActionApi } from './apis/set-product-localized-facts-action.ts';
 import { SetProductLocalizedFactsRecoveryApi } from './apis/set-product-localized-facts-recovery.ts';
 import { SetProductManufacturerActionApi } from './apis/set-product-manufacturer-action.ts';
+import { SetProductManufacturerRecoveryApi } from './apis/set-product-manufacturer-recovery.ts';
 import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
+import { SetProductTypeRecoveryApi } from './apis/set-product-type-recovery.ts';
 import { SetProductUnitTargetDivisibilityActionApi } from './apis/set-product-unit-target-divisibility-action.ts';
+import { SetProductUnitTargetDivisibilityRecoveryApi } from './apis/set-product-unit-target-divisibility-recovery.ts';
 import { SetVariantAttributeOverrideActionApi } from './apis/set-variant-attribute-override-action.ts';
+import { SetVariantAttributeOverrideRecoveryApi } from './apis/set-variant-attribute-override-recovery.ts';
 import { SetVariantLocalizedFactsActionApi } from './apis/set-variant-localized-facts-action.ts';
+import { SetVariantLocalizedFactsRecoveryApi } from './apis/set-variant-localized-facts-recovery.ts';
 import { SkuLookupApi } from './apis/sku-lookup.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
 import { UpdateProductRecoveryApi } from './apis/update-product-recovery.ts';
@@ -370,10 +375,15 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(SetProductLocalizedFactsActionApi)
   .addHttpApi(SetProductLocalizedFactsRecoveryApi)
   .addHttpApi(SetProductManufacturerActionApi)
+  .addHttpApi(SetProductManufacturerRecoveryApi)
   .addHttpApi(SetProductTypeActionApi)
+  .addHttpApi(SetProductTypeRecoveryApi)
   .addHttpApi(SetProductUnitTargetDivisibilityActionApi)
+  .addHttpApi(SetProductUnitTargetDivisibilityRecoveryApi)
   .addHttpApi(SetVariantAttributeOverrideActionApi)
+  .addHttpApi(SetVariantAttributeOverrideRecoveryApi)
   .addHttpApi(SetVariantLocalizedFactsActionApi)
+  .addHttpApi(SetVariantLocalizedFactsRecoveryApi)
   .addHttpApi(SkuLookupApi)
   .addHttpApi(UpdateProductActionApi)
   .addHttpApi(UpdateProductRecoveryApi)
@@ -1227,6 +1237,46 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.set-product-manufacturer-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.set-product-manufacturer-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-product-type-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.set-product-type-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-product-unit-target-divisibility-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product-unit',
+    permission: 'commerce.catalog.read.set-product-unit-target-divisibility-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-variant-attribute-override-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.set-variant-attribute-override-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.set-variant-localized-facts-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.set-variant-localized-facts-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.sku-lookup': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
@@ -1939,6 +1989,11 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.set-product-attribute-values-recovery',
     'commerce.catalog.read.set-product-brand-recovery',
     'commerce.catalog.read.set-product-localized-facts-recovery',
+    'commerce.catalog.read.set-product-manufacturer-recovery',
+    'commerce.catalog.read.set-product-type-recovery',
+    'commerce.catalog.read.set-product-unit-target-divisibility-recovery',
+    'commerce.catalog.read.set-variant-attribute-override-recovery',
+    'commerce.catalog.read.set-variant-localized-facts-recovery',
     'commerce.catalog.read.retire-brand-recovery',
     'commerce.catalog.read.retire-configuration-unit-recovery',
     'commerce.catalog.read.retire-controlled-attribute-value-recovery',

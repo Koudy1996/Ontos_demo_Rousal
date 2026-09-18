@@ -188,10 +188,15 @@ import { SetProductBrandRecoveryApi } from './shared/apis/set-product-brand-reco
 import { setProductLocalizedFactsAction } from './src/actions/set-product-localized-facts.action.ts';
 import { SetProductLocalizedFactsRecoveryApi } from './shared/apis/set-product-localized-facts-recovery.ts';
 import { setProductManufacturerAction } from './src/actions/set-product-manufacturer.action.ts';
+import { SetProductManufacturerRecoveryApi } from './shared/apis/set-product-manufacturer-recovery.ts';
 import { setProductTypeAction } from './src/actions/set-product-type.action.ts';
+import { SetProductTypeRecoveryApi } from './shared/apis/set-product-type-recovery.ts';
 import { setProductUnitTargetDivisibilityAction } from './src/actions/set-product-unit-target-divisibility.action.ts';
+import { SetProductUnitTargetDivisibilityRecoveryApi } from './shared/apis/set-product-unit-target-divisibility-recovery.ts';
 import { setVariantAttributeOverrideAction } from './src/actions/set-variant-attribute-override.action.ts';
+import { SetVariantAttributeOverrideRecoveryApi } from './shared/apis/set-variant-attribute-override-recovery.ts';
 import { setVariantLocalizedFactsAction } from './src/actions/set-variant-localized-facts.action.ts';
+import { SetVariantLocalizedFactsRecoveryApi } from './shared/apis/set-variant-localized-facts-recovery.ts';
 import { SkuLookupApi } from './shared/apis/sku-lookup.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
 import { UpdateProductRecoveryApi } from './shared/apis/update-product-recovery.ts';
@@ -407,6 +412,11 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'set-product-attribute-values-recovery': SetProductAttributeValuesRecoveryApi,
       'set-product-brand-recovery': SetProductBrandRecoveryApi,
       'set-product-localized-facts-recovery': SetProductLocalizedFactsRecoveryApi,
+      'set-product-manufacturer-recovery': SetProductManufacturerRecoveryApi,
+      'set-product-type-recovery': SetProductTypeRecoveryApi,
+      'set-product-unit-target-divisibility-recovery': SetProductUnitTargetDivisibilityRecoveryApi,
+      'set-variant-attribute-override-recovery': SetVariantAttributeOverrideRecoveryApi,
+      'set-variant-localized-facts-recovery': SetVariantLocalizedFactsRecoveryApi,
       'sku-lookup': SkuLookupApi,
       'update-product-recovery': UpdateProductRecoveryApi,
       'variant-history': VariantHistoryApi,

@@ -191,10 +191,15 @@ import { setProductBrandRecoveryReadApiLive } from './set-product-brand-recovery
 import { setProductLocalizedFactsActionApiLive } from './set-product-localized-facts-action-server.ts';
 import { setProductLocalizedFactsRecoveryReadApiLive } from './set-product-localized-facts-recovery-read-server.ts';
 import { setProductManufacturerActionApiLive } from './set-product-manufacturer-action-server.ts';
+import { setProductManufacturerRecoveryReadApiLive } from './set-product-manufacturer-recovery-read-server.ts';
 import { setProductTypeActionApiLive } from './set-product-type-action-server.ts';
+import { setProductTypeRecoveryReadApiLive } from './set-product-type-recovery-read-server.ts';
 import { setProductUnitTargetDivisibilityActionApiLive } from './set-product-unit-target-divisibility-action-server.ts';
+import { setProductUnitTargetDivisibilityRecoveryReadApiLive } from './set-product-unit-target-divisibility-recovery-read-server.ts';
 import { setVariantAttributeOverrideActionApiLive } from './set-variant-attribute-override-action-server.ts';
+import { setVariantAttributeOverrideRecoveryReadApiLive } from './set-variant-attribute-override-recovery-read-server.ts';
 import { setVariantLocalizedFactsActionApiLive } from './set-variant-localized-facts-action-server.ts';
+import { setVariantLocalizedFactsRecoveryReadApiLive } from './set-variant-localized-facts-recovery-read-server.ts';
 import { skuLookupReadApiLive } from './sku-lookup-read-server.ts';
 import { updateProductActionApiLive } from './update-product-action-server.ts';
 import { updateProductRecoveryReadApiLive } from './update-product-recovery-read-server.ts';
@@ -464,10 +469,15 @@ export const makeCatalogApiRuntime = (
     setProductLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setProductLocalizedFactsRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setProductManufacturerRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setProductTypeRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductUnitTargetDivisibilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setProductUnitTargetDivisibilityRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setVariantAttributeOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setVariantAttributeOverrideRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setVariantLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    setVariantLocalizedFactsRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     skuLookupReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     updateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     updateProductRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),

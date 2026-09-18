@@ -97,6 +97,11 @@ import { replaceProductSizesRecoveryRead } from '../../src/api/replace-product-s
 import { setProductAttributeValuesRecoveryRead } from '../../src/api/set-product-attribute-values-recovery.read.ts';
 import { setProductBrandRecoveryRead } from '../../src/api/set-product-brand-recovery.read.ts';
 import { setProductLocalizedFactsRecoveryRead } from '../../src/api/set-product-localized-facts-recovery.read.ts';
+import { setProductManufacturerRecoveryRead } from '../../src/api/set-product-manufacturer-recovery.read.ts';
+import { setProductTypeRecoveryRead } from '../../src/api/set-product-type-recovery.read.ts';
+import { setProductUnitTargetDivisibilityRecoveryRead } from '../../src/api/set-product-unit-target-divisibility-recovery.read.ts';
+import { setVariantAttributeOverrideRecoveryRead } from '../../src/api/set-variant-attribute-override-recovery.read.ts';
+import { setVariantLocalizedFactsRecoveryRead } from '../../src/api/set-variant-localized-facts-recovery.read.ts';
 import { setCompositionCurrentRead } from '../../src/api/set-composition-current.read.ts';
 import { setCompositionHistoryRead } from '../../src/api/set-composition-history.read.ts';
 
@@ -196,6 +201,11 @@ const reads = [
   setProductAttributeValuesRecoveryRead,
   setProductBrandRecoveryRead,
   setProductLocalizedFactsRecoveryRead,
+  setProductManufacturerRecoveryRead,
+  setProductTypeRecoveryRead,
+  setProductUnitTargetDivisibilityRecoveryRead,
+  setVariantAttributeOverrideRecoveryRead,
+  setVariantLocalizedFactsRecoveryRead,
   setCompositionCurrentRead,
   setCompositionHistoryRead,
 ] as const;
