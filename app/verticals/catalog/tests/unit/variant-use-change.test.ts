@@ -182,15 +182,54 @@ describe('Variant use change classification (#441)', () => {
       const key = 'a'.repeat(64);
       const collision = yield* revalidateVariantReactivation({
         activeCombinationKeys: [key],
+        parentProductLifecycle: 'ACTIVE',
         reactivationCombinationKey: key,
+        requiredPackageOptions: [],
       }).pipe(Effect.flip);
       expect(collision).toMatchObject({ conflict: 'DUPLICATE_COMBINATION' });
 
       const clean = yield* revalidateVariantReactivation({
         activeCombinationKeys: ['b'.repeat(64)],
+        parentProductLifecycle: 'ACTIVE',
         reactivationCombinationKey: key,
+        requiredPackageOptions: [],
       });
       expect(clean).toEqual({ changeKind: 'CORRECTED', revalidation: 'REQUIRED' });
+    }),
+  );
+
+  it.effect('blocks reactivation under a retired parent Product before checking combinations', () =>
+    Effect.gen(function* retiredParent() {
+      const key = 'a'.repeat(64);
+      const failure = yield* revalidateVariantReactivation({
+        activeCombinationKeys: [],
+        parentProductLifecycle: 'RETIRED',
+        reactivationCombinationKey: key,
+        requiredPackageOptions: [],
+      }).pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeConflict)(failure)).toBe(true);
+      expect(failure).toMatchObject({ conflict: 'RETIRED_PARENT_PRODUCT' });
+    }),
+  );
+
+  it.effect('blocks reactivation while a required Package Option is retired or inactive', () =>
+    Effect.gen(function* retiredPackageOption() {
+      const key = 'a'.repeat(64);
+      const retired = yield* revalidateVariantReactivation({
+        activeCombinationKeys: ['b'.repeat(64)],
+        parentProductLifecycle: 'ACTIVE',
+        reactivationCombinationKey: key,
+        requiredPackageOptions: [{ lifecycle: 'ACTIVE' }, { lifecycle: 'RETIRED' }],
+      }).pipe(Effect.flip);
+      expect(retired).toMatchObject({ conflict: 'RETIRED_PACKAGE_OPTION' });
+
+      const active = yield* revalidateVariantReactivation({
+        activeCombinationKeys: ['b'.repeat(64)],
+        parentProductLifecycle: 'ACTIVE',
+        reactivationCombinationKey: key,
+        requiredPackageOptions: [{ lifecycle: 'ACTIVE' }],
+      });
+      expect(active).toEqual({ changeKind: 'CORRECTED', revalidation: 'REQUIRED' });
     }),
   );
 });

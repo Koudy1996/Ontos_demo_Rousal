@@ -75,6 +75,8 @@ export class VariantUseChangeConflict extends Schema.TaggedError<VariantUseChang
       'UNVERIFIABLE_VALUE',
       'UNRECORDED_COMBINATION',
       'WRONG_PRODUCT',
+      'RETIRED_PARENT_PRODUCT',
+      'RETIRED_PACKAGE_OPTION',
     ]),
     reason: Schema.String,
   },
@@ -224,20 +226,44 @@ export const revalidateVariantAxisChange = (
     : Effect.fail(mapAxisIssue(issue));
 };
 
-export interface VariantReactivationCollisionInput {
-  readonly activeCombinationKeys: readonly string[];
-  readonly reactivationCombinationKey: string;
+export interface VariantReactivationRequiredPackageOption {
+  readonly lifecycle: 'ACTIVE' | 'RETIRED';
 }
 
-/** A reactivated Variant must reproduce its recorded identity and cannot collide with a Current one. */
+export interface VariantReactivationRevalidationInput {
+  readonly activeCombinationKeys: readonly string[];
+  readonly parentProductLifecycle: 'ACTIVE' | 'DRAFT' | 'RETIRED';
+  readonly reactivationCombinationKey: string;
+  readonly requiredPackageOptions: readonly VariantReactivationRequiredPackageOption[];
+}
+
+/**
+ * A reactivated Variant must reproduce its recorded identity and cannot collide with a Current one.
+ * A retired parent Product still blocks new Current use, and reactivation alone never restores an
+ * individually retired or inactive Package Option.
+ */
 export const revalidateVariantReactivation = (
-  input: VariantReactivationCollisionInput,
-): Effect.Effect<VariantUseChangeDecision, VariantUseChangeConflict> =>
-  input.activeCombinationKeys.some((key) => key === input.reactivationCombinationKey)
+  input: VariantReactivationRevalidationInput,
+): Effect.Effect<VariantUseChangeDecision, VariantUseChangeConflict> => {
+  if (input.parentProductLifecycle === 'RETIRED') {
+    return Effect.fail(
+      conflict('RETIRED_PARENT_PRODUCT', 'A retired parent Product continues to block new Current use'),
+    );
+  }
+  if (input.requiredPackageOptions.some((option) => option.lifecycle !== 'ACTIVE')) {
+    return Effect.fail(
+      conflict(
+        'RETIRED_PACKAGE_OPTION',
+        'Reactivation does not restore an individually retired or inactive Package Option',
+      ),
+    );
+  }
+  return input.activeCombinationKeys.some((key) => key === input.reactivationCombinationKey)
     ? Effect.fail(
         conflict('DUPLICATE_COMBINATION', 'Reactivation would collide with an existing Current Variant combination'),
       )
     : Effect.succeed(preserve('CORRECTED', 'REQUIRED'));
+};
 
 /** #479 consumes this handoff and performs final Current Catalog Selection revalidation. */
 export const VariantSelectionRevalidationRequiredSchema = Schema.Struct({

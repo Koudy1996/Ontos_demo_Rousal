@@ -6,6 +6,10 @@ import {
   variantUseChangePersistenceForAxes,
 } from '../../src/persistence/variant-use-change-persistence.ts';
 import type {
+  VariantReactivationBasis,
+  VariantReactivationBasisPersistence,
+} from '../../src/persistence/variant-use-change-persistence.ts';
+import type {
   CurrentVariantAxes,
   CurrentVariantAxisValue,
   VariantAxisPersistence,
@@ -60,7 +64,13 @@ const value: CurrentVariantAxisValue = {
 };
 const reactivationKey = recordedVariantCombinationKey([value], tenantId);
 const unexpected = () => Effect.die('Unexpected axis read');
-const persistence = (overrides: Partial<VariantAxisPersistence>) => {
+const basis = (overrides: Partial<VariantReactivationBasis> = {}): VariantReactivationBasisPersistence => ({
+  read: () => Effect.succeed({ parentProductLifecycle: 'ACTIVE', requiredPackageOptions: [], ...overrides }),
+});
+const persistence = (
+  overrides: Partial<VariantAxisPersistence>,
+  basisOverrides: Partial<VariantReactivationBasis> = {},
+) => {
   const service: VariantAxisPersistence = {
     govern: unexpected,
     readCurrent: () => Effect.succeed(axes),
@@ -70,7 +80,7 @@ const persistence = (overrides: Partial<VariantAxisPersistence>) => {
     readRecordedVariants: unexpected,
     ...overrides,
   };
-  return variantUseChangePersistenceForAxes(service, tenantId);
+  return variantUseChangePersistenceForAxes(service, basis(basisOverrides), tenantId);
 };
 
 describe('Variant use change persistence (#441)', () => {
@@ -91,6 +101,51 @@ describe('Variant use change persistence (#441)', () => {
     Effect.gen(function* clean() {
       const decision = yield* persistence({}).assessReactivation({ productRef, variantRef });
       expect(decision).toEqual({ changeKind: 'CORRECTED', revalidation: 'REQUIRED' });
+    }),
+  );
+
+  it.effect('blocks a retired parent Product before looking for a Current collision', () =>
+    Effect.gen(function* retiredParent() {
+      const failure = yield* persistence({}, { parentProductLifecycle: 'RETIRED' })
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeConflict)(failure)).toBe(true);
+      expect(failure).toMatchObject({ conflict: 'RETIRED_PARENT_PRODUCT' });
+    }),
+  );
+
+  it.effect('blocks reactivation while a required Package Option is retired or inactive', () =>
+    Effect.gen(function* retiredPackageOption() {
+      const failure = yield* persistence({}, { requiredPackageOptions: [{ lifecycle: 'RETIRED' }] })
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeConflict)(failure)).toBe(true);
+      expect(failure).toMatchObject({ conflict: 'RETIRED_PACKAGE_OPTION' });
+    }),
+  );
+
+  it.effect('fails closed when the owner-issued reactivation lifecycle basis is unavailable', () =>
+    Effect.gen(function* unavailableReactivationBasis() {
+      const failure = yield* variantUseChangePersistenceForAxes(
+        {
+          govern: unexpected,
+          readCurrent: () => Effect.succeed(axes),
+          readEffectiveValues: () => Effect.succeed([value]),
+          readRecordedCombinations: () =>
+            Effect.succeed([{ axisRevision: 1, combinationKey: 'a'.repeat(64), variantId: otherVariantId }]),
+          readRecordedVariants: unexpected,
+        },
+        {
+          read: () =>
+            Effect.fail(
+              new VariantUseChangeBasisUnavailable({ code: 'variant_use_change_basis_unavailable', reason: 'missing' }),
+            ),
+        },
+        tenantId,
+      )
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeBasisUnavailable)(failure)).toBe(true);
     }),
   );
 
