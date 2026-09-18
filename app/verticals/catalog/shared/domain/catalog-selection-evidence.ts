@@ -345,6 +345,7 @@ export const CatalogSelectionAssessmentResultSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('CONFLICT'), reason: nonEmptyText }),
   Schema.Struct({ kind: Schema.Literal('UNAVAILABLE'), reason: nonEmptyText }),
 ]);
+export type CatalogSelectionAssessmentResult = typeof CatalogSelectionAssessmentResultSchema.Type;
 
 /** Accepted Order evidence is historical; it is never a Current validation result. */
 export const CatalogAcceptedSelectionEvidenceSchema = Schema.Struct({

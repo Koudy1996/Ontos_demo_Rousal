@@ -90,6 +90,7 @@ export const CatalogSelectionOwnerAssessmentResultSchema = Schema.Union([
   CatalogSelectionNotCatalogOwnedSchema,
   CatalogSelectionUnverifiableOwnerEvidenceSchema,
 ]);
+export type CatalogSelectionOwnerAssessmentResult = typeof CatalogSelectionOwnerAssessmentResultSchema.Type;
 
 export interface CatalogSelectionOwnerFactRequest {
   readonly owner: CatalogSelectionExternalOwner;
