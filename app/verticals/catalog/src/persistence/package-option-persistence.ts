@@ -1,9 +1,10 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { DateTime, Effect, Option, Schema } from 'effect';
+import { DateTime, Effect, Match, Option, Schema } from 'effect';
 
 import { assessPackageOption } from '../../shared/domain/package-option.ts';
 import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revision-reference.ts';
+import { resolveEffectiveRevision } from './package-persistence.ts';
 import {
   packageContentRevisions,
   packageDefinitions,
@@ -152,18 +153,32 @@ const optionOf = <T>(value: T | undefined): Option.Option<T> =>
 const trustedFinding = (candidate: Option.Option<PackageOptionRoleFinding>): Option.Option<PackageOptionRoleFinding> =>
   Option.isSome(candidate) && validFinding(candidate.value) ? candidate : Option.none();
 
+const effectiveContent = (contents: readonly Content[], row: Definition, at: Date): Content | undefined => {
+  if (contents.length < row.currentRevision || contents.length > row.currentRevision + 1) {
+    return undefined;
+  }
+  const resolved = resolveEffectiveRevision(contents, at);
+  return Option.getOrUndefined(
+    Match.value(resolved).pipe(
+      Match.tag('resolved', (value) => optionOf(contents.find((candidate) => candidate.revision === value.revision))),
+      Match.orElse(() => Option.none<Content>()),
+    ),
+  );
+};
+
 const findingForTransition = Effect.fn('PackageOptionPersistence.findingForTransition')(function* findingForTransition(
   kind: Transition,
   transaction: ScopedTransaction,
   tenantId: string,
   row: Definition,
+  effectiveRevision: number,
   roleBasis: PackageOptionRoleBasis | undefined,
 ) {
   if (kind === 'ACTIVATE') {
     return roleBasis === undefined
       ? Option.none()
       : yield* roleBasis.verify({
-          contentRevision: row.currentRevision,
+          contentRevision: effectiveRevision,
           packageDefinitionId: row.packageDefinitionId,
           productId: row.productId,
           tenantId,
@@ -186,7 +201,7 @@ const findingForTransition = Effect.fn('PackageOptionPersistence.findingForTrans
     prior?.state !== 'ACTIVE' ||
     !Number.isSafeInteger(prior.contentRevision) ||
     prior.contentRevision <= 0 ||
-    prior.contentRevision > row.currentRevision ||
+    prior.contentRevision > effectiveRevision ||
     prior.productId !== row.productId ||
     prior.variantId !== row.variantId
   ) {
@@ -216,18 +231,11 @@ export const packageOptionPersistenceForScope = (
       .for('update')
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-  const loadContent = (id: string, revision: number) =>
+  const loadContents = (id: string) =>
     transaction
       .select()
       .from(packageContentRevisions)
-      .where(
-        and(
-          eq(packageContentRevisions.tenantId, tenantId),
-          eq(packageContentRevisions.packageDefinitionId, id),
-          eq(packageContentRevisions.revision, revision),
-        ),
-      )
-      .limit(1)
+      .where(and(eq(packageContentRevisions.tenantId, tenantId), eq(packageContentRevisions.packageDefinitionId, id)))
       .pipe(Effect.mapError(unavailable));
   const loadProduct = (id: string) =>
     transaction
@@ -271,22 +279,25 @@ export const packageOptionPersistenceForScope = (
     if (row === undefined) {
       return { _tag: 'not_found' as const };
     }
+    const now = DateTime.toDateUtc(yield* DateTime.now);
+    const contents = yield* loadContents(row.packageDefinitionId);
+    const content = effectiveContent(contents, row, now);
+    if (content === undefined || invalidCurrent(row, content)) {
+      return yield* unavailable();
+    }
+    const effectiveRevision = content.revision;
     if (
-      row.currentRevision !== input.expectedContentRevision ||
+      effectiveRevision !== input.expectedContentRevision ||
       row.currentOptionRevision !== input.expectedOptionRevision
     ) {
       return {
         _tag: 'stale' as const,
-        actualContentRevision: row.currentRevision,
+        actualContentRevision: effectiveRevision,
         actualOptionRevision: row.currentOptionRevision,
       };
     }
     const authorityMissing = selectionImpact === undefined || (kind === 'ACTIVATE' && roleBasis === undefined);
     if (authorityMissing) {
-      return yield* unavailable();
-    }
-    const [content] = yield* loadContent(row.packageDefinitionId, row.currentRevision);
-    if (invalidCurrent(row, content) || content === undefined) {
       return yield* unavailable();
     }
     // One scoped transaction/connection: keep row locks deterministic, not concurrent.
@@ -308,14 +319,21 @@ export const packageOptionPersistenceForScope = (
     if (problem !== undefined) {
       return { _tag: 'invalid' as const, reason: problem };
     }
-    const candidateFinding = yield* findingForTransition(kind, transaction, tenantId, row, roleBasis);
+    const candidateFinding = yield* findingForTransition(
+      kind,
+      transaction,
+      tenantId,
+      row,
+      effectiveRevision,
+      roleBasis,
+    );
     const findingOption = trustedFinding(candidateFinding);
     if (Option.isNone(findingOption)) {
       return { _tag: 'invalid' as const, reason: 'Independent role evidence is invalid' };
     }
     const finding = findingOption.value;
     if (kind === 'ACTIVATE') {
-      const contentRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(row.currentRevision).pipe(
+      const contentRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(effectiveRevision).pipe(
         Effect.mapError(unavailable),
       );
       const decision = assessPackageOption(
@@ -362,7 +380,7 @@ export const packageOptionPersistenceForScope = (
     }
     if (
       !(yield* selectionImpact.verify({
-        contentRevision: row.currentRevision,
+        contentRevision: effectiveRevision,
         packageDefinitionId: row.packageDefinitionId,
         tenantId,
         transition: kind,
@@ -372,7 +390,6 @@ export const packageOptionPersistenceForScope = (
     }
     const state = kind === 'ACTIVATE' ? ('ACTIVE' as const) : ('RETIRED' as const);
     const revision = row.currentOptionRevision + 1;
-    const now = DateTime.toDateUtc(yield* DateTime.now);
     const [updated] = yield* transaction
       .update(packageDefinitions)
       .set({ currentOptionRevision: revision, optionState: state, updatedAt: now })
@@ -389,7 +406,7 @@ export const packageOptionPersistenceForScope = (
     if (updated === undefined) {
       return {
         _tag: 'stale' as const,
-        actualContentRevision: row.currentRevision,
+        actualContentRevision: effectiveRevision,
         actualOptionRevision: row.currentOptionRevision,
       };
     }
@@ -398,7 +415,7 @@ export const packageOptionPersistenceForScope = (
       .values({
         actingPrincipalId: scope.principalId,
         actionInvocationId: input.actionInvocationId,
-        contentRevision: row.currentRevision,
+        contentRevision: effectiveRevision,
         effectiveAt: now,
         evidenceRefs: [...finding.evidenceRefs],
         independentlyRequested: finding.independentlyRequested,
@@ -412,7 +429,7 @@ export const packageOptionPersistenceForScope = (
         variantId: row.variantId,
       })
       .pipe(Effect.mapError(unavailable));
-    return { _tag: 'changed' as const, contentRevision: row.currentRevision, optionRevision: revision, state };
+    return { _tag: 'changed' as const, contentRevision: effectiveRevision, optionRevision: revision, state };
   });
   return {
     activate: (input) => transition('ACTIVATE', input),

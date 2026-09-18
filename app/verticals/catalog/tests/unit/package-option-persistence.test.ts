@@ -40,6 +40,7 @@ const definition = {
   variantId,
 };
 const content = {
+  effectiveAt: new Date('1900-01-01T00:00:00.000Z'),
   lifecycleState: 'ACTIVE',
   packageDefinitionId,
   productId,
@@ -69,9 +70,9 @@ type DefinitionFixture = typeof definition;
 
 const lockedRows = (table: Table, current: DefinitionFixture) =>
   table === packageDefinitions ? [current] : [{ lifecycleState: 'ACTIVE' }];
-const contentRows = (table: Table, current: DefinitionFixture) => {
+const contentRows = (table: Table, current: DefinitionFixture, revisions: readonly (typeof content)[]) => {
   if (table === packageContentRevisions) {
-    return [content];
+    return revisions;
   }
   if (table === packageOptionRoleRevisions) {
     return [
@@ -88,10 +89,10 @@ const contentRows = (table: Table, current: DefinitionFixture) => {
   }
   return [{ lifecycleState: 'ACTIVE' }];
 };
-const queryFor = (table: Table, current: DefinitionFixture) => {
+const queryFor = (table: Table, current: DefinitionFixture, revisions: readonly (typeof content)[]) => {
   const lockedLimit = () => Effect.succeed(lockedRows(table, current));
-  const plainLimit = () => Effect.succeed(contentRows(table, current));
-  return { where: () => ({ for: () => ({ limit: lockedLimit }), limit: plainLimit }) };
+  const plainRows = Effect.succeed(contentRows(table, current, revisions));
+  return { where: () => ({ for: () => ({ limit: lockedLimit }), limit: () => plainRows, pipe: () => plainRows }) };
 };
 const updateFor = (table: Table, writes: Write[], current: DefinitionFixture) => ({
   set: (value: Partial<typeof packageDefinitions.$inferInsert>) => ({
@@ -109,9 +110,13 @@ const insertFor = (table: Table, writes: Write[]) => ({
     return Effect.succeed([]);
   },
 });
-const mockTransaction = (writes: Write[], current = definition) => ({
+const mockTransaction = (
+  writes: Write[],
+  current = definition,
+  revisions: readonly (typeof content)[] = [content],
+) => ({
   insert: (table: Table) => insertFor(table, writes),
-  select: () => ({ from: (table: Table) => queryFor(table, current) }),
+  select: () => ({ from: (table: Table) => queryFor(table, current, revisions) }),
   update: (table: Table) => updateFor(table, writes, current),
 });
 
@@ -156,6 +161,132 @@ describe('Package Option persistence', () => {
             validationReason: finding.validationReason,
           }),
         ],
+      ]);
+    }),
+  );
+
+  it.effect('keeps scheduled content out of the Current role until its effective time', () =>
+    Effect.gen(function* scheduled() {
+      const writes: Write[] = [];
+      const observed: number[] = [];
+      const future = { ...content, effectiveAt: new Date('2100-01-01T00:00:00.000Z'), revision: 2 };
+      const service = packageOptionPersistenceForScope(
+        // @ts-expect-error Only exercised Drizzle chains are mocked.
+        mockTransaction(writes, definition, [content, future]),
+        scope,
+        {
+          verify: ({ contentRevision }) => {
+            observed.push(contentRevision);
+            return Effect.succeed(Option.some(finding));
+          },
+        },
+        {
+          verify: ({ contentRevision }) => {
+            observed.push(contentRevision);
+            return Effect.succeed(true);
+          },
+        },
+      );
+      const outcome = yield* service.activate(input);
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('changed', (value) => value.contentRevision),
+          Match.orElse(() => 0),
+        ),
+      ).toBe(1);
+      expect(observed).toEqual([1, 1]);
+      expect(writes[1]).toEqual([packageOptionRoleRevisions, expect.objectContaining({ contentRevision: 1 })]);
+    }),
+  );
+
+  it.effect('uses the effective successor even while the Definition pointer remains old', () =>
+    Effect.gen(function* effectiveSuccessor() {
+      const writes: Write[] = [];
+      const observed: number[] = [];
+      const successor = { ...content, effectiveAt: new Date('1950-01-01T00:00:00.000Z'), revision: 2 };
+      const service = packageOptionPersistenceForScope(
+        // @ts-expect-error Only exercised Drizzle chains are mocked.
+        mockTransaction(writes, definition, [content, successor]),
+        scope,
+        {
+          verify: ({ contentRevision }) => {
+            observed.push(contentRevision);
+            return Effect.succeed(Option.some(finding));
+          },
+        },
+        {
+          verify: ({ contentRevision }) => {
+            observed.push(contentRevision);
+            return Effect.succeed(true);
+          },
+        },
+      );
+      const stale = yield* service.activate(input);
+      expect(
+        Match.value(stale).pipe(
+          Match.tag('stale', (value) => value.actualContentRevision),
+          Match.orElse(() => 0),
+        ),
+      ).toBe(2);
+      expect(observed).toEqual([]);
+      const outcome = yield* service.activate({ ...input, expectedContentRevision: 2 });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('changed', (value) => value.contentRevision),
+          Match.orElse(() => 0),
+        ),
+      ).toBe(2);
+      expect(observed).toEqual([2, 2]);
+      expect(writes[1]).toEqual([packageOptionRoleRevisions, expect.objectContaining({ contentRevision: 2 })]);
+    }),
+  );
+
+  it.effect('fails closed on a broken content chain before role evidence or writes', () =>
+    Effect.gen(function* brokenChain() {
+      const writes: Write[] = [];
+      let consulted = false;
+      const broken = { ...content, effectiveAt: new Date('1950-01-01T00:00:00.000Z'), revision: 3 };
+      const service = packageOptionPersistenceForScope(
+        // @ts-expect-error Only exercised Drizzle chains are mocked.
+        mockTransaction(writes, definition, [content, broken]),
+        scope,
+        {
+          verify: () => {
+            consulted = true;
+            return Effect.succeed(Option.some(finding));
+          },
+        },
+        { verify: () => Effect.succeed(true) },
+      );
+      const error = yield* service.activate(input).pipe(Effect.flip);
+      expect(Schema.is(PackageOptionPersistenceUnavailable)(error)).toBe(true);
+      expect(consulted).toBe(false);
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('retires against effective successor while retaining the attested role evidence', () =>
+    Effect.gen(function* retireSuccessor() {
+      const writes: Write[] = [];
+      const active = { ...definition, currentOptionRevision: 1, optionState: 'ACTIVE' };
+      const successor = { ...content, effectiveAt: new Date('1950-01-01T00:00:00.000Z'), revision: 2 };
+      const service = packageOptionPersistenceForScope(
+        // @ts-expect-error Only exercised Drizzle chains are mocked.
+        mockTransaction(writes, active, [content, successor]),
+        scope,
+        undefined,
+        { verify: ({ contentRevision }) => Effect.succeed(contentRevision === 2) },
+      );
+      const outcome = yield* service.retire({ ...input, expectedContentRevision: 2, expectedOptionRevision: 1 });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('changed', (value) => [value.contentRevision, value.state]),
+          Match.orElse(() => []),
+        ),
+      ).toEqual([2, 'RETIRED']);
+      expect(writes[1]).toEqual([
+        packageOptionRoleRevisions,
+        expect.objectContaining({ contentRevision: 2, evidenceRefs: finding.evidenceRefs, state: 'RETIRED' }),
       ]);
     }),
   );
