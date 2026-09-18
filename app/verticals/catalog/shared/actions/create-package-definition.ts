@@ -16,4 +16,3 @@ export const CreatePackageDefinitionPayloadSchema = Schema.Struct({
 });
 export type CreatePackageDefinitionPayload = typeof CreatePackageDefinitionPayloadSchema.Type;
 export const CreatePackageDefinitionResultSchema = PackageDefinitionMutationResultSchema;
-export type CreatePackageDefinitionResult = typeof CreatePackageDefinitionResultSchema.Type;

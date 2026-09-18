@@ -34,7 +34,6 @@ export const CreateProductCategoryResultSchema = Schema.Struct({
   changed: Schema.Boolean,
   hierarchyRevision: CategoryCounterSchema,
 });
-export type CreateProductCategoryResult = typeof CreateProductCategoryResultSchema.Type;
 
 export class CategoryRevisionConflict extends Schema.TaggedError<CategoryRevisionConflict>()(
   'CategoryRevisionConflict',

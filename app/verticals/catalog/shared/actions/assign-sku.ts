@@ -23,4 +23,3 @@ export const AssignSkuPayloadSchema = Schema.Struct({
 });
 export type AssignSkuPayload = typeof AssignSkuPayloadSchema.Type;
 export const AssignSkuResultSchema = Schema.Struct({ revision: Schema.Int });
-export type AssignSkuResult = typeof AssignSkuResultSchema.Type;

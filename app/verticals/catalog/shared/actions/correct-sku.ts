@@ -12,4 +12,3 @@ export const CorrectSkuPayloadSchema = Schema.Struct({
 });
 export type CorrectSkuPayload = typeof CorrectSkuPayloadSchema.Type;
 export const CorrectSkuResultSchema = Schema.Struct({ revision: Schema.Int });
-export type CorrectSkuResult = typeof CorrectSkuResultSchema.Type;

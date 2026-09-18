@@ -47,7 +47,6 @@ export const ProductSelectionRevalidationRequiredSchema = Schema.Struct({
       : 'Revalidation Variant must retain the same Product owner and Tenant';
   }),
 );
-export type ProductSelectionRevalidationRequired = typeof ProductSelectionRevalidationRequiredSchema.Type;
 const ProductSelectionRevalidationSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('NOT_REQUIRED') }),
   ProductSelectionRevalidationRequiredSchema,

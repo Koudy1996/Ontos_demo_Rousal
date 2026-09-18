@@ -15,4 +15,3 @@ export const MoveProductCategoryPayloadSchema = Schema.Struct({
 });
 export type MoveProductCategoryPayload = typeof MoveProductCategoryPayloadSchema.Type;
 export const MoveProductCategoryResultSchema = CreateProductCategoryResultSchema;
-export type MoveProductCategoryResult = typeof MoveProductCategoryResultSchema.Type;

@@ -153,4 +153,3 @@ export const SetProductAttributeValuesResultSchema = result;
 export const RemoveProductAttributeValuesResultSchema = result;
 export const SetVariantAttributeOverrideResultSchema = result;
 export const RemoveVariantAttributeOverrideResultSchema = result;
-export type AttributeValueMutationResult = typeof result.Type;

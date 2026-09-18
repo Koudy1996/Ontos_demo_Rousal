@@ -49,4 +49,3 @@ export const RemoveVariantLocalizedFactsPayloadSchema = Schema.Struct({
 export type RemoveVariantLocalizedFactsPayload = typeof RemoveVariantLocalizedFactsPayloadSchema.Type;
 
 export const LocalizedFactsChangeResultSchema = Schema.Struct({ changed: Schema.Boolean, revision: RevisionSchema });
-export type LocalizedFactsChangeResult = typeof LocalizedFactsChangeResultSchema.Type;

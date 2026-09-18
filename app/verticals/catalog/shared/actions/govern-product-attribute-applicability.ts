@@ -24,4 +24,3 @@ export const GovernProductAttributeApplicabilityResultSchema = Schema.Struct({
   revision: CatalogRevisionNumberSchema,
   variantLevel: Schema.Boolean,
 });
-export type GovernProductAttributeApplicabilityResult = typeof GovernProductAttributeApplicabilityResultSchema.Type;

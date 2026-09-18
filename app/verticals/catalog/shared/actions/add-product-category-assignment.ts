@@ -16,4 +16,3 @@ export const AddProductCategoryAssignmentResultSchema = Schema.Struct({
   changed: Schema.Boolean,
   productRef: ProductRefSchema,
 });
-export type AddProductCategoryAssignmentResult = typeof AddProductCategoryAssignmentResultSchema.Type;

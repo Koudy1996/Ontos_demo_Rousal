@@ -36,7 +36,6 @@ const DefinitionResultSchema = Schema.Struct({
   revision: CatalogRevisionNumberSchema,
 });
 export const CreateAttributeDefinitionResultSchema = DefinitionResultSchema;
-export type CreateAttributeDefinitionResult = typeof CreateAttributeDefinitionResultSchema.Type;
 
 export const RenameAttributeDefinitionPayloadSchema = Schema.Struct({
   attributeDefinitionRef: AttributeDefinitionRefSchema,
@@ -51,7 +50,6 @@ export const RenameAttributeDefinitionResultSchema = Schema.Struct({
   ...DefinitionResultSchema.fields,
   changed: Schema.Boolean,
 });
-export type RenameAttributeDefinitionResult = typeof RenameAttributeDefinitionResultSchema.Type;
 
 export const CreateControlledAttributeValuePayloadSchema = Schema.Struct({
   attributeDefinitionRef: AttributeDefinitionRefSchema,
@@ -72,7 +70,6 @@ const ControlledValueResultSchema = Schema.Struct({
   revision: CatalogRevisionNumberSchema,
 });
 export const CreateControlledAttributeValueResultSchema = ControlledValueResultSchema;
-export type CreateControlledAttributeValueResult = typeof CreateControlledAttributeValueResultSchema.Type;
 
 export const RenameControlledAttributeValuePayloadSchema = Schema.Struct({
   controlledValueRef: ControlledAttributeValueRefSchema,
@@ -88,7 +85,6 @@ export const RenameControlledAttributeValueResultSchema = Schema.Struct({
   ...ControlledValueResultSchema.fields,
   changed: Schema.Boolean,
 });
-export type RenameControlledAttributeValueResult = typeof RenameControlledAttributeValueResultSchema.Type;
 
 export const RetireControlledAttributeValuePayloadSchema = Schema.Struct({
   controlledValueRef: ControlledAttributeValueRefSchema,
@@ -102,7 +98,6 @@ const ControlledValueLifecycleResultSchema = Schema.Struct({
   lifecycle: Schema.Literals(['ACTIVE', 'RETIRED']),
 });
 export const RetireControlledAttributeValueResultSchema = ControlledValueLifecycleResultSchema;
-export type RetireControlledAttributeValueResult = typeof RetireControlledAttributeValueResultSchema.Type;
 
 export const ReactivateControlledAttributeValuePayloadSchema = Schema.Struct({
   controlledValueRef: ControlledAttributeValueRefSchema,
@@ -113,4 +108,3 @@ export const ReactivateControlledAttributeValuePayloadSchema = Schema.Struct({
 });
 export type ReactivateControlledAttributeValuePayload = typeof ReactivateControlledAttributeValuePayloadSchema.Type;
 export const ReactivateControlledAttributeValueResultSchema = ControlledValueLifecycleResultSchema;
-export type ReactivateControlledAttributeValueResult = typeof ReactivateControlledAttributeValueResultSchema.Type;

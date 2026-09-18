@@ -24,4 +24,3 @@ export const GovernVariantAxesResultSchema = Schema.Struct({
   changed: Schema.Boolean,
   productRef: ProductRefSchema,
 });
-export type GovernVariantAxesResult = typeof GovernVariantAxesResultSchema.Type;

@@ -13,4 +13,3 @@ export const MarkGtinUnresolvedPayloadSchema = Schema.Struct({
 });
 export type MarkGtinUnresolvedPayload = typeof MarkGtinUnresolvedPayloadSchema.Type;
 export const MarkGtinUnresolvedResultSchema = Schema.Struct({ revision: Schema.Int });
-export type MarkGtinUnresolvedResult = typeof MarkGtinUnresolvedResultSchema.Type;

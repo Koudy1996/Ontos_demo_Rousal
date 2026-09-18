@@ -24,4 +24,3 @@ export const ConfirmGtinPayloadSchema = Schema.Struct({
 });
 export type ConfirmGtinPayload = typeof ConfirmGtinPayloadSchema.Type;
 export const ConfirmGtinResultSchema = Schema.Struct({ revision: Schema.Int });
-export type ConfirmGtinResult = typeof ConfirmGtinResultSchema.Type;

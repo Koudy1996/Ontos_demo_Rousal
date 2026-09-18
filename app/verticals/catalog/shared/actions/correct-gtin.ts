@@ -14,4 +14,3 @@ export const CorrectGtinPayloadSchema = Schema.Struct({
 });
 export type CorrectGtinPayload = typeof CorrectGtinPayloadSchema.Type;
 export const CorrectGtinResultSchema = Schema.Struct({ revision: Schema.Int });
-export type CorrectGtinResult = typeof CorrectGtinResultSchema.Type;

@@ -16,4 +16,3 @@ const AssertionIdSchema = checkedAssertionId.pipe(
 );
 
 export const AssertSizeEquivalenceResultSchema = Schema.Struct({ assertionId: AssertionIdSchema });
-export type AssertSizeEquivalenceResult = typeof AssertSizeEquivalenceResultSchema.Type;
