@@ -14,6 +14,7 @@ import {
 } from '../../shared/actions/attribute-value-mutations.ts';
 import type { RemoveVariantAttributeOverridePayload } from '../../shared/actions/attribute-value-mutations.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
 import {
   AttributeValuesConflict,
   attributeValuesPersistenceForScope,
@@ -24,11 +25,15 @@ import {
   CatalogOpenSelectionImpactUnavailable,
   catalogOpenSelectionImpactForScope,
 } from '../persistence/catalog-open-selection-impact.ts';
+import { createRemoveVariantAttributeOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './remove-variant-attribute-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+import { decideSelectionSourceChange } from './selection-source-change-decision.ts';
 
 export type { RemoveVariantAttributeOverridePayload } from '../../shared/actions/attribute-value-mutations.ts';
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
-const domainEvents = {} as const;
+const SELECTION_SOURCE_CHANGED_EVENT_TYPE = 'commerce.catalog.selection-source-changed.v1';
+const ATTRIBUTE_VALUE_SET_RESOURCE_TYPE = 'commerce.catalog.attribute-value-set';
+const domainEvents = { [SELECTION_SOURCE_CHANGED_EVENT_TYPE]: SelectionSourceChangedEventSchema } as const;
 type VariantAttributeServices = AttributeValuesPersistence & {
   readonly assessOpenSelectionImpact: (
     productRef: RemoveVariantAttributeOverridePayload['productRef'],
@@ -43,7 +48,7 @@ export const handleRemoveVariantAttributeOverride = Effect.fn('RemoveVariantAttr
     if (impact === 'REVALIDATION_REQUIRED') {
       yield* context.services.assessOpenSelectionImpact(payload.productRef);
     }
-    const result = yield* context.services.removeVariantOverride({
+    const committed = yield* context.services.removeVariantOverride({
       ...payload,
       actionInvocationId: context.actionInvocationId,
       principalId: context.scope.principalId,
@@ -58,7 +63,7 @@ export const handleRemoveVariantAttributeOverride = Effect.fn('RemoveVariantAttr
       targetResourceType: 'commerce.catalog.variant',
     });
     yield* context.recordAuditEvidence({ evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason });
-    return yield* Schema.decodeEffect(RemoveVariantAttributeOverrideResultSchema)(result).pipe(
+    const result = yield* Schema.decodeEffect(RemoveVariantAttributeOverrideResultSchema)(committed).pipe(
       Effect.mapError((cause) => {
         const failure = new CatalogPersistenceUnavailable({
           code: 'catalog_persistence_unavailable',
@@ -68,6 +73,53 @@ export const handleRemoveVariantAttributeOverride = Effect.fn('RemoveVariantAttr
         return failure;
       }),
     );
+    const decision = decideSelectionSourceChange({
+      nextRevision: payload.expectedProductValueRevision,
+      nextSourceLevel: payload.expectedProductValueRevision === null ? 'ABSENT' : 'PRODUCT',
+      previousRevision: payload.expectedRevision,
+      previousSourceLevel: 'VARIANT',
+    });
+    if (decision.kind === 'CHANGED') {
+      const eventPayload = yield* Schema.decodeEffect(SelectionSourceChangedEventSchema)({
+        changeId: context.actionInvocationId,
+        changeKind: 'OVERRIDE_RELEASED',
+        productRef: payload.productRef,
+        source: {
+          resourceRef: {
+            moduleId: CATALOG_MODULE_KEY,
+            resourceId: result.attributeValueSetId,
+            resourceType: ATTRIBUTE_VALUE_SET_RESOURCE_TYPE,
+            tenantId: payload.productRef.tenantId,
+          },
+          revision: result.revision,
+        },
+        sourceKind: 'INHERITED_VALUE',
+        tenantId: payload.productRef.tenantId,
+        variantRef: payload.variantRef,
+      }).pipe(
+        Effect.mapError((cause) => {
+          const failure = new CatalogPersistenceUnavailable({
+            code: 'catalog_persistence_unavailable',
+            reason: 'Catalog could not attest the committed inherited value release',
+          });
+          Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+          return failure;
+        }),
+      );
+      const event = yield* context.addDomainEvent({
+        eventType: SELECTION_SOURCE_CHANGED_EVENT_TYPE,
+        payloadJson: eventPayload,
+        producerModuleKey: CATALOG_MODULE_KEY,
+        subjectModuleKey: CATALOG_MODULE_KEY,
+        subjectResourceId: result.attributeValueSetId,
+        subjectResourceType: ATTRIBUTE_VALUE_SET_RESOURCE_TYPE,
+      });
+      yield* context.addOutboxMessage(
+        event,
+        createRemoveVariantAttributeOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage(eventPayload),
+      );
+    }
+    return result;
   },
 );
 
@@ -143,4 +195,9 @@ export const removeVariantAttributeOverrideAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createRemoveVariantAttributeOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './remove-variant-attribute-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { RemoveVariantAttributeOverrideCommerceCatalogSelectionSourceChangedV1OutboxPayloadSchema } from './remove-variant-attribute-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { RemoveVariantAttributeOverrideCommerceCatalogSelectionSourceChangedV1OutboxProducerModuleKey } from './remove-variant-attribute-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { RemoveVariantAttributeOverrideCommerceCatalogSelectionSourceChangedV1OutboxTopic } from './remove-variant-attribute-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export type { RemoveVariantAttributeOverrideCommerceCatalogSelectionSourceChangedV1OutboxPayload } from './remove-variant-attribute-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

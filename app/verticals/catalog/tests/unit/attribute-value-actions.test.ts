@@ -1,4 +1,4 @@
-import type { ActionHandlerContext } from '@app/core-runtime';
+import type { ActionHandlerContext, DomainEventContractMap } from '@app/core-runtime';
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
@@ -11,6 +11,7 @@ import {
   VariantAttributeChangeClassificationSchema,
   VariantAttributeChangeConflict,
 } from '../../shared/actions/attribute-value-mutations.ts';
+import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
 import {
   handleRemoveProductAttributeValues,
   removeProductAttributeValuesAction,
@@ -80,13 +81,16 @@ const scope = {
   }),
   correlationId: 'attribute-values-handoff-test',
 };
-const makeContext = (
+const selectionSourceChangedDomainEvents = {
+  'commerce.catalog.selection-source-changed.v1': SelectionSourceChangedEventSchema,
+} as const;
+const makeContext = <DomainEvents extends DomainEventContractMap = Readonly<Record<string, never>>>(
   services: AttributeValuesPersistence,
   assessOpenSelectionImpact: (
     productRef: typeof base.productRef,
   ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable> = () => Effect.void,
 ): ActionHandlerContext<
-  Readonly<Record<string, never>>,
+  DomainEvents,
   AttributeValuesPersistence & { assessOpenSelectionImpact: typeof assessOpenSelectionImpact }
 > => ({
   actionInvocationId: '66666666-6666-4666-8666-666666666666',
@@ -210,7 +214,10 @@ describe('Catalog attribute value Actions', () => {
         setProductValues: unexpected,
         setVariantOverride: unexpected,
       };
-      const result = yield* handleRemoveVariantAttributeOverride(payload, makeContext(services));
+      const result = yield* handleRemoveVariantAttributeOverride(
+        payload,
+        makeContext<typeof selectionSourceChangedDomainEvents>(services),
+      );
       expect(result.state).toBe('REMOVED');
     }),
   );
@@ -246,12 +253,16 @@ describe('Catalog attribute value Actions', () => {
         variantRef,
       });
       expect(
-        yield* handleSetVariantAttributeOverride(newRealization, makeContext(services)).pipe(Effect.flip),
+        yield* handleSetVariantAttributeOverride(
+          newRealization,
+          makeContext<typeof selectionSourceChangedDomainEvents>(services),
+        ).pipe(Effect.flip),
       ).toBeInstanceOf(VariantAttributeChangeConflict);
       expect(
-        yield* handleRemoveVariantAttributeOverride(correction, makeContext(services, unavailableImpact)).pipe(
-          Effect.flip,
-        ),
+        yield* handleRemoveVariantAttributeOverride(
+          correction,
+          makeContext<typeof selectionSourceChangedDomainEvents>(services, unavailableImpact),
+        ).pipe(Effect.flip),
       ).toBeInstanceOf(CatalogOpenSelectionImpactUnavailable);
     }),
   );
@@ -275,6 +286,7 @@ describe('Catalog attribute value Actions', () => {
         setVariantOverride: () => Effect.fail(failure('IDENTITY_IMPACT')),
       };
       const context = makeContext(services);
+      const variantContext = makeContext<typeof selectionSourceChangedDomainEvents>(services);
       const productSet = Schema.decodeUnknownSync(SetProductAttributeValuesPayloadSchema)({
         ...base,
         classification,
@@ -299,8 +311,8 @@ describe('Catalog attribute value Actions', () => {
       const outcomes = yield* Effect.all([
         handleSetProductAttributeValues(productSet, context).pipe(Effect.flip),
         handleRemoveProductAttributeValues(productRemove, context).pipe(Effect.flip),
-        handleSetVariantAttributeOverride(variantSet, context).pipe(Effect.flip),
-        handleRemoveVariantAttributeOverride(variantRemove, context).pipe(Effect.flip),
+        handleSetVariantAttributeOverride(variantSet, variantContext).pipe(Effect.flip),
+        handleRemoveVariantAttributeOverride(variantRemove, variantContext).pipe(Effect.flip),
       ]);
       expect(
         outcomes.map((outcome) => (Schema.is(AttributeValuesConflict)(outcome) ? outcome.conflict : 'OTHER')),
