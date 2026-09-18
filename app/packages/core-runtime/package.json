@@ -44,7 +44,7 @@
     "@types/node": "^26.4.1",
     "@types/pg": "8.20.0",
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
-    "effect-rstest": "workspace:*",
-    "@rstest/core": "0.11.11"
+    "effect-rstest": "0.1.4",
+    "@rstest/core": "0.11.12"
   }
 }

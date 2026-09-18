@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -9,6 +9,7 @@ import { appRoot, parseOxlintOutput, runOxlint } from './oxlint.mts';
 import { withTemporaryWorkspace } from './temporary-workspace.mts';
 
 const applicationRequire = createRequire(path.join(appRoot, 'package.json'));
+const applicationManifest = readFileSync(path.join(appRoot, 'package.json'), 'utf-8');
 const plugin = applicationRequire.resolve('eslint-plugin-perfectionist');
 const oxlint = path.join(path.dirname(applicationRequire.resolve('oxlint/package.json')), 'bin/oxlint');
 const configFilename = 'oxlint.json';
@@ -46,6 +47,13 @@ const cases = [
     valid: 'const view = { alpha: 2, zebra: 1 };',
   },
 ];
+
+it('native sorting integration does not declare the ESLint runner', () => {
+  const hasDirectEslintDependency = /^[ ]{2}"(?:dependencies|devDependencies)"\s*:\s*\{[^{}]*"eslint"\s*:/msu.test(
+    applicationManifest,
+  );
+  expect(hasDirectEslintDependency).toBe(false);
+});
 
 it('native sorting integration runs without loading the ESLint runner', () => {
   withTemporaryWorkspace((directory) => {

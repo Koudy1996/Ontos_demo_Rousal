@@ -25,7 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
-    "effect-rstest": "workspace:*",
-    "@rstest/core": "0.11.11"
+    "effect-rstest": "0.1.4",
+    "@rstest/core": "0.11.12"
   }
 }

@@ -33,6 +33,9 @@
     },
     {
       "path": "verticals/catalog"
+    },
+    {
+      "path": "packages/email-delivery"
     }
   ]
 }

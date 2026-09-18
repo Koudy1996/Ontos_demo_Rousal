@@ -88,7 +88,7 @@
   },
   "devDependencies": {
     "@effect/tsgo": "0.41.0",
-    "@rstest/core": "0.11.11",
+    "@rstest/core": "0.11.12",
     "@modern-js/app-tools": "npm:@bleedingdev/modern-js-app-tools@3.9.0-ultramodern.11",
     "@modern-js/app-tools-extensions": "npm:@bleedingdev/modern-js-app-tools-extensions@3.9.0-ultramodern.11",
     "@modern-js/plugin-bff-build-extensions": "npm:@bleedingdev/modern-js-plugin-bff-build-extensions@3.9.0-ultramodern.11",
@@ -100,7 +100,7 @@
     "@typescript/native": "npm:typescript@7.0.2",
     "cross-env": "10.1.0",
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
-    "effect-rstest": "workspace:*",
+    "effect-rstest": "0.1.4",
     "@types/pg": "8.20.0",
     "tailwindcss": "^4.3.3",
     "typescript": "7.0.2",

@@ -782,11 +782,16 @@ hash that identified the Attempt.
 
 ## Order acceptance and recovery
 
-**Reservation Confirmation** — Inventory/Availability-owner-issued proof that specified Catalog
-Selections and quantities, or their explicitly mapped stock requirements, are provisionally reserved
-for one exact Order Commitment Attempt until an explicit expiry/lease boundary. It has owner-scoped
-idempotency and correlation. Mapping to stock does not reinterpret package or Set contents. It is not
-an Order or permanent Availability guarantee; an expired/unverifiable confirmation is not Current.
+**Reservation Confirmation** — Attempt-bound proof issued by the selected Inventory Backend
+in its role as actual Reservation Authority, through Inventory's public boundary, that the one exact
+Inventory Reservation for exact Stock Item(s), Quantities/Units and Allocations is provisionally
+guaranteed for one exact Order Commitment Attempt until its explicit validity boundary. One Attempt
+has one normal-runtime Inventory Reservation; an External Business System and the OntOS-provided WMS
+are alternative backend modes, not simultaneous issuers. Availability does not become the issuer
+merely by consuming the evidence. It has owner-scoped idempotency and correlation. Inventory
+preserves exact Catalog Selection and Quantity/Unit meaning; it does not decompose Package/Set
+contents or convert Units. It is not an Order or permanent Availability guarantee; an
+expired/unverifiable confirmation is not Current.
 
 **Payment Authorization** — Payment-owned proof that the required Payment method/amount/currency is
 authorized for one exact Order Commitment Attempt under the resolved Payment Term. It is distinct
@@ -811,9 +816,10 @@ state and conflicts. A different Bundle cannot reuse the same Attempt identity.
 
 **Order Commitment Proof Set** — Exact set of owner-issued validations/confirmations used to prove one
 Order Commitment Attempt + its exact Bundle through the commitment boundary. It may include Approval
-Revalidation, Assortment Commitment Confirmation, Reservation Confirmation, Payment Authorization or
-analogous attempt-bound proofs. Legitimate renewal may replace an expired proof for the same
-unchanged Attempt + Bundle under the owning contract; that renewal does not change the Bundle hash.
+Revalidation, Assortment Commitment Confirmation, the Reservation Confirmation and Commitment
+Protection for the Attempt's one Inventory Reservation, Payment Authorization or analogous
+attempt-bound proofs. Legitimate renewal may replace an expired proof for the same unchanged Attempt +
+Bundle under the owning contract; that renewal does not change the Bundle hash.
 _Avoid_: Proof Set as prospective purchase identity, proofs from different Attempts unioned together,
 proof renewal used to smuggle changed Bundle meaning into the same Attempt.
 
@@ -885,14 +891,28 @@ Binding+Revision resolver participant inside one constituent. Guest is not a Pur
 Assortment result never creates Permission, Price, Availability, publication, or Order acceptance,
 and Product-level `VISIBILITY` is not proof that any Variant or Package Option is `PURCHASE` eligible.
 
-**Pricing** — Domain determining prices, discounts, fees, tax inputs, quantity tiers, quotations,
-and Price Group definitions for an explicit Commerce Purchasing Context and exact Catalog Selection
-and Quantity. Set/Package prices are not silently derived from component sums or loose-piece prices.
+**Pricing** — Domain determining the commercial price of one exact purchase candidate in an explicit
+Commerce Purchasing Context. One Pricing Decision evaluates `1..N stable Pricing Lines`; each Pricing
+Line has an identity supplied by the exact candidate before Pricing calculation and binds one exact
+Catalog Selection, resulting Quantity and Unit. Pricing owns prices, Pricing-owned discounts and fees,
+quantity tiers, quotations and Price Group interpretation. Pricing calculation does not create, merge
+or split Pricing Lines; a purpose-specific aggregation may group stable Pricing Lines without changing
+their identities. Set/Package prices are not silently derived from component sums or loose-piece prices.
 
-**Inventory** — Domain owning stock and reservations when the Customer Configuration owns those
-lifecycles. Inventory maps exact Catalog selections to explicitly owned stock requirements without
-redefining product identity or package/composition semantics. Separate Catalog selection identity
-neither requires separate stock nor permits double reservation of a Set and its components.
+**Pricing Decision** — Pricing-owned Current commercial decision for one exact purchase candidate
+with `1..N stable Pricing Lines` in one explicit currency, trusted Commerce Purchasing Context and
+trusted operation time. A candidate with one Pricing Line uses the same authoritative model as a
+multi-line candidate; there is no second line-only Pricing Decision semantics. Pricing evaluation
+preserves the stable candidate line structure.
+
+**Pricing Line** — Stable per-selection Pricing part of one exact purchase candidate. Its identity
+and the candidate's Pricing-Line cardinality are supplied before Pricing calculation; it binds one
+exact Catalog Selection, resulting Quantity and Unit. Catalog owns the Catalog Selection meaning.
+Pricing does not create, merge or split Pricing Lines as a calculation side effect. A purpose-specific
+aggregation group or bounded quantity/calculation portion is not another Pricing Line. Pricing Line
+does not by itself define Cart/Order line lifecycle.
+
+**Inventory** — Domain owning the one-to-one binding from each exact Catalog Selection to one Stock Item, plus stock facts, Stock Requirements/Allocations, and Inventory-recognized stock obligations within declared authority boundaries. Inventory preserves exact Quantity/Unit meaning; Package/Set contents are not decomposed for stock. One Customer Configuration / Launch Inventory scope selects exactly one Inventory Backend; that selected backend is the actual Reservation Authority for the supported Reservation lifecycle.
 
 **Availability** — Current promise that an exact Catalog Selection and Quantity can be sold and
 delivered in a Commerce Purchasing Context. It may derive from Inventory or an External Business

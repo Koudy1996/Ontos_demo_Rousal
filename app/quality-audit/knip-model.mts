@@ -674,51 +674,6 @@ const declarationSurfaceEvidence = (
   return evidence;
 };
 
-const vendorInternalNamespaceEvidence = (
-  factsByPath: ReadonlyMap<string, SourceFacts>,
-  manifest: typeof PackageSchema.Type,
-  prefix: string,
-  workspace: string,
-  path: Path.Path,
-): KnipModelEvidence[] => {
-  if (workspace !== 'vendor/effect-rstest' || manifest.name !== 'effect-rstest' || manifest.exports === undefined) {
-    return [];
-  }
-  const entry = factsByPath.get(`${prefix}src/index.ts`);
-  if (entry === undefined) {
-    return [];
-  }
-  return entry.program.body.flatMap((node) => {
-    if (
-      node.type !== 'ImportDeclaration' ||
-      !node.source.value.startsWith('.') ||
-      !node.specifiers.some((specifier) => specifier.type === 'ImportNamespaceSpecifier')
-    ) {
-      return [];
-    }
-    const targetPath = path.normalize(path.join(path.dirname(entry.file), node.source.value)).replaceAll('\\', '/');
-    const target = factsByPath.get(targetPath.replace(/\.js$/u, '.ts'));
-    if (target === undefined) {
-      return [];
-    }
-    return exportedBindings(target).flatMap((binding) => {
-      const prefixSource = target.source.slice(0, binding.offset);
-      return /\/\*\*\s*@internal\s*\*\/\s*export\s*$/u.test(prefixSource)
-        ? [
-            evidenceAt(
-              entry,
-              workspace,
-              binding.kind,
-              `${target.file}#${binding.name}`,
-              node.start,
-              'Packaged vendor entry imports the documented internal namespace surface',
-            ),
-          ]
-        : [];
-    });
-  });
-};
-
 const catalogReadBindingEvidence = (
   factsByPath: ReadonlyMap<string, SourceFacts>,
   workspace: string,
@@ -1716,7 +1671,6 @@ const workspaceModel = Effect.fn('QualityAudit.knipWorkspaceModel')(function* bu
     }
   }
   evidence.push(...declarationSurfaceEvidence(factsByPath, workspace, path));
-  evidence.push(...vendorInternalNamespaceEvidence(factsByPath, manifest, prefix, workspace, path));
   evidence.push(...catalogReadBindingEvidence(factsByPath, workspace));
   evidence.push(...catalogSharedContractEvidence(factsByPath, workspace));
   evidence.push(...catalogAliasEvidence(factsByPath, manifest, prefix, workspace, path));
