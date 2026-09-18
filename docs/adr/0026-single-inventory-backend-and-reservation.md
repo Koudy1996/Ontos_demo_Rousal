@@ -25,6 +25,8 @@ The Reservation is successful only when it covers every required Stock Requireme
 
 Immediately before Order commitment, the selected Reservation Authority establishes one Attempt-bound Commitment Protection for that Reservation.
 
+The Reservation Confirmation has bounded validity and **is not renewable in Launch**. If it expires before Commitment Protection is established, that Order Commitment Attempt cannot regain Inventory readiness. After authoritative non-commit, definitive closure and safe Reservation release/reconciliation, any later purchase retry uses a new Order Commitment Attempt, new Inventory Reservation and new Reservation Confirmation. Expiry after Commitment Protection does not release the established fence.
+
 Proven Order commit converts that Reservation into one corresponding `COMMITTED_OBLIGATION`. Proven non-commit plus definitive Attempt closure permits safe whole-Reservation release.
 
 ## External-backend rule
@@ -47,6 +49,7 @@ Late or indeterminate effects from the pre-cutover backend remain migration/reco
 - Compose an external ERP for physical stock with a different WMS/Inventory authority for Reservations in one Launch deployment — rejected because this is not a supported product mode.
 - Allow one Attempt to span multiple Reservation Authorities — rejected because the required mixed-backend runtime does not exist in the supported Launch model.
 - Automatically fall back from an unavailable external backend to the OntOS-provided WMS — rejected because changing backend authority is an explicit migration/configuration decision, not an outage fallback.
+- Renew an expired Inventory Reservation Confirmation within the same Order Commitment Attempt — rejected for Launch; expiry before Commitment Protection ends Inventory readiness for that Attempt and any later retry uses a new Attempt + Reservation after safe closure/reconciliation.
 
 ## Consequences
 
