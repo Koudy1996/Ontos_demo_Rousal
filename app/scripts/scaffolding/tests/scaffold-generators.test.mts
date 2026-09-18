@@ -3077,13 +3077,11 @@ it.live(
 import { Effect, Schema } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
-export const CreateOrder2PayloadSchema = Schema.Struct({});
-export type CreateOrder2Payload = Schema.Schema.Type<typeof CreateOrder2PayloadSchema>;
+const CreateOrder2PayloadSchema = Schema.Struct({});
 
-export const CreateOrder2ResultSchema = Schema.Struct({});
-export type CreateOrder2Result = Schema.Schema.Type<typeof CreateOrder2ResultSchema>;
+const CreateOrder2ResultSchema = Schema.Struct({});
 
-export class CreateOrder2NotImplemented extends Schema.TaggedError<CreateOrder2NotImplemented>()(
+class CreateOrder2NotImplemented extends Schema.TaggedError<CreateOrder2NotImplemented>()(
   'CreateOrder2NotImplemented',
   {
     code: Schema.Literal('action_not_implemented'),
