@@ -125,7 +125,7 @@ export interface UnitConversion {
 }
 
 // Catalog-owned exact relationships. Request payloads cannot establish unit semantics.
-const trustedConversions: readonly UnitConversion[] = [
+export const trustedUnitConversions: readonly UnitConversion[] = [
   { denominator: 1, from: 'cm', numerator: 10, quantity: 'length', to: 'mm' },
   { denominator: 10, from: 'mm', numerator: 1, quantity: 'length', to: 'cm' },
 ];
@@ -196,7 +196,7 @@ const validatedConversion = (
     denominator: numerator.denominator * denominator.numerator,
     numerator: numerator.numerator * denominator.denominator,
   };
-  const trusted = trustedConversions.find(
+  const trusted = trustedUnitConversions.find(
     (item) => item.from === conversion.from && item.to === conversion.to && item.quantity === conversion.quantity,
   );
   if (

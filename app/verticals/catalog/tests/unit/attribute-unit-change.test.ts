@@ -132,3 +132,50 @@ describe('Catalog Attribute unit revision assessment', () => {
     );
   });
 });
+
+const textDefinition = (overrides: Partial<AttributeDefinition>): AttributeDefinition =>
+  Schema.decodeUnknownSync(AttributeDefinitionSchema)({
+    label: 'Material',
+    levels: ['PRODUCT'],
+    meaning: 'Material of product',
+    multiplicity: 'SINGLE',
+    ref: {
+      ...subjectRef,
+      resourceId: '66666666-6666-4666-8666-666666666666',
+      resourceType: 'commerce.catalog.attribute-definition',
+    },
+    specialStates: [],
+    valueKind: 'TEXT',
+    ...overrides,
+  });
+const textValue = { kind: 'TEXT', text: 'steel' } as const;
+
+describe('Catalog Attribute non-measurement rule revision', () => {
+  it('keeps identity for a same-meaning TEXT rule revision and validates the recorded values', () => {
+    const before = textDefinition({ multiplicity: 'MULTIPLE', specialStates: ['UNKNOWN'] });
+    const after = textDefinition({ multiplicity: 'MULTIPLE', specialStates: [] });
+    expect(assess(before, after, [evidenced(textValue)], [])).toEqual({
+      converted: [textValue],
+      kind: 'CONVERTIBLE',
+      originals: [textValue],
+    });
+  });
+
+  it('requires explicit remediation when a narrower TEXT rule no longer fits recorded values', () => {
+    const multiple = textDefinition({ multiplicity: 'MULTIPLE' });
+    const single = textDefinition({ multiplicity: 'SINGLE' });
+    const values = [evidenced(textValue), evidenced({ kind: 'TEXT', text: 'wood' }, 1)];
+    expect(assess(multiple, single, values, []).kind).toBe('REMEDIATION_REQUIRED');
+  });
+
+  it('still requires a new definition when meaning or value kind changes', () => {
+    const before = textDefinition({});
+    const values = [evidenced(textValue)];
+    expect(assess(before, textDefinition({ meaning: 'Different question' }), values, []).kind).toBe(
+      'NEW_DEFINITION_REQUIRED',
+    );
+    expect(assess(before, textDefinition({ valueKind: 'CONTROLLED' }), values, []).kind).toBe(
+      'NEW_DEFINITION_REQUIRED',
+    );
+  });
+});

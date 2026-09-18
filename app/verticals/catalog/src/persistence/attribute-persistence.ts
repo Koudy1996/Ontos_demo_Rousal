@@ -5,8 +5,19 @@ import { Effect, Option, Schema } from 'effect';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 
-import type { AttributeDefinition } from '../../shared/domain/attribute-values.ts';
-import { AttributeDefinitionSchema } from '../../shared/domain/attribute-values.ts';
+import type { AttributeDefinition, AttributeValue } from '../../shared/domain/attribute-values.ts';
+import {
+  AttributeDefinitionSchema,
+  AttributeValueSchema,
+  trustedUnitConversions,
+} from '../../shared/domain/attribute-values.ts';
+import type {
+  AttributeUnitChangeAssessment,
+  EvidencedAttributeValue,
+} from '../../shared/domain/attribute-unit-change.ts';
+import { assessAttributeUnitChange } from '../../shared/domain/attribute-unit-change.ts';
+import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import type { CatalogResourceRefInput } from '../../shared/domain/catalog-revision-reference.ts';
 import type { ColorDetails } from '../../shared/domain/color.ts';
 import { ColorDetailsSchema } from '../../shared/domain/color.ts';
 import type { AttributeDefinitionRef } from '../../shared/resources/attribute-definition.ts';
@@ -15,6 +26,7 @@ import {
   attributeDefinitionRevisions,
   attributeDefinitions,
   attributeValueItems,
+  attributeValueRevisions,
   attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
@@ -34,8 +46,24 @@ export class AttributePersistenceConflict extends Schema.TaggedError<AttributePe
   'AttributePersistenceConflict',
   {
     code: Schema.Literal('attribute_persistence_conflict'),
-    conflict: Schema.Literals(['IDENTITY', 'ACTION_INVOCATION_ID', 'REVISION', 'INVALID_STATE', 'INVALID_INPUT']),
+    conflict: Schema.Literals([
+      'IDENTITY',
+      'ACTION_INVOCATION_ID',
+      'REVISION',
+      'INVALID_STATE',
+      'INVALID_INPUT',
+      'REMEDIATION_REQUIRED',
+      'OPEN_SELECTION_IMPACT_UNAVAILABLE',
+    ]),
     reason: Schema.String,
+    /** The typed unit-change assessment that blocks a rule revision until the owner remediates. */
+    remediation: Schema.optionalKey(
+      Schema.Struct({
+        kind: Schema.Literals(['REMEDIATION_REQUIRED', 'INDETERMINATE', 'NEW_DEFINITION_REQUIRED']),
+        reasons: Schema.Array(Schema.String),
+        subjects: Schema.Array(Schema.String),
+      }),
+    ),
   },
 ) {}
 
@@ -215,14 +243,6 @@ export interface AttributeImpactSnapshot {
   readonly variantAxisProducts: readonly string[];
 }
 
-const hasAttributeImpact = (impact: AttributeImpactSnapshot): boolean =>
-  impact.directProducts.length +
-    impact.directVariants.length +
-    impact.inheritedVariants.length +
-    impact.productTypes.length +
-    impact.variantAxisProducts.length >
-  0;
-
 const proposedRuleSnapshot = (proposed: AttributeRuleProposal) => ({
   allowsNone: proposed.specialStates.includes('NONE') ? 1 : 0,
   allowsNotApplicable: proposed.specialStates.includes('NOT_APPLICABLE') ? 1 : 0,
@@ -248,6 +268,231 @@ const currentRuleSnapshot = (current: typeof attributeDefinitions.$inferSelect) 
   minimumValue: current.minimumValue,
   multiplicity: current.multiplicity,
 });
+
+type DefinitionRow = typeof attributeDefinitions.$inferSelect;
+
+const specialStatesOf = (row: DefinitionRow): AttributeDefinition['specialStates'] => [
+  ...(row.allowsUnknown === 1 ? (['UNKNOWN'] as const) : []),
+  ...(row.allowsNone === 1 ? (['NONE'] as const) : []),
+  ...(row.allowsNotApplicable === 1 ? (['NOT_APPLICABLE'] as const) : []),
+];
+
+interface DecodedMeasurement {
+  canonicalUnit: string | null;
+  decimalPlaces: number | null;
+  maximum?: number;
+  minimum?: number;
+  quantity: string | null;
+}
+
+/** A definition rebuilt from a row or proposal before the domain Schema validates it. */
+interface DefinitionCandidate {
+  label: string;
+  levels: readonly string[];
+  meaning: string;
+  measurement?: DecodedMeasurement;
+  multiplicity: string;
+  ref: AttributeDefinitionRef;
+  specialStates: readonly string[];
+  valueKind: string;
+}
+
+const asDomainDefinition = (row: DefinitionRow, ref: AttributeDefinitionRef): AttributeDefinition | null => {
+  const candidate: DefinitionCandidate = {
+    label: row.name,
+    levels: row.applicableLevels,
+    meaning: row.meaning,
+    multiplicity: row.multiplicity,
+    ref,
+    specialStates: specialStatesOf(row),
+    valueKind: row.valueKind,
+  };
+  if (row.valueKind === 'MEASUREMENT') {
+    const measurement: DecodedMeasurement = {
+      canonicalUnit: row.canonicalUnit,
+      decimalPlaces: row.decimalPlaces,
+      quantity: row.measuredQuantity,
+    };
+    if (row.minimumValue !== null) {
+      measurement.minimum = Number(row.minimumValue);
+    }
+    if (row.maximumValue !== null) {
+      measurement.maximum = Number(row.maximumValue);
+    }
+    candidate.measurement = measurement;
+  }
+  return Schema.is(AttributeDefinitionSchema)(candidate) ? candidate : null;
+};
+
+const asProposedDefinition = (
+  current: DefinitionRow,
+  proposed: AttributeRuleProposal,
+  ref: AttributeDefinitionRef,
+): AttributeDefinition | null => {
+  const candidate: DefinitionCandidate = {
+    label: current.name,
+    levels: proposed.levels,
+    meaning: current.meaning,
+    multiplicity: proposed.multiplicity,
+    ref,
+    specialStates: proposed.specialStates,
+    valueKind: current.valueKind,
+  };
+  if (proposed.measurement !== undefined) {
+    candidate.measurement = proposed.measurement;
+  }
+  return Schema.is(AttributeDefinitionSchema)(candidate) ? candidate : null;
+};
+
+const ProductTypeIdSchema = Schema.String.pipe(Schema.brand('CatalogProductTypeId'));
+
+const ValueRevisionSnapshotSchema = Schema.Struct({
+  attributeDefinitionRevision: Schema.Finite.check(Schema.isInt(), Schema.isGreaterThan(0)),
+  classification: Schema.optionalKey(Schema.Unknown),
+  productTypeId: ProductTypeIdSchema,
+  productTypeRevision: Schema.Finite.check(Schema.isInt(), Schema.isGreaterThan(0)),
+  // oxlint-disable-next-line effect-native/no-nullable-schema-field -- The persisted JSONB snapshot uses null as the stored "no source Product value" sentinel and is spread back verbatim when a value revision is rewritten, so an Option decode would change the persisted round trip; owner: #434; tracking: #398; expires: 2027-03-31.
+  sourceProductValueRevision: Schema.NullOr(Schema.Finite.check(Schema.isInt(), Schema.isGreaterThan(0))),
+  values: Schema.Array(AttributeValueSchema),
+});
+type ValueRevisionSnapshot = typeof ValueRevisionSnapshotSchema.Type;
+
+const attributeValueItemRow = (
+  value: AttributeValue,
+  identity: { readonly attributeDefinitionId: string; readonly attributeValueSetId: string; readonly tenantId: string },
+  ordinal: number,
+): typeof attributeValueItems.$inferInsert => ({
+  attributeDefinitionId: identity.attributeDefinitionId,
+  attributeValueSetId: identity.attributeValueSetId,
+  controlledAttributeValueId: value.kind === 'CONTROLLED' ? value.valueRef.resourceId : null,
+  numericValue: value.kind === 'MEASUREMENT' ? String(value.amount) : null,
+  ordinal,
+  specialState: value.kind === 'SPECIAL' ? value.state : null,
+  tenantId: identity.tenantId,
+  textValue: value.kind === 'TEXT' ? value.text : null,
+  unit: value.kind === 'MEASUREMENT' ? value.unit : null,
+  valueKind: value.kind,
+});
+
+interface ValueRewrite {
+  readonly assessment: Extract<AttributeUnitChangeAssessment, { kind: 'CONVERTIBLE' }>;
+  readonly set: typeof attributeValueSets.$inferSelect;
+  readonly snapshot: ValueRevisionSnapshot;
+  readonly subjectKey: string;
+}
+
+type ValueSetPlanFailureKind = Exclude<AttributeUnitChangeAssessment, { kind: 'CONVERTIBLE' }>['kind'];
+
+type AttributeValueMigrationPlan =
+  | { readonly kind: 'CONVERTIBLE'; readonly rewrites: readonly ValueRewrite[] }
+  | {
+      readonly kind: ValueSetPlanFailureKind;
+      readonly reasons: readonly string[];
+      readonly subjects: readonly string[];
+    };
+
+const valueMigrationSeverity = { INDETERMINATE: 1, NEW_DEFINITION_REQUIRED: 2, REMEDIATION_REQUIRED: 0 } as const;
+
+/**
+ * Assesses one recorded value set against a same-meaning rule revision. The caller folds every
+ * subject so one nonconforming value never silently reinterprets the others; measured values are
+ * only rewritten from an exact, evidenced conversion.
+ */
+const planValueSetMigration = Effect.fn('AttributePersistence.planValueSetMigration')(function* planValueSetMigration(
+  transaction: ScopedTransaction,
+  tenantId: string,
+  attributeDefinitionRef: AttributeDefinitionRef,
+  currentDefinition: AttributeDefinition,
+  proposedDefinition: AttributeDefinition,
+  set: typeof attributeValueSets.$inferSelect,
+) {
+  if (set.currentState !== 'SET') {
+    return { outcome: 'SKIP' as const };
+  }
+  const subjectKey = set.variantId ?? set.productId;
+  const subjectRef: CatalogResourceRefInput = {
+    moduleId: CATALOG_MODULE_ID,
+    resourceId: subjectKey,
+    resourceType: set.variantId === null ? 'commerce.catalog.product' : 'commerce.catalog.variant',
+    tenantId,
+  };
+  const [revisionRow] = yield* transaction
+    .select()
+    .from(attributeValueRevisions)
+    .where(
+      and(
+        eq(attributeValueRevisions.tenantId, tenantId),
+        eq(attributeValueRevisions.attributeValueSetId, set.attributeValueSetId),
+        eq(attributeValueRevisions.revision, set.currentRevision),
+      ),
+    )
+    .limit(1);
+  const decoded =
+    revisionRow === undefined
+      ? Option.none()
+      : Schema.decodeUnknownOption(ValueRevisionSnapshotSchema)(revisionRow.valueSnapshot);
+  if (revisionRow === undefined || Option.isNone(decoded)) {
+    return {
+      failureKind: 'INDETERMINATE' as const,
+      outcome: 'FAILURE' as const,
+      reasons: ['Recorded value revision is absent'],
+      subjectKey,
+    };
+  }
+  const evidence = revisionRow.evidenceRefs.find((ref) => ref.trim().length > 0);
+  if (evidence === undefined) {
+    return {
+      failureKind: 'INDETERMINATE' as const,
+      outcome: 'FAILURE' as const,
+      reasons: ['Recorded value evidence is absent'],
+      subjectKey,
+    };
+  }
+  const recorded: EvidencedAttributeValue[] = decoded.value.values.map((original, valueOrdinal) => ({
+    original,
+    provenance: {
+      evidence,
+      sourceDefinitionRef: attributeDefinitionRef,
+      sourceDefinitionRevision: decoded.value.attributeDefinitionRevision,
+      sourceUnit: original.kind === 'MEASUREMENT' ? original.unit : null,
+      subjectRef,
+      valueOrdinal,
+    },
+  }));
+  const assessment = assessAttributeUnitChange(
+    currentDefinition,
+    proposedDefinition,
+    subjectRef,
+    decoded.value.attributeDefinitionRevision,
+    recorded,
+    trustedUnitConversions,
+  );
+  if (assessment.kind !== 'CONVERTIBLE') {
+    return {
+      failureKind: assessment.kind,
+      outcome: 'FAILURE' as const,
+      reasons: assessment.reasons,
+      subjectKey,
+    };
+  }
+  const needsRevision =
+    currentDefinition.valueKind === 'MEASUREMENT' || !isDeepStrictEqual(assessment.converted, assessment.originals);
+  return needsRevision
+    ? { outcome: 'REWRITE' as const, rewrite: { assessment, set, snapshot: decoded.value, subjectKey } }
+    : { outcome: 'SKIP' as const };
+});
+
+const remediationConflict = (
+  kind: 'INDETERMINATE' | 'NEW_DEFINITION_REQUIRED' | 'REMEDIATION_REQUIRED',
+  reasons: readonly string[],
+  subjects: readonly string[],
+): AttributePersistenceConflict =>
+  new AttributePersistenceConflict({
+    code: 'attribute_persistence_conflict',
+    conflict: 'REMEDIATION_REQUIRED',
+    reason: reasons.join('; ') || 'Nonconforming values require explicit remediation',
+    remediation: { kind, reasons: [...reasons], subjects: [...subjects] },
+  });
 
 const validRuleRevisionInput = (input: ReviseAttributeDefinitionRulesInput, tenantId: string): boolean =>
   validDefinitionRef(input.attributeDefinitionRef, tenantId) &&
@@ -444,7 +689,18 @@ const inspectAttributeImpactForScope = Effect.fn('AttributePersistence.inspectAt
 );
 
 /** All methods run only on the Core-owned, tenant-scoped Action transaction. */
-export const attributePersistenceForScope = (transaction: ScopedTransaction, scope: OperationalScope) => {
+export const attributePersistenceForScope = (
+  transaction: ScopedTransaction,
+  scope: OperationalScope,
+  authoritativeBasis: {
+    /**
+     * Injected #479 Cart owner contract for the complete open-selection population. Catalog owns no
+     * durable population of its own; an absent or failing port stays a typed unavailable outcome and
+     * never becomes "no open selections".
+     */
+    readonly openSelections?: CartOpenSelectionPopulationPort;
+  } = {},
+) => {
   const { tenantId } = scope;
   const createDefinition = Effect.fn('AttributePersistence.createDefinition')(function* createDefinition(
     input: CreateAttributeDefinitionInput,
@@ -588,6 +844,89 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     return { attributeDefinitionRef: input.attributeDefinitionRef, changed: true, revision };
   });
 
+  const planValueMigration = Effect.fn('AttributePersistence.planValueMigration')(function* planValueMigration(
+    attributeDefinitionRef: AttributeDefinitionRef,
+    currentDefinition: AttributeDefinition,
+    proposedDefinition: AttributeDefinition,
+  ): Effect.fn.Return<AttributeValueMigrationPlan, unknown> {
+    const definitionId = attributeDefinitionRef.resourceId;
+    const sets = yield* transaction
+      .select()
+      .from(attributeValueSets)
+      .where(
+        and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.attributeDefinitionId, definitionId)),
+      );
+    const plans = yield* Effect.forEach(
+      sets,
+      (set) =>
+        planValueSetMigration(
+          transaction,
+          tenantId,
+          attributeDefinitionRef,
+          currentDefinition,
+          proposedDefinition,
+          set,
+        ),
+      { concurrency: 1 },
+    );
+    const rewrites = plans.flatMap((plan) => (plan.outcome === 'REWRITE' ? [plan.rewrite] : []));
+    const failures = plans.flatMap((plan) => (plan.outcome === 'FAILURE' ? [plan] : []));
+    if (failures.length === 0) {
+      return { kind: 'CONVERTIBLE' as const, rewrites };
+    }
+    const failureKinds = failures.map((failure) => failure.failureKind);
+    const [highestKind] = failureKinds.toSorted(
+      (left, right) => valueMigrationSeverity[right] - valueMigrationSeverity[left],
+    );
+    return {
+      kind: highestKind ?? 'REMEDIATION_REQUIRED',
+      reasons: failures.flatMap((failure) => failure.reasons),
+      subjects: [...new Set(failures.map((failure) => failure.subjectKey))],
+    };
+  }, Effect.mapError(unavailable));
+
+  const migrateValueSet = Effect.fn('AttributePersistence.migrateValueSet')(function* migrateValueSet(
+    input: ReviseAttributeDefinitionRulesInput,
+    rewrite: ValueRewrite,
+    definitionRevision: number,
+  ) {
+    const setId = rewrite.set.attributeValueSetId;
+    const nextSetRevision = rewrite.set.currentRevision + 1;
+    yield* transaction
+      .delete(attributeValueItems)
+      .where(and(eq(attributeValueItems.tenantId, tenantId), eq(attributeValueItems.attributeValueSetId, setId)));
+    yield* transaction
+      .insert(attributeValueItems)
+      .values(
+        rewrite.assessment.converted.map((value, ordinal) =>
+          attributeValueItemRow(
+            value,
+            { attributeDefinitionId: input.attributeDefinitionRef.resourceId, attributeValueSetId: setId, tenantId },
+            ordinal,
+          ),
+        ),
+      );
+    yield* transaction
+      .update(attributeValueSets)
+      .set({ currentRevision: nextSetRevision })
+      .where(and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.attributeValueSetId, setId)));
+    yield* transaction.insert(attributeValueRevisions).values({
+      actingPrincipalId: input.principalId,
+      actionInvocationId: input.actionInvocationId,
+      attributeValueSetId: setId,
+      changeKind: 'SET',
+      evidenceRefs: [...(input.evidenceRefs ?? []), input.evidence],
+      reason: input.reason,
+      revision: nextSetRevision,
+      tenantId,
+      valueSnapshot: {
+        ...rewrite.snapshot,
+        attributeDefinitionRevision: definitionRevision,
+        values: rewrite.assessment.converted,
+      },
+    });
+  }, Effect.mapError(mapAttributeWriteError));
+
   const reviseDefinitionRules = Effect.fn('AttributePersistence.reviseDefinitionRules')(function* reviseDefinitionRules(
     input: ReviseAttributeDefinitionRulesInput,
   ) {
@@ -621,6 +960,11 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     ) {
       return yield* conflict('INVALID_INPUT', 'Changed meaning or value kind requires a new definition');
     }
+    const currentDefinition = asDomainDefinition(current, input.attributeDefinitionRef);
+    const proposedDefinition = asProposedDefinition(current, proposed, input.attributeDefinitionRef);
+    if (currentDefinition === null || proposedDefinition === null) {
+      return yield* conflict('INVALID_INPUT', 'Changed meaning or value kind requires a new definition');
+    }
     const proposedRules = proposedRuleSnapshot(proposed);
     if (isDeepStrictEqual(proposedRules, currentRuleSnapshot(current))) {
       return {
@@ -629,17 +973,52 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
         revision: current.currentRevision,
       };
     }
-    const impact = yield* inspectAttributeImpactForScope(transaction, scope, input.attributeDefinitionRef);
-    if (hasAttributeImpact(impact)) {
+    const { openSelections } = authoritativeBasis;
+    if (openSelections === undefined) {
       return yield* conflict(
-        'INVALID_STATE',
-        'Existing values, type rules, or axes require explicit remediation before rule revision',
+        'OPEN_SELECTION_IMPACT_UNAVAILABLE',
+        'Owner-confirmed Cart open-selection population is unavailable; Attribute Definition rules cannot change',
       );
     }
+    const population = yield* openSelections.read.pipe(
+      Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) =>
+        Effect.fail(
+          conflict('OPEN_SELECTION_IMPACT_UNAVAILABLE', `Open-selection population is unavailable: ${failure.reason}`),
+        ),
+      ),
+    );
     if (!(yield* input.checkOpenSelections)) {
       return yield* conflict('INVALID_STATE', 'Open selection impact is not proven clear');
     }
+    const impact = yield* inspectAttributeImpactForScope(transaction, scope, input.attributeDefinitionRef);
+    const impactedProducts = new Set(impact.directProducts);
+    const impactedVariants = new Set([...impact.directVariants, ...impact.inheritedVariants]);
+    if (
+      population.selections.some(
+        (reference) =>
+          (reference.selection.productRef.moduleId === CATALOG_MODULE_ID &&
+            impactedProducts.has(reference.selection.productRef.resourceId)) ||
+          impactedVariants.has(reference.selection.variantRef.resourceId),
+      )
+    ) {
+      return yield* conflict(
+        'REMEDIATION_REQUIRED',
+        'Affected open selections require Current reassessment before Attribute Definition rules can change',
+      );
+    }
     const revision = current.currentRevision + 1;
+    const plan = yield* planValueMigration(input.attributeDefinitionRef, currentDefinition, proposedDefinition);
+    if (plan.kind !== 'CONVERTIBLE') {
+      return yield* remediationConflict(plan.kind, plan.reasons, plan.subjects);
+    }
+    if (plan.rewrites.length > 1) {
+      return yield* remediationConflict(
+        'REMEDIATION_REQUIRED',
+        ['Migrating a shared measured unit across multiple value sets requires explicit per-subject remediation'],
+        plan.rewrites.map((rewrite) => rewrite.subjectKey),
+      );
+    }
+    yield* Effect.forEach(plan.rewrites, (rewrite) => migrateValueSet(input, rewrite, revision), { concurrency: 1 });
     const rules = proposedRules;
     yield* transaction
       .update(attributeDefinitions)

@@ -35,6 +35,27 @@ export type AttributeUnitChangeAssessment =
       readonly originals: readonly AttributeValue[];
     };
 
+/**
+ * A TEXT or CONTROLLED rule revision has no unit to convert. It may keep identity only while the
+ * recorded values stay valid under the proposed rules; otherwise the owner must remediate them.
+ */
+const assessNonMeasurementChange = (
+  proposed: AttributeDefinition,
+  recorded: readonly EvidencedAttributeValue[],
+): AttributeUnitChangeAssessment => {
+  if (recorded.some(({ original }) => original === null)) {
+    return { kind: 'INDETERMINATE', reasons: ['Recorded value is absent'] };
+  }
+  const originals = recorded.map(({ original }) => original);
+  if (originals.some((value) => !Schema.is(AttributeValueSchema)(value))) {
+    return { kind: 'INDETERMINATE', reasons: ['Recorded value is malformed'] };
+  }
+  const next = validateAttributeValues(proposed, originals);
+  return next.valid
+    ? { converted: next.normalized, kind: 'CONVERTIBLE', originals: next.normalized }
+    : { kind: 'REMEDIATION_REQUIRED', reasons: next.reasons };
+};
+
 /** Assess one fully enumerated subject; this does not establish impact completeness or write Current. */
 export const assessAttributeUnitChange = (
   current: AttributeDefinition,
@@ -48,8 +69,11 @@ export const assessAttributeUnitChange = (
     return { kind: 'NEW_DEFINITION_REQUIRED', reasons: ['Invalid definition'] };
   }
   const definitionChange = assessDefinitionRuleChange(current, proposed);
-  if (definitionChange.kind === 'NEW_DEFINITION_REQUIRED' || current.valueKind !== 'MEASUREMENT') {
+  if (definitionChange.kind === 'NEW_DEFINITION_REQUIRED') {
     return { kind: 'NEW_DEFINITION_REQUIRED', reasons: definitionChange.reasons };
+  }
+  if (current.valueKind !== 'MEASUREMENT') {
+    return assessNonMeasurementChange(proposed, recorded);
   }
   if (recorded.length === 0 || recorded.some(({ original }) => original === null)) {
     return { kind: 'INDETERMINATE', reasons: ['Recorded value is absent'] };
