@@ -96,6 +96,26 @@ type QueryTable =
 const queryResult = (result: ReturnType<(table: QueryTable) => readonly object[]>) =>
   Object.assign(Effect.succeed(result), { limit: () => Effect.succeed(result), orderBy: () => Effect.succeed(result) });
 
+const valueItemRows = (
+  set: SetFixture | undefined,
+  value: string | undefined,
+  specialState: 'UNKNOWN' | 'NONE' | 'NOT_APPLICABLE' | undefined,
+  malformedItem = false,
+) =>
+  value === undefined && specialState === undefined
+    ? []
+    : [
+        {
+          attributeDefinitionId: definitionId,
+          attributeValueSetId: malformedItem ? variantSetId : set?.attributeValueSetId,
+          ordinal: 0,
+          specialState: specialState ?? null,
+          tenantId,
+          textValue: specialState === undefined ? value : null,
+          valueKind: specialState === undefined ? 'TEXT' : 'SPECIAL',
+        },
+      ];
+
 const serviceWith = (
   sets: readonly SetFixture[],
   texts: Readonly<Record<string, string>>,
@@ -105,6 +125,7 @@ const serviceWith = (
     readonly malformedRevision?: boolean;
     readonly malformedValueSnapshot?: boolean;
     readonly malformedValueSnapshotSetId?: string;
+    readonly specialState?: 'UNKNOWN' | 'NONE' | 'NOT_APPLICABLE';
     readonly staleSnapshotDefinitionRevision?: boolean;
   } = {},
 ) => {
@@ -118,7 +139,12 @@ const serviceWith = (
       return [];
     }
     const currentText = texts[set.attributeValueSetId];
-    const revisionValues = currentText === undefined ? [] : [{ kind: 'TEXT', text: currentText }];
+    const revisionValues = [];
+    if (options.specialState !== undefined) {
+      revisionValues.push({ kind: 'SPECIAL', state: options.specialState });
+    } else if (currentText !== undefined) {
+      revisionValues.push({ kind: 'TEXT', text: currentText });
+    }
     return [
       {
         attributeValueSetId: options.malformedRevision === true ? variantSetId : set.attributeValueSetId,
@@ -148,8 +174,8 @@ const serviceWith = (
     if (table === attributeDefinitions || table === attributeDefinitionRevisions) {
       return [
         {
-          allowsNone: 0,
-          allowsNotApplicable: 0,
+          allowsNone: 1,
+          allowsNotApplicable: 1,
           allowsUnknown: 1,
           applicableLevels: ['PRODUCT', 'VARIANT'],
           canonicalUnit: null,
@@ -200,18 +226,7 @@ const serviceWith = (
       const set = sets[itemReads];
       itemReads += 1;
       const value = set === undefined ? undefined : texts[set.attributeValueSetId];
-      return value === undefined
-        ? []
-        : [
-            {
-              attributeDefinitionId: definitionId,
-              attributeValueSetId: options.malformedItem === true ? variantSetId : set.attributeValueSetId,
-              ordinal: 0,
-              tenantId,
-              textValue: value,
-              valueKind: 'TEXT',
-            },
-          ];
+      return valueItemRows(set, value, options.specialState, options.malformedItem);
     }
     return [];
   };
@@ -242,6 +257,7 @@ describe('private effective attribute value reads', () => {
       expect(basis.entries).toMatchObject([
         {
           attributeValueSetId: productSetId,
+          confirmsRequiredFact: true,
           currentState: 'SET',
           definitionRevision: 2,
           revision: 4,
@@ -250,6 +266,17 @@ describe('private effective attribute value reads', () => {
       ]);
     }),
   );
+
+  for (const specialState of ['UNKNOWN', 'NONE', 'NOT_APPLICABLE'] as const) {
+    it.effect(`keeps allowed ${specialState} structurally valid without confirming a required fact`, () =>
+      Effect.gen(function* specialValue() {
+        const reads = yield* serviceWith([productSet], {}, { specialState }).service;
+        const basis = yield* reads.readProductTypeValidity([productId]);
+        expect(basis.complete).toBe(true);
+        expect(basis.entries).toMatchObject([{ confirmsRequiredFact: false, valid: true }]);
+      }),
+    );
+  }
 
   it.effect('does not attest a mismatched immutable definition revision', () =>
     Effect.gen(function* mismatchedDefinition() {

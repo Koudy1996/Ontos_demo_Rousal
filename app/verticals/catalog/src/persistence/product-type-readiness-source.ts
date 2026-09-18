@@ -99,9 +99,9 @@ const readVariantSnapshot = Effect.fn('ProductTypeReadinessSource.readVariantSna
   const directEntries = inventory.entries.filter((entry) => entry.variantId === variantRef.resourceId);
   const directIds: string[] = [];
   for (const entry of directEntries) {
-      if (entry.currentState === 'SET') {
-        directIds.push(entry.attributeDefinitionId);
-      }
+    if (entry.currentState === 'SET') {
+      directIds.push(entry.attributeDefinitionId);
+    }
   }
   const effectiveValues =
     source.status === 'VERIFIED'
@@ -181,6 +181,14 @@ export const productTypeReadinessSourceForScope = (
       return { reason: 'Current Variant value inventory is incomplete or inconsistent', status: 'INDETERMINATE' };
     }
     const productEntries = inventory.entries.filter((entry) => entry.variantId === null);
+    const requiredProductDefinitionIds = new Set<string>();
+    if (source.status === 'VERIFIED') {
+      for (const rule of source.rulesRevision.rules) {
+        if (rule.level === 'PRODUCT' && rule.required) {
+          requiredProductDefinitionIds.add(rule.attributeDefinitionRef.resourceId);
+        }
+      }
+    }
     const productValues = [];
     for (const entry of productEntries) {
       if (entry.currentState === 'SET') {
@@ -191,7 +199,9 @@ export const productTypeReadinessSourceForScope = (
             resourceType: attributeDefinitionResourceType,
             tenantId: scope.tenantId,
           },
-          valid: entry.valid,
+          valid:
+            entry.valid &&
+            (!requiredProductDefinitionIds.has(entry.attributeDefinitionId) || entry.confirmsRequiredFact),
         });
       }
     }

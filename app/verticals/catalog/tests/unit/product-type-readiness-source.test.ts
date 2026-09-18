@@ -3,6 +3,10 @@ import { DateTime, Effect, Exit, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
+  attributeDefinitions,
+  attributeDefinitionRevisions,
+  attributeValueItems,
+  attributeValueRevisions,
   attributeValueSets,
   productTypeAssignments,
   productTypeRevisions,
@@ -41,6 +45,10 @@ const scope = {
   correlationId: 'product-type-source-test',
 };
 type Table =
+  | typeof attributeDefinitions
+  | typeof attributeDefinitionRevisions
+  | typeof attributeValueItems
+  | typeof attributeValueRevisions
   | typeof products
   | typeof productTypeAssignments
   | typeof productTypes
@@ -53,11 +61,63 @@ interface Rows {
   readonly assigned?: boolean;
   readonly foreignRule?: boolean;
   readonly malformedValueSet?: boolean;
+  readonly optionalRule?: boolean;
   readonly revision?: number;
+  readonly specialState?: 'UNKNOWN' | 'NONE' | 'NOT_APPLICABLE';
 }
 const rowsFor = (table: Table, options: Rows) => {
+  if (table === attributeDefinitions || table === attributeDefinitionRevisions) {
+    return [
+      {
+        allowsNone: 1,
+        allowsNotApplicable: 1,
+        allowsUnknown: 1,
+        applicableLevels: ['PRODUCT'],
+        canonicalUnit: null,
+        controlledValueKind: null,
+        currentRevision: 2,
+        decimalPlaces: null,
+        maximumValue: null,
+        meaning: 'Product material',
+        measuredQuantity: null,
+        minimumValue: null,
+        multiplicity: 'SINGLE',
+        name: 'Material',
+        valueKind: 'TEXT',
+      },
+    ];
+  }
+  if (table === attributeValueRevisions) {
+    return [
+      {
+        attributeValueSetId: '88888888-8888-4888-8888-888888888888',
+        changeKind: 'SET',
+        revision: 1,
+        tenantId,
+        valueSnapshot: {
+          attributeDefinitionRevision: 2,
+          productTypeId: typeId,
+          productTypeRevision: 2,
+          sourceProductValueRevision: null,
+          values: [{ kind: 'SPECIAL', state: options.specialState }],
+        },
+      },
+    ];
+  }
+  if (table === attributeValueItems) {
+    return [
+      {
+        attributeDefinitionId: definitionId,
+        attributeValueSetId: '88888888-8888-4888-8888-888888888888',
+        ordinal: 0,
+        specialState: options.specialState,
+        tenantId,
+        valueKind: 'SPECIAL',
+      },
+    ];
+  }
   if (table === attributeValueSets) {
-    return options.malformedValueSet === true
+    return options.malformedValueSet === true || options.specialState !== undefined
       ? [
           {
             attributeDefinitionId: definitionId,
@@ -101,7 +161,7 @@ const rowsFor = (table: Table, options: Rows) => {
       attributeDefinitionId: definitionId,
       level: 'PRODUCT',
       productTypeId: typeId,
-      requirement: 'REQUIRED',
+      requirement: options.optionalRule === true ? 'OPTIONAL' : 'REQUIRED',
       revision: 2,
       tenantId: options.foreignRule === true ? '77777777-7777-4777-8777-777777777777' : tenantId,
     },
@@ -110,7 +170,7 @@ const rowsFor = (table: Table, options: Rows) => {
 const selected = (rows: readonly object[]) => ({
   where: () => {
     const result = Effect.succeed(rows);
-    return Object.assign(result, { for: () => result, limit: () => result });
+    return Object.assign(result, { for: () => result, limit: () => result, orderBy: () => result });
   },
 });
 const transaction = (options: Rows = {}) => ({
@@ -120,6 +180,30 @@ const transaction = (options: Rows = {}) => ({
 });
 
 describe('Product Type Current readiness source', () => {
+  for (const specialState of ['UNKNOWN', 'NONE', 'NOT_APPLICABLE'] as const) {
+    it.effect(`does not satisfy a required Product fact with allowed ${specialState}`, () =>
+      Effect.gen(function* requiredSpecial() {
+        // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+        const source = productTypeReadinessSourceForScope(transaction({ specialState }), scope);
+        const result = yield* source.evaluate(productRef, at);
+        expect(result).toMatchObject({
+          rules: { minimumSatisfied: false, violations: [{ kind: 'INVALID' }, { kind: 'MISSING_REQUIRED' }] },
+          status: 'INVALID',
+        });
+      }),
+    );
+    it.effect(`keeps allowed ${specialState} valid when Product fact is optional`, () =>
+      Effect.gen(function* optionalSpecial() {
+        // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+        const source = productTypeReadinessSourceForScope(transaction({ optionalRule: true, specialState }), scope);
+        const result = yield* source.evaluate(productRef, at);
+        expect(result).toMatchObject({
+          rules: { minimumSatisfied: true, violations: [] },
+          status: 'VERIFIED_TYPE_MINIMUM',
+        });
+      }),
+    );
+  }
   it('keeps an allowed special Variant value without treating it as a confirmed required fact', () => {
     const variantRef = {
       moduleId: 'commerce.catalog',

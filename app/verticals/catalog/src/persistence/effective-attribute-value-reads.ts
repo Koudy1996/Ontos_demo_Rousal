@@ -71,6 +71,8 @@ export interface AttributeDefinitionCurrentProof {
 export interface AttributeValueSetValidityEntry {
   readonly attributeDefinitionId: string;
   readonly attributeValueSetId: string;
+  /** Structurally valid SPECIAL states do not confirm a required measured fact. */
+  readonly confirmsRequiredFact: boolean;
   readonly currentState: 'SET' | 'REMOVED';
   readonly definitionRevision: number;
   readonly productId: string;
@@ -436,6 +438,8 @@ const readValidityEntry = Effect.fn('EffectiveAttributeValueReads.readValidityEn
   return Option.some<AttributeValueSetValidityEntry>({
     attributeDefinitionId: set.attributeDefinitionId,
     attributeValueSetId: set.attributeValueSetId,
+    confirmsRequiredFact:
+      set.currentState === 'SET' && checked && values.value.some((value) => value.kind !== 'SPECIAL'),
     currentState: set.currentState,
     definitionRevision: definition.value.currentRevision,
     productId: set.productId,
