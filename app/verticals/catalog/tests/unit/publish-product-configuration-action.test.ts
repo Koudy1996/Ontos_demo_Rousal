@@ -20,6 +20,7 @@ import {
   publishProductConfigurationAction,
 } from '../../src/actions/publish-product-configuration.action.ts';
 import type { ProductConfigurationPersistence } from '../../src/persistence/product-configuration-persistence.ts';
+import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 import { catalogResultSnapshots } from '../../src/database/schema.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -75,10 +76,18 @@ describe('Product Configuration publication Action', () => {
           bindActionTestServices(publishProductConfigurationAction, {
             captureResult: () =>
               Effect.fail(
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
+                Object.assign(
+                  new ActionTransactionError({
+                    code: 'action_transaction_failed',
+                    reason: 'Catalog result capture failed',
+                  }),
+                  {
+                    cause: new CatalogPersistenceUnavailable({
+                      code: 'catalog_persistence_unavailable',
+                      reason: 'snapshot storage unavailable',
+                    }),
+                  },
+                ),
               ),
             publish: () => Effect.succeed({ _tag: 'published' as const, revision: 1 }),
             readCurrent: () => Effect.die('unexpected read'),
