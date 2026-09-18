@@ -2,8 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug create-product-relationship
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Match, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import {
   CreateProductRelationshipPayloadSchema,
@@ -11,6 +11,7 @@ import {
 } from '../../shared/actions/product-relationship-mutations.ts';
 import type { CreateProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 import type { ProductRelationshipPersistence } from '../persistence/product-relationship-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-relationship-changed-v1.ts';
 import { createCreateProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './create-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 import {
@@ -33,6 +34,7 @@ const domainEvents = {
   'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
 } as const;
 const catalogModuleKey = 'commerce.catalog';
+const actionKey = 'commerce.catalog.create-product-relationship';
 
 export const handleCreateProductRelationship = Effect.fn('CreateProductRelationshipAction.handle')(
   function* handleCreateProductRelationship(
@@ -91,13 +93,44 @@ export const handleCreateProductRelationship = Effect.fn('CreateProductRelations
   },
 );
 
+export const createProductRelationshipResultServiceFactory = (
+  transaction: Parameters<typeof relationshipPersistenceServiceFactory>[0],
+  scope: Parameters<typeof relationshipPersistenceServiceFactory>[1],
+) =>
+  relationshipPersistenceServiceFactory(transaction, scope).pipe(
+    Effect.map((services) => ({
+      ...services,
+      captureResult: (actionInvocationId: string, result: CreateProductRelationshipResult) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey, schemaVersion: 1 },
+          {
+            decode: Schema.decodeUnknownEffect(CreateProductRelationshipResultSchema),
+            encode: Schema.encodeEffect(CreateProductRelationshipResultSchema),
+          },
+          result,
+        ).pipe(
+          Effect.mapError((cause) =>
+            Object.assign(
+              new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              }),
+              { cause },
+            ),
+          ),
+        ),
+    })),
+  );
+
 export const createProductRelationshipAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.create-product-relationship.access.v1',
     },
-    actionKey: 'commerce.catalog.create-product-relationship',
+    actionKey,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductRelationshipActionErrorSchema,
@@ -105,7 +138,7 @@ export const createProductRelationshipAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.create-product-relationship',
+      entrypointKey: actionKey,
       moduleKey: catalogModuleKey,
       role: 'action',
     }),
@@ -118,7 +151,8 @@ export const createProductRelationshipAction = defineAction(
     schemaVersion: '1',
   },
   handleCreateProductRelationship,
-  relationshipPersistenceServiceFactory,
+  createProductRelationshipResultServiceFactory,
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

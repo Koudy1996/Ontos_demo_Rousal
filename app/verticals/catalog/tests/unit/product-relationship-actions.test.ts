@@ -1,5 +1,5 @@
 import type { ActionHandlerContext, DomainEventContractMap } from '@app/core-runtime';
-import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { ActionTransactionError, TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
@@ -11,17 +11,24 @@ import {
 import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-relationship-changed-v1.ts';
 import {
   changeProductRelationshipAction,
+  changeProductRelationshipResultServiceFactory,
   handleChangeProductRelationship,
 } from '../../src/actions/change-product-relationship.action.ts';
 import {
   createProductRelationshipAction,
+  createProductRelationshipResultServiceFactory,
   handleCreateProductRelationship,
 } from '../../src/actions/create-product-relationship.action.ts';
 import {
   handleRemoveProductRelationship,
   removeProductRelationshipAction,
+  removeProductRelationshipResultServiceFactory,
 } from '../../src/actions/remove-product-relationship.action.ts';
+import { catalogResultSnapshots } from '../../src/database/schema.ts';
+import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 import type { ProductRelationshipPersistence } from '../../src/persistence/product-relationship-persistence.ts';
+
+/* oxlint-disable sonarjs/no-nested-functions -- Focused transaction mock follows the Drizzle query-builder chain. owner: Catalog #478; remove with a shared transaction fixture. expires: 2027-03-31. */
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const relationshipId = '77777777-7777-4777-8777-777777777777';
@@ -102,6 +109,88 @@ const removeContext = (overrides: Partial<ProductRelationshipPersistence>) =>
   context(overrides, removeProductRelationshipAction.descriptor.domainEvents);
 
 describe('Product relationship Action contracts and handlers', () => {
+  it.effect(
+    'captures each decoded relationship result with its exact Action identity in the supplied transaction',
+    () =>
+      Effect.gen(function* relationshipResultCaptureTest() {
+        const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
+        const transaction = {
+          insert: (table: typeof catalogResultSnapshots) => {
+            expect(table).toBe(catalogResultSnapshots);
+            return {
+              values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
+                onConflictDoNothing: () => ({
+                  returning: () =>
+                    Effect.sync(() => {
+                      rows.push(row);
+                      return [row];
+                    }),
+                }),
+              }),
+            };
+          },
+        };
+        const result = Schema.decodeUnknownSync(createProductRelationshipAction.descriptor.resultSchema)({
+          relationship,
+          relationshipId,
+          revision: 1,
+        });
+        for (const [factory, actionKey] of [
+          [createProductRelationshipResultServiceFactory, 'commerce.catalog.create-product-relationship'],
+          [changeProductRelationshipResultServiceFactory, 'commerce.catalog.change-product-relationship'],
+          [removeProductRelationshipResultServiceFactory, 'commerce.catalog.remove-product-relationship'],
+        ] as const) {
+          // @ts-expect-error Focused mock implements only the snapshot insert chain.
+          const services = yield* factory(transaction, scope);
+          yield* services.captureResult('66666666-6666-4666-8666-666666666666', result);
+          expect(rows.at(-1)).toMatchObject({
+            actionInvocationId: '66666666-6666-4666-8666-666666666666',
+            actionKey,
+            encodedResult: result,
+            schemaVersion: 1,
+            tenantId,
+          });
+        }
+        expect(rows).toHaveLength(3);
+      }),
+  );
+
+  it.effect('fails closed when the transactional result snapshot cannot be persisted', () =>
+    Effect.gen(function* relationshipResultCaptureFailureTest() {
+      const transaction = {
+        insert: () => ({
+          values: () => ({
+            onConflictDoNothing: () => ({
+              returning: () =>
+                Effect.fail(
+                  new CatalogPersistenceUnavailable({
+                    code: 'catalog_persistence_unavailable',
+                    reason: 'Test insert failed',
+                  }),
+                ),
+            }),
+          }),
+        }),
+      };
+      const result = Schema.decodeUnknownSync(createProductRelationshipAction.descriptor.resultSchema)({
+        relationship,
+        relationshipId,
+        revision: 1,
+      });
+      for (const factory of [
+        createProductRelationshipResultServiceFactory,
+        changeProductRelationshipResultServiceFactory,
+        removeProductRelationshipResultServiceFactory,
+      ]) {
+        // @ts-expect-error Focused mock implements only the failing snapshot insert chain.
+        const services = yield* factory(transaction, scope);
+        const error = yield* services.captureResult('66666666-6666-4666-8666-666666666666', result).pipe(Effect.flip);
+        expect(Schema.is(ActionTransactionError)(error)).toBe(true);
+        expect(error.code).toBe('action_transaction_failed');
+      }
+    }),
+  );
+
   it('requires Tenant-consistent, public relationship change evidence in the outbox contract', () => {
     const payload = {
       changeKind: 'CREATED',

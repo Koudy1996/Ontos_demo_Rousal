@@ -2,14 +2,15 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug remove-product-relationship
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Match, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import {
   RemoveProductRelationshipPayloadSchema,
   ProductRelationshipMutationResultSchema,
 } from '../../shared/actions/product-relationship-mutations.ts';
 import type { RemoveProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
 import type { ProductRelationshipPersistence } from '../persistence/product-relationship-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { ProductRelationshipChangedEventSchema } from './create-product-relationship.action.ts';
 import { createRemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 import {
@@ -29,6 +30,7 @@ const domainEvents = {
   'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
 } as const;
 const catalogModuleKey = 'commerce.catalog';
+const actionKey = 'commerce.catalog.remove-product-relationship';
 
 export const handleRemoveProductRelationship = Effect.fn('RemoveProductRelationshipAction.handle')(
   function* handleRemoveProductRelationship(
@@ -85,13 +87,44 @@ export const handleRemoveProductRelationship = Effect.fn('RemoveProductRelations
   },
 );
 
+export const removeProductRelationshipResultServiceFactory = (
+  transaction: Parameters<typeof relationshipPersistenceServiceFactory>[0],
+  scope: Parameters<typeof relationshipPersistenceServiceFactory>[1],
+) =>
+  relationshipPersistenceServiceFactory(transaction, scope).pipe(
+    Effect.map((services) => ({
+      ...services,
+      captureResult: (actionInvocationId: string, result: RemoveProductRelationshipResult) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey, schemaVersion: 1 },
+          {
+            decode: Schema.decodeUnknownEffect(RemoveProductRelationshipResultSchema),
+            encode: Schema.encodeEffect(RemoveProductRelationshipResultSchema),
+          },
+          result,
+        ).pipe(
+          Effect.mapError((cause) =>
+            Object.assign(
+              new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              }),
+              { cause },
+            ),
+          ),
+        ),
+    })),
+  );
+
 export const removeProductRelationshipAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.remove-product-relationship.access.v1',
     },
-    actionKey: 'commerce.catalog.remove-product-relationship',
+    actionKey,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductRelationshipActionErrorSchema,
@@ -99,7 +132,7 @@ export const removeProductRelationshipAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.remove-product-relationship',
+      entrypointKey: actionKey,
       moduleKey: catalogModuleKey,
       role: 'action',
     }),
@@ -112,7 +145,8 @@ export const removeProductRelationshipAction = defineAction(
     schemaVersion: '1',
   },
   handleRemoveProductRelationship,
-  relationshipPersistenceServiceFactory,
+  removeProductRelationshipResultServiceFactory,
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
