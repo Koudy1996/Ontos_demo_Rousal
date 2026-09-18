@@ -14,6 +14,9 @@ export interface ProductTypeReadinessSnapshot {
   /** Exact Current Variant inventory verified by the owner in the same read transaction. */
   readonly variantRefs: readonly VariantRef[];
   readonly variants: readonly {
+    /** Complete direct Current Variant facts, including attributes outside the Type's allowed set. */
+    readonly currentAttributeDefinitionIds?: readonly string[];
+    readonly currentValueSource?: { readonly complete: true; readonly revision: number };
     /** One result per allowed Variant-level rule, including absent values. */
     readonly effectiveValues: readonly {
       readonly attributeDefinitionId: string;
@@ -48,6 +51,44 @@ const sameRef = (left: ProductRef | VariantRef, right: ProductRef | VariantRef):
   left.tenantId === right.tenantId && left.resourceId === right.resourceId;
 const catalogModuleId = 'commerce.catalog';
 const definitionResourceType = 'commerce.catalog.attribute-definition';
+
+const currentVariantValue = (attributeDefinitionId: string, tenantId: string): ProductTypeCurrentValue => ({
+  attributeDefinitionRef: {
+    moduleId: catalogModuleId,
+    resourceId: attributeDefinitionId,
+    resourceType: definitionResourceType,
+    tenantId,
+  },
+  valid: false,
+});
+
+const untypedVariantValues = (
+  variant: ProductTypeReadinessSnapshot['variants'][number],
+  tenantId: string,
+): ProductTypeCurrentValue[] =>
+  (variant.currentAttributeDefinitionIds ?? []).map((attributeDefinitionId) =>
+    currentVariantValue(attributeDefinitionId, tenantId),
+  );
+
+const disallowedVariantValues = (
+  ids: readonly string[] | undefined,
+  source: Extract<ProductTypeReadinessSource, { readonly status: 'VERIFIED' }>,
+): ProductTypeCurrentValue[] => {
+  const allowed = new Set<string>();
+  for (const rule of source.rulesRevision.rules) {
+    if (rule.level === 'VARIANT') {
+      allowed.add(rule.attributeDefinitionRef.resourceId);
+    }
+  }
+  const { tenantId } = source.productRef;
+  const disallowed: ProductTypeCurrentValue[] = [];
+  for (const id of ids ?? []) {
+    if (!allowed.has(id)) {
+      disallowed.push(currentVariantValue(id, tenantId));
+    }
+  }
+  return disallowed;
+};
 
 const effectiveSourceProblem = (
   result: Extract<EffectiveAttributeValuesResult, { readonly status: 'CURRENT' }>,
@@ -129,6 +170,18 @@ const snapshotProblem = ({
   ) {
     return 'Current Variant inventory is incomplete or inconsistent';
   }
+  if (
+    variants.some(
+      (variant) =>
+        variant.currentValueSource?.complete !== true ||
+        !Number.isSafeInteger(variant.currentValueSource.revision) ||
+        variant.currentValueSource.revision < 1 ||
+        variant.currentAttributeDefinitionIds === undefined ||
+        new Set(variant.currentAttributeDefinitionIds).size !== variant.currentAttributeDefinitionIds.length,
+    )
+  ) {
+    return 'Complete Current Variant value inventory is unavailable or ambiguous';
+  }
   return null;
 };
 
@@ -152,7 +205,7 @@ export const evaluateCurrentProductTypeReadiness = (
       productRef: source.productRef,
       productValues,
       variants: variants.map((variant) => ({
-        effectiveValues: [],
+        effectiveValues: untypedVariantValues(variant, source.productRef.tenantId),
         productRef: source.productRef,
         variantRef: variant.variantRef,
       })),
@@ -173,7 +226,7 @@ export const evaluateCurrentProductTypeReadiness = (
   }[] = [];
   const variantValues = [];
   for (const variant of variants) {
-    const values: ProductTypeCurrentValue[] = [];
+    const values: ProductTypeCurrentValue[] = disallowedVariantValues(variant.currentAttributeDefinitionIds, source);
     const seen = new Set<string>();
     for (const value of variant.effectiveValues) {
       if (seen.has(value.attributeDefinitionId)) {

@@ -69,6 +69,8 @@ describe('private Product Type readiness evaluation', () => {
       variantRefs: [variantRef],
       variants: [
         {
+          currentAttributeDefinitionIds: [],
+          currentValueSource: { complete: true, revision: 5 },
           effectiveValues: [
             {
               attributeDefinitionId: definitionRef.resourceId,
@@ -99,6 +101,27 @@ describe('private Product Type readiness evaluation', () => {
         variants: [],
       }).status,
     ).toBe('UNTYPED_PARTIAL');
+  });
+
+  it('names a Current Variant fact as disallowed when the Product has no Type', () => {
+    const result = evaluateCurrentProductTypeReadiness({
+      productValues: [],
+      productValueSource: { complete: true, revision: 1 },
+      source: { productRef, status: 'UNTYPED' },
+      variantRefs: [variantRef],
+      variants: [
+        {
+          currentAttributeDefinitionIds: [definitionRef.resourceId],
+          currentValueSource: { complete: true, revision: 1 },
+          effectiveValues: [],
+          variantRef,
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      rules: { minimumSatisfied: false, violations: [{ kind: 'DISALLOWED', variantId: variantRef.resourceId }] },
+      status: 'UNTYPED_PARTIAL',
+    });
   });
 
   it('rejects duplicate and foreign Product value inventories', () => {
@@ -155,6 +178,8 @@ describe('private Product Type readiness evaluation', () => {
       variantRefs: [variantRef],
       variants: [
         {
+          currentAttributeDefinitionIds: [definitionRef.resourceId],
+          currentValueSource: { complete: true, revision: 2 },
           effectiveValues: [
             {
               attributeDefinitionId: definitionRef.resourceId,
@@ -179,6 +204,8 @@ describe('private Product Type readiness evaluation', () => {
       variantRefs: [variantRef],
       variants: [
         {
+          currentAttributeDefinitionIds: [],
+          currentValueSource: { complete: true, revision: 5 },
           effectiveValues: [
             {
               attributeDefinitionId: definitionRef.resourceId,
@@ -195,5 +222,44 @@ describe('private Product Type readiness evaluation', () => {
       ],
     });
     expect(result.status).toBe('INDETERMINATE');
+  });
+
+  it('fails closed without a complete direct Variant inventory', () => {
+    expect(
+      evaluateCurrentProductTypeReadiness({
+        productValues: [],
+        productValueSource: { complete: true, revision: 2 },
+        source,
+        variantRefs: [variantRef],
+        variants: [{ effectiveValues: [], variantRef }],
+      }).status,
+    ).toBe('INDETERMINATE');
+  });
+
+  it('rejects a disallowed direct Variant fact even when required effective values are present', () => {
+    const disallowedId = '77777777-7777-4777-8777-777777777777';
+    const result = evaluateCurrentProductTypeReadiness({
+      productValues: [],
+      productValueSource: { complete: true, revision: 2 },
+      source,
+      variantRefs: [variantRef],
+      variants: [
+        {
+          currentAttributeDefinitionIds: [definitionRef.resourceId, disallowedId],
+          currentValueSource: { complete: true, revision: 4 },
+          effectiveValues: [
+            {
+              attributeDefinitionId: definitionRef.resourceId,
+              result: { status: 'CURRENT', values: [{ kind: 'TEXT', text: 'valid' }], variantRevision: 4 },
+            },
+          ],
+          variantRef,
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      rules: { violations: [{ attributeDefinitionId: disallowedId, kind: 'DISALLOWED' }] },
+      status: 'INVALID',
+    });
   });
 });
