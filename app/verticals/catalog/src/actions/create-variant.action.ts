@@ -2,12 +2,13 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug create-variant
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Match, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import { CreateVariantPayloadSchema, CreateVariantResultSchema } from '../../shared/actions/create-variant.ts';
-import type { CreateVariantPayload } from '../../shared/actions/create-variant.ts';
+import type { CreateVariantPayload, CreateVariantResult } from '../../shared/actions/create-variant.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   checkVariantTenant,
   conflictForOutcome,
@@ -20,6 +21,13 @@ import {
 
 export { CreateVariantPayloadSchema, CreateVariantResultSchema } from '../../shared/actions/create-variant.ts';
 export type { CreateVariantPayload, CreateVariantResult } from '../../shared/actions/create-variant.ts';
+
+type CreateVariantServices = VariantPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: CreateVariantResult,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
 
 export const handleCreateVariant = Effect.fn('CreateVariantAction.handle')(function* handleCreateVariant(
   payload: CreateVariantPayload,
@@ -79,7 +87,32 @@ export const createVariantAction = defineAction(
     schemaVersion: '1',
   },
   handleCreateVariant,
-  variantPersistenceForScope,
+  (transaction, scope) =>
+    variantPersistenceForScope(transaction, scope).pipe(
+      Effect.map((services): CreateVariantServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.create-variant', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(CreateVariantResultSchema),
+              encode: Schema.encodeEffect(CreateVariantResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

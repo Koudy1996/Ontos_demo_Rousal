@@ -2,15 +2,16 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug reactivate-variant
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Match, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import {
   ReactivateVariantPayloadSchema,
   ReactivateVariantResultSchema,
 } from '../../shared/actions/reactivate-variant.ts';
-import type { ReactivateVariantPayload } from '../../shared/actions/reactivate-variant.ts';
+import type { ReactivateVariantPayload, ReactivateVariantResult } from '../../shared/actions/reactivate-variant.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   checkVariantTenant,
   conflictForOutcome,
@@ -25,6 +26,13 @@ export {
   ReactivateVariantResultSchema,
 } from '../../shared/actions/reactivate-variant.ts';
 export type { ReactivateVariantPayload, ReactivateVariantResult } from '../../shared/actions/reactivate-variant.ts';
+
+type ReactivateVariantServices = VariantPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: ReactivateVariantResult,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
 
 export const handleReactivateVariant = Effect.fn('ReactivateVariantAction.handle')(function* handleReactivateVariant(
   payload: ReactivateVariantPayload,
@@ -76,7 +84,32 @@ export const reactivateVariantAction = defineAction(
     schemaVersion: '1',
   },
   handleReactivateVariant,
-  variantPersistenceForScope,
+  (transaction, scope) =>
+    variantPersistenceForScope(transaction, scope).pipe(
+      Effect.map((services): ReactivateVariantServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.reactivate-variant', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ReactivateVariantResultSchema),
+              encode: Schema.encodeEffect(ReactivateVariantResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

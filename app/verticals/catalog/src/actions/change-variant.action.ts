@@ -2,12 +2,13 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug change-variant
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Match, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import { ChangeVariantPayloadSchema, ChangeVariantResultSchema } from '../../shared/actions/change-variant.ts';
-import type { ChangeVariantPayload } from '../../shared/actions/change-variant.ts';
+import type { ChangeVariantPayload, ChangeVariantResult } from '../../shared/actions/change-variant.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   checkVariantTenant,
   conflictForOutcome,
@@ -20,6 +21,13 @@ import {
 
 export { ChangeVariantPayloadSchema, ChangeVariantResultSchema } from '../../shared/actions/change-variant.ts';
 export type { ChangeVariantPayload, ChangeVariantResult } from '../../shared/actions/change-variant.ts';
+
+type ChangeVariantServices = VariantPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: ChangeVariantResult,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
 
 export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(function* handleChangeVariant(
   payload: ChangeVariantPayload,
@@ -86,7 +94,32 @@ export const changeVariantAction = defineAction(
     schemaVersion: '1',
   },
   handleChangeVariant,
-  variantPersistenceForScope,
+  (transaction, scope) =>
+    variantPersistenceForScope(transaction, scope).pipe(
+      Effect.map((services): ChangeVariantServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.change-variant', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
+              encode: Schema.encodeEffect(ChangeVariantResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

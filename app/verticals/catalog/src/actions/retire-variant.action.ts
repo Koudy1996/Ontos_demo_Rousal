@@ -2,12 +2,13 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug retire-variant
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Match, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
 import { RetireVariantPayloadSchema, RetireVariantResultSchema } from '../../shared/actions/retire-variant.ts';
-import type { RetireVariantPayload } from '../../shared/actions/retire-variant.ts';
+import type { RetireVariantPayload, RetireVariantResult } from '../../shared/actions/retire-variant.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   checkVariantTenant,
   conflictForOutcome,
@@ -20,6 +21,13 @@ import {
 
 export { RetireVariantPayloadSchema, RetireVariantResultSchema } from '../../shared/actions/retire-variant.ts';
 export type { RetireVariantPayload, RetireVariantResult } from '../../shared/actions/retire-variant.ts';
+
+type RetireVariantServices = VariantPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: RetireVariantResult,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
 
 export const handleRetireVariant = Effect.fn('RetireVariantAction.handle')(function* handleRetireVariant(
   payload: RetireVariantPayload,
@@ -75,7 +83,32 @@ export const retireVariantAction = defineAction(
     schemaVersion: '1',
   },
   handleRetireVariant,
-  variantPersistenceForScope,
+  (transaction, scope) =>
+    variantPersistenceForScope(transaction, scope).pipe(
+      Effect.map((services): RetireVariantServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.retire-variant', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RetireVariantResultSchema),
+              encode: Schema.encodeEffect(RetireVariantResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
