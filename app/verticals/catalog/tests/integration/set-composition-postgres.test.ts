@@ -9,8 +9,19 @@ import {
   testDatabasePools,
 } from '../../../../packages/core-runtime/tests/support/database.ts';
 import { SetCompositionRevisionSchema } from '../../shared/domain/set-composition.ts';
+import { ProductConfigurationSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
+import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
   catalogRelations,
+  configurationUnitRevisions,
+  configurationUnits,
+  productConfigurationChoiceOptions,
+  productConfigurationChoices,
+  productConfigurationDefinitionRevisions,
+  productConfigurationDefinitions,
+  productConfigurationMeasuredRules,
+  productConfigurationOptionAllowances,
+  productConfigurationRevisionActivations,
   productUnitRuleRevisions,
   productUnits,
   productVariantAxisEvents,
@@ -31,6 +42,7 @@ const foreignTenantId = randomUUID();
 const principalId = randomUUID();
 const setProductId = randomUUID();
 const setVariantId = randomUUID();
+const configuredSetVariantId = randomUUID();
 const shelfId = randomUUID();
 const shelfVariantId = randomUUID();
 const bracketId = randomUUID();
@@ -39,6 +51,8 @@ const cleanerId = randomUUID();
 const cleanerVariantId = randomUUID();
 const lightId = randomUUID();
 const unitId = randomUUID();
+const lengthUnitId = randomUUID();
+const configurationDefinitionId = randomUUID();
 const at = new Date('2026-09-18T00:00:00.000Z');
 
 const ref = (scopedTenantId: string, type: string, resourceId: string) => ({
@@ -58,22 +72,38 @@ const scopeFor = (scopedTenantId: string) => ({
 });
 const revisionFor = (
   compositionId: string,
-  components: readonly { amount: string; productId: string; variantId: string }[],
+  components: readonly {
+    amount: string;
+    configuration?: CatalogSelection['configuration'];
+    productId: string;
+    variantId: string;
+  }[],
   scopedTenantId: string = tenantId,
+  selectedSetVariantId: string = setVariantId,
 ) =>
   Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
-    components: components.map(({ amount, productId, variantId }) => ({
-      componentId: randomUUID(),
-      quantity: { amount, unitRef: ref(scopedTenantId, 'product-unit', unitId) },
-      selection: {
-        productRef: ref(scopedTenantId, 'product', productId),
-        variantRef: ref(scopedTenantId, 'variant', variantId),
-      },
-    })),
+    components: components.map(({ amount, configuration, productId, variantId }) => {
+      const selection =
+        configuration === undefined
+          ? {
+              productRef: ref(scopedTenantId, 'product', productId),
+              variantRef: ref(scopedTenantId, 'variant', variantId),
+            }
+          : {
+              configuration,
+              productRef: ref(scopedTenantId, 'product', productId),
+              variantRef: ref(scopedTenantId, 'variant', variantId),
+            };
+      return {
+        componentId: randomUUID(),
+        quantity: { amount, unitRef: ref(scopedTenantId, 'product-unit', unitId) },
+        selection,
+      };
+    }),
     productRef: ref(scopedTenantId, 'product', setProductId),
     provenance: { changeKind: 'INITIAL', evidenceRefs: ['catalog:set-postgres-proof'], reason: 'Fixed Set contents' },
     reference: { resourceRef: ref(scopedTenantId, 'set-composition', compositionId), revision: 1 },
-    variantRef: ref(scopedTenantId, 'variant', setVariantId),
+    variantRef: ref(scopedTenantId, 'variant', selectedSetVariantId),
   });
 
 it.live('publishes only a proven flat fixed Set with one shelf and two brackets', () =>
@@ -92,7 +122,12 @@ it.live('publishes only a proven flat fixed Set with one shelf and two brackets'
             return yield* operation(transaction);
           }),
         );
-      const publish = (scopedTenantId: string, compositionId: string, components: Parameters<typeof revisionFor>[1]) =>
+      const publish = (
+        scopedTenantId: string,
+        compositionId: string,
+        components: Parameters<typeof revisionFor>[1],
+        selectedSetVariantId: string = setVariantId,
+      ) =>
         withTenant(scopedTenantId, (transaction) => {
           const scope = scopeFor(scopedTenantId);
           // Real owner queries run on this transaction; Core's private scope brand is unavailable to this fixture.
@@ -112,7 +147,7 @@ it.live('publishes only a proven flat fixed Set with one shelf and two brackets'
             effectiveFrom: at,
             expectedRevision: 0,
             lifecycleState: 'ACTIVE',
-            revision: revisionFor(compositionId, components, scopedTenantId),
+            revision: revisionFor(compositionId, components, scopedTenantId, selectedSetVariantId),
           });
         });
 
@@ -283,6 +318,187 @@ it.live('publishes only a proven flat fixed Set with one shelf and two brackets'
         'objects',
       );
       expect(role).toEqual([{ rolbypassrls: false, rolsuper: false }]);
+
+      // The shelf now has two owner-issued required choices. The Set basis must
+      // read this authority in the same runtime transaction as publication.
+      const effectiveFrom = new Date('2026-09-17T00:00:00.000Z');
+      const configurationActionId = randomUUID();
+      yield* admin.insert(configurationUnits).values({ code: `cm-${lengthUnitId}`, tenantId, unitId: lengthUnitId });
+      yield* admin.insert(configurationUnitRevisions).values({
+        actingPrincipalId: principalId,
+        actionInvocationId: randomUUID(),
+        dimension: 'length',
+        effectiveFrom,
+        evidenceRefs: ['catalog:fixed-set-length'],
+        lifecycleState: 'ACTIVE',
+        meaning: 'Centimetre',
+        reason: 'Fixed shelf length',
+        revision: 1,
+        tenantId,
+        unitId: lengthUnitId,
+      });
+      yield* admin.insert(productConfigurationDefinitions).values({
+        currentRevision: 1,
+        definitionId: configurationDefinitionId,
+        productId: shelfId,
+        tenantId,
+      });
+      yield* admin.insert(productConfigurationDefinitionRevisions).values({
+        actingPrincipalId: principalId,
+        actionInvocationId: configurationActionId,
+        definitionId: configurationDefinitionId,
+        effectiveFrom,
+        evidenceRefs: ['catalog:fixed-set-configuration'],
+        productId: shelfId,
+        reason: 'Required length and type',
+        revision: 1,
+        state: 'ACTIVE',
+        tenantId,
+      });
+      yield* admin.insert(productConfigurationRevisionActivations).values({
+        actingPrincipalId: principalId,
+        actionInvocationId: configurationActionId,
+        definitionId: configurationDefinitionId,
+        effectiveAt: effectiveFrom,
+        evidenceRefs: ['catalog:fixed-set-configuration'],
+        reason: 'Required length and type',
+        revision: 1,
+        tenantId,
+      });
+      yield* admin.insert(productConfigurationChoices).values([
+        {
+          choiceKey: 'length',
+          definitionId: configurationDefinitionId,
+          label: 'Length',
+          meaning: 'Shelf length in centimetres',
+          required: true,
+          revision: 1,
+          tenantId,
+          unitId: lengthUnitId,
+          unitRevision: 1,
+          valueKind: 'MEASURED_VALUE',
+        },
+        {
+          choiceKey: 'type',
+          definitionId: configurationDefinitionId,
+          label: 'Type',
+          meaning: 'Shelf construction type',
+          required: true,
+          revision: 1,
+          tenantId,
+          valueKind: 'SINGLE_CHOICE',
+        },
+      ]);
+      yield* admin.insert(productConfigurationChoiceOptions).values({
+        choiceKey: 'type',
+        definitionId: configurationDefinitionId,
+        label: 'Solid',
+        meaning: 'Solid shelf',
+        optionKey: 'solid',
+        revision: 1,
+        tenantId,
+      });
+      yield* admin.insert(productConfigurationOptionAllowances).values({
+        allowed: true,
+        choiceKey: 'type',
+        definitionId: configurationDefinitionId,
+        evidenceRefs: ['catalog:fixed-set-type'],
+        optionKey: 'solid',
+        productId: shelfId,
+        revision: 1,
+        tenantId,
+      });
+      yield* admin.insert(productConfigurationMeasuredRules).values({
+        choiceKey: 'length',
+        definitionId: configurationDefinitionId,
+        evidenceRefs: ['catalog:fixed-set-length'],
+        maximum: '83',
+        maximumInclusive: true,
+        minimum: '83',
+        minimumInclusive: true,
+        productId: shelfId,
+        revision: 1,
+        tenantId,
+      });
+      yield* admin.insert(productVariants).values({
+        combinationAxisRevision: 1,
+        combinationKey: '1'.repeat(64),
+        createdByActionInvocationId: randomUUID(),
+        createdByPrincipalId: principalId,
+        lifecycleState: 'ACTIVE',
+        productId: setProductId,
+        tenantId,
+        variantId: configuredSetVariantId,
+      });
+      const configuredShelf = (
+        choices: readonly {
+          choiceKey: string;
+          unit?: { resourceRef: ReturnType<typeof ref>; revision: number };
+          value: string;
+        }[],
+      ) => ({
+        ...exact[0],
+        configuration: Schema.decodeUnknownSync(ProductConfigurationSelectionSchema)({
+          choices,
+          definition: {
+            resourceRef: ref(tenantId, 'configuration-definition', configurationDefinitionId),
+            revision: 1,
+          },
+          productRef: ref(tenantId, 'product', shelfId),
+          variantRef: ref(tenantId, 'variant', shelfVariantId),
+        }),
+      });
+      const lengthChoice = {
+        choiceKey: 'length',
+        unit: { resourceRef: ref(tenantId, 'unit', lengthUnitId), revision: 1 },
+        value: '83',
+      };
+      const typeChoice = { choiceKey: 'type', value: 'solid' };
+      const configurationCases = [
+        { label: 'omitted configuration', shelf: exact[0] },
+        { label: 'required type missing', shelf: configuredShelf([lengthChoice]) },
+      ];
+      for (const { label, shelf } of configurationCases) {
+        const rejectedId = randomUUID();
+        const outcome = yield* publish(tenantId, rejectedId, [shelf, exact[1]], configuredSetVariantId);
+        expect(
+          Match.value(outcome).pipe(
+            Match.tag('invalid', () => true),
+            Match.orElse(() => false),
+          ),
+          label,
+        ).toBe(true);
+        expect(
+          yield* admin.select().from(setCompositions).where(eq(setCompositions.compositionId, rejectedId)),
+        ).toEqual([]);
+        expect(
+          yield* admin
+            .select()
+            .from(setCompositionRevisions)
+            .where(eq(setCompositionRevisions.compositionId, rejectedId)),
+        ).toEqual([]);
+        expect(
+          yield* admin
+            .select()
+            .from(setCompositionComponents)
+            .where(eq(setCompositionComponents.compositionId, rejectedId)),
+        ).toEqual([]);
+      }
+      const configuredId = randomUUID();
+      const configured = configuredShelf([lengthChoice, typeChoice]);
+      expect(
+        Match.value(yield* publish(tenantId, configuredId, [configured, exact[1]], configuredSetVariantId)).pipe(
+          Match.tag('published', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+      const configuredRows = yield* admin
+        .select()
+        .from(setCompositionComponents)
+        .where(eq(setCompositionComponents.compositionId, configuredId));
+      expect(configuredRows).toHaveLength(2);
+      expect(configuredRows[0]?.configuration).toEqual(configured.configuration);
+      expect(configuredRows[1]?.configuration).toBeNull();
     }),
   ),
 );
