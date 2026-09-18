@@ -14,6 +14,7 @@ import {
   productTypeRevisionAttributes,
   productTypes,
   productVariantAxes,
+  productVariants,
   products,
 } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
@@ -209,22 +210,16 @@ export const attributeApplicabilityPersistenceForScope = (
       if (current?.productLevel === input.productLevel && current.variantLevel === input.variantLevel) {
         return yield* conflict('INVALID_INPUT', 'Applicability is unchanged');
       }
-      // Until #479 supplies a governed exact-selection basis, any existing Product
-      // change cannot assert that new selections remain valid. Initial declaration
-      // is possible only on a DRAFT Product without stored values or axes.
-      if (product.lifecycleState !== 'DRAFT' || current !== undefined) {
+      // DRAFT is not a valid exact-selection basis. The locked Product row also
+      // serializes owner writes that could introduce values, axes, or variants.
+      // Used Products remain blocked until #479 supplies impact/repair authority.
+      if (product.lifecycleState !== 'DRAFT') {
         return yield* conflict('SELECTION_IMPACT', 'Governed selection-impact basis is required');
       }
       const [value] = yield* transaction
         .select()
         .from(attributeValueSets)
-        .where(
-          and(
-            eq(attributeValueSets.tenantId, tenantId),
-            eq(attributeValueSets.productId, productId),
-            eq(attributeValueSets.attributeDefinitionId, attributeDefinitionId),
-          ),
-        )
+        .where(and(eq(attributeValueSets.tenantId, tenantId), eq(attributeValueSets.productId, productId)))
         .limit(1)
         .pipe(Effect.mapError(unavailable));
       if (value !== undefined) {
@@ -233,30 +228,48 @@ export const attributeApplicabilityPersistenceForScope = (
       const [axis] = yield* transaction
         .select()
         .from(productVariantAxes)
-        .where(
-          and(
-            eq(productVariantAxes.tenantId, tenantId),
-            eq(productVariantAxes.productId, productId),
-            eq(productVariantAxes.attributeDefinitionId, attributeDefinitionId),
-          ),
-        )
+        .where(and(eq(productVariantAxes.tenantId, tenantId), eq(productVariantAxes.productId, productId)))
         .limit(1)
         .pipe(Effect.mapError(unavailable));
       if (axis !== undefined) {
         return yield* conflict('IDENTITY_IMPACT', 'Variant Axis requires identity revalidation');
       }
-      const revision = 1;
-      yield* transaction
-        .insert(productAttributeApplicability)
-        .values({
-          attributeDefinitionId,
-          currentRevision: revision,
-          productId,
-          productLevel: input.productLevel,
-          tenantId,
-          variantLevel: input.variantLevel,
-        })
-        .pipe(Effect.mapError(mapAttributeApplicabilityWriteError));
+      const [variant] = yield* transaction
+        .select()
+        .from(productVariants)
+        .where(and(eq(productVariants.tenantId, tenantId), eq(productVariants.productId, productId)))
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (variant !== undefined) {
+        return yield* conflict('IDENTITY_IMPACT', 'Existing Variant requires impact revalidation');
+      }
+      const revision = (current?.currentRevision ?? 0) + 1;
+      const write =
+        current === undefined
+          ? transaction.insert(productAttributeApplicability).values({
+              attributeDefinitionId,
+              currentRevision: revision,
+              productId,
+              productLevel: input.productLevel,
+              tenantId,
+              variantLevel: input.variantLevel,
+            })
+          : transaction
+              .update(productAttributeApplicability)
+              .set({
+                currentRevision: revision,
+                productLevel: input.productLevel,
+                variantLevel: input.variantLevel,
+              })
+              .where(
+                and(
+                  eq(productAttributeApplicability.tenantId, tenantId),
+                  eq(productAttributeApplicability.productId, productId),
+                  eq(productAttributeApplicability.attributeDefinitionId, attributeDefinitionId),
+                  eq(productAttributeApplicability.currentRevision, current.currentRevision),
+                ),
+              );
+      yield* write.pipe(Effect.mapError(mapAttributeApplicabilityWriteError));
       yield* transaction
         .insert(productAttributeApplicabilityRevisions)
         .values({

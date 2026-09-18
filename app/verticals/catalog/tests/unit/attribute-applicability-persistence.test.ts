@@ -3,6 +3,18 @@ import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
 
 import {
+  attributeDefinitions,
+  attributeValueSets,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
+  productTypeAssignments,
+  productTypeRevisionAttributes,
+  productTypes,
+  productVariantAxes,
+  productVariants,
+  products,
+} from '../../src/database/schema.ts';
+import {
   AttributeApplicabilityConflict,
   attributeApplicabilityPersistenceForScope,
   mapAttributeApplicabilityWriteError,
@@ -22,6 +34,85 @@ const attributeDefinitionRef = {
   resourceId: '44444444-4444-4444-8444-444444444444',
   resourceType: 'commerce.catalog.attribute-definition' as const,
   tenantId,
+};
+const scope = {
+  ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+    authContextRef: 'job:attribute-applicability:run:1',
+    authMethod: 'system',
+    principalId,
+    tenantId,
+  }),
+  correlationId: 'attribute-applicability-test',
+};
+const base = {
+  actionInvocationId: '55555555-5555-4555-8555-555555555555',
+  attributeDefinitionRef,
+  expectedRevision: null,
+  principalId,
+  productLevel: true,
+  productRef,
+  reason: 'Deliberate Product-local use',
+  variantLevel: false,
+};
+
+type ApplicabilityTable =
+  | typeof products
+  | typeof attributeDefinitions
+  | typeof productTypeAssignments
+  | typeof productTypes
+  | typeof productTypeRevisionAttributes
+  | typeof productAttributeApplicability
+  | typeof productAttributeApplicabilityRevisions
+  | typeof attributeValueSets
+  | typeof productVariantAxes
+  | typeof productVariants;
+type TestValue =
+  | Partial<typeof productAttributeApplicability.$inferInsert>
+  | Partial<typeof productAttributeApplicabilityRevisions.$inferInsert>;
+interface TestWrite {
+  readonly table: ApplicabilityTable;
+  readonly value: TestValue;
+}
+
+const transactionWith = (overrides = new Map<ApplicabilityTable, readonly object[]>(), writes: TestWrite[] = []) => {
+  const rows = new Map<ApplicabilityTable, readonly object[]>([
+    [products, [{ lifecycleState: 'DRAFT' }]],
+    [attributeDefinitions, [{ applicableLevels: ['PRODUCT', 'VARIANT'] }]],
+    [productTypeAssignments, [{ productTypeId: '77777777-7777-4777-8777-777777777777' }]],
+    [productTypes, [{ currentRevision: 1 }]],
+    [
+      productTypeRevisionAttributes,
+      [
+        { level: 'PRODUCT', requirement: 'OPTIONAL' },
+        { level: 'VARIANT', requirement: 'OPTIONAL' },
+      ],
+    ],
+  ]);
+  for (const [table, value] of overrides) {
+    rows.set(table, value);
+  }
+  const selected = (table: ApplicabilityTable) => {
+    const result = Effect.succeed(rows.get(table) ?? []);
+    // oxlint-disable-next-line sonarjs/no-nested-functions -- Minimal Drizzle chain for the focused transaction test double.
+    return { where: () => ({ for: () => ({ limit: () => result }), limit: () => result, pipe: () => result }) };
+  };
+  return {
+    insert: (table: ApplicabilityTable) => ({
+      values: (value: TestValue) => {
+        writes.push({ table, value });
+        return Effect.void;
+      },
+    }),
+    select: () => ({ from: selected }),
+    update: (table: ApplicabilityTable) => ({
+      set: (value: TestValue) => ({
+        where: () => {
+          writes.push({ table, value });
+          return Effect.void;
+        },
+      }),
+    }),
+  };
 };
 
 describe('Product-local Attribute applicability', () => {
@@ -45,27 +136,8 @@ describe('Product-local Attribute applicability', () => {
 
   it.effect('rejects malformed, cross-Tenant, and empty initial declarations before any query', () =>
     Effect.gen(function* rejectBeforeIO() {
-      const scope = {
-        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
-          authContextRef: 'job:attribute-applicability:run:1',
-          authMethod: 'system',
-          principalId,
-          tenantId,
-        }),
-        correlationId: 'attribute-applicability-test',
-      };
       // @ts-expect-error No query is legal for these rejected inputs.
       const persistence = yield* attributeApplicabilityPersistenceForScope({}, scope);
-      const base = {
-        actionInvocationId: '55555555-5555-4555-8555-555555555555',
-        attributeDefinitionRef,
-        expectedRevision: null,
-        principalId,
-        productLevel: true,
-        productRef,
-        reason: 'Deliberate Product-local use',
-        variantLevel: false,
-      };
       for (const input of [
         { ...base, productLevel: false },
         { ...base, reason: ' padded ' },
@@ -73,6 +145,55 @@ describe('Product-local Attribute applicability', () => {
       ]) {
         const result = yield* Effect.flip(persistence.change(input));
         expect(result).toMatchObject({ conflict: 'INVALID_INPUT' });
+      }
+    }),
+  );
+
+  it.effect('appends revision 2 for a clean DRAFT move and retains a removal tombstone', () =>
+    Effect.gen(function* reviseCleanDraft() {
+      for (const [levels, expected] of [
+        [{ productLevel: false, variantLevel: true }, 2],
+        [{ productLevel: false, variantLevel: false }, 2],
+      ] as const) {
+        const writes: TestWrite[] = [];
+        const transaction = transactionWith(
+          new Map([[productAttributeApplicability, [{ currentRevision: 1, productLevel: true, variantLevel: false }]]]),
+          writes,
+        );
+        // @ts-expect-error Focused transaction double models the query chain.
+        const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+        const result = yield* persistence.change({ ...base, ...levels, expectedRevision: 1 });
+        expect(result).toMatchObject({ ...levels, revision: expected });
+        expect(writes).toHaveLength(2);
+        expect(writes[0]).toMatchObject({
+          table: productAttributeApplicability,
+          value: { currentRevision: 2, ...levels },
+        });
+        expect(writes[1]).toMatchObject({
+          table: productAttributeApplicabilityRevisions,
+          value: { revision: 2, ...levels },
+        });
+      }
+    }),
+  );
+
+  it.effect('fails closed when any value, axis, or variant exists on the Product', () =>
+    Effect.gen(function* rejectUsedDraft() {
+      for (const [table, conflictKind] of [
+        [attributeValueSets, 'VALUE_IMPACT'],
+        [productVariantAxes, 'IDENTITY_IMPACT'],
+        [productVariants, 'IDENTITY_IMPACT'],
+      ] as const) {
+        const writes: TestWrite[] = [];
+        const transaction = transactionWith(
+          new Map([[table, [{ attributeDefinitionId: 'another-definition' }]]]),
+          writes,
+        );
+        // @ts-expect-error Focused transaction double models the query chain.
+        const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+        const error = yield* Effect.flip(persistence.change(base));
+        expect(error).toMatchObject({ conflict: conflictKind });
+        expect(writes).toHaveLength(0);
       }
     }),
   );
