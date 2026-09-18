@@ -15,6 +15,7 @@ import {
   attributeValueRevisions,
   attributeValueSets,
   controlledAttributeValues,
+  productAttributeApplicability,
   productTypeAssignments,
   productTypeRevisionAttributes,
   productTypes,
@@ -284,6 +285,26 @@ export const attributeValuesPersistenceForScope = (
         .pipe(Effect.mapError(unavailable));
       if (rule === undefined) {
         return yield* conflict('INAPPLICABLE', 'Attribute is not allowed by Current Product Type');
+      }
+
+      const [applicability] = yield* transaction
+        .select()
+        .from(productAttributeApplicability)
+        .where(
+          and(
+            eq(productAttributeApplicability.tenantId, tenantId),
+            eq(productAttributeApplicability.productId, productId),
+            eq(productAttributeApplicability.attributeDefinitionId, definitionId),
+          ),
+        )
+        .for('share')
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (
+        applicability === undefined ||
+        (level === 'PRODUCT' ? !applicability.productLevel : !applicability.variantLevel)
+      ) {
+        return yield* conflict('INAPPLICABLE', 'Attribute is not declared for this Product at this level');
       }
 
       const [axis] = yield* transaction

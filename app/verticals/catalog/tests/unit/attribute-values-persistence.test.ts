@@ -9,6 +9,7 @@ import {
   attributeValueSets,
   controlledAttributeValueRevisions,
   controlledAttributeValues,
+  productAttributeApplicability,
   productTypeAssignments,
   productTypeRevisionAttributes,
   productTypes,
@@ -87,6 +88,7 @@ describe('Controlled value persistence lifecycle', () => {
         | typeof productTypeAssignments
         | typeof productTypes
         | typeof productTypeRevisionAttributes
+        | typeof productAttributeApplicability
         | typeof productVariantAxes
         | typeof attributeValueSets
         | typeof attributeValueItems
@@ -120,6 +122,9 @@ describe('Controlled value persistence lifecycle', () => {
         }
         if (table === productTypeRevisionAttributes) {
           return [{ requirement: 'OPTIONAL' }];
+        }
+        if (table === productAttributeApplicability) {
+          return [{ productLevel: true, variantLevel: false }];
         }
         if (table === productVariantAxes) {
           return [];
@@ -277,6 +282,7 @@ describe('Controlled value persistence lifecycle', () => {
         | typeof controlledAttributeValues
         | typeof productTypeAssignments
         | typeof productTypeRevisionAttributes
+        | typeof productAttributeApplicability
         | typeof productTypes
         | typeof productVariantAxes
         | typeof productVariants
@@ -325,6 +331,9 @@ describe('Controlled value persistence lifecycle', () => {
         }
         if (table === productTypeRevisionAttributes) {
           return [{ requirement: 'OPTIONAL' }];
+        }
+        if (table === productAttributeApplicability) {
+          return [{ productLevel: true, variantLevel: true }];
         }
         if (table === productVariantAxes) {
           return [];

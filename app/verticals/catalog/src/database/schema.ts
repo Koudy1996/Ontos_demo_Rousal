@@ -2303,9 +2303,20 @@ export const productAttributeApplicability = catalogSchema.table.withRLS(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.tenantId, table.productId, table.attributeDefinitionId], name: 'catalog_product_attribute_applicability_pk' }),
-    foreignKey({ columns: [table.tenantId, table.productId], foreignColumns: [products.tenantId, products.productId], name: 'catalog_product_attribute_applicability_product_fk' }).onDelete('restrict'),
-    foreignKey({ columns: [table.tenantId, table.attributeDefinitionId], foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId], name: 'catalog_product_attribute_applicability_definition_fk' }).onDelete('restrict'),
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.attributeDefinitionId],
+      name: 'catalog_product_attribute_applicability_pk',
+    }),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_attribute_applicability_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId],
+      foreignColumns: [attributeDefinitions.tenantId, attributeDefinitions.attributeDefinitionId],
+      name: 'catalog_product_attribute_applicability_definition_fk',
+    }).onDelete('restrict'),
     check('catalog_product_attribute_applicability_revision_ck', sql`${table.currentRevision} > 0`),
     ...tenantRlsPolicies('catalog_product_attribute_applicability_tenant', table.tenantId),
   ],
@@ -2328,11 +2339,28 @@ export const productAttributeApplicabilityRevisions = catalogSchema.table.withRL
     recordedAt: recordedAt(),
   },
   (table) => [
-    primaryKey({ columns: [table.tenantId, table.productId, table.attributeDefinitionId, table.revision], name: 'catalog_product_attribute_applicability_revisions_pk' }),
-    unique('catalog_product_attribute_applicability_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
-    foreignKey({ columns: [table.tenantId, table.productId, table.attributeDefinitionId], foreignColumns: [productAttributeApplicability.tenantId, productAttributeApplicability.productId, productAttributeApplicability.attributeDefinitionId], name: 'catalog_product_attribute_applicability_revisions_current_fk' }).onDelete('restrict'),
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.attributeDefinitionId, table.revision],
+      name: 'catalog_product_attribute_applicability_revisions_pk',
+    }),
+    unique('catalog_product_attribute_applicability_revisions_invocation_uk').on(
+      table.tenantId,
+      table.actionInvocationId,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.attributeDefinitionId],
+      foreignColumns: [
+        productAttributeApplicability.tenantId,
+        productAttributeApplicability.productId,
+        productAttributeApplicability.attributeDefinitionId,
+      ],
+      name: 'catalog_product_attribute_applicability_revisions_current_fk',
+    }).onDelete('restrict'),
     check('catalog_product_attribute_applicability_revisions_number_ck', sql`${table.revision} > 0`),
-    check('catalog_product_attribute_applicability_revisions_reason_ck', sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`),
+    check(
+      'catalog_product_attribute_applicability_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
     ...tenantRlsPolicies('catalog_product_attribute_applicability_revisions_tenant', table.tenantId),
   ],
 );
