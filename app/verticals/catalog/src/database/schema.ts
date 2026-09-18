@@ -2643,10 +2643,7 @@ export const productTypeUntypedDecisions = catalogSchema.table.withRLS(
       'catalog_product_type_untyped_decisions_revision_ck',
       sql`${table.decisionRevision} > 0 and ${table.productRevision} > 0 and ${table.axisRevision} >= 0`,
     ),
-    check(
-      'catalog_product_type_untyped_decisions_state_ck',
-      sql`${table.decisionState} in ('CONFIRMED', 'REVOKED')`,
-    ),
+    check('catalog_product_type_untyped_decisions_state_ck', sql`${table.decisionState} in ('CONFIRMED', 'REVOKED')`),
     check(
       'catalog_product_type_untyped_decisions_confirmed_ck',
       sql`${table.decisionState} <> 'CONFIRMED' or (not ${table.structuredAttributesRequired} and not ${table.variantAxesRequired})`,
