@@ -34,7 +34,7 @@ _Avoid_: generic inventory update, local override of an external physical-stock 
 
 ## Stock demand and allocation
 
-**Catalog-to-Stock Binding** — Inventory-owned one-to-one relation between one exact Catalog Selection meaning and one exact Stock Item. It is explicit and historically explainable rather than inferred from Product, Variant, SKU, Package contents, Set components, source identifiers, or current availability.
+**Catalog-to-Stock Binding** — Stable Inventory-owned one-to-one relation between one exact Catalog Selection meaning and one exact Stock Item. It is explicit and historically explainable rather than inferred from Product, Variant, SKU, Package contents, Set components, source identifiers, or current availability; material meaning change requires a different exact Selection and Stock Item.
 
 **Stock Requirement** — Exact Inventory demand for one Stock Item derived from one exact Catalog Selection plus the unchanged requested Quantity and Unit. Inventory does not convert the Unit, derive purchase Quantity from Configuration attributes, or decompose Package/Set contents into other Stock Items.
 
