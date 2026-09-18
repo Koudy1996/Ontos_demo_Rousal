@@ -141,9 +141,9 @@ const mapCoreProblem = (error: ActionCoreError): SetProductLocalizedFactsActionP
       ActionAlreadyCommitted: (failure) =>
         SetProductLocalizedFactsActionAlreadyCommittedProblemSchema.make({
           code: failure.code,
-          detail: 'This Action is already committed. Refresh governed reads.',
+          detail: 'This Action is already committed. Recover its original result by invocation.',
           invocationId: failure.invocationId,
-          resolution: 'REFRESH_GOVERNED_READS',
+          resolution: 'RECOVER_SET_PRODUCT_LOCALIZED_FACTS',
           retryCommand: false,
           status: problemStatus.conflict,
           title: 'Action already committed',
@@ -154,7 +154,7 @@ const mapCoreProblem = (error: ActionCoreError): SetProductLocalizedFactsActionP
         SetProductLocalizedFactsActionCommitIndeterminateProblemSchema.make({
           detail: 'The Action commit is uncertain. Resolve this invocation before another attempt.',
           invocationId: failure.invocationId,
-          resolution: 'RESOLVE_COMMIT',
+          resolution: 'RECOVER_SET_PRODUCT_LOCALIZED_FACTS',
           retryCommand: false,
           status: problemStatus.unavailable,
           title: 'Action commit uncertain',

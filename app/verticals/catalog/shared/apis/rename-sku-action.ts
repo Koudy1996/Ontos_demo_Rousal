@@ -66,7 +66,7 @@ export const RenameSkuActionAlreadyCommittedProblemSchema = makeProblemDetailsSc
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_RENAME_SKU'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -75,7 +75,7 @@ export const RenameSkuActionCommitIndeterminateProblemSchema = makeProblemDetail
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_RENAME_SKU'),
     retryCommand: Schema.Literal(false),
   },
 );
