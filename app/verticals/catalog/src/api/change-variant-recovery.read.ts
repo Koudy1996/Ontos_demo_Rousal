@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverChangeVariant = Effect.fn('ChangeVariantRecoveryRead.recover')(function* recover(
+const recoverChangeVariant = Effect.fn('ChangeVariantRecoveryRead.recover')(function* recover(
   input: ChangeVariantRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverChangeVariant = Effect.fn('ChangeVariantRecoveryRead.recover
   );
 });
 
-export const changeVariantRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const changeVariantRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.change-variant-recovery' },
   entrypointKey: 'commerce.catalog.api.change-variant-recovery',

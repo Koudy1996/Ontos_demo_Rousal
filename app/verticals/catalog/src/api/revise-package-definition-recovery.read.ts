@@ -45,22 +45,23 @@ const recoverResult = (
     },
   );
 
-export const recoverRevisePackageDefinition = Effect.fn('RevisePackageDefinitionRecoveryRead.recover')(
-  function* recover(input: RevisePackageDefinitionRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
-    const recovery = yield* context.services.recover(input.invocationId);
-    return yield* Match.value(recovery).pipe(
-      Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
-      Match.discriminator('status')('absent', () => Effect.fail(notFound())),
-      Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('open', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
-      Match.exhaustive,
-    );
-  },
-);
+const recoverRevisePackageDefinition = Effect.fn('RevisePackageDefinitionRecoveryRead.recover')(function* recover(
+  input: RevisePackageDefinitionRecoveryRequest,
+  context: ReadHandlerContext<RecoveryService>,
+) {
+  const recovery = yield* context.services.recover(input.invocationId);
+  return yield* Match.value(recovery).pipe(
+    Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
+    Match.discriminator('status')('absent', () => Effect.fail(notFound())),
+    Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('open', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
+    Match.exhaustive,
+  );
+});
 
-export const revisePackageDefinitionRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const revisePackageDefinitionRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.revise-package-definition-recovery' },
   entrypointKey: 'commerce.catalog.api.revise-package-definition-recovery',

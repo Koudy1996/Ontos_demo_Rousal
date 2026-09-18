@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverActivatePackageOption = Effect.fn('ActivatePackageOptionRecoveryRead.recover')(function* recover(
+const recoverActivatePackageOption = Effect.fn('ActivatePackageOptionRecoveryRead.recover')(function* recover(
   input: ActivatePackageOptionRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverActivatePackageOption = Effect.fn('ActivatePackageOptionReco
   );
 });
 
-export const activatePackageOptionRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const activatePackageOptionRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.activate-package-option-recovery' },
   entrypointKey: 'commerce.catalog.api.activate-package-option-recovery',

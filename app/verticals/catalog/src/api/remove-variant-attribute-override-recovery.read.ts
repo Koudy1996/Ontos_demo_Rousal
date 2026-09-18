@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRemoveVariantAttributeOverride = Effect.fn('RemoveVariantAttributeOverrideRecoveryRead.recover')(
+const recoverRemoveVariantAttributeOverride = Effect.fn('RemoveVariantAttributeOverrideRecoveryRead.recover')(
   function* recover(
     input: RemoveVariantAttributeOverrideRecoveryRequest,
     context: ReadHandlerContext<RecoveryService>,
@@ -67,7 +67,7 @@ export const recoverRemoveVariantAttributeOverride = Effect.fn('RemoveVariantAtt
   },
 );
 
-export const removeVariantAttributeOverrideRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const removeVariantAttributeOverrideRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

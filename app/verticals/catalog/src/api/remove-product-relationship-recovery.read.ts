@@ -45,22 +45,23 @@ const recoverResult = (
     },
   );
 
-export const recoverRemoveProductRelationship = Effect.fn('RemoveProductRelationshipRecoveryRead.recover')(
-  function* recover(input: RemoveProductRelationshipRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
-    const recovery = yield* context.services.recover(input.invocationId);
-    return yield* Match.value(recovery).pipe(
-      Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
-      Match.discriminator('status')('absent', () => Effect.fail(notFound())),
-      Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('open', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
-      Match.exhaustive,
-    );
-  },
-);
+const recoverRemoveProductRelationship = Effect.fn('RemoveProductRelationshipRecoveryRead.recover')(function* recover(
+  input: RemoveProductRelationshipRecoveryRequest,
+  context: ReadHandlerContext<RecoveryService>,
+) {
+  const recovery = yield* context.services.recover(input.invocationId);
+  return yield* Match.value(recovery).pipe(
+    Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
+    Match.discriminator('status')('absent', () => Effect.fail(notFound())),
+    Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('open', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
+    Match.exhaustive,
+  );
+});
 
-export const removeProductRelationshipRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const removeProductRelationshipRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

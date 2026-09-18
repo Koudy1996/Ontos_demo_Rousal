@@ -49,25 +49,25 @@ const recoverResult = (
     },
   );
 
-export const recoverGovernProductAttributeApplicability = Effect.fn(
-  'GovernProductAttributeApplicabilityRecoveryRead.recover',
-)(function* recover(
-  input: GovernProductAttributeApplicabilityRecoveryRequest,
-  context: ReadHandlerContext<RecoveryService>,
-) {
-  const recovery = yield* context.services.recover(input.invocationId);
-  return yield* Match.value(recovery).pipe(
-    Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
-    Match.discriminator('status')('absent', () => Effect.fail(notFound())),
-    Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
-    Match.discriminator('status')('open', () => Effect.fail(unavailable())),
-    Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
-    Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
-    Match.exhaustive,
-  );
-});
+const recoverGovernProductAttributeApplicability = Effect.fn('GovernProductAttributeApplicabilityRecoveryRead.recover')(
+  function* recover(
+    input: GovernProductAttributeApplicabilityRecoveryRequest,
+    context: ReadHandlerContext<RecoveryService>,
+  ) {
+    const recovery = yield* context.services.recover(input.invocationId);
+    return yield* Match.value(recovery).pipe(
+      Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
+      Match.discriminator('status')('absent', () => Effect.fail(notFound())),
+      Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
+      Match.discriminator('status')('open', () => Effect.fail(unavailable())),
+      Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
+      Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
+      Match.exhaustive,
+    );
+  },
+);
 
-export const governProductAttributeApplicabilityRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const governProductAttributeApplicabilityRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

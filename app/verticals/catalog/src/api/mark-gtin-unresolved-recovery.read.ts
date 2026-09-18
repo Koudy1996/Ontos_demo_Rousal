@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverMarkGtinUnresolved = Effect.fn('MarkGtinUnresolvedRecoveryRead.recover')(function* recover(
+const recoverMarkGtinUnresolved = Effect.fn('MarkGtinUnresolvedRecoveryRead.recover')(function* recover(
   input: MarkGtinUnresolvedRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverMarkGtinUnresolved = Effect.fn('MarkGtinUnresolvedRecoveryRe
   );
 });
 
-export const markGtinUnresolvedRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const markGtinUnresolvedRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.mark-gtin-unresolved-recovery' },
   entrypointKey: 'commerce.catalog.api.mark-gtin-unresolved-recovery',

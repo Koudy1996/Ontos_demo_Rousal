@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRemoveProductAttributeValues = Effect.fn('RemoveProductAttributeValuesRecoveryRead.recover')(
+const recoverRemoveProductAttributeValues = Effect.fn('RemoveProductAttributeValuesRecoveryRead.recover')(
   function* recover(input: RemoveProductAttributeValuesRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
     const recovery = yield* context.services.recover(input.invocationId);
     return yield* Match.value(recovery).pipe(
@@ -64,7 +64,7 @@ export const recoverRemoveProductAttributeValues = Effect.fn('RemoveProductAttri
   },
 );
 
-export const removeProductAttributeValuesRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const removeProductAttributeValuesRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverMoveProductCategory = Effect.fn('MoveProductCategoryRecoveryRead.recover')(function* recover(
+const recoverMoveProductCategory = Effect.fn('MoveProductCategoryRecoveryRead.recover')(function* recover(
   input: MoveProductCategoryRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverMoveProductCategory = Effect.fn('MoveProductCategoryRecovery
   );
 });
 
-export const moveProductCategoryRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const moveProductCategoryRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.move-product-category-recovery' },
   entrypointKey: 'commerce.catalog.api.move-product-category-recovery',

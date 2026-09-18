@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRenameControlledAttributeValue = Effect.fn('RenameControlledAttributeValueRecoveryRead.recover')(
+const recoverRenameControlledAttributeValue = Effect.fn('RenameControlledAttributeValueRecoveryRead.recover')(
   function* recover(
     input: RenameControlledAttributeValueRecoveryRequest,
     context: ReadHandlerContext<RecoveryService>,
@@ -67,7 +67,7 @@ export const recoverRenameControlledAttributeValue = Effect.fn('RenameControlled
   },
 );
 
-export const renameControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const renameControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

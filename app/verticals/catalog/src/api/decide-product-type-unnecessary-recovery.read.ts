@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverDecideProductTypeUnnecessary = Effect.fn('DecideProductTypeUnnecessaryRecoveryRead.recover')(
+const recoverDecideProductTypeUnnecessary = Effect.fn('DecideProductTypeUnnecessaryRecoveryRead.recover')(
   function* recover(input: DecideProductTypeUnnecessaryRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
     const recovery = yield* context.services.recover(input.invocationId);
     return yield* Match.value(recovery).pipe(
@@ -64,7 +64,7 @@ export const recoverDecideProductTypeUnnecessary = Effect.fn('DecideProductTypeU
   },
 );
 
-export const decideProductTypeUnnecessaryRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const decideProductTypeUnnecessaryRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

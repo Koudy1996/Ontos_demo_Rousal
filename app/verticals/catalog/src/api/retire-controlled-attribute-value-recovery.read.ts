@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRetireControlledAttributeValue = Effect.fn('RetireControlledAttributeValueRecoveryRead.recover')(
+const recoverRetireControlledAttributeValue = Effect.fn('RetireControlledAttributeValueRecoveryRead.recover')(
   function* recover(
     input: RetireControlledAttributeValueRecoveryRequest,
     context: ReadHandlerContext<RecoveryService>,
@@ -67,7 +67,7 @@ export const recoverRetireControlledAttributeValue = Effect.fn('RetireControlled
   },
 );
 
-export const retireControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const retireControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

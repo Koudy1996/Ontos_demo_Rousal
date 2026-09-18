@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRemoveProductLocalizedFacts = Effect.fn('RemoveProductLocalizedFactsRecoveryRead.recover')(
+const recoverRemoveProductLocalizedFacts = Effect.fn('RemoveProductLocalizedFactsRecoveryRead.recover')(
   function* recover(input: RemoveProductLocalizedFactsRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
     const recovery = yield* context.services.recover(input.invocationId);
     return yield* Match.value(recovery).pipe(
@@ -64,7 +64,7 @@ export const recoverRemoveProductLocalizedFacts = Effect.fn('RemoveProductLocali
   },
 );
 
-export const removeProductLocalizedFactsRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const removeProductLocalizedFactsRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

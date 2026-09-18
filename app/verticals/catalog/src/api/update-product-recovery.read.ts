@@ -42,7 +42,7 @@ export const recoverUpdateProduct = Effect.fn('UpdateProductRecoveryRead.recover
   );
 });
 
-export const updateProductRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const updateProductRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.update-product-recovery' },
   entrypointKey: 'commerce.catalog.api.update-product-recovery',

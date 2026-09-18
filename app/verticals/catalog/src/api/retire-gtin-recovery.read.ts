@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRetireGtin = Effect.fn('RetireGtinRecoveryRead.recover')(function* recover(
+const recoverRetireGtin = Effect.fn('RetireGtinRecoveryRead.recover')(function* recover(
   input: RetireGtinRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverRetireGtin = Effect.fn('RetireGtinRecoveryRead.recover')(fun
   );
 });
 
-export const retireGtinRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const retireGtinRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.retire-gtin-recovery' },
   entrypointKey: 'commerce.catalog.api.retire-gtin-recovery',

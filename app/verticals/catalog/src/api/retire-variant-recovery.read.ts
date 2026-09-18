@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRetireVariant = Effect.fn('RetireVariantRecoveryRead.recover')(function* recover(
+const recoverRetireVariant = Effect.fn('RetireVariantRecoveryRead.recover')(function* recover(
   input: RetireVariantRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverRetireVariant = Effect.fn('RetireVariantRecoveryRead.recover
   );
 });
 
-export const retireVariantRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const retireVariantRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.retire-variant-recovery' },
   entrypointKey: 'commerce.catalog.api.retire-variant-recovery',

@@ -45,22 +45,23 @@ const recoverResult = (
     },
   );
 
-export const recoverCreateAttributeDefinition = Effect.fn('CreateAttributeDefinitionRecoveryRead.recover')(
-  function* recover(input: CreateAttributeDefinitionRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
-    const recovery = yield* context.services.recover(input.invocationId);
-    return yield* Match.value(recovery).pipe(
-      Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
-      Match.discriminator('status')('absent', () => Effect.fail(notFound())),
-      Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('open', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
-      Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
-      Match.exhaustive,
-    );
-  },
-);
+const recoverCreateAttributeDefinition = Effect.fn('CreateAttributeDefinitionRecoveryRead.recover')(function* recover(
+  input: CreateAttributeDefinitionRecoveryRequest,
+  context: ReadHandlerContext<RecoveryService>,
+) {
+  const recovery = yield* context.services.recover(input.invocationId);
+  return yield* Match.value(recovery).pipe(
+    Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
+    Match.discriminator('status')('absent', () => Effect.fail(notFound())),
+    Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('open', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
+    Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
+    Match.exhaustive,
+  );
+});
 
-export const createAttributeDefinitionRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const createAttributeDefinitionRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

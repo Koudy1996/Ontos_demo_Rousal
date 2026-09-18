@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverAddProductCategoryAssignment = Effect.fn('AddProductCategoryAssignmentRecoveryRead.recover')(
+const recoverAddProductCategoryAssignment = Effect.fn('AddProductCategoryAssignmentRecoveryRead.recover')(
   function* recover(input: AddProductCategoryAssignmentRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
     const recovery = yield* context.services.recover(input.invocationId);
     return yield* Match.value(recovery).pipe(
@@ -64,7 +64,7 @@ export const recoverAddProductCategoryAssignment = Effect.fn('AddProductCategory
   },
 );
 
-export const addProductCategoryAssignmentRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const addProductCategoryAssignmentRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

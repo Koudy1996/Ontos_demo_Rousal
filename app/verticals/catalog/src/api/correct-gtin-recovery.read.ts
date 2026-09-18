@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverCorrectGtin = Effect.fn('CorrectGtinRecoveryRead.recover')(function* recover(
+const recoverCorrectGtin = Effect.fn('CorrectGtinRecoveryRead.recover')(function* recover(
   input: CorrectGtinRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverCorrectGtin = Effect.fn('CorrectGtinRecoveryRead.recover')(f
   );
 });
 
-export const correctGtinRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const correctGtinRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.correct-gtin-recovery' },
   entrypointKey: 'commerce.catalog.api.correct-gtin-recovery',

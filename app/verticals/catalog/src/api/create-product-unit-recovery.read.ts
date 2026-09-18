@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverCreateProductUnit = Effect.fn('CreateProductUnitRecoveryRead.recover')(function* recover(
+const recoverCreateProductUnit = Effect.fn('CreateProductUnitRecoveryRead.recover')(function* recover(
   input: CreateProductUnitRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverCreateProductUnit = Effect.fn('CreateProductUnitRecoveryRead
   );
 });
 
-export const createProductUnitRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const createProductUnitRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.create-product-unit-recovery' },
   entrypointKey: 'commerce.catalog.api.create-product-unit-recovery',

@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRemoveProductCategoryAssignment = Effect.fn('RemoveProductCategoryAssignmentRecoveryRead.recover')(
+const recoverRemoveProductCategoryAssignment = Effect.fn('RemoveProductCategoryAssignmentRecoveryRead.recover')(
   function* recover(
     input: RemoveProductCategoryAssignmentRecoveryRequest,
     context: ReadHandlerContext<RecoveryService>,
@@ -67,7 +67,7 @@ export const recoverRemoveProductCategoryAssignment = Effect.fn('RemoveProductCa
   },
 );
 
-export const removeProductCategoryAssignmentRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const removeProductCategoryAssignmentRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

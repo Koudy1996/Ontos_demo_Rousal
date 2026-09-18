@@ -49,25 +49,25 @@ const recoverResult = (
     },
   );
 
-export const recoverReactivateControlledAttributeValue = Effect.fn(
-  'ReactivateControlledAttributeValueRecoveryRead.recover',
-)(function* recover(
-  input: ReactivateControlledAttributeValueRecoveryRequest,
-  context: ReadHandlerContext<RecoveryService>,
-) {
-  const recovery = yield* context.services.recover(input.invocationId);
-  return yield* Match.value(recovery).pipe(
-    Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
-    Match.discriminator('status')('absent', () => Effect.fail(notFound())),
-    Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
-    Match.discriminator('status')('open', () => Effect.fail(unavailable())),
-    Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
-    Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
-    Match.exhaustive,
-  );
-});
+const recoverReactivateControlledAttributeValue = Effect.fn('ReactivateControlledAttributeValueRecoveryRead.recover')(
+  function* recover(
+    input: ReactivateControlledAttributeValueRecoveryRequest,
+    context: ReadHandlerContext<RecoveryService>,
+  ) {
+    const recovery = yield* context.services.recover(input.invocationId);
+    return yield* Match.value(recovery).pipe(
+      Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
+      Match.discriminator('status')('absent', () => Effect.fail(notFound())),
+      Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
+      Match.discriminator('status')('open', () => Effect.fail(unavailable())),
+      Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
+      Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),
+      Match.exhaustive,
+    );
+  },
+);
 
-export const reactivateControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const reactivateControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

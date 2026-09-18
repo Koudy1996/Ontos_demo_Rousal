@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverReactivateBrand = Effect.fn('ReactivateBrandRecoveryRead.recover')(function* recover(
+const recoverReactivateBrand = Effect.fn('ReactivateBrandRecoveryRead.recover')(function* recover(
   input: ReactivateBrandRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverReactivateBrand = Effect.fn('ReactivateBrandRecoveryRead.rec
   );
 });
 
-export const reactivateBrandRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const reactivateBrandRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.reactivate-brand-recovery' },
   entrypointKey: 'commerce.catalog.api.reactivate-brand-recovery',

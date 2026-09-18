@@ -42,7 +42,7 @@ export const recoverCreateVariant = Effect.fn('CreateVariantRecoveryRead.recover
   );
 });
 
-export const createVariantRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const createVariantRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.create-variant-recovery' },
   entrypointKey: 'commerce.catalog.api.create-variant-recovery',

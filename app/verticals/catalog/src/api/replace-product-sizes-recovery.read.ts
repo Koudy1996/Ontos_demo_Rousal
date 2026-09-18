@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverReplaceProductSizes = Effect.fn('ReplaceProductSizesRecoveryRead.recover')(function* recover(
+const recoverReplaceProductSizes = Effect.fn('ReplaceProductSizesRecoveryRead.recover')(function* recover(
   input: ReplaceProductSizesRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverReplaceProductSizes = Effect.fn('ReplaceProductSizesRecovery
   );
 });
 
-export const replaceProductSizesRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const replaceProductSizesRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.replace-product-sizes-recovery' },
   entrypointKey: 'commerce.catalog.api.replace-product-sizes-recovery',

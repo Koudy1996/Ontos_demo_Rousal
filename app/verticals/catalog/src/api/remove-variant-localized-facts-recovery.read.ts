@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRemoveVariantLocalizedFacts = Effect.fn('RemoveVariantLocalizedFactsRecoveryRead.recover')(
+const recoverRemoveVariantLocalizedFacts = Effect.fn('RemoveVariantLocalizedFactsRecoveryRead.recover')(
   function* recover(input: RemoveVariantLocalizedFactsRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
     const recovery = yield* context.services.recover(input.invocationId);
     return yield* Match.value(recovery).pipe(
@@ -64,7 +64,7 @@ export const recoverRemoveVariantLocalizedFacts = Effect.fn('RemoveVariantLocali
   },
 );
 
-export const removeVariantLocalizedFactsRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const removeVariantLocalizedFactsRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

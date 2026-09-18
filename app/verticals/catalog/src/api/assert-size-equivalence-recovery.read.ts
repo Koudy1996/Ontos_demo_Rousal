@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverAssertSizeEquivalence = Effect.fn('AssertSizeEquivalenceRecoveryRead.recover')(function* recover(
+const recoverAssertSizeEquivalence = Effect.fn('AssertSizeEquivalenceRecoveryRead.recover')(function* recover(
   input: AssertSizeEquivalenceRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverAssertSizeEquivalence = Effect.fn('AssertSizeEquivalenceReco
   );
 });
 
-export const assertSizeEquivalenceRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const assertSizeEquivalenceRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.assert-size-equivalence-recovery' },
   entrypointKey: 'commerce.catalog.api.assert-size-equivalence-recovery',

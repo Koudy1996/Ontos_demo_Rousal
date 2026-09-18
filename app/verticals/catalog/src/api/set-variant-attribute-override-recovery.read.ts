@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverSetVariantAttributeOverride = Effect.fn('SetVariantAttributeOverrideRecoveryRead.recover')(
+const recoverSetVariantAttributeOverride = Effect.fn('SetVariantAttributeOverrideRecoveryRead.recover')(
   function* recover(input: SetVariantAttributeOverrideRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
     const recovery = yield* context.services.recover(input.invocationId);
     return yield* Match.value(recovery).pipe(
@@ -64,7 +64,7 @@ export const recoverSetVariantAttributeOverride = Effect.fn('SetVariantAttribute
   },
 );
 
-export const setVariantAttributeOverrideRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const setVariantAttributeOverrideRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

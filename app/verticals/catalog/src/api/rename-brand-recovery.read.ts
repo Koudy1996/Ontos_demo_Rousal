@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRenameBrand = Effect.fn('RenameBrandRecoveryRead.recover')(function* recover(
+const recoverRenameBrand = Effect.fn('RenameBrandRecoveryRead.recover')(function* recover(
   input: RenameBrandRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverRenameBrand = Effect.fn('RenameBrandRecoveryRead.recover')(f
   );
 });
 
-export const renameBrandRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const renameBrandRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.rename-brand-recovery' },
   entrypointKey: 'commerce.catalog.api.rename-brand-recovery',

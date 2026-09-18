@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverAssignCatalogMedia = Effect.fn('AssignCatalogMediaRecoveryRead.recover')(function* recover(
+const recoverAssignCatalogMedia = Effect.fn('AssignCatalogMediaRecoveryRead.recover')(function* recover(
   input: AssignCatalogMediaRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverAssignCatalogMedia = Effect.fn('AssignCatalogMediaRecoveryRe
   );
 });
 
-export const assignCatalogMediaRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const assignCatalogMediaRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.assign-catalog-media-recovery' },
   entrypointKey: 'commerce.catalog.api.assign-catalog-media-recovery',

@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverCreateSetComposition = Effect.fn('CreateSetCompositionRecoveryRead.recover')(function* recover(
+const recoverCreateSetComposition = Effect.fn('CreateSetCompositionRecoveryRead.recover')(function* recover(
   input: CreateSetCompositionRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverCreateSetComposition = Effect.fn('CreateSetCompositionRecove
   );
 });
 
-export const createSetCompositionRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const createSetCompositionRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.create-set-composition-recovery' },
   entrypointKey: 'commerce.catalog.api.create-set-composition-recovery',

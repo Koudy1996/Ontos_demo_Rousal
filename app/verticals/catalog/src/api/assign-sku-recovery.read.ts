@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverAssignSku = Effect.fn('AssignSkuRecoveryRead.recover')(function* recover(
+const recoverAssignSku = Effect.fn('AssignSkuRecoveryRead.recover')(function* recover(
   input: AssignSkuRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverAssignSku = Effect.fn('AssignSkuRecoveryRead.recover')(funct
   );
 });
 
-export const assignSkuRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const assignSkuRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.assign-sku-recovery' },
   entrypointKey: 'commerce.catalog.api.assign-sku-recovery',

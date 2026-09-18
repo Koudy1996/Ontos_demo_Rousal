@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverReorderCatalogMedia = Effect.fn('ReorderCatalogMediaRecoveryRead.recover')(function* recover(
+const recoverReorderCatalogMedia = Effect.fn('ReorderCatalogMediaRecoveryRead.recover')(function* recover(
   input: ReorderCatalogMediaRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverReorderCatalogMedia = Effect.fn('ReorderCatalogMediaRecovery
   );
 });
 
-export const reorderCatalogMediaRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const reorderCatalogMediaRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.reorder-catalog-media-recovery' },
   entrypointKey: 'commerce.catalog.api.reorder-catalog-media-recovery',

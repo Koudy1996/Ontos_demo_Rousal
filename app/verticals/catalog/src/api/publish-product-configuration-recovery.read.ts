@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverPublishProductConfiguration = Effect.fn('PublishProductConfigurationRecoveryRead.recover')(
+const recoverPublishProductConfiguration = Effect.fn('PublishProductConfigurationRecoveryRead.recover')(
   function* recover(input: PublishProductConfigurationRecoveryRequest, context: ReadHandlerContext<RecoveryService>) {
     const recovery = yield* context.services.recover(input.invocationId);
     return yield* Match.value(recovery).pipe(
@@ -60,7 +60,7 @@ export const recoverPublishProductConfiguration = Effect.fn('PublishProductConfi
   },
 );
 
-export const publishProductConfigurationRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const publishProductConfigurationRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverGovernVariantAxes = Effect.fn('GovernVariantAxesRecoveryRead.recover')(function* recover(
+const recoverGovernVariantAxes = Effect.fn('GovernVariantAxesRecoveryRead.recover')(function* recover(
   input: GovernVariantAxesRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverGovernVariantAxes = Effect.fn('GovernVariantAxesRecoveryRead
   );
 });
 
-export const governVariantAxesRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const governVariantAxesRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.govern-variant-axes-recovery' },
   entrypointKey: 'commerce.catalog.api.govern-variant-axes-recovery',

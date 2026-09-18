@@ -49,7 +49,7 @@ const recoverResult = (
     },
   );
 
-export const recoverCreateControlledAttributeValue = Effect.fn('CreateControlledAttributeValueRecoveryRead.recover')(
+const recoverCreateControlledAttributeValue = Effect.fn('CreateControlledAttributeValueRecoveryRead.recover')(
   function* recover(
     input: CreateControlledAttributeValueRecoveryRequest,
     context: ReadHandlerContext<RecoveryService>,
@@ -67,7 +67,7 @@ export const recoverCreateControlledAttributeValue = Effect.fn('CreateControlled
   },
 );
 
-export const createControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const createControlledAttributeValueRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: {
     kind: 'context_permission',

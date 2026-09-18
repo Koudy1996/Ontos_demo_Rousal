@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRemoveCatalogMedia = Effect.fn('RemoveCatalogMediaRecoveryRead.recover')(function* recover(
+const recoverRemoveCatalogMedia = Effect.fn('RemoveCatalogMediaRecoveryRead.recover')(function* recover(
   input: RemoveCatalogMediaRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverRemoveCatalogMedia = Effect.fn('RemoveCatalogMediaRecoveryRe
   );
 });
 
-export const removeCatalogMediaRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const removeCatalogMediaRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.remove-catalog-media-recovery' },
   entrypointKey: 'commerce.catalog.api.remove-catalog-media-recovery',

@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverRenameSku = Effect.fn('RenameSkuRecoveryRead.recover')(function* recover(
+const recoverRenameSku = Effect.fn('RenameSkuRecoveryRead.recover')(function* recover(
   input: RenameSkuRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverRenameSku = Effect.fn('RenameSkuRecoveryRead.recover')(funct
   );
 });
 
-export const renameSkuRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const renameSkuRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.rename-sku-recovery' },
   entrypointKey: 'commerce.catalog.api.rename-sku-recovery',

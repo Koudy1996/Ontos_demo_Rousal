@@ -45,7 +45,7 @@ const recoverResult = (
     },
   );
 
-export const recoverConfirmGtin = Effect.fn('ConfirmGtinRecoveryRead.recover')(function* recover(
+const recoverConfirmGtin = Effect.fn('ConfirmGtinRecoveryRead.recover')(function* recover(
   input: ConfirmGtinRecoveryRequest,
   context: ReadHandlerContext<RecoveryService>,
 ) {
@@ -61,7 +61,7 @@ export const recoverConfirmGtin = Effect.fn('ConfirmGtinRecoveryRead.recover')(f
   );
 });
 
-export const confirmGtinRecoveryEntrypoint = defineTenantModuleEntrypoint({
+const confirmGtinRecoveryEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.confirm-gtin-recovery' },
   entrypointKey: 'commerce.catalog.api.confirm-gtin-recovery',
