@@ -79,7 +79,7 @@ export const RetireVariantActionAlreadyCommittedProblemSchema = makeProblemDetai
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_RETIRE_VARIANT'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -88,7 +88,7 @@ export const RetireVariantActionCommitIndeterminateProblemSchema = makeProblemDe
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_RETIRE_VARIANT'),
     retryCommand: Schema.Literal(false),
   },
 );
