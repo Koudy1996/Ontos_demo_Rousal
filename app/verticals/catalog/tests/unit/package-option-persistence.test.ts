@@ -69,10 +69,28 @@ type DefinitionFixture = typeof definition;
 
 const lockedRows = (table: Table, current: DefinitionFixture) =>
   table === packageDefinitions ? [current] : [{ lifecycleState: 'ACTIVE' }];
-const contentRows = (table: Table) => (table === packageContentRevisions ? [content] : [{ lifecycleState: 'ACTIVE' }]);
+const contentRows = (table: Table, current: DefinitionFixture) => {
+  if (table === packageContentRevisions) {
+    return [content];
+  }
+  if (table === packageOptionRoleRevisions) {
+    return [
+      {
+        contentRevision: current.currentRevision,
+        evidenceRefs: finding.evidenceRefs,
+        independentlyRequested: true,
+        looseUnitsSubstitutable: false,
+        productId,
+        state: current.optionState,
+        variantId,
+      },
+    ];
+  }
+  return [{ lifecycleState: 'ACTIVE' }];
+};
 const queryFor = (table: Table, current: DefinitionFixture) => {
   const lockedLimit = () => Effect.succeed(lockedRows(table, current));
-  const plainLimit = () => Effect.succeed(contentRows(table));
+  const plainLimit = () => Effect.succeed(contentRows(table, current));
   return { where: () => ({ for: () => ({ limit: lockedLimit }), limit: plainLimit }) };
 };
 const updateFor = (table: Table, writes: Write[], current: DefinitionFixture) => ({
@@ -183,7 +201,7 @@ describe('Package Option persistence', () => {
         // @ts-expect-error Only exercised Drizzle chains are mocked.
         mockTransaction(writes, active),
         scope,
-        { verify: () => Effect.succeed(Option.some(finding)) },
+        undefined,
         { verify: () => Effect.succeed(true) },
       );
       const outcome = yield* service.retire({ ...input, expectedOptionRevision: 1 });
@@ -194,7 +212,7 @@ describe('Package Option persistence', () => {
       expect(changed).toMatchObject({ contentRevision: 1, optionRevision: 2, state: 'RETIRED' });
       expect(writes[1]).toEqual([
         packageOptionRoleRevisions,
-        expect.objectContaining({ revision: 2, state: 'RETIRED' }),
+        expect.objectContaining({ evidenceRefs: finding.evidenceRefs, revision: 2, state: 'RETIRED' }),
       ]);
     }),
   );

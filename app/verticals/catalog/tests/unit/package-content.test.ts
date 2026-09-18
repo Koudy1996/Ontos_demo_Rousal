@@ -108,5 +108,17 @@ describe('Package content and Option', () => {
         'ACTIVE',
       ).status,
     ).toBe('UNVERIFIABLE');
+    expect(
+      assessPackageOption(
+        {
+          ...role,
+          currentContent: { ...ten, resourceRef: { ...boxRef, resourceType: 'commerce.catalog.variant' } },
+          independentlyRequested: true,
+          substitutionWithLooseQuantitySatisfiesRequest: false,
+        },
+        'ACTIVE',
+        'ACTIVE',
+      ).status,
+    ).toBe('INVALID');
   });
 });

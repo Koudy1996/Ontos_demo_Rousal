@@ -152,6 +152,54 @@ const optionOf = <T>(value: T | undefined): Option.Option<T> =>
 const trustedFinding = (candidate: Option.Option<PackageOptionRoleFinding>): Option.Option<PackageOptionRoleFinding> =>
   Option.isSome(candidate) && validFinding(candidate.value) ? candidate : Option.none();
 
+const findingForTransition = Effect.fn('PackageOptionPersistence.findingForTransition')(function* findingForTransition(
+  kind: Transition,
+  transaction: ScopedTransaction,
+  tenantId: string,
+  row: Definition,
+  roleBasis: PackageOptionRoleBasis | undefined,
+) {
+  if (kind === 'ACTIVATE') {
+    return roleBasis === undefined
+      ? Option.none()
+      : yield* roleBasis.verify({
+          contentRevision: row.currentRevision,
+          packageDefinitionId: row.packageDefinitionId,
+          productId: row.productId,
+          tenantId,
+          variantId: row.variantId,
+        });
+  }
+  const [prior] = yield* transaction
+    .select()
+    .from(packageOptionRoleRevisions)
+    .where(
+      and(
+        eq(packageOptionRoleRevisions.tenantId, tenantId),
+        eq(packageOptionRoleRevisions.packageDefinitionId, row.packageDefinitionId),
+        eq(packageOptionRoleRevisions.revision, row.currentOptionRevision),
+      ),
+    )
+    .limit(1)
+    .pipe(Effect.mapError(unavailable));
+  if (
+    prior?.state !== 'ACTIVE' ||
+    !Number.isSafeInteger(prior.contentRevision) ||
+    prior.contentRevision <= 0 ||
+    prior.contentRevision > row.currentRevision ||
+    prior.productId !== row.productId ||
+    prior.variantId !== row.variantId
+  ) {
+    return Option.none();
+  }
+  return Option.some({
+    evidenceRefs: prior.evidenceRefs,
+    independentlyRequested: prior.independentlyRequested,
+    looseUnitsSubstitutable: prior.looseUnitsSubstitutable,
+    validationReason: 'Retired previously attested Package Option role',
+  });
+});
+
 /** The Core-scoped transaction owns atomicity; this service never creates a transaction. */
 export const packageOptionPersistenceForScope = (
   transaction: ScopedTransaction,
@@ -233,7 +281,7 @@ export const packageOptionPersistenceForScope = (
         actualOptionRevision: row.currentOptionRevision,
       };
     }
-    const authorityMissing = roleBasis === undefined || selectionImpact === undefined;
+    const authorityMissing = selectionImpact === undefined || (kind === 'ACTIVATE' && roleBasis === undefined);
     if (authorityMissing) {
       return yield* unavailable();
     }
@@ -260,13 +308,7 @@ export const packageOptionPersistenceForScope = (
     if (problem !== undefined) {
       return { _tag: 'invalid' as const, reason: problem };
     }
-    const candidateFinding = yield* roleBasis.verify({
-      contentRevision: row.currentRevision,
-      packageDefinitionId: row.packageDefinitionId,
-      productId: row.productId,
-      tenantId,
-      variantId: row.variantId,
-    });
+    const candidateFinding = yield* findingForTransition(kind, transaction, tenantId, row, roleBasis);
     const findingOption = trustedFinding(candidateFinding);
     if (Option.isNone(findingOption)) {
       return { _tag: 'invalid' as const, reason: 'Independent role evidence is invalid' };

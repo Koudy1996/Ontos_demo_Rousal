@@ -27,9 +27,16 @@ export const assessPackageOption = (
   variantLifecycle: 'ACTIVE' | 'WORK_IN_PROGRESS' | 'RETIRED',
 ): PackageOptionDecision => {
   if (
+    role.definitionRef.moduleId !== 'commerce.catalog' ||
     role.definitionRef.resourceType !== 'commerce.catalog.package-definition' ||
+    role.currentContent.resourceRef.moduleId !== role.definitionRef.moduleId ||
+    role.currentContent.resourceRef.resourceType !== role.definitionRef.resourceType ||
     role.currentContent.resourceRef.resourceId !== role.definitionRef.resourceId ||
     role.currentContent.resourceRef.tenantId !== role.definitionRef.tenantId ||
+    role.form.productRef.moduleId !== role.definitionRef.moduleId ||
+    role.form.productRef.resourceType !== 'commerce.catalog.product' ||
+    role.form.variantRef.moduleId !== role.definitionRef.moduleId ||
+    role.form.variantRef.resourceType !== 'commerce.catalog.variant' ||
     role.form.productRef.tenantId !== role.definitionRef.tenantId ||
     role.form.variantRef.tenantId !== role.definitionRef.tenantId
   ) {
