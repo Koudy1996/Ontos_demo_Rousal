@@ -11,18 +11,20 @@ import {
 } from '../../shared/actions/govern-variant-axes.ts';
 import type { GovernVariantAxesPayload } from '../../shared/actions/govern-variant-axes.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-variant-axes-changed-v1.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import { VariantAxisWriteConflict, variantAxisPersistenceForScope } from '../persistence/variant-axis-persistence.ts';
 import type { VariantAxisPersistence } from '../persistence/variant-axis-persistence.ts';
+import { createGovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxMessage } from './govern-variant-axes-commerce-catalog-variant-axes-changed-v1.outbox-message.ts';
 
 export type { GovernVariantAxesPayload } from '../../shared/actions/govern-variant-axes.ts';
 
 const moduleKey = 'commerce.catalog' as const;
 const actionKey = 'commerce.catalog.govern-variant-axes' as const;
-const domainEvents = {} as const;
+const domainEvents = { 'commerce.catalog.variant-axes-changed.v1': OutboxPayloadSchema } as const;
 
-const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle')(function* handleGovernVariantAxes(
+export const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle')(function* handleGovernVariantAxes(
   payload: GovernVariantAxesPayload,
   context: ActionHandlerContext<typeof domainEvents, VariantAxisPersistence>,
 ) {
@@ -54,7 +56,10 @@ const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle')(func
     targetResourceType: 'commerce.catalog.product',
   });
   yield* context.recordAuditEvidence({ reason: payload.reason });
-  return yield* Schema.decodeEffect(GovernVariantAxesResultSchema)({ ...result, productRef: payload.productRef }).pipe(
+  const decoded = yield* Schema.decodeEffect(GovernVariantAxesResultSchema)({
+    ...result,
+    productRef: payload.productRef,
+  }).pipe(
     Effect.mapError((cause) => {
       const failure = new CatalogPersistenceUnavailable({
         code: 'catalog_persistence_unavailable',
@@ -64,6 +69,26 @@ const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle')(func
       return failure;
     }),
   );
+  if (decoded.changed) {
+    const eventPayload = {
+      axisRevision: decoded.axisRevision,
+      productRef: decoded.productRef,
+      tenantId: context.scope.tenantId,
+    };
+    const event = yield* context.addDomainEvent({
+      eventType: 'commerce.catalog.variant-axes-changed.v1',
+      payloadJson: eventPayload,
+      producerModuleKey: moduleKey,
+      subjectModuleKey: moduleKey,
+      subjectResourceId: decoded.productRef.resourceId,
+      subjectResourceType: 'commerce.catalog.product',
+    });
+    yield* context.addOutboxMessage(
+      event,
+      createGovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxMessage(eventPayload),
+    );
+  }
+  return decoded;
 });
 
 export const governVariantAxesAction = defineAction(
@@ -77,8 +102,8 @@ export const governVariantAxesAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: actionKey,
-      moduleKey,
+      entrypointKey: 'commerce.catalog.govern-variant-axes',
+      moduleKey: 'commerce.catalog',
       role: 'action',
     }),
     idempotency: 'required',
@@ -118,4 +143,9 @@ export const governVariantAxesAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createGovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxMessage } from './govern-variant-axes-commerce-catalog-variant-axes-changed-v1.outbox-message.ts';
+export { GovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxPayloadSchema } from './govern-variant-axes-commerce-catalog-variant-axes-changed-v1.outbox-message.ts';
+export { GovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxProducerModuleKey } from './govern-variant-axes-commerce-catalog-variant-axes-changed-v1.outbox-message.ts';
+export { GovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxTopic } from './govern-variant-axes-commerce-catalog-variant-axes-changed-v1.outbox-message.ts';
+export type { GovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxPayload } from './govern-variant-axes-commerce-catalog-variant-axes-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

@@ -13,6 +13,7 @@
     "./outbox/commerce-catalog-brand-descriptive-changed-v1": "./shared/outbox/commerce-catalog-brand-descriptive-changed-v1.ts",
     "./outbox/commerce-catalog-product-lifecycle-changed-v1": "./shared/outbox/commerce-catalog-product-lifecycle-changed-v1.ts",
     "./outbox/commerce-catalog-product-relationship-changed-v1": "./shared/outbox/commerce-catalog-product-relationship-changed-v1.ts",
+    "./outbox/commerce-catalog-variant-axes-changed-v1": "./shared/outbox/commerce-catalog-variant-axes-changed-v1.ts",
     "./resources/attribute-definition": "./shared/resources/attribute-definition.ts",
     "./resources/brand": "./shared/resources/brand.ts",
     "./resources/catalog-root": "./shared/resources/catalog-root.ts",
