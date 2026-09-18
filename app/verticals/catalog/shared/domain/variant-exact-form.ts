@@ -11,8 +11,14 @@ import type { Product, ProductVariant } from './product.ts';
 export const VariantExactFormSchema = CatalogIdentityScopeSchema;
 export type VariantExactForm = typeof VariantExactFormSchema.Type;
 
-const sameProduct = (left: ProductVariant['productRef'], right: Product['productRef']): boolean =>
-  left.tenantId === right.tenantId && left.resourceId === right.resourceId;
+const sameCatalogRef = (
+  left: ProductVariant['productRef'] | ProductVariant['variantRef'],
+  right: ProductVariant['productRef'] | ProductVariant['variantRef'],
+): boolean =>
+  left.moduleId === right.moduleId &&
+  left.resourceType === right.resourceType &&
+  left.tenantId === right.tenantId &&
+  left.resourceId === right.resourceId;
 
 /**
  * Resolve an exact form only from an explicitly recorded Variant of this Product.
@@ -25,10 +31,9 @@ export const resolveVariantExactForm = (
 ): Option.Option<VariantExactForm> => {
   const match = product.variants.find(
     (variant) =>
-      sameProduct(variant.productRef, product.productRef) &&
+      sameCatalogRef(variant.productRef, product.productRef) &&
       variant.variantRef.tenantId === product.productRef.tenantId &&
-      variant.variantRef.tenantId === variantRef.tenantId &&
-      variant.variantRef.resourceId === variantRef.resourceId &&
+      sameCatalogRef(variant.variantRef, variantRef) &&
       variant.variantId === variant.variantRef.resourceId,
   );
   return match === undefined

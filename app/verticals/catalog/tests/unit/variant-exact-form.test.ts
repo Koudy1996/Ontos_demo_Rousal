@@ -94,4 +94,42 @@ describe('Variant exact form foundation', () => {
       ),
     ).toBe(true);
   });
+
+  it('does not conflate two Products with identically described Variants', () => {
+    const betaProductRef = Schema.decodeUnknownSync(ProductRefSchema)({
+      ...productRef,
+      resourceId: '55555555-5555-4555-8555-555555555555',
+    });
+    const betaVariantRef = Schema.decodeUnknownSync(VariantRefSchema)({
+      ...variantRef,
+      resourceId: '66666666-6666-4666-8666-666666666666',
+    });
+    const betaVariant = decodeVariant({
+      lifecycle: 'WORK_IN_PROGRESS',
+      productRef: betaProductRef,
+      variantId: betaVariantRef.resourceId,
+      variantRef: betaVariantRef,
+    });
+    expect(
+      Option.isNone(resolveVariantExactForm({ productRef: betaProductRef, variants: [betaVariant] }, variantRef)),
+    ).toBe(true);
+    expect(
+      Option.isSome(resolveVariantExactForm({ productRef: betaProductRef, variants: [betaVariant] }, betaVariantRef)),
+    ).toBe(true);
+  });
+
+  it('rejects a wrong-tenant Variant reference even when its identifier matches', () => {
+    const otherTenantVariantRef = Schema.decodeUnknownSync(VariantRefSchema)({
+      ...variantRef,
+      tenantId: otherTenantId,
+    });
+    expect(
+      Option.isNone(
+        resolveVariantExactForm(
+          { productRef: recordedVariant.productRef, variants: [recordedVariant] },
+          otherTenantVariantRef,
+        ),
+      ),
+    ).toBe(true);
+  });
 });
