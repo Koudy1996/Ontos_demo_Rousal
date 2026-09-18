@@ -62,6 +62,58 @@ const confirmedManufacturerRelations = () => ({
 });
 
 describe('Variant persistence', () => {
+  it.effect('keeps the first exact Variant identity when a second form is recorded', () =>
+    Effect.gen(function* preserveSimpleVariantIdentity() {
+      const secondVariantId = '00000000-0000-4000-8000-000000000006';
+      const createdRows: (string | undefined)[] = [];
+      const revisionRows: [string | undefined, string | null | undefined][] = [];
+      const transaction = {
+        insert: (table: typeof productVariants | typeof productVariantRevisions) => ({
+          values: (value: typeof productVariants.$inferInsert | typeof productVariantRevisions.$inferInsert) => {
+            if (table === productVariants) {
+              createdRows.push(value.variantId);
+              return { returning: () => Effect.succeed([{ ...row, variantId: value.variantId }]) };
+            }
+            revisionRows.push([value.variantId, value.combinationKey]);
+            return Effect.succeed([]);
+          },
+        }),
+        select: () => ({
+          from: (table: typeof products | typeof manufacturerRelations) =>
+            table === products ? lockedRow({ ...row, currentRevision: 4 }) : noManufacturerRelations(),
+        }),
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope);
+      const first = yield* service.create({ ...evidence, expectedProductRevision: 4, productRef, variantRef });
+      const second = yield* service.create({
+        ...evidence,
+        actionInvocationId: '00000000-0000-4000-8000-000000000007',
+        expectedProductRevision: 4,
+        productRef,
+        variantRef: { ...variantRef, resourceId: secondVariantId },
+      });
+
+      expect(
+        Match.value(first).pipe(
+          Match.tag('created', ({ variant }) => variant),
+          Match.orElse(() => null),
+        ),
+      ).toMatchObject({ lifecycle: 'WORK_IN_PROGRESS', productRef, variantRef });
+      expect(
+        Match.value(second).pipe(
+          Match.tag('created', ({ variant }) => variant),
+          Match.orElse(() => null),
+        ),
+      ).toMatchObject({ variantRef: { ...variantRef, resourceId: secondVariantId } });
+      expect(createdRows).toEqual([variantId, secondVariantId]);
+      expect(revisionRows).toEqual([
+        [variantId, null],
+        [secondVariantId, null],
+      ]);
+    }),
+  );
+
   it.effect('creates a draft with an immutable initial revision, never an invented Current combination', () =>
     Effect.gen(function* createDraft() {
       const writes: unknown[] = [];
