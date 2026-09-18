@@ -2,7 +2,7 @@ import type { EffectPgDatabase } from 'drizzle-orm/effect-postgres';
 
 import type { catalogRelations } from './schema.ts';
 
-export type CatalogDatabaseExecutor = EffectPgDatabase<typeof catalogRelations>;
+type CatalogDatabaseExecutor = EffectPgDatabase<typeof catalogRelations>;
 
 type CatalogTransactionCallback = Parameters<CatalogDatabaseExecutor['transaction']>[0];
 

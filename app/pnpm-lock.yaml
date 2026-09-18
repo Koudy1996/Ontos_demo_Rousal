@@ -708,9 +708,6 @@ importers:
       '@modern-js/runtime-renderer-extensions':
         specifier: npm:@bleedingdev/modern-js-runtime-renderer-extensions@3.9.0-ultramodern.11
         version: '@bleedingdev/modern-js-runtime-renderer-extensions@3.9.0-ultramodern.11(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)'
-      '@module-federation/bridge-react':
-        specifier: 2.9.0
-        version: 2.9.0(patch_hash=8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c)(react-dom@19.2.8(react@19.2.8))(react-router@7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       '@module-federation/modern-js-v3':
         specifier: 2.9.0
         version: 2.9.0(patch_hash=3fb0015257028b2b6a465c44f1d7d2fc966235e643f74828743099533becd584)(@rsbuild/core@2.2.3(@module-federation/runtime-tools@2.9.0)(core-js@3.50.0))(@rspack/core@2.2.3(@module-federation/runtime-tools@2.9.0)(@swc/helpers@0.5.23))(react-dom@19.2.8(react@19.2.8))(react-router@7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(typescript@7.0.2)(webpack@5.110.3(@swc/core@1.16.2(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.0.3(postcss@8.5.28))(csso@5.0.5)(esbuild@0.28.1)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.28)(sharp@0.35.2)(svgo@4.1.0))

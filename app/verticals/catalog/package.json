@@ -60,7 +60,6 @@
     "@modern-js/runtime": "npm:@bleedingdev/modern-js-runtime@3.9.0-ultramodern.11",
     "@modern-js/runtime-extensions": "npm:@bleedingdev/modern-js-runtime-extensions@3.9.0-ultramodern.11",
     "@modern-js/runtime-renderer-extensions": "npm:@bleedingdev/modern-js-runtime-renderer-extensions@3.9.0-ultramodern.11",
-    "@module-federation/bridge-react": "2.9.0",
     "@module-federation/modern-js-v3": "2.9.0",
     "@module-federation/runtime": "2.9.0",
     "@tanstack/react-router": "1.170.33",
