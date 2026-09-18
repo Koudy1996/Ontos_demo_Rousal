@@ -782,11 +782,13 @@ hash that identified the Attempt.
 
 ## Order acceptance and recovery
 
-**Reservation Confirmation** — Inventory/Availability-owner-issued proof that specified Catalog
-Selections and quantities, or their explicitly mapped stock requirements, are provisionally reserved
-for one exact Order Commitment Attempt until an explicit expiry/lease boundary. It has owner-scoped
-idempotency and correlation. Mapping to stock does not reinterpret package or Set contents. It is not
-an Order or permanent Availability guarantee; an expired/unverifiable confirmation is not Current.
+**Reservation Confirmation** — Attempt-bound proof issued by the actual Reservation Authority,
+through Inventory's public boundary, that one exact Inventory Reservation for exact Stock Item(s),
+Quantities/Units and Allocations is provisionally guaranteed for one exact Order Commitment Attempt
+until its explicit validity boundary. Availability does not become the issuer merely by consuming the
+evidence. It has owner-scoped idempotency and correlation. Inventory preserves exact Catalog Selection
+and Quantity/Unit meaning; it does not decompose Package/Set contents or convert Units. It is not an
+Order or permanent Availability guarantee; an expired/unverifiable confirmation is not Current.
 
 **Payment Authorization** — Payment-owned proof that the required Payment method/amount/currency is
 authorized for one exact Order Commitment Attempt under the resolved Payment Term. It is distinct
