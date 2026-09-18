@@ -166,11 +166,25 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
   entrypoints: {
     api: {
       // <generated-module-registration-apis>
+      'activate-package-definition-recovery': () => import('./src/api/activate-package-definition-recovery-client.ts'),
+      'activate-package-option-recovery': () => import('./src/api/activate-package-option-recovery-client.ts'),
+      'add-product-category-assignment-recovery': () =>
+        import('./src/api/add-product-category-assignment-recovery-client.ts'),
+      'assert-size-equivalence-recovery': () => import('./src/api/assert-size-equivalence-recovery-client.ts'),
+      'assign-catalog-media-recovery': () => import('./src/api/assign-catalog-media-recovery-client.ts'),
+      'assign-sku-recovery': () => import('./src/api/assign-sku-recovery-client.ts'),
       'brand-current': () => import('./src/api/brand-current-client.ts'),
       'brand-history': () => import('./src/api/brand-history-client.ts'),
       'catalog-media-current': () => import('./src/api/catalog-media-current-client.ts'),
+      'change-product-manufacturer-recovery': () => import('./src/api/change-product-manufacturer-recovery-client.ts'),
+      'change-product-relationship-recovery': () => import('./src/api/change-product-relationship-recovery-client.ts'),
+      'change-variant-recovery': () => import('./src/api/change-variant-recovery-client.ts'),
       'color-current': () => import('./src/api/color-current-client.ts'),
       'color-history': () => import('./src/api/color-history-client.ts'),
+      'confirm-gtin-recovery': () => import('./src/api/confirm-gtin-recovery-client.ts'),
+      'correct-gtin-recovery': () => import('./src/api/correct-gtin-recovery-client.ts'),
+      'correct-product-recovery': () => import('./src/api/correct-product-recovery-client.ts'),
+      'correct-sku-recovery': () => import('./src/api/correct-sku-recovery-client.ts'),
       'create-attribute-definition-recovery': () => import('./src/api/create-attribute-definition-recovery-client.ts'),
       'create-brand-recovery': () => import('./src/api/create-brand-recovery-client.ts'),
       'create-configuration-unit-recovery': () => import('./src/api/create-configuration-unit-recovery-client.ts'),
@@ -184,6 +198,8 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'create-product-unit-recovery': () => import('./src/api/create-product-unit-recovery-client.ts'),
       'create-set-composition-recovery': () => import('./src/api/create-set-composition-recovery-client.ts'),
       'create-variant-recovery': () => import('./src/api/create-variant-recovery-client.ts'),
+      'decide-product-type-unnecessary-recovery': () =>
+        import('./src/api/decide-product-type-unnecessary-recovery-client.ts'),
       'effective-attribute-values-current': () => import('./src/api/effective-attribute-values-current-client.ts'),
       'gtin-current': () => import('./src/api/gtin-current-client.ts'),
       'gtin-history': () => import('./src/api/gtin-history-client.ts'),

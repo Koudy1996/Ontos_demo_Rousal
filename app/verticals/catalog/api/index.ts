@@ -27,23 +27,36 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 
 // <generated-governed-http-handler-imports>
 import { activatePackageDefinitionActionApiLive } from './activate-package-definition-action-server.ts';
+import { activatePackageDefinitionRecoveryReadApiLive } from './activate-package-definition-recovery-read-server.ts';
 import { activatePackageOptionActionApiLive } from './activate-package-option-action-server.ts';
+import { activatePackageOptionRecoveryReadApiLive } from './activate-package-option-recovery-read-server.ts';
 import { addProductCategoryAssignmentActionApiLive } from './add-product-category-assignment-action-server.ts';
+import { addProductCategoryAssignmentRecoveryReadApiLive } from './add-product-category-assignment-recovery-read-server.ts';
 import { assertSizeEquivalenceActionApiLive } from './assert-size-equivalence-action-server.ts';
+import { assertSizeEquivalenceRecoveryReadApiLive } from './assert-size-equivalence-recovery-read-server.ts';
 import { assignCatalogMediaActionApiLive } from './assign-catalog-media-action-server.ts';
+import { assignCatalogMediaRecoveryReadApiLive } from './assign-catalog-media-recovery-read-server.ts';
 import { assignSkuActionApiLive } from './assign-sku-action-server.ts';
+import { assignSkuRecoveryReadApiLive } from './assign-sku-recovery-read-server.ts';
 import { brandCurrentReadApiLive } from './brand-current-read-server.ts';
 import { brandHistoryReadApiLive } from './brand-history-read-server.ts';
 import { catalogMediaCurrentReadApiLive } from './catalog-media-current-read-server.ts';
 import { changeProductManufacturerActionApiLive } from './change-product-manufacturer-action-server.ts';
+import { changeProductManufacturerRecoveryReadApiLive } from './change-product-manufacturer-recovery-read-server.ts';
 import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
+import { changeProductRelationshipRecoveryReadApiLive } from './change-product-relationship-recovery-read-server.ts';
 import { changeVariantActionApiLive } from './change-variant-action-server.ts';
+import { changeVariantRecoveryReadApiLive } from './change-variant-recovery-read-server.ts';
 import { colorCurrentReadApiLive } from './color-current-read-server.ts';
 import { colorHistoryReadApiLive } from './color-history-read-server.ts';
 import { confirmGtinActionApiLive } from './confirm-gtin-action-server.ts';
+import { confirmGtinRecoveryReadApiLive } from './confirm-gtin-recovery-read-server.ts';
 import { correctGtinActionApiLive } from './correct-gtin-action-server.ts';
+import { correctGtinRecoveryReadApiLive } from './correct-gtin-recovery-read-server.ts';
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
+import { correctProductRecoveryReadApiLive } from './correct-product-recovery-read-server.ts';
 import { correctSkuActionApiLive } from './correct-sku-action-server.ts';
+import { correctSkuRecoveryReadApiLive } from './correct-sku-recovery-read-server.ts';
 import { createAttributeDefinitionActionApiLive } from './create-attribute-definition-action-server.ts';
 import { createAttributeDefinitionRecoveryReadApiLive } from './create-attribute-definition-recovery-read-server.ts';
 import { createBrandActionApiLive } from './create-brand-action-server.ts';
@@ -69,6 +82,7 @@ import { createSetCompositionRecoveryReadApiLive } from './create-set-compositio
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
 import { createVariantRecoveryReadApiLive } from './create-variant-recovery-read-server.ts';
 import { decideProductTypeUnnecessaryActionApiLive } from './decide-product-type-unnecessary-action-server.ts';
+import { decideProductTypeUnnecessaryRecoveryReadApiLive } from './decide-product-type-unnecessary-recovery-read-server.ts';
 import { effectiveAttributeValuesCurrentReadApiLive } from './effective-attribute-values-current-read-server.ts';
 import { governProductAttributeApplicabilityActionApiLive } from './govern-product-attribute-applicability-action-server.ts';
 import { governVariantAxesActionApiLive } from './govern-variant-axes-action-server.ts';
@@ -255,23 +269,36 @@ export const makeCatalogApiRuntime = (
     catalogReadinessLayer,
     // <generated-governed-http-handler-layers>
     activatePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    activatePackageDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     activatePackageOptionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    activatePackageOptionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     addProductCategoryAssignmentActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    addProductCategoryAssignmentRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     assertSizeEquivalenceActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    assertSizeEquivalenceRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     assignCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    assignCatalogMediaRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     assignSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    assignSkuRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     brandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     brandHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     catalogMediaCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    changeProductManufacturerRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    changeProductRelationshipRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    changeVariantRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     colorCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     colorHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     confirmGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    confirmGtinRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     correctGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    correctGtinRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    correctProductRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     correctSkuActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    correctSkuRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createAttributeDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     createBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -300,6 +327,7 @@ export const makeCatalogApiRuntime = (
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     decideProductTypeUnnecessaryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    decideProductTypeUnnecessaryRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     effectiveAttributeValuesCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     governProductAttributeApplicabilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     governVariantAxesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

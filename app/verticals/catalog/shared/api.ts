@@ -9,23 +9,36 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-e
 
 // <generated-governed-http-api-imports>
 import { ActivatePackageDefinitionActionApi } from './apis/activate-package-definition-action.ts';
+import { ActivatePackageDefinitionRecoveryApi } from './apis/activate-package-definition-recovery.ts';
 import { ActivatePackageOptionActionApi } from './apis/activate-package-option-action.ts';
+import { ActivatePackageOptionRecoveryApi } from './apis/activate-package-option-recovery.ts';
 import { AddProductCategoryAssignmentActionApi } from './apis/add-product-category-assignment-action.ts';
+import { AddProductCategoryAssignmentRecoveryApi } from './apis/add-product-category-assignment-recovery.ts';
 import { AssertSizeEquivalenceActionApi } from './apis/assert-size-equivalence-action.ts';
+import { AssertSizeEquivalenceRecoveryApi } from './apis/assert-size-equivalence-recovery.ts';
 import { AssignCatalogMediaActionApi } from './apis/assign-catalog-media-action.ts';
+import { AssignCatalogMediaRecoveryApi } from './apis/assign-catalog-media-recovery.ts';
 import { AssignSkuActionApi } from './apis/assign-sku-action.ts';
+import { AssignSkuRecoveryApi } from './apis/assign-sku-recovery.ts';
 import { BrandCurrentApi } from './apis/brand-current.ts';
 import { BrandHistoryApi } from './apis/brand-history.ts';
 import { CatalogMediaCurrentApi } from './apis/catalog-media-current.ts';
 import { ChangeProductManufacturerActionApi } from './apis/change-product-manufacturer-action.ts';
+import { ChangeProductManufacturerRecoveryApi } from './apis/change-product-manufacturer-recovery.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
+import { ChangeProductRelationshipRecoveryApi } from './apis/change-product-relationship-recovery.ts';
 import { ChangeVariantActionApi } from './apis/change-variant-action.ts';
+import { ChangeVariantRecoveryApi } from './apis/change-variant-recovery.ts';
 import { ColorCurrentApi } from './apis/color-current.ts';
 import { ColorHistoryApi } from './apis/color-history.ts';
 import { ConfirmGtinActionApi } from './apis/confirm-gtin-action.ts';
+import { ConfirmGtinRecoveryApi } from './apis/confirm-gtin-recovery.ts';
 import { CorrectGtinActionApi } from './apis/correct-gtin-action.ts';
+import { CorrectGtinRecoveryApi } from './apis/correct-gtin-recovery.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
+import { CorrectProductRecoveryApi } from './apis/correct-product-recovery.ts';
 import { CorrectSkuActionApi } from './apis/correct-sku-action.ts';
+import { CorrectSkuRecoveryApi } from './apis/correct-sku-recovery.ts';
 import { CreateAttributeDefinitionActionApi } from './apis/create-attribute-definition-action.ts';
 import { CreateAttributeDefinitionRecoveryApi } from './apis/create-attribute-definition-recovery.ts';
 import { CreateBrandActionApi } from './apis/create-brand-action.ts';
@@ -51,6 +64,7 @@ import { CreateSetCompositionRecoveryApi } from './apis/create-set-composition-r
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
 import { CreateVariantRecoveryApi } from './apis/create-variant-recovery.ts';
 import { DecideProductTypeUnnecessaryActionApi } from './apis/decide-product-type-unnecessary-action.ts';
+import { DecideProductTypeUnnecessaryRecoveryApi } from './apis/decide-product-type-unnecessary-recovery.ts';
 import { EffectiveAttributeValuesCurrentApi } from './apis/effective-attribute-values-current.ts';
 import { GovernProductAttributeApplicabilityActionApi } from './apis/govern-product-attribute-applicability-action.ts';
 import { GovernVariantAxesActionApi } from './apis/govern-variant-axes-action.ts';
@@ -164,23 +178,36 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(ActivatePackageDefinitionActionApi)
+  .addHttpApi(ActivatePackageDefinitionRecoveryApi)
   .addHttpApi(ActivatePackageOptionActionApi)
+  .addHttpApi(ActivatePackageOptionRecoveryApi)
   .addHttpApi(AddProductCategoryAssignmentActionApi)
+  .addHttpApi(AddProductCategoryAssignmentRecoveryApi)
   .addHttpApi(AssertSizeEquivalenceActionApi)
+  .addHttpApi(AssertSizeEquivalenceRecoveryApi)
   .addHttpApi(AssignCatalogMediaActionApi)
+  .addHttpApi(AssignCatalogMediaRecoveryApi)
   .addHttpApi(AssignSkuActionApi)
+  .addHttpApi(AssignSkuRecoveryApi)
   .addHttpApi(BrandCurrentApi)
   .addHttpApi(BrandHistoryApi)
   .addHttpApi(CatalogMediaCurrentApi)
   .addHttpApi(ChangeProductManufacturerActionApi)
+  .addHttpApi(ChangeProductManufacturerRecoveryApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
+  .addHttpApi(ChangeProductRelationshipRecoveryApi)
   .addHttpApi(ChangeVariantActionApi)
+  .addHttpApi(ChangeVariantRecoveryApi)
   .addHttpApi(ColorCurrentApi)
   .addHttpApi(ColorHistoryApi)
   .addHttpApi(ConfirmGtinActionApi)
+  .addHttpApi(ConfirmGtinRecoveryApi)
   .addHttpApi(CorrectGtinActionApi)
+  .addHttpApi(CorrectGtinRecoveryApi)
   .addHttpApi(CorrectProductActionApi)
+  .addHttpApi(CorrectProductRecoveryApi)
   .addHttpApi(CorrectSkuActionApi)
+  .addHttpApi(CorrectSkuRecoveryApi)
   .addHttpApi(CreateAttributeDefinitionActionApi)
   .addHttpApi(CreateAttributeDefinitionRecoveryApi)
   .addHttpApi(CreateBrandActionApi)
@@ -206,6 +233,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateVariantActionApi)
   .addHttpApi(CreateVariantRecoveryApi)
   .addHttpApi(DecideProductTypeUnnecessaryActionApi)
+  .addHttpApi(DecideProductTypeUnnecessaryRecoveryApi)
   .addHttpApi(EffectiveAttributeValuesCurrentApi)
   .addHttpApi(GovernProductAttributeApplicabilityActionApi)
   .addHttpApi(GovernVariantAxesActionApi)
@@ -362,6 +390,54 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.activate-package-definition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.read.activate-package-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.activate-package-option-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.read.activate-package-option-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.add-product-category-assignment-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.add-product-category-assignment-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.assert-size-equivalence-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'size-equivalence',
+    permission: 'commerce.catalog.read.assert-size-equivalence-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.assign-catalog-media-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.assign-catalog-media-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.assign-sku-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.assign-sku-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.brand-current': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: brandBusinessTarget,
@@ -392,6 +468,30 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.change-product-manufacturer-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.change-product-manufacturer-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.change-product-relationship-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productRelationshipBusinessTarget,
+    permission: 'commerce.catalog.read.change-product-relationship-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.change-variant-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.change-variant-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.color-current': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: controlledAttributeValueBusinessTarget,
@@ -409,6 +509,38 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.confirm-gtin-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.confirm-gtin-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.correct-gtin-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.correct-gtin-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.correct-product-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.correct-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.correct-sku-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.correct-sku-recovery',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -504,6 +636,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'variant',
     permission: 'commerce.catalog.read.create-variant-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.decide-product-type-unnecessary-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.decide-product-type-unnecessary-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -1461,6 +1601,20 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.retire-variant',
   ],
   CATALOG_READER: [
+    'commerce.catalog.read.decide-product-type-unnecessary-recovery',
+    'commerce.catalog.read.correct-sku-recovery',
+    'commerce.catalog.read.correct-product-recovery',
+    'commerce.catalog.read.correct-gtin-recovery',
+    'commerce.catalog.read.confirm-gtin-recovery',
+    'commerce.catalog.read.change-variant-recovery',
+    'commerce.catalog.read.change-product-relationship-recovery',
+    'commerce.catalog.read.change-product-manufacturer-recovery',
+    'commerce.catalog.read.assign-sku-recovery',
+    'commerce.catalog.read.assign-catalog-media-recovery',
+    'commerce.catalog.read.assert-size-equivalence-recovery',
+    'commerce.catalog.read.add-product-category-assignment-recovery',
+    'commerce.catalog.read.activate-package-option-recovery',
+    'commerce.catalog.read.activate-package-definition-recovery',
     'commerce.catalog.read.create-attribute-definition-recovery',
     'commerce.catalog.read.create-brand-recovery',
     'commerce.catalog.read.create-configuration-unit-recovery',

@@ -13,11 +13,17 @@ import type { OntosModuleManifestInput } from '@app/core-runtime';
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
 import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
+import { ActivatePackageDefinitionRecoveryApi } from './shared/apis/activate-package-definition-recovery.ts';
 import { activatePackageOptionAction } from './src/actions/activate-package-option.action.ts';
+import { ActivatePackageOptionRecoveryApi } from './shared/apis/activate-package-option-recovery.ts';
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
+import { AddProductCategoryAssignmentRecoveryApi } from './shared/apis/add-product-category-assignment-recovery.ts';
 import { assertSizeEquivalenceAction } from './src/actions/assert-size-equivalence.action.ts';
+import { AssertSizeEquivalenceRecoveryApi } from './shared/apis/assert-size-equivalence-recovery.ts';
 import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
+import { AssignCatalogMediaRecoveryApi } from './shared/apis/assign-catalog-media-recovery.ts';
 import { assignSkuAction } from './src/actions/assign-sku.action.ts';
+import { AssignSkuRecoveryApi } from './shared/apis/assign-sku-recovery.ts';
 import { attributeDefinitionResourceDescriptor } from './shared/resources/attribute-definition.ts';
 import { BrandCurrentApi } from './shared/apis/brand-current.ts';
 import { BrandHistoryApi } from './shared/apis/brand-history.ts';
@@ -26,16 +32,23 @@ import { CatalogMediaCurrentApi } from './shared/apis/catalog-media-current.ts';
 import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.ts';
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
+import { ChangeProductManufacturerRecoveryApi } from './shared/apis/change-product-manufacturer-recovery.ts';
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
+import { ChangeProductRelationshipRecoveryApi } from './shared/apis/change-product-relationship-recovery.ts';
 import { changeVariantAction } from './src/actions/change-variant.action.ts';
+import { ChangeVariantRecoveryApi } from './shared/apis/change-variant-recovery.ts';
 import { ColorCurrentApi } from './shared/apis/color-current.ts';
 import { ColorHistoryApi } from './shared/apis/color-history.ts';
 import { configurationUnitResourceDescriptor } from './shared/resources/configuration-unit.ts';
 import { confirmGtinAction } from './src/actions/confirm-gtin.action.ts';
+import { ConfirmGtinRecoveryApi } from './shared/apis/confirm-gtin-recovery.ts';
 import { controlledAttributeValueResourceDescriptor } from './shared/resources/controlled-attribute-value.ts';
 import { correctGtinAction } from './src/actions/correct-gtin.action.ts';
+import { CorrectGtinRecoveryApi } from './shared/apis/correct-gtin-recovery.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
+import { CorrectProductRecoveryApi } from './shared/apis/correct-product-recovery.ts';
 import { correctSkuAction } from './src/actions/correct-sku.action.ts';
+import { CorrectSkuRecoveryApi } from './shared/apis/correct-sku-recovery.ts';
 import { createAttributeDefinitionAction } from './src/actions/create-attribute-definition.action.ts';
 import { CreateAttributeDefinitionRecoveryApi } from './shared/apis/create-attribute-definition-recovery.ts';
 import { createBrandAction } from './src/actions/create-brand.action.ts';
@@ -61,6 +74,7 @@ import { CreateSetCompositionRecoveryApi } from './shared/apis/create-set-compos
 import { createVariantAction } from './src/actions/create-variant.action.ts';
 import { CreateVariantRecoveryApi } from './shared/apis/create-variant-recovery.ts';
 import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product-type-unnecessary.action.ts';
+import { DecideProductTypeUnnecessaryRecoveryApi } from './shared/apis/decide-product-type-unnecessary-recovery.ts';
 import { EffectiveAttributeValuesCurrentApi } from './shared/apis/effective-attribute-values-current.ts';
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
 import { governVariantAxesAction } from './src/actions/govern-variant-axes.action.ts';
@@ -271,11 +285,24 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
     ],
     api: {
       // <generated-module-manifest-apis>
+      'activate-package-definition-recovery': ActivatePackageDefinitionRecoveryApi,
+      'activate-package-option-recovery': ActivatePackageOptionRecoveryApi,
+      'add-product-category-assignment-recovery': AddProductCategoryAssignmentRecoveryApi,
+      'assert-size-equivalence-recovery': AssertSizeEquivalenceRecoveryApi,
+      'assign-catalog-media-recovery': AssignCatalogMediaRecoveryApi,
+      'assign-sku-recovery': AssignSkuRecoveryApi,
       'brand-current': BrandCurrentApi,
       'brand-history': BrandHistoryApi,
       'catalog-media-current': CatalogMediaCurrentApi,
+      'change-product-manufacturer-recovery': ChangeProductManufacturerRecoveryApi,
+      'change-product-relationship-recovery': ChangeProductRelationshipRecoveryApi,
+      'change-variant-recovery': ChangeVariantRecoveryApi,
       'color-current': ColorCurrentApi,
       'color-history': ColorHistoryApi,
+      'confirm-gtin-recovery': ConfirmGtinRecoveryApi,
+      'correct-gtin-recovery': CorrectGtinRecoveryApi,
+      'correct-product-recovery': CorrectProductRecoveryApi,
+      'correct-sku-recovery': CorrectSkuRecoveryApi,
       'create-attribute-definition-recovery': CreateAttributeDefinitionRecoveryApi,
       'create-brand-recovery': CreateBrandRecoveryApi,
       'create-configuration-unit-recovery': CreateConfigurationUnitRecoveryApi,
@@ -288,6 +315,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'create-product-unit-recovery': CreateProductUnitRecoveryApi,
       'create-set-composition-recovery': CreateSetCompositionRecoveryApi,
       'create-variant-recovery': CreateVariantRecoveryApi,
+      'decide-product-type-unnecessary-recovery': DecideProductTypeUnnecessaryRecoveryApi,
       'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
       'gtin-current': GtinCurrentApi,
       'gtin-history': GtinHistoryApi,

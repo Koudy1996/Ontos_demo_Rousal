@@ -2,6 +2,20 @@ import { expect, it } from 'effect-rstest';
 
 import { catalogAuthorityBundles, catalogPublicOperationContracts } from '../../shared/api.ts';
 import { catalogManifest } from '../../vertical.manifest.ts';
+import { activatePackageDefinitionRecoveryRead } from '../../src/api/activate-package-definition-recovery.read.ts';
+import { activatePackageOptionRecoveryRead } from '../../src/api/activate-package-option-recovery.read.ts';
+import { addProductCategoryAssignmentRecoveryRead } from '../../src/api/add-product-category-assignment-recovery.read.ts';
+import { assertSizeEquivalenceRecoveryRead } from '../../src/api/assert-size-equivalence-recovery.read.ts';
+import { assignCatalogMediaRecoveryRead } from '../../src/api/assign-catalog-media-recovery.read.ts';
+import { assignSkuRecoveryRead } from '../../src/api/assign-sku-recovery.read.ts';
+import { changeProductManufacturerRecoveryRead } from '../../src/api/change-product-manufacturer-recovery.read.ts';
+import { changeProductRelationshipRecoveryRead } from '../../src/api/change-product-relationship-recovery.read.ts';
+import { changeVariantRecoveryRead } from '../../src/api/change-variant-recovery.read.ts';
+import { confirmGtinRecoveryRead } from '../../src/api/confirm-gtin-recovery.read.ts';
+import { correctGtinRecoveryRead } from '../../src/api/correct-gtin-recovery.read.ts';
+import { correctProductRecoveryRead } from '../../src/api/correct-product-recovery.read.ts';
+import { correctSkuRecoveryRead } from '../../src/api/correct-sku-recovery.read.ts';
+import { decideProductTypeUnnecessaryRecoveryRead } from '../../src/api/decide-product-type-unnecessary-recovery.read.ts';
 import { createVariantRecoveryRead } from '../../src/api/create-variant-recovery.read.ts';
 import { updateProductRecoveryRead } from '../../src/api/update-product-recovery.read.ts';
 import { createAttributeDefinitionRecoveryRead } from '../../src/api/create-attribute-definition-recovery.read.ts';
@@ -59,6 +73,20 @@ import { setCompositionCurrentRead } from '../../src/api/set-composition-current
 import { setCompositionHistoryRead } from '../../src/api/set-composition-history.read.ts';
 
 const reads = [
+  activatePackageDefinitionRecoveryRead,
+  activatePackageOptionRecoveryRead,
+  addProductCategoryAssignmentRecoveryRead,
+  assertSizeEquivalenceRecoveryRead,
+  assignCatalogMediaRecoveryRead,
+  assignSkuRecoveryRead,
+  changeProductManufacturerRecoveryRead,
+  changeProductRelationshipRecoveryRead,
+  changeVariantRecoveryRead,
+  confirmGtinRecoveryRead,
+  correctGtinRecoveryRead,
+  correctProductRecoveryRead,
+  correctSkuRecoveryRead,
+  decideProductTypeUnnecessaryRecoveryRead,
   createVariantRecoveryRead,
   updateProductRecoveryRead,
   createAttributeDefinitionRecoveryRead,
