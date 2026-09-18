@@ -5,6 +5,10 @@ import { describe, expect, it } from 'effect-rstest';
 
 import type { attributeValueSets } from '../../src/database/schema.ts';
 import {
+  attributeDefinitions,
+  attributeDefinitionRevisions,
+  attributeValueItems,
+  attributeValueRevisions,
   productTypeAssignments,
   productTypeUntypedDecisions,
   productVariantAxes,
@@ -18,6 +22,8 @@ import { DecideProductTypeUnnecessaryPayloadSchema } from '../../shared/actions/
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const productId = '22222222-2222-4222-8222-222222222222';
 const variantId = '55555555-5555-4555-8555-555555555555';
+const definitionId = '66666666-6666-4666-8666-666666666666';
+const setId = '77777777-7777-4777-8777-777777777777';
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
     authContextRef: 'job:untyped-decision-test:run:1',
@@ -56,17 +62,43 @@ type Table =
   | typeof productVariantAxes
   | typeof productVariantAxisEvents
   | typeof productVariants
-  | typeof attributeValueSets;
+  | typeof attributeValueSets
+  | typeof attributeDefinitions
+  | typeof attributeDefinitionRevisions
+  | typeof attributeValueRevisions
+  | typeof attributeValueItems;
 interface Row {
+  readonly attributeDefinitionId?: string;
+  readonly attributeValueSetId?: string;
   readonly axisRevision?: number;
+  readonly changeKind?: string;
   readonly currentRevision?: number;
+  readonly currentState?: string;
   readonly decisionRevision?: number;
   readonly lifecycleState?: string;
+  readonly ordinal?: number;
   readonly productId?: string;
+  readonly revision?: number;
+  readonly specialState?: string | null;
   readonly tenantId?: string;
-  readonly variantId?: string;
+  readonly textValue?: string | null;
+  readonly valueKind?: string;
+  readonly valueSnapshot?: object;
+  readonly variantId?: string | null;
 }
-const KeySchema = Schema.Literals(['products', 'assignments', 'decisions', 'axes', 'axisEvents', 'variants', 'sets']);
+const KeySchema = Schema.Literals([
+  'products',
+  'assignments',
+  'decisions',
+  'axes',
+  'axisEvents',
+  'variants',
+  'sets',
+  'definitions',
+  'definitionRevisions',
+  'valueRevisions',
+  'valueItems',
+]);
 type Key = typeof KeySchema.Type;
 type Fixture = Partial<Record<Key, readonly Row[]>>;
 const dialect = new PgDialect();
@@ -91,6 +123,18 @@ const tableKey = (table: Table): Key => {
   if (table === productVariants) {
     return 'variants';
   }
+  if (table === attributeDefinitions) {
+    return 'definitions';
+  }
+  if (table === attributeDefinitionRevisions) {
+    return 'definitionRevisions';
+  }
+  if (table === attributeValueRevisions) {
+    return 'valueRevisions';
+  }
+  if (table === attributeValueItems) {
+    return 'valueItems';
+  }
   return 'sets';
 };
 
@@ -102,8 +146,12 @@ const transaction = (fixture: Fixture = {}) => {
     axes: [],
     axisEvents: [],
     decisions: [],
+    definitionRevisions: [],
+    definitions: [],
     products: [{ currentRevision: 1, productId, tenantId }],
     sets: [],
+    valueItems: [],
+    valueRevisions: [],
     variants: [],
     ...fixture,
   } satisfies Record<Key, readonly Row[]>;
@@ -202,6 +250,73 @@ describe('Product Type untyped decision persistence', () => {
       );
       expect(result.reason).toBeNull();
       expect(tx.inserted).toMatchObject([{ axisRevision: 2, decisionRevision: 2, decisionState: 'REVOKED' }]);
+    }),
+  );
+
+  it.effect('rejects CONFIRMED with a valid Current SET, even when its revision token matches', () =>
+    Effect.gen(function* currentSet() {
+      const definition = {
+        allowsNone: 0,
+        allowsNotApplicable: 0,
+        allowsUnknown: 0,
+        applicableLevels: ['PRODUCT'],
+        canonicalUnit: null,
+        controlledValueKind: null,
+        currentRevision: 2,
+        decimalPlaces: null,
+        maximumValue: null,
+        meaning: 'Material',
+        measuredQuantity: null,
+        minimumValue: null,
+        multiplicity: 'SINGLE',
+        name: 'Material',
+        valueKind: 'TEXT',
+      };
+      const tx = transaction({
+        definitionRevisions: [{ ...definition, attributeDefinitionId: definitionId, revision: 2, tenantId }],
+        definitions: [{ ...definition, attributeDefinitionId: definitionId, tenantId }],
+        sets: [
+          {
+            attributeDefinitionId: definitionId,
+            attributeValueSetId: setId,
+            currentRevision: 1,
+            currentState: 'SET',
+            productId,
+            tenantId,
+            variantId: null,
+          },
+        ],
+        valueItems: [
+          {
+            attributeDefinitionId: definitionId,
+            attributeValueSetId: setId,
+            ordinal: 0,
+            specialState: null,
+            tenantId,
+            textValue: 'Steel',
+            valueKind: 'TEXT',
+          },
+        ],
+        valueRevisions: [
+          {
+            attributeValueSetId: setId,
+            changeKind: 'SET',
+            revision: 1,
+            tenantId,
+            valueSnapshot: {
+              attributeDefinitionRevision: 2,
+              productTypeId: variantId,
+              productTypeRevision: 1,
+              sourceProductValueRevision: null,
+              values: [{ kind: 'TEXT', text: 'Steel' }],
+            },
+          },
+        ],
+      });
+      const token = `${setId}:1:${definitionId}:2:2`;
+      const result = yield* decide(tx, payload({ expectedValueRevisionTokens: [token] }));
+      expect(result.reason).toContain('Structured attributes or Variant Axes still exist');
+      expect(tx.inserted).toHaveLength(0);
     }),
   );
 
