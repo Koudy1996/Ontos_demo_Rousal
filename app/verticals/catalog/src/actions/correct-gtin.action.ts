@@ -90,13 +90,13 @@ export const correctGtinAction: ActionRegistration<
             },
             result,
           ).pipe(
-            Effect.mapError((error) =>
+            Effect.mapError((cause) =>
               Object.assign(
                 new ActionTransactionError({
                   code: 'action_transaction_failed',
                   reason: 'Catalog result capture failed',
                 }),
-                { cause: error },
+                { cause },
               ),
             ),
           ),

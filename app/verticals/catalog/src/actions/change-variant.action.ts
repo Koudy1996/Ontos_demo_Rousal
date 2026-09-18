@@ -28,6 +28,7 @@ type ChangeVariantServices = VariantPersistence & {
     result: ChangeVariantResult,
   ) => Effect.Effect<void, ActionTransactionError>;
 };
+const ACTION_KEY = 'commerce.catalog.change-variant' as const;
 
 export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(function* handleChangeVariant(
   payload: ChangeVariantPayload,
@@ -73,7 +74,7 @@ export const changeVariantAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.change-variant.access.v1',
     },
-    actionKey: 'commerce.catalog.change-variant',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: VariantActionErrorSchema,
@@ -81,7 +82,7 @@ export const changeVariantAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.change-variant',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -102,19 +103,21 @@ export const changeVariantAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.change-variant', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
               encode: Schema.encodeEffect(ChangeVariantResultSchema),
             },
             result,
           ).pipe(
-            Effect.mapError(
-              () =>
+            Effect.mapError((cause) =>
+              Object.assign(
                 new ActionTransactionError({
                   code: 'action_transaction_failed',
                   reason: 'Catalog result capture failed',
                 }),
+                { cause },
+              ),
             ),
           ),
       })),

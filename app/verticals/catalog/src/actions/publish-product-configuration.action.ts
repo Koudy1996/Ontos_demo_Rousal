@@ -21,6 +21,7 @@ import { captureCatalogActionResult } from '../persistence/catalog-action-result
 
 export { PublishProductConfigurationPayloadSchema } from '../../shared/actions/publish-product-configuration.ts';
 export type { PublishProductConfigurationPayload } from '../../shared/actions/publish-product-configuration.ts';
+const ACTION_KEY = 'commerce.catalog.publish-product-configuration' as const;
 
 const unavailable = () =>
   new ProductConfigurationPersistenceUnavailable({
@@ -79,14 +80,14 @@ export const publishProductConfigurationAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.publish-product-configuration.access.v1',
     },
-    actionKey: 'commerce.catalog.publish-product-configuration',
+    actionKey: ACTION_KEY,
     auditProfile: 'standard',
     domainErrorSchema: PublishProductConfigurationError,
     domainEvents: {},
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.publish-product-configuration',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -107,19 +108,21 @@ export const publishProductConfigurationAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.publish-product-configuration', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(PublishProductConfigurationResultSchema),
               encode: Schema.encodeEffect(PublishProductConfigurationResultSchema),
             },
             result,
           ).pipe(
-            Effect.mapError(
-              () =>
+            Effect.mapError((cause) =>
+              Object.assign(
                 new ActionTransactionError({
                   code: 'action_transaction_failed',
                   reason: 'Catalog result capture failed',
                 }),
+                { cause },
+              ),
             ),
           ),
       })),

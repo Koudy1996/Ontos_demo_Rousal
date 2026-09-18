@@ -42,6 +42,7 @@ export { CorrectProductPayloadSchema } from '../../shared/actions/correct-produc
 export type { CorrectProductPayload } from '../../shared/actions/correct-product.ts';
 
 const MODULE_KEY = 'commerce.catalog' as const;
+const ACTION_KEY = 'commerce.catalog.correct-product' as const;
 const domainEvents = {
   'commerce.catalog.product-corrected.v1': CorrectProductResultSchema,
   'commerce.catalog.selection-revalidation-required.v1': ProductSelectionRevalidationRequiredSchema,
@@ -174,7 +175,7 @@ export const correctProductAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.correct-product.access.v1',
     },
-    actionKey: 'commerce.catalog.correct-product',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductActionErrorSchema,
@@ -182,7 +183,7 @@ export const correctProductAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.correct-product',
+      entrypointKey: ACTION_KEY,
       moduleKey: MODULE_KEY,
       role: 'action',
     }),
@@ -203,7 +204,7 @@ export const correctProductAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.correct-product', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(CorrectProductResultSchema),
               encode: Schema.encodeEffect(CorrectProductResultSchema),
