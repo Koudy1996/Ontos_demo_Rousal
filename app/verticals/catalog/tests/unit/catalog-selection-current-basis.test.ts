@@ -610,10 +610,13 @@ describe('Catalog Selection Current basis', () => {
   it.effect('rejects a stale Set revision only after the owner resolves its Current revision', () =>
     Effect.gen(function* staleSet() {
       const compositionId = '88888888-8888-4888-8888-888888888888';
+      // A Set cannot contain its own Product; otherwise owner decoding fails before the Current comparison.
+      const componentProductId = '99999999-9999-4999-8999-999999999999';
+      const componentVariantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab';
       const component = (componentId: string) => ({
         componentId,
-        componentProductId: productId,
-        componentVariantId: variantId,
+        componentProductId,
+        componentVariantId,
         configuration: null,
         packageContentRevision: null,
         packageDefinitionId: null,
