@@ -1,4 +1,4 @@
-import { Schema } from 'effect';
+import { Result, Schema } from 'effect';
 
 import { CatalogSelectionSchema, SetCompositionSelectionRevisionSchema } from './catalog-selection-evidence.ts';
 import type { CatalogSelection } from './catalog-selection-evidence.ts';
@@ -133,37 +133,37 @@ const add = (left: Decimal, right: Decimal): Decimal => {
   };
 };
 
-/** Distinct component needs retain their IDs; only identical exact selections and Units combine. */
-export const summarizeSetComponents = (
-  components: readonly SetComponent[],
-): readonly {
-  readonly amount: string;
-  readonly componentIds: readonly string[];
-  readonly selection: CatalogSelection;
-  readonly unitRef: CatalogResourceRef;
-}[] => {
-  const totals: {
-    amount: Decimal;
-    componentIds: string[];
-    selection: CatalogSelection;
-    unitRef: CatalogResourceRef;
-  }[] = [];
-  for (const component of components) {
-    const match = totals.find(
-      (total) =>
-        sameSelection(total.selection, component.selection) && sameUnit(total.unitRef, component.quantity.unitRef),
-    );
-    if (match === undefined) {
-      totals.push({
-        amount: decimal(component.quantity.amount),
-        componentIds: [component.componentId],
-        selection: component.selection,
-        unitRef: component.quantity.unitRef,
-      });
-    } else {
-      match.amount = add(match.amount, decimal(component.quantity.amount));
-      match.componentIds.push(component.componentId);
+const multiply = (left: Decimal, right: Decimal): Decimal => ({
+  coefficient: left.coefficient * right.coefficient,
+  scale: left.scale + right.scale,
+});
+
+/** Scale one Set's exact needs by ordered Set Quantity; only identical selections and Units combine. */
+export const summarizeSetComponents = (components: readonly SetComponent[], orderedSetQuantity: string) =>
+  Result.map(Schema.decodeResult(positiveAmount)(orderedSetQuantity), (validQuantity) => {
+    const orderQuantity = decimal(validQuantity);
+    const totals: {
+      amount: Decimal;
+      componentIds: string[];
+      selection: CatalogSelection;
+      unitRef: CatalogResourceRef;
+    }[] = [];
+    for (const component of components) {
+      const match = totals.find(
+        (total) =>
+          sameSelection(total.selection, component.selection) && sameUnit(total.unitRef, component.quantity.unitRef),
+      );
+      if (match === undefined) {
+        totals.push({
+          amount: decimal(component.quantity.amount),
+          componentIds: [component.componentId],
+          selection: component.selection,
+          unitRef: component.quantity.unitRef,
+        });
+      } else {
+        match.amount = add(match.amount, decimal(component.quantity.amount));
+        match.componentIds.push(component.componentId);
+      }
     }
-  }
-  return totals.map((total) => ({ ...total, amount: format(total.amount) }));
-};
+    return totals.map((total) => ({ ...total, amount: format(multiply(total.amount, orderQuantity)) }));
+  });

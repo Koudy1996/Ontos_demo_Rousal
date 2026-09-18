@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Schema } from 'effect';
+import { Result, Schema } from 'effect';
 
 import { CatalogResourceRefSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import {
@@ -47,7 +47,7 @@ describe('Set composition', () => {
     expect(issued.components.map((component) => component.componentId)).toEqual(
       components.map((item) => item.componentId),
     );
-    expect(summarizeSetComponents(issued.components)).toMatchObject([
+    expect(Result.getOrThrow(summarizeSetComponents(issued.components, '1'))).toMatchObject([
       { amount: '6', componentIds: [components[0].componentId, components[1].componentId] },
     ]);
   });
@@ -108,7 +108,10 @@ describe('Set composition', () => {
       ...revision,
       components: [components[0], { ...components[1], selection: { ...selection, variantRef: otherVariant } }],
     });
-    expect(summarizeSetComponents(issued.components).map((item) => item.amount)).toEqual(['2', '4']);
+    expect(Result.getOrThrow(summarizeSetComponents(issued.components, '1')).map((item) => item.amount)).toEqual([
+      '2',
+      '4',
+    ]);
   });
 
   it('keeps exact package content revisions separate', () => {
@@ -130,7 +133,10 @@ describe('Set composition', () => {
         },
       ],
     });
-    expect(summarizeSetComponents(withPackage.components).map(({ amount }) => amount)).toEqual(['2', '4']);
+    expect(Result.getOrThrow(summarizeSetComponents(withPackage.components, '1')).map(({ amount }) => amount)).toEqual([
+      '2',
+      '4',
+    ]);
     expect(
       classifySetCompositionChange(Schema.decodeUnknownSync(SetCompositionRevisionSchema)(revision), withPackage),
     ).toBe('MATERIAL_CHANGE');
@@ -172,5 +178,40 @@ describe('Set composition', () => {
       components: [components[0], { ...components[0], componentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }],
     });
     expect(classifySetCompositionChange(original, duplicated)).toBe('MATERIAL_CHANGE');
+  });
+
+  it('multiplies exact per-Set needs by ordered Set Quantity without changing selection or Unit', () => {
+    const shelfVariant = Schema.decodeUnknownSync(VariantRefSchema)(
+      ref('variant', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+    );
+    const issued = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+      ...revision,
+      components: [
+        { ...components[0], quantity: { amount: '1', unitRef }, selection: { ...selection, variantRef: shelfVariant } },
+        { ...components[1], quantity: { amount: '2', unitRef } },
+      ],
+    });
+    expect(Result.getOrThrow(summarizeSetComponents(issued.components, '2'))).toEqual([
+      { amount: '2', componentIds: [components[0].componentId], selection: issued.components[0]?.selection, unitRef },
+      { amount: '4', componentIds: [components[1].componentId], selection: issued.components[1]?.selection, unitRef },
+    ]);
+  });
+
+  it('sums repeated needs once before exact decimal multiplication, without rounding', () => {
+    const issued = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+      ...revision,
+      components: [
+        { ...components[0], quantity: { amount: '0.1', unitRef } },
+        { ...components[1], quantity: { amount: '0.2', unitRef } },
+      ],
+    });
+    expect(Result.getOrThrow(summarizeSetComponents(issued.components, '0.5'))).toMatchObject([
+      { amount: '0.15', componentIds: [components[0].componentId, components[1].componentId] },
+    ]);
+  });
+
+  it.each(['0', '0.00', '-1', '1e2', 'NaN', '', ' 2 '])('rejects invalid ordered Set Quantity %s', (amount) => {
+    const issued = Schema.decodeUnknownSync(SetCompositionRevisionSchema)(revision);
+    expect(Result.isFailure(summarizeSetComponents(issued.components, amount))).toBe(true);
   });
 });
