@@ -23,11 +23,33 @@ import {
   AttributeValuesConflict,
   attributeValuesPersistenceForScope,
   mapAttributeValuesWriteError,
+  resolveAffectedInheritedVariantRefs,
   validateOverrideRemovalBasis,
 } from '../../src/persistence/attribute-values-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
 
 describe('Attribute value persistence error boundary', () => {
+  it('identifies every non-retired Variant without a Current direct override', () => {
+    const affected = resolveAffectedInheritedVariantRefs(
+      '11111111-1111-4111-8111-111111111111',
+      [
+        { lifecycleState: 'ACTIVE', variantId: '22222222-2222-4222-8222-222222222222' },
+        { lifecycleState: 'WORK_IN_PROGRESS', variantId: '33333333-3333-4333-8333-333333333333' },
+        { lifecycleState: 'ACTIVE', variantId: '44444444-4444-4444-8444-444444444444' },
+        { lifecycleState: 'RETIRED', variantId: '55555555-5555-4555-8555-555555555555' },
+      ],
+      [
+        { currentState: 'SET', variantId: '22222222-2222-4222-8222-222222222222' },
+        { currentState: 'REMOVED', variantId: '33333333-3333-4333-8333-333333333333' },
+        { currentState: 'SET', variantId: null },
+      ],
+    );
+    expect(affected.map(({ resourceId }) => resourceId)).toEqual([
+      '33333333-3333-4333-8333-333333333333',
+      '44444444-4444-4444-8444-444444444444',
+    ]);
+  });
+
   it('removes an override only against the current inherited source revision', () => {
     expect(validateOverrideRemovalBasis(2, 3, false, true)).toMatchObject({ conflict: 'BASIS_CHANGED' });
     expect(validateOverrideRemovalBasis(null, null, true, false)).toMatchObject({ conflict: 'REQUIRED' });
@@ -166,6 +188,8 @@ describe('Controlled value persistence lifecycle', () => {
             const query = {
               for: () => query,
               limit: () => Effect.succeed(rowsFor(table).slice(0, 1)),
+              pipe: <A>(operation: (effect: Effect.Effect<readonly object[]>) => A): A =>
+                operation(Effect.succeed(rowsFor(table))),
               where: () => query,
             };
             return query;
@@ -306,7 +330,7 @@ describe('Controlled value persistence lifecycle', () => {
           ];
         }
         if (table === productVariants) {
-          return [{ lifecycleState: 'ACTIVE', productId: p2, variantId: v2 }];
+          return selectedProductId === p2 ? [{ lifecycleState: 'ACTIVE', productId: p2, variantId: v2 }] : [];
         }
         if (table === attributeDefinitions) {
           return [
@@ -385,6 +409,8 @@ describe('Controlled value persistence lifecycle', () => {
             const query = {
               for: () => query,
               limit: () => Effect.succeed(rowsFor(table).slice(0, 1)),
+              pipe: <A>(operation: (effect: Effect.Effect<readonly object[]>) => A): A =>
+                operation(Effect.succeed(rowsFor(table))),
               where: () => query,
             };
             return query;
@@ -475,7 +501,9 @@ describe('Controlled value persistence lifecycle', () => {
         currentRevision: 4,
         lifecycleState: 'ACTIVE',
       });
-      expect((yield* assign(p2, 'assign-p2-active')).state).toBe('SET');
+      const activeProductValue = yield* assign(p2, 'assign-p2-active');
+      expect(activeProductValue.state).toBe('SET');
+      expect(activeProductValue.affectedVariantRefs).toEqual([expect.objectContaining({ resourceId: v2, tenantId })]);
       expect((yield* assign(p2, 'assign-v2-active', v2)).state).toBe('SET');
       expect(writes.every(([table]) => table !== products && table !== productVariants)).toBe(true);
       expect(sets[0]).toMatchObject({ currentState: 'SET', productId: p1 });

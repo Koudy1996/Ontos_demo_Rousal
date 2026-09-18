@@ -32,7 +32,7 @@ const ProductTypeSourceChangedPayloadSchema = Schema.Struct({
 
 const InheritedValueSourceChangedPayloadSchema = Schema.Struct({
   changeId: ProductActionInvocationIdSchema,
-  changeKind: Schema.Literals(['OVERRIDE_SET', 'OVERRIDE_RELEASED']),
+  changeKind: Schema.Literals(['OVERRIDE_SET', 'OVERRIDE_RELEASED', 'SOURCE_REVISED']),
   productRef: ProductRefSchema,
   source: CatalogSelectionRevisionSchema,
   sourceKind: Schema.Literal('INHERITED_VALUE'),
@@ -86,8 +86,8 @@ const CatalogFactSourceChangedPayloadSchema = Schema.Struct({
  * A committed change to a Product Type or inherited Attribute Value source that can alter
  * selection without editing a Variant. A Product Type revision names only the exact changed
  * shared source; it does not fabricate one affected Product or a per-Variant edit. An inherited
- * value override names its exact Product and Variant resolution. The payload carries only source
- * revision identity; it does not claim that the value is Current at delivery.
+ * value change names its exact Product and affected Variant resolution. The payload carries only
+ * source revision identity; it does not claim that the value is Current at delivery.
  */
 export const OutboxPayloadSchema = Schema.Union([
   ProductTypeSourceChangedPayloadSchema,

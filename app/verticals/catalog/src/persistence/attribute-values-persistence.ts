@@ -72,7 +72,7 @@ export const mapAttributeValuesWriteError = (
     : unavailable(error);
 };
 
-interface ChangeInput {
+export interface ChangeInput {
   readonly actionInvocationId: string;
   readonly attributeDefinitionRef: AttributeDefinitionRef;
   readonly evidenceRefs?: readonly string[];
@@ -81,22 +81,23 @@ interface ChangeInput {
   readonly productRef: ProductRef;
   readonly reason: string;
 }
-interface SetInput extends ChangeInput {
+export interface SetInput extends ChangeInput {
   readonly conversions?: readonly UnitConversion[];
   readonly values: readonly AttributeValue[];
 }
-interface VariantChangeInput extends ChangeInput {
+export interface VariantChangeInput extends ChangeInput {
   readonly classification: VariantAttributeChangeClassification;
   readonly variantRef: VariantRef;
 }
-interface RemoveVariantInput extends VariantChangeInput {
+export interface RemoveVariantInput extends VariantChangeInput {
   readonly expectedProductValueRevision: number | null;
 }
 type SetProductValuesInput = SetInput;
 type RemoveProductValuesInput = ChangeInput;
 type SetVariantOverrideInput = SetInput & VariantChangeInput;
 type RemoveVariantOverrideInput = RemoveVariantInput;
-interface AttributeValuesChangeResult {
+export interface AttributeValuesChangeResult {
+  readonly affectedVariantRefs?: readonly VariantRef[];
   readonly attributeValueSetId: string;
   readonly revision: number;
   readonly state: 'SET' | 'REMOVED';
@@ -163,6 +164,41 @@ export const validateOverrideRemovalBasis = (
     return conflict('INAPPLICABLE', 'Product value cannot be inherited at this level');
   }
   return null;
+};
+
+interface VariantInheritanceRow {
+  readonly lifecycleState: string;
+  readonly variantId: string;
+}
+
+interface VariantValueSetRow {
+  readonly currentState: string;
+  readonly variantId: string | null;
+}
+
+/** Maps a transactionally locked Product population to the Variants whose effective value is inherited. */
+export const resolveAffectedInheritedVariantRefs = (
+  tenantId: string,
+  variants: readonly VariantInheritanceRow[],
+  valueSets: readonly VariantValueSetRow[],
+): readonly VariantRef[] => {
+  const overriddenVariantIds = new Set(
+    valueSets.flatMap(({ currentState, variantId }) =>
+      variantId !== null && currentState === 'SET' ? [variantId] : [],
+    ),
+  );
+  return variants.flatMap(({ lifecycleState, variantId }) =>
+    lifecycleState === 'RETIRED' || overriddenVariantIds.has(variantId)
+      ? []
+      : [
+          {
+            moduleId: 'commerce.catalog',
+            resourceId: variantId,
+            resourceType: 'commerce.catalog.variant',
+            tenantId,
+          } satisfies VariantRef,
+        ],
+  );
 };
 
 /** The service is constructed only on Core's tenant-scoped Action transaction. */
@@ -325,9 +361,26 @@ export const attributeValuesPersistenceForScope = (
       if (axis !== undefined) {
         return yield* conflict('IDENTITY_IMPACT', 'Variant Axis needs explicit identity revalidation');
       }
-      return { assignment, definition, productType, rule };
+      let inheritedVariantRule: typeof productTypeRevisionAttributes.$inferSelect | undefined;
+      if (variantId === undefined && definition.applicableLevels.includes('VARIANT') && applicability.variantLevel) {
+        [inheritedVariantRule] = yield* transaction
+          .select()
+          .from(productTypeRevisionAttributes)
+          .where(
+            and(
+              eq(productTypeRevisionAttributes.tenantId, tenantId),
+              eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
+              eq(productTypeRevisionAttributes.revision, productType.currentRevision),
+              eq(productTypeRevisionAttributes.attributeDefinitionId, definitionId),
+              eq(productTypeRevisionAttributes.level, 'VARIANT'),
+            ),
+          )
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+      }
+      return { assignment, definition, inheritedVariantRule, productType, rule };
     });
-    const { assignment, definition, productType, rule } = yield* validateBasis();
+    const { assignment, definition, inheritedVariantRule, productType, rule } = yield* validateBasis();
 
     const [current] = yield* transaction
       .select()
@@ -356,25 +409,9 @@ export const attributeValuesPersistenceForScope = (
       if (variantId === undefined && rule.requirement === 'REQUIRED') {
         return yield* conflict('REQUIRED', 'Required Product value cannot be removed');
       }
-      if (variantId === undefined) {
-        const [variantRule] = yield* transaction
-          .select()
-          .from(productTypeRevisionAttributes)
-          .where(
-            and(
-              eq(productTypeRevisionAttributes.tenantId, tenantId),
-              eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
-              eq(productTypeRevisionAttributes.revision, productType.currentRevision),
-              eq(productTypeRevisionAttributes.attributeDefinitionId, definitionId),
-              eq(productTypeRevisionAttributes.level, 'VARIANT'),
-            ),
-          )
-          .limit(1)
-          .pipe(Effect.mapError(unavailable));
-        // Without complete per-Variant evidence, removal cannot prove that a required inherited value survives.
-        if (variantRule?.requirement === 'REQUIRED') {
-          return yield* conflict('REQUIRED', 'Required Variant inheritance may depend on this Product value');
-        }
+      // Without complete per-Variant evidence, removal cannot prove that a required inherited value survives.
+      if (variantId === undefined && inheritedVariantRule?.requirement === 'REQUIRED') {
+        return yield* conflict('REQUIRED', 'Required Variant inheritance may depend on this Product value');
       }
       if (variantId !== undefined) {
         if (input.expectedProductValueRevision === undefined) {
@@ -498,6 +535,47 @@ export const attributeValuesPersistenceForScope = (
       return values;
     });
     const values = yield* normalizeValues();
+    const proveAffectedVariants = Effect.fn('AttributeValuesPersistence.proveAffectedVariants')(
+      function* proveAffectedVariants() {
+        if (variantId !== undefined) {
+          return null;
+        }
+        if (inheritedVariantRule === undefined) {
+          return [];
+        }
+        const [variants, valueSets] = yield* Effect.all(
+          [
+            transaction
+              .select({
+                lifecycleState: productVariants.lifecycleState,
+                variantId: productVariants.variantId,
+              })
+              .from(productVariants)
+              .where(and(eq(productVariants.tenantId, tenantId), eq(productVariants.productId, productId)))
+              .for('update')
+              .pipe(Effect.mapError(unavailable)),
+            transaction
+              .select({
+                currentState: attributeValueSets.currentState,
+                variantId: attributeValueSets.variantId,
+              })
+              .from(attributeValueSets)
+              .where(
+                and(
+                  eq(attributeValueSets.tenantId, tenantId),
+                  eq(attributeValueSets.productId, productId),
+                  eq(attributeValueSets.attributeDefinitionId, definitionId),
+                ),
+              )
+              .for('update')
+              .pipe(Effect.mapError(unavailable)),
+          ] as const,
+          { concurrency: 1 },
+        );
+        return resolveAffectedInheritedVariantRefs(tenantId, variants, valueSets);
+      },
+    );
+    const affectedVariantRefs = yield* proveAffectedVariants();
     const setId = current?.attributeValueSetId ?? randomUUID();
     const revision = (current?.currentRevision ?? 0) + 1;
     const persist = Effect.fn('AttributeValuesPersistence.persist')(function* persist() {
@@ -554,7 +632,8 @@ export const attributeValuesPersistenceForScope = (
           values,
         },
       });
-      return { attributeValueSetId: setId, revision, state };
+      const result = { attributeValueSetId: setId, revision, state };
+      return affectedVariantRefs === null ? result : { ...result, affectedVariantRefs };
     }, Effect.mapError(mapAttributeValuesWriteError));
     return yield* persist();
   });

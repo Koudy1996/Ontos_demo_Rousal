@@ -84,7 +84,7 @@ const scope = {
 const selectionSourceChangedDomainEvents = {
   'commerce.catalog.selection-source-changed.v1': SelectionSourceChangedEventSchema,
 } as const;
-const makeContext = <DomainEvents extends DomainEventContractMap = Readonly<Record<string, never>>>(
+const makeContext = <DomainEvents extends DomainEventContractMap = typeof selectionSourceChangedDomainEvents>(
   services: AttributeValuesPersistence,
   assessOpenSelectionImpact: (
     productRef: typeof base.productRef,
@@ -156,7 +156,12 @@ describe('Catalog attribute value Actions', () => {
             expect(input.actionInvocationId).toBe('66666666-6666-4666-8666-666666666666');
             expect(input.principalId).toBe(scope.principalId);
             expect(input.values).toEqual([{ kind: 'SPECIAL', state: 'UNKNOWN' }]);
-            return { attributeValueSetId: '77777777-7777-4777-8777-777777777777', revision: 1, state: 'SET' as const };
+            return {
+              affectedVariantRefs: [],
+              attributeValueSetId: '77777777-7777-4777-8777-777777777777',
+              revision: 1,
+              state: 'SET' as const,
+            };
           }),
         setVariantOverride: unexpected,
       };
@@ -214,10 +219,7 @@ describe('Catalog attribute value Actions', () => {
         setProductValues: unexpected,
         setVariantOverride: unexpected,
       };
-      const result = yield* handleRemoveVariantAttributeOverride(
-        payload,
-        makeContext<typeof selectionSourceChangedDomainEvents>(services),
-      );
+      const result = yield* handleRemoveVariantAttributeOverride(payload, makeContext(services));
       expect(result.state).toBe('REMOVED');
     }),
   );
@@ -253,16 +255,12 @@ describe('Catalog attribute value Actions', () => {
         variantRef,
       });
       expect(
-        yield* handleSetVariantAttributeOverride(
-          newRealization,
-          makeContext<typeof selectionSourceChangedDomainEvents>(services),
-        ).pipe(Effect.flip),
+        yield* handleSetVariantAttributeOverride(newRealization, makeContext(services)).pipe(Effect.flip),
       ).toBeInstanceOf(VariantAttributeChangeConflict);
       expect(
-        yield* handleRemoveVariantAttributeOverride(
-          correction,
-          makeContext<typeof selectionSourceChangedDomainEvents>(services, unavailableImpact),
-        ).pipe(Effect.flip),
+        yield* handleRemoveVariantAttributeOverride(correction, makeContext(services, unavailableImpact)).pipe(
+          Effect.flip,
+        ),
       ).toBeInstanceOf(CatalogOpenSelectionImpactUnavailable);
     }),
   );
@@ -286,7 +284,7 @@ describe('Catalog attribute value Actions', () => {
         setVariantOverride: () => Effect.fail(failure('IDENTITY_IMPACT')),
       };
       const context = makeContext(services);
-      const variantContext = makeContext<typeof selectionSourceChangedDomainEvents>(services);
+      const variantContext = makeContext(services);
       const productSet = Schema.decodeUnknownSync(SetProductAttributeValuesPayloadSchema)({
         ...base,
         classification,

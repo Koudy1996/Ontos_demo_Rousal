@@ -15,6 +15,8 @@ import {
 import type { SetProductAttributeValuesPayload } from '../../shared/actions/attribute-value-mutations.ts';
 import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
+import { VariantRefSchema } from '../../shared/resources/variant.ts';
 import {
   AttributeValuesConflict,
   attributeValuesPersistenceForScope,
@@ -25,11 +27,14 @@ import {
   CatalogOpenSelectionImpactUnavailable,
   catalogOpenSelectionImpactForScope,
 } from '../persistence/catalog-open-selection-impact.ts';
+import { createSetProductAttributeValuesCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './set-product-attribute-values-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
 
 export type { SetProductAttributeValuesPayload } from '../../shared/actions/attribute-value-mutations.ts';
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
-const domainEvents = {} as const;
+const SELECTION_SOURCE_CHANGED_EVENT_TYPE = 'commerce.catalog.selection-source-changed.v1';
+const ATTRIBUTE_VALUE_SET_RESOURCE_TYPE = 'commerce.catalog.attribute-value-set';
+const domainEvents = { [SELECTION_SOURCE_CHANGED_EVENT_TYPE]: SelectionSourceChangedEventSchema } as const;
 type ProductAttributeServices = AttributeValuesPersistence & {
   readonly assessOpenSelectionImpact: (
     productRef: SetProductAttributeValuesPayload['productRef'],
@@ -42,7 +47,7 @@ export const handleSetProductAttributeValues = Effect.fn('SetProductAttributeVal
   ) {
     yield* requireProductAttributeCorrection(payload.classification, payload.productRef);
     yield* context.services.assessOpenSelectionImpact(payload.productRef);
-    const result = yield* context.services.setProductValues({
+    const committed = yield* context.services.setProductValues({
       ...payload,
       actionInvocationId: context.actionInvocationId,
       principalId: context.scope.principalId,
@@ -57,7 +62,7 @@ export const handleSetProductAttributeValues = Effect.fn('SetProductAttributeVal
       targetResourceType: 'commerce.catalog.product',
     });
     yield* context.recordAuditEvidence({ evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason });
-    return yield* Schema.decodeEffect(SetProductAttributeValuesResultSchema)(result).pipe(
+    const result = yield* Schema.decodeEffect(SetProductAttributeValuesResultSchema)(committed).pipe(
       Effect.mapError((cause) => {
         const failure = new CatalogPersistenceUnavailable({
           code: 'catalog_persistence_unavailable',
@@ -67,6 +72,63 @@ export const handleSetProductAttributeValues = Effect.fn('SetProductAttributeVal
         return failure;
       }),
     );
+    const affectedVariantRefs = yield* Schema.decodeUnknownEffect(Schema.Array(VariantRefSchema))(
+      committed.affectedVariantRefs,
+    ).pipe(
+      Effect.mapError((cause) => {
+        const failure = new CatalogPersistenceUnavailable({
+          code: 'catalog_persistence_unavailable',
+          reason: 'Catalog could not prove the affected Variant population',
+        });
+        Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+        return failure;
+      }),
+    );
+    yield* Effect.forEach(
+      affectedVariantRefs,
+      Effect.fn('SetProductAttributeValuesAction.publishSourceChange')(function* publishSourceChange(variantRef) {
+        const eventPayload = yield* Schema.decodeEffect(SelectionSourceChangedEventSchema)({
+          changeId: context.actionInvocationId,
+          changeKind: 'SOURCE_REVISED',
+          productRef: payload.productRef,
+          source: {
+            resourceRef: {
+              moduleId: CATALOG_MODULE_KEY,
+              resourceId: result.attributeValueSetId,
+              resourceType: ATTRIBUTE_VALUE_SET_RESOURCE_TYPE,
+              tenantId: payload.productRef.tenantId,
+            },
+            revision: result.revision,
+          },
+          sourceKind: 'INHERITED_VALUE',
+          tenantId: payload.productRef.tenantId,
+          variantRef,
+        }).pipe(
+          Effect.mapError((cause) => {
+            const failure = new CatalogPersistenceUnavailable({
+              code: 'catalog_persistence_unavailable',
+              reason: 'Catalog could not attest the committed inherited value source change',
+            });
+            Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+            return failure;
+          }),
+        );
+        const event = yield* context.addDomainEvent({
+          eventType: SELECTION_SOURCE_CHANGED_EVENT_TYPE,
+          payloadJson: eventPayload,
+          producerModuleKey: CATALOG_MODULE_KEY,
+          subjectModuleKey: CATALOG_MODULE_KEY,
+          subjectResourceId: result.attributeValueSetId,
+          subjectResourceType: ATTRIBUTE_VALUE_SET_RESOURCE_TYPE,
+        });
+        yield* context.addOutboxMessage(
+          event,
+          createSetProductAttributeValuesCommerceCatalogSelectionSourceChangedV1OutboxMessage(eventPayload),
+        );
+      }),
+      { concurrency: 1, discard: true },
+    );
+    return result;
   },
 );
 
@@ -98,8 +160,8 @@ export const setProductAttributeValuesAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
-      moduleKey: CATALOG_MODULE_KEY,
+      entrypointKey: 'commerce.catalog.set-product-attribute-values',
+      moduleKey: 'commerce.catalog',
       role: 'action',
     }),
     idempotency: 'required',
@@ -141,4 +203,9 @@ export const setProductAttributeValuesAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createSetProductAttributeValuesCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './set-product-attribute-values-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { SetProductAttributeValuesCommerceCatalogSelectionSourceChangedV1OutboxPayloadSchema } from './set-product-attribute-values-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { SetProductAttributeValuesCommerceCatalogSelectionSourceChangedV1OutboxProducerModuleKey } from './set-product-attribute-values-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { SetProductAttributeValuesCommerceCatalogSelectionSourceChangedV1OutboxTopic } from './set-product-attribute-values-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export type { SetProductAttributeValuesCommerceCatalogSelectionSourceChangedV1OutboxPayload } from './set-product-attribute-values-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>
