@@ -1,10 +1,13 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { ProductRef } from '../../shared/resources/product.ts';
+import type { VariantRef } from '../../shared/resources/variant.ts';
 import {
   attributeDefinitions,
+  attributeValueItems,
+  attributeValueSets,
   attributeDefinitionRevisions,
   productTypeAssignments,
   productTypeRevisions,
@@ -17,6 +20,7 @@ import {
 import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
+const catalogModuleId = 'commerce.catalog';
 
 export class VariantAxisBasisUnavailable extends Schema.TaggedError<VariantAxisBasisUnavailable>()(
   'VariantAxisBasisUnavailable',
@@ -24,9 +28,9 @@ export class VariantAxisBasisUnavailable extends Schema.TaggedError<VariantAxisB
 ) {}
 
 interface CurrentVariantAxis {
-  readonly allowedControlledValueIds: readonly string[];
   readonly attributeDefinitionId: string;
   readonly controlledValueKind: string | null;
+  readonly inheritable: boolean;
   readonly multiplicity: string;
   readonly ordinal: number;
   readonly valueKind: string;
@@ -43,6 +47,19 @@ export interface VariantAxisPersistence {
   readonly readCurrent: (
     productRef: ProductRef,
   ) => Effect.Effect<CurrentVariantAxes, CatalogPersistenceUnavailable | VariantAxisBasisUnavailable>;
+  /** Complete source-qualified value rows for the declared Current axes, not allowed-set proof. */
+  readonly readEffectiveValues: (
+    productRef: ProductRef,
+    variantRef: VariantRef,
+    axes: CurrentVariantAxes,
+  ) => Effect.Effect<readonly CurrentVariantAxisValue[], CatalogPersistenceUnavailable | VariantAxisBasisUnavailable>;
+}
+
+export interface CurrentVariantAxisValue {
+  readonly attributeDefinitionId: string;
+  readonly items: readonly (typeof attributeValueItems.$inferSelect)[];
+  readonly source: 'PRODUCT' | 'VARIANT' | 'MISSING';
+  readonly sourceRevision: number | null;
 }
 
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
@@ -152,14 +169,30 @@ export const variantAxisPersistenceForScope = (
     if (rule === undefined) {
       return yield* basisUnavailable();
     }
-    // Shared vocabulary is not Product-specific allowed-set or owner Current proof.
-    if (definition.valueKind === 'CONTROLLED') {
-      return yield* basisUnavailable();
+    let inheritable = false;
+    if (new Set(definition.applicableLevels).has('PRODUCT')) {
+      const [productRule] = yield* transaction
+        .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
+        .from(productTypeRevisionAttributes)
+        .where(
+          and(
+            eq(productTypeRevisionAttributes.tenantId, tenantId),
+            eq(productTypeRevisionAttributes.productTypeId, productTypeId),
+            eq(productTypeRevisionAttributes.revision, productTypeRevision),
+            eq(productTypeRevisionAttributes.attributeDefinitionId, row.attributeDefinitionId),
+            eq(productTypeRevisionAttributes.level, 'PRODUCT'),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      inheritable = productRule !== undefined;
     }
+    // This is definition/rule evidence only. Shared vocabulary is not a
+    // Product-specific allowed set and cannot authorize Current selection.
     return {
-      allowedControlledValueIds: [],
       attributeDefinitionId: row.attributeDefinitionId,
       controlledValueKind: definition.controlledValueKind,
+      inheritable,
       multiplicity: definition.multiplicity,
       ordinal: row.ordinal,
       valueKind: definition.valueKind,
@@ -170,7 +203,7 @@ export const variantAxisPersistenceForScope = (
     function* readCurrent(productRef) {
       if (
         productRef.tenantId !== tenantId ||
-        productRef.moduleId !== 'commerce.catalog' ||
+        productRef.moduleId !== catalogModuleId ||
         productRef.resourceType !== 'commerce.catalog.product'
       ) {
         return yield* basisUnavailable();
@@ -250,5 +283,102 @@ export const variantAxisPersistenceForScope = (
     },
   );
 
-  return { readCurrent };
+  const readOneValue = Effect.fn('VariantAxisPersistence.readOneValue')(function* readOneValue(
+    productRef: ProductRef,
+    variantRef: VariantRef,
+    axis: CurrentVariantAxis,
+  ) {
+    const sets = yield* transaction
+      .select()
+      .from(attributeValueSets)
+      .where(
+        and(
+          eq(attributeValueSets.tenantId, tenantId),
+          eq(attributeValueSets.productId, productRef.resourceId),
+          eq(attributeValueSets.attributeDefinitionId, axis.attributeDefinitionId),
+          or(isNull(attributeValueSets.variantId), eq(attributeValueSets.variantId, variantRef.resourceId)),
+        ),
+      )
+      .pipe(Effect.mapError(unavailable));
+    if (
+      sets.length > 2 ||
+      sets.some(
+        (set) =>
+          set.tenantId !== tenantId ||
+          set.productId !== productRef.resourceId ||
+          set.attributeDefinitionId !== axis.attributeDefinitionId ||
+          (set.variantId !== null && set.variantId !== variantRef.resourceId),
+      ) ||
+      sets.filter((set) => set.variantId === null).length > 1 ||
+      sets.filter((set) => set.variantId === variantRef.resourceId).length > 1
+    ) {
+      return yield* basisUnavailable();
+    }
+    const direct = sets.find((set) => set.variantId === variantRef.resourceId);
+    const inherited = sets.find((set) => set.variantId === null);
+    let selected = direct?.currentState === 'SET' ? direct : null;
+    if (selected === null && axis.inheritable && inherited?.currentState === 'SET') {
+      selected = inherited;
+    }
+    if (selected === null) {
+      return {
+        attributeDefinitionId: axis.attributeDefinitionId,
+        items: [],
+        source: 'MISSING',
+        sourceRevision: null,
+      } satisfies CurrentVariantAxisValue;
+    }
+    if (!Number.isSafeInteger(selected.currentRevision) || selected.currentRevision < 1) {
+      return yield* basisUnavailable();
+    }
+    const items = yield* transaction
+      .select()
+      .from(attributeValueItems)
+      .where(
+        and(
+          eq(attributeValueItems.tenantId, tenantId),
+          eq(attributeValueItems.attributeValueSetId, selected.attributeValueSetId),
+        ),
+      )
+      .orderBy(asc(attributeValueItems.ordinal))
+      .pipe(Effect.mapError(unavailable));
+    if (
+      items.length === 0 ||
+      items.some(
+        (item, index) =>
+          item.tenantId !== tenantId ||
+          item.attributeValueSetId !== selected.attributeValueSetId ||
+          item.attributeDefinitionId !== axis.attributeDefinitionId ||
+          item.ordinal !== index,
+      )
+    ) {
+      return yield* basisUnavailable();
+    }
+    return {
+      attributeDefinitionId: axis.attributeDefinitionId,
+      items,
+      source: selected.variantId === null ? 'PRODUCT' : 'VARIANT',
+      sourceRevision: selected.currentRevision,
+    } satisfies CurrentVariantAxisValue;
+  });
+
+  const readEffectiveValues: VariantAxisPersistence['readEffectiveValues'] = Effect.fn(
+    'VariantAxisPersistence.readEffectiveValues',
+  )(function* readEffectiveValues(productRef, variantRef, axes) {
+    if (
+      productRef.tenantId !== tenantId ||
+      variantRef.tenantId !== tenantId ||
+      productRef.moduleId !== catalogModuleId ||
+      variantRef.moduleId !== catalogModuleId ||
+      productRef.resourceType !== 'commerce.catalog.product' ||
+      variantRef.resourceType !== 'commerce.catalog.variant' ||
+      axes.productId !== productRef.resourceId ||
+      axes.axisRevision < 1
+    ) {
+      return yield* basisUnavailable();
+    }
+    return yield* Effect.forEach(axes.axes, (axis) => readOneValue(productRef, variantRef, axis), { concurrency: 1 });
+  });
+
+  return { readCurrent, readEffectiveValues };
 };

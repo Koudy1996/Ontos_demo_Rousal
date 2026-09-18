@@ -14,7 +14,13 @@ type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, n
 /** A diagnostic basis only. No result from this service authorizes Current activation. */
 export type VariantCurrentBasis =
   | {
-      readonly reason: 'WRONG_SCOPE' | 'MISSING_PRODUCT' | 'WRONG_PRODUCT' | 'NOT_CURRENT' | 'DUPLICATE_COMBINATION';
+      readonly reason:
+        | 'WRONG_SCOPE'
+        | 'MISSING_PRODUCT'
+        | 'WRONG_PRODUCT'
+        | 'NOT_CURRENT'
+        | 'MISSING_AXIS_VALUE'
+        | 'DUPLICATE_COMBINATION';
       readonly status: 'INVALID';
     }
   | {
@@ -86,7 +92,8 @@ export const variantCurrentBasisForScope = (transaction: ScopedTransaction, scop
       return { reason: 'NOT_CURRENT', status: 'INVALID' } as const;
     }
 
-    const axisBasis = yield* variantAxisPersistenceForScope(transaction, scope)
+    const axisReader = variantAxisPersistenceForScope(transaction, scope);
+    const axisBasis = yield* axisReader
       .readCurrent(productRef)
       .pipe(Effect.catchTag('VariantAxisBasisUnavailable', () => Effect.succeed(null)));
     if (axisBasis === null) {
@@ -96,7 +103,17 @@ export const variantCurrentBasisForScope = (transaction: ScopedTransaction, scop
       return { reason: 'AXIS_REVISION_MISSING', status: 'INDETERMINATE' } as const;
     }
     if (axisBasis.axes.length > 0) {
-      // ACTIVE controlled values are not a Product-specific allowed-value proof.
+      const effectiveValues = yield* axisReader
+        .readEffectiveValues(productRef, variantRef, axisBasis)
+        .pipe(Effect.catchTag('VariantAxisBasisUnavailable', () => Effect.succeed(null)));
+      if (effectiveValues === null) {
+        return { reason: 'AXIS_BASIS_UNAVAILABLE', status: 'INDETERMINATE' } as const;
+      }
+      if (effectiveValues.some((value) => value.source === 'MISSING')) {
+        return { reason: 'MISSING_AXIS_VALUE', status: 'INVALID' } as const;
+      }
+      // Source-qualified rows alone do not establish semantic validity, a
+      // Product-specific controlled allowed set, or open-selection safety.
       return { axisRevision: axisBasis.axisRevision, reason: 'ALLOWED_SET_UNPROVEN', status: 'INDETERMINATE' } as const;
     }
     if (variants.some((row) => row.variantId !== variantRef.resourceId && row.lifecycleState === 'ACTIVE')) {

@@ -5,6 +5,8 @@ import { describe, expect, it } from 'effect-rstest';
 import {
   attributeDefinitionRevisions,
   attributeDefinitions,
+  attributeValueItems,
+  attributeValueSets,
   productTypeAssignments,
   productTypeRevisionAttributes,
   productTypeRevisions,
@@ -22,6 +24,8 @@ const tenantId = '11111111-1111-4111-8111-111111111111';
 const productId = '22222222-2222-4222-8222-222222222222';
 const definitionId = '33333333-3333-4333-8333-333333333333';
 const typeId = '44444444-4444-4444-8444-444444444444';
+const variantId = '66666666-6666-4666-8666-666666666666';
+const valueSetId = '77777777-7777-4777-8777-777777777777';
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
     authContextRef: 'job:variant-axis-test:run:1',
@@ -37,6 +41,12 @@ const productRef = {
   resourceType: 'commerce.catalog.product',
   tenantId,
 } as const;
+const variantRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: variantId,
+  resourceType: 'commerce.catalog.variant',
+  tenantId,
+} as const;
 
 type AxisTable =
   | typeof products
@@ -47,7 +57,9 @@ type AxisTable =
   | typeof productTypeRevisions
   | typeof attributeDefinitions
   | typeof attributeDefinitionRevisions
-  | typeof productTypeRevisionAttributes;
+  | typeof productTypeRevisionAttributes
+  | typeof attributeValueSets
+  | typeof attributeValueItems;
 
 const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) => {
   const rows = new Map<AxisTable, readonly object[]>([
@@ -91,7 +103,7 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) =>
     const result = Object.assign(Effect.succeed(rows.get(table) ?? []), {
       limit: () => Effect.succeed(rows.get(table) ?? []),
     });
-    return { where: () => ({ limit: () => result, orderBy: () => result }) };
+    return { where: () => ({ limit: () => result, orderBy: () => result, pipe: () => result }) };
   };
   return {
     select: () => ({ from: selected }),
@@ -115,12 +127,63 @@ describe('Variant Axis Current basis', () => {
     }),
   );
 
-  it.effect('does not promote active vocabulary to Product allowed values', () =>
-    Effect.gen(function* rejectsVocabularyInference() {
+  it.effect('reads axis definition and Type applicability without claiming Product allowed values', () =>
+    Effect.gen(function* readsAxisRole() {
       // @ts-expect-error Focused Drizzle read-chain mock.
       const persistence = variantAxisPersistenceForScope(transactionWith(), scope);
-      const failure = yield* Effect.flip(persistence.readCurrent(productRef));
-      expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
+      const current = yield* persistence.readCurrent(productRef);
+      expect(current.axes).toEqual([
+        expect.objectContaining({ attributeDefinitionId: definitionId, valueKind: 'CONTROLLED' }),
+      ]);
+    }),
+  );
+
+  it.effect('reads explicit Variant value rows and source revision without inventing a sibling combination', () =>
+    Effect.gen(function* readsEffectiveValue() {
+      const item = {
+        attributeDefinitionId: definitionId,
+        attributeValueSetId: valueSetId,
+        controlledAttributeValueId: '88888888-8888-4888-8888-888888888888',
+        ordinal: 0,
+        tenantId,
+        valueKind: 'CONTROLLED',
+      };
+      const transaction = transactionWith(
+        new Map<AxisTable, readonly object[]>([
+          [
+            attributeValueSets,
+            [
+              {
+                attributeDefinitionId: definitionId,
+                attributeValueSetId: valueSetId,
+                currentRevision: 5,
+                currentState: 'SET',
+                productId,
+                tenantId,
+                variantId,
+              },
+            ],
+          ],
+          [attributeValueItems, [item]],
+        ]),
+      );
+      // @ts-expect-error Focused Drizzle read-chain mock.
+      const persistence = variantAxisPersistenceForScope(transaction, scope);
+      const axes = yield* persistence.readCurrent(productRef);
+      expect(yield* persistence.readEffectiveValues(productRef, variantRef, axes)).toEqual([
+        { attributeDefinitionId: definitionId, items: [item], source: 'VARIANT', sourceRevision: 5 },
+      ]);
+    }),
+  );
+
+  it.effect('reports an absent effective axis as missing without synthesizing an allowed value', () =>
+    Effect.gen(function* readsMissingValue() {
+      // @ts-expect-error Focused Drizzle read-chain mock.
+      const persistence = variantAxisPersistenceForScope(transactionWith(), scope);
+      const axes = yield* persistence.readCurrent(productRef);
+      expect(yield* persistence.readEffectiveValues(productRef, variantRef, axes)).toEqual([
+        { attributeDefinitionId: definitionId, items: [], source: 'MISSING', sourceRevision: null },
+      ]);
     }),
   );
 
