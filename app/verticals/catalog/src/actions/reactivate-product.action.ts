@@ -3,13 +3,13 @@
 // @ontos-action-slug reactivate-product
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 
 import {
   ReactivateProductPayloadSchema,
   ReactivateProductResultSchema,
 } from '../../shared/actions/reactivate-product.ts';
-import type { ReactivateProductPayload } from '../../shared/actions/reactivate-product.ts';
+import type { ReactivateProductPayload, ReactivateProductResult } from '../../shared/actions/reactivate-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   ProductActionErrorSchema,
@@ -23,6 +23,14 @@ import {
   recordProductEvent,
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+
+type ReactivateProductServices = CatalogPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: ReactivateProductResult,
+  ) => ReturnType<typeof captureCatalogActionResult<ReactivateProductResult>>;
+};
 
 export { ReactivateProductPayloadSchema } from '../../shared/actions/reactivate-product.ts';
 export type { ReactivateProductPayload } from '../../shared/actions/reactivate-product.ts';
@@ -99,7 +107,24 @@ export const reactivateProductAction = defineAction(
     schemaVersion: '1',
   },
   execute,
-  catalogPersistenceServiceFactory,
+  (transaction, scope) =>
+    catalogPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services): ReactivateProductServices => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: ReactivateProductResult) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.reactivate-product', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ReactivateProductResultSchema),
+              encode: Schema.encodeEffect(ReactivateProductResultSchema),
+            },
+            result,
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

@@ -3,10 +3,10 @@
 // @ontos-action-slug update-product
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 
 import { UpdateProductPayloadSchema, UpdateProductResultSchema } from '../../shared/actions/update-product.ts';
-import type { UpdateProductPayload } from '../../shared/actions/update-product.ts';
+import type { UpdateProductPayload, UpdateProductResult } from '../../shared/actions/update-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   ProductActionErrorSchema,
@@ -20,6 +20,14 @@ import {
   recordProductEvent,
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+
+type UpdateProductServices = CatalogPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: UpdateProductResult,
+  ) => ReturnType<typeof captureCatalogActionResult<UpdateProductResult>>;
+};
 
 export { UpdateProductPayloadSchema } from '../../shared/actions/update-product.ts';
 export type { UpdateProductPayload } from '../../shared/actions/update-product.ts';
@@ -108,7 +116,24 @@ export const updateProductAction = defineAction(
     schemaVersion: '1',
   },
   execute,
-  catalogPersistenceServiceFactory,
+  (transaction, scope) =>
+    catalogPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services): UpdateProductServices => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: UpdateProductResult) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.update-product', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(UpdateProductResultSchema),
+              encode: Schema.encodeEffect(UpdateProductResultSchema),
+            },
+            result,
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

@@ -3,7 +3,7 @@
 // @ontos-action-slug correct-product
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 import { classifyProductChange } from '../../shared/domain/product-change-classification.ts';
 
 import {
@@ -11,7 +11,11 @@ import {
   CorrectProductResultSchema,
   ProductSelectionRevalidationRequiredSchema,
 } from '../../shared/actions/correct-product.ts';
-import type { CorrectProductPayload, ProductSelectionRevalidation } from '../../shared/actions/correct-product.ts';
+import type {
+  CorrectProductPayload,
+  CorrectProductResult,
+  ProductSelectionRevalidation,
+} from '../../shared/actions/correct-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { ProductCorrectionRequired } from '../../shared/domain/product-errors.ts';
 import {
@@ -25,6 +29,14 @@ import {
   recordProductEvent,
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+
+type CorrectProductServices = CatalogPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: CorrectProductResult,
+  ) => ReturnType<typeof captureCatalogActionResult<CorrectProductResult>>;
+};
 
 export { CorrectProductPayloadSchema } from '../../shared/actions/correct-product.ts';
 export type { CorrectProductPayload } from '../../shared/actions/correct-product.ts';
@@ -183,7 +195,24 @@ export const correctProductAction = defineAction(
     schemaVersion: '1',
   },
   execute,
-  catalogPersistenceServiceFactory,
+  (transaction, scope) =>
+    catalogPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services): CorrectProductServices => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: CorrectProductResult) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.correct-product', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(CorrectProductResultSchema),
+              encode: Schema.encodeEffect(CorrectProductResultSchema),
+            },
+            result,
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

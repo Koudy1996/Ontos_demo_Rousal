@@ -3,10 +3,10 @@
 // @ontos-action-slug retire-product
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { DateTime, Effect, Match } from 'effect';
+import { DateTime, Effect, Match, Schema } from 'effect';
 
 import { RetireProductPayloadSchema, RetireProductResultSchema } from '../../shared/actions/retire-product.ts';
-import type { RetireProductPayload } from '../../shared/actions/retire-product.ts';
+import type { RetireProductPayload, RetireProductResult } from '../../shared/actions/retire-product.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   ProductActionErrorSchema,
@@ -19,6 +19,14 @@ import {
   recordProductEvent,
 } from './product-action-support.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+
+type RetireProductServices = CatalogPersistence & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: RetireProductResult,
+  ) => ReturnType<typeof captureCatalogActionResult<RetireProductResult>>;
+};
 
 export { RetireProductPayloadSchema } from '../../shared/actions/retire-product.ts';
 export type { RetireProductPayload } from '../../shared/actions/retire-product.ts';
@@ -97,7 +105,24 @@ export const retireProductAction = defineAction(
     schemaVersion: '1',
   },
   execute,
-  catalogPersistenceServiceFactory,
+  (transaction, scope) =>
+    catalogPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services): RetireProductServices => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: RetireProductResult) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.retire-product', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RetireProductResultSchema),
+              encode: Schema.encodeEffect(RetireProductResultSchema),
+            },
+            result,
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

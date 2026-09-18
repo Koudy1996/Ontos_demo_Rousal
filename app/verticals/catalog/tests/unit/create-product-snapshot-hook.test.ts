@@ -42,25 +42,22 @@ const result = Schema.decodeUnknownSync(CreateProductResultSchema)({
 });
 
 describe('create Product decoded-success snapshot hook', () => {
-  it.effect('inserts the decoded result under its Action identity', () =>
+  it.effect('passes the decoded result and invocation to transaction-local capture', () =>
     Effect.gen(function* insertDecodedResult() {
       const observed: unknown[] = [];
       yield* recordCreateProductResultSnapshot({
         actionInvocationId,
         result,
         services: {
-          resultSnapshot: {
-            insert: (identity, value) => {
-              observed.push({ identity, value });
-              return Effect.succeed(value);
-            },
-            read: () => Effect.die('unused'),
+          captureResult: (id, value) => {
+            observed.push({ id, value });
+            return Effect.void;
           },
         },
       });
       expect(observed).toEqual([
         {
-          identity: { actionInvocationId, actionKey: 'commerce.catalog.create-product', schemaVersion: 1 },
+          id: actionInvocationId,
           value: result,
         },
       ]);
@@ -78,10 +75,7 @@ describe('create Product decoded-success snapshot hook', () => {
           actionInvocationId,
           result,
           services: {
-            resultSnapshot: {
-              insert: () => Effect.fail(unavailable),
-              read: () => Effect.die('unused'),
-            },
+            captureResult: () => Effect.fail(unavailable),
           },
         }),
       );
