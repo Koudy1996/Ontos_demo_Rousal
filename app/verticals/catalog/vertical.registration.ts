@@ -170,6 +170,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'brand-history': () => import('./src/api/brand-history-client.ts'),
       'catalog-media-current': () => import('./src/api/catalog-media-current-client.ts'),
       'create-product-recovery': () => import('./src/api/create-product-recovery-client.ts'),
+      'effective-attribute-values-current': () => import('./src/api/effective-attribute-values-current-client.ts'),
       'gtin-current': () => import('./src/api/gtin-current-client.ts'),
       'gtin-history': () => import('./src/api/gtin-history-client.ts'),
       'manufacturer-relation-current': () => import('./src/api/manufacturer-relation-current-client.ts'),

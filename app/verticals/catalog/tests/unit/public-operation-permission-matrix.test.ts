@@ -6,6 +6,7 @@ import { brandCurrentRead } from '../../src/api/brand-current.read.ts';
 import { brandHistoryRead } from '../../src/api/brand-history.read.ts';
 import { catalogMediaCurrentRead } from '../../src/api/catalog-media-current.read.ts';
 import { createProductRecoveryRead } from '../../src/api/create-product-recovery.read.ts';
+import { effectiveAttributeValuesCurrentRead } from '../../src/api/effective-attribute-values-current.read.ts';
 import { gtinCurrentRead } from '../../src/api/gtin-current.read.ts';
 import { gtinHistoryRead } from '../../src/api/gtin-history.read.ts';
 import { manufacturerRelationCurrentRead } from '../../src/api/manufacturer-relation-current.read.ts';
@@ -27,6 +28,7 @@ const reads = [
   brandHistoryRead,
   catalogMediaCurrentRead,
   createProductRecoveryRead,
+  effectiveAttributeValuesCurrentRead,
   gtinCurrentRead,
   gtinHistoryRead,
   manufacturerRelationCurrentRead,

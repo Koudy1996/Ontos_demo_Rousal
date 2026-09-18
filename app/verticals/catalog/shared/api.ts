@@ -37,6 +37,7 @@ import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateSetCompositionActionApi } from './apis/create-set-composition-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
+import { EffectiveAttributeValuesCurrentApi } from './apis/effective-attribute-values-current.ts';
 import { GovernVariantAxesActionApi } from './apis/govern-variant-axes-action.ts';
 import { GtinCurrentApi } from './apis/gtin-current.ts';
 import { GtinHistoryApi } from './apis/gtin-history.ts';
@@ -153,6 +154,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateSetCompositionActionApi)
   .addHttpApi(CreateVariantActionApi)
+  .addHttpApi(EffectiveAttributeValuesCurrentApi)
   .addHttpApi(GovernVariantAxesActionApi)
   .addHttpApi(GtinCurrentApi)
   .addHttpApi(GtinHistoryApi)
@@ -400,6 +402,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
     permission: 'commerce.catalog.read.product-detail',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.effective-attribute-values-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.effective-attribute-values-current',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -1077,6 +1087,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.product-brand-current',
     'commerce.catalog.read.product-brand-history',
     'commerce.catalog.read.product-detail',
+    'commerce.catalog.read.effective-attribute-values-current',
     'commerce.catalog.read.product-history',
     'commerce.catalog.read.product-size-current',
     'commerce.catalog.read.product-relationship',

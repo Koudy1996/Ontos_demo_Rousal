@@ -48,6 +48,7 @@ import { createProductUnitAction } from './src/actions/create-product-unit.actio
 import { createSetCompositionAction } from './src/actions/create-set-composition.action.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
 import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product-type-unnecessary.action.ts';
+import { EffectiveAttributeValuesCurrentApi } from './shared/apis/effective-attribute-values-current.ts';
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
 import { governVariantAxesAction } from './src/actions/govern-variant-axes.action.ts';
 import { GtinCurrentApi } from './shared/apis/gtin-current.ts';
@@ -239,6 +240,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'brand-history': BrandHistoryApi,
       'catalog-media-current': CatalogMediaCurrentApi,
       'create-product-recovery': CreateProductRecoveryApi,
+      'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
       'gtin-current': GtinCurrentApi,
       'gtin-history': GtinHistoryApi,
       'manufacturer-relation-current': ManufacturerRelationCurrentApi,
