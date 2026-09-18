@@ -35,7 +35,16 @@ export const CartOpenSelectionPopulationEvidenceSchema = Schema.Struct({
   revisionToken: nonEmptyText,
   selections: Schema.Array(CartOpenSelectionReferenceSchema),
   tenantId: CatalogRevisionTenantIdSchema,
-});
+}).check(
+  Schema.makeFilter(({ selections, tenantId }) => {
+    if (selections.some(({ selection }) => selection.productRef.tenantId !== tenantId)) {
+      return 'Every open Selection must belong to the attested Tenant';
+    }
+    return new Set(selections.map(({ selectionId }) => selectionId)).size === selections.length
+      ? undefined
+      : 'Open Selection identities must be unique';
+  }),
+);
 export type CartOpenSelectionPopulationEvidence = typeof CartOpenSelectionPopulationEvidenceSchema.Type;
 
 /** Typed "Catalog does not own this fact" outcome for the Cart open-selection population. */

@@ -8,6 +8,7 @@ import {
   CartOpenSelectionPopulationService,
   CartOpenSelectionPopulationUnavailable,
   cartOpenSelectionPopulationFromEnvironment,
+  readCartOpenSelectionPopulation,
 } from '../../shared/domain/catalog-open-selection-population.ts';
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import { setProductAttributeValuesAction } from '../../src/actions/set-product-attribute-values.action.ts';
@@ -36,6 +37,11 @@ const variantRef = {
   tenantId,
 } as const;
 const selection = Schema.decodeUnknownSync(CatalogSelectionSchema)({ productRef, variantRef });
+const foreignTenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const foreignSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+  productRef: { ...productRef, tenantId: foreignTenantId },
+  variantRef: { ...variantRef, tenantId: foreignTenantId },
+});
 const decodePopulation = Schema.decodeUnknownSync(CartOpenSelectionPopulationEvidenceSchema);
 const population = (selections: readonly { readonly selection: typeof selection; readonly selectionId: string }[]) => ({
   read: () =>
@@ -117,6 +123,47 @@ describe('Catalog open-selection impact', () => {
       );
       const failure = yield* service.assess(productRef).pipe(Effect.flip);
       expect(failure.reason).toContain('different Tenant');
+    }),
+  );
+
+  it.effect('rejects a complete population containing a Selection from another Tenant', () =>
+    Effect.gen(function* foreignInnerSelection() {
+      const failure = yield* readCartOpenSelectionPopulation(
+        {
+          read: () =>
+            Effect.succeed({
+              complete: true,
+              observedAt: '2026-09-18T12:00:00.000Z',
+              revisionToken: 'cart-population-with-foreign-selection',
+              selections: [{ selection: foreignSelection, selectionId: 'foreign-selection' }],
+              tenantId,
+            }),
+        },
+        tenantId,
+      ).pipe(Effect.flip);
+      expect(failure.reason).toContain('invalid open-selection population attestation');
+    }),
+  );
+
+  it.effect('rejects a complete population containing duplicate Selection identities', () =>
+    Effect.gen(function* duplicateSelectionIds() {
+      const failure = yield* readCartOpenSelectionPopulation(
+        {
+          read: () =>
+            Effect.succeed({
+              complete: true,
+              observedAt: '2026-09-18T12:00:00.000Z',
+              revisionToken: 'cart-population-with-duplicates',
+              selections: [
+                { selection, selectionId: 'duplicate-selection' },
+                { selection, selectionId: 'duplicate-selection' },
+              ],
+              tenantId,
+            }),
+        },
+        tenantId,
+      ).pipe(Effect.flip);
+      expect(failure.reason).toContain('invalid open-selection population attestation');
     }),
   );
 
