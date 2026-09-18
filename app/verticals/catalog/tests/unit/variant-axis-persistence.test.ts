@@ -26,6 +26,22 @@ const definitionId = '33333333-3333-4333-8333-333333333333';
 const typeId = '44444444-4444-4444-8444-444444444444';
 const variantId = '66666666-6666-4666-8666-666666666666';
 const valueSetId = '77777777-7777-4777-8777-777777777777';
+const definitionRules = {
+  allowsNone: 0,
+  allowsNotApplicable: 0,
+  allowsUnknown: 0,
+  applicableLevels: ['VARIANT'],
+  canonicalUnit: null,
+  controlledValueKind: 'COLOR',
+  decimalPlaces: null,
+  maximumValue: null,
+  meaning: 'Actual color',
+  measuredQuantity: null,
+  minimumValue: null,
+  multiplicity: 'SINGLE',
+  name: 'Color',
+  valueKind: 'CONTROLLED',
+};
 const scope = {
   ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
     authContextRef: 'job:variant-axis-test:run:1',
@@ -73,13 +89,10 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) =>
       attributeDefinitions,
       [
         {
-          applicableLevels: ['VARIANT'],
+          ...definitionRules,
           attributeDefinitionId: definitionId,
-          controlledValueKind: 'COLOR',
           currentRevision: 3,
-          multiplicity: 'SINGLE',
           tenantId,
-          valueKind: 'CONTROLLED',
         },
       ],
     ],
@@ -87,10 +100,10 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) =>
       attributeDefinitionRevisions,
       [
         {
-          applicableLevels: ['VARIANT'],
-          controlledValueKind: 'COLOR',
-          multiplicity: 'SINGLE',
-          valueKind: 'CONTROLLED',
+          ...definitionRules,
+          attributeDefinitionId: definitionId,
+          revision: 3,
+          tenantId,
         },
       ],
     ],
@@ -133,7 +146,11 @@ describe('Variant Axis Current basis', () => {
       const persistence = variantAxisPersistenceForScope(transactionWith(), scope);
       const current = yield* persistence.readCurrent(productRef);
       expect(current.axes).toEqual([
-        expect.objectContaining({ attributeDefinitionId: definitionId, valueKind: 'CONTROLLED' }),
+        expect.objectContaining({
+          attributeDefinitionId: definitionId,
+          definitionRevision: 3,
+          valueKind: 'CONTROLLED',
+        }),
       ]);
     }),
   );
@@ -171,7 +188,14 @@ describe('Variant Axis Current basis', () => {
       const persistence = variantAxisPersistenceForScope(transaction, scope);
       const axes = yield* persistence.readCurrent(productRef);
       expect(yield* persistence.readEffectiveValues(productRef, variantRef, axes)).toEqual([
-        { attributeDefinitionId: definitionId, items: [item], source: 'VARIANT', sourceRevision: 5 },
+        {
+          attributeDefinitionId: definitionId,
+          definitionRevision: 3,
+          items: [item],
+          source: 'VARIANT',
+          sourceRevision: 5,
+          sourceValueSetRef: { attributeValueSetId: valueSetId, tenantId },
+        },
       ]);
     }),
   );
@@ -182,7 +206,14 @@ describe('Variant Axis Current basis', () => {
       const persistence = variantAxisPersistenceForScope(transactionWith(), scope);
       const axes = yield* persistence.readCurrent(productRef);
       expect(yield* persistence.readEffectiveValues(productRef, variantRef, axes)).toEqual([
-        { attributeDefinitionId: definitionId, items: [], source: 'MISSING', sourceRevision: null },
+        {
+          attributeDefinitionId: definitionId,
+          definitionRevision: 3,
+          items: [],
+          source: 'MISSING',
+          sourceRevision: null,
+          sourceValueSetRef: null,
+        },
       ]);
     }),
   );
@@ -201,6 +232,33 @@ describe('Variant Axis Current basis', () => {
       const persistence = variantAxisPersistenceForScope(
         // @ts-expect-error Focused Drizzle read-chain mock.
         transactionWith(new Map([[attributeDefinitionRevisions, []]])),
+        scope,
+      );
+      const failure = yield* Effect.flip(persistence.readCurrent(productRef));
+      expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+
+  it.effect('rejects a stale definition rule snapshot despite a matching revision number', () =>
+    Effect.gen(function* rejectsStaleDefinitionRules() {
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle read-chain mock.
+        transactionWith(
+          new Map([
+            [
+              attributeDefinitionRevisions,
+              [
+                {
+                  ...definitionRules,
+                  attributeDefinitionId: definitionId,
+                  meaning: 'Different meaning',
+                  revision: 3,
+                  tenantId,
+                },
+              ],
+            ],
+          ]),
+        ),
         scope,
       );
       const failure = yield* Effect.flip(persistence.readCurrent(productRef));

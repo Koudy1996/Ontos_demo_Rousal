@@ -8,7 +8,6 @@ import {
   attributeDefinitions,
   attributeValueItems,
   attributeValueSets,
-  attributeDefinitionRevisions,
   productTypeAssignments,
   productTypeRevisions,
   productTypeRevisionAttributes,
@@ -18,6 +17,7 @@ import {
   products,
 } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
+import { effectiveAttributeValueReadsForScope } from './effective-attribute-value-reads.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 const catalogModuleId = 'commerce.catalog';
@@ -30,6 +30,7 @@ export class VariantAxisBasisUnavailable extends Schema.TaggedError<VariantAxisB
 interface CurrentVariantAxis {
   readonly attributeDefinitionId: string;
   readonly controlledValueKind: string | null;
+  readonly definitionRevision: number;
   readonly inheritable: boolean;
   readonly multiplicity: string;
   readonly ordinal: number;
@@ -57,9 +58,11 @@ export interface VariantAxisPersistence {
 
 export interface CurrentVariantAxisValue {
   readonly attributeDefinitionId: string;
+  readonly definitionRevision: number;
   readonly items: readonly (typeof attributeValueItems.$inferSelect)[];
   readonly source: 'PRODUCT' | 'VARIANT' | 'MISSING';
   readonly sourceRevision: number | null;
+  readonly sourceValueSetRef: { readonly attributeValueSetId: string; readonly tenantId: string } | null;
 }
 
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
@@ -122,33 +125,24 @@ export const variantAxisPersistenceForScope = (
       definition === undefined ||
       definition.tenantId !== tenantId ||
       definition.attributeDefinitionId !== row.attributeDefinitionId ||
+      !Number.isSafeInteger(definition.currentRevision) ||
+      definition.currentRevision < 1 ||
       !new Set(definition.applicableLevels).has('VARIANT')
     ) {
       return yield* basisUnavailable();
     }
-    const [definitionRevision] = yield* transaction
-      .select({
-        applicableLevels: attributeDefinitionRevisions.applicableLevels,
-        controlledValueKind: attributeDefinitionRevisions.controlledValueKind,
-        multiplicity: attributeDefinitionRevisions.multiplicity,
-        valueKind: attributeDefinitionRevisions.valueKind,
-      })
-      .from(attributeDefinitionRevisions)
-      .where(
-        and(
-          eq(attributeDefinitionRevisions.tenantId, tenantId),
-          eq(attributeDefinitionRevisions.attributeDefinitionId, row.attributeDefinitionId),
-          eq(attributeDefinitionRevisions.revision, definition.currentRevision),
-        ),
-      )
-      .limit(1)
-      .pipe(Effect.mapError(unavailable));
+    const attributeReads = yield* effectiveAttributeValueReadsForScope(transaction, scope);
+    const definitionProof = yield* attributeReads.readDefinitionCurrent({
+      moduleId: catalogModuleId,
+      resourceId: row.attributeDefinitionId,
+      resourceType: 'commerce.catalog.attribute-definition',
+      tenantId,
+    });
     if (
-      definitionRevision === undefined ||
-      !new Set(definitionRevision.applicableLevels).has('VARIANT') ||
-      definitionRevision.valueKind !== definition.valueKind ||
-      definitionRevision.controlledValueKind !== definition.controlledValueKind ||
-      definitionRevision.multiplicity !== definition.multiplicity
+      !definitionProof.complete ||
+      definitionProof.tenantId !== tenantId ||
+      definitionProof.attributeDefinitionId !== row.attributeDefinitionId ||
+      definitionProof.revision !== definition.currentRevision
     ) {
       return yield* basisUnavailable();
     }
@@ -192,6 +186,7 @@ export const variantAxisPersistenceForScope = (
     return {
       attributeDefinitionId: row.attributeDefinitionId,
       controlledValueKind: definition.controlledValueKind,
+      definitionRevision: definition.currentRevision,
       inheritable,
       multiplicity: definition.multiplicity,
       ordinal: row.ordinal,
@@ -323,9 +318,11 @@ export const variantAxisPersistenceForScope = (
     if (selected === null) {
       return {
         attributeDefinitionId: axis.attributeDefinitionId,
+        definitionRevision: axis.definitionRevision,
         items: [],
         source: 'MISSING',
         sourceRevision: null,
+        sourceValueSetRef: null,
       } satisfies CurrentVariantAxisValue;
     }
     if (!Number.isSafeInteger(selected.currentRevision) || selected.currentRevision < 1) {
@@ -356,9 +353,11 @@ export const variantAxisPersistenceForScope = (
     }
     return {
       attributeDefinitionId: axis.attributeDefinitionId,
+      definitionRevision: axis.definitionRevision,
       items,
       source: selected.variantId === null ? 'PRODUCT' : 'VARIANT',
       sourceRevision: selected.currentRevision,
+      sourceValueSetRef: { attributeValueSetId: selected.attributeValueSetId, tenantId },
     } satisfies CurrentVariantAxisValue;
   });
 
