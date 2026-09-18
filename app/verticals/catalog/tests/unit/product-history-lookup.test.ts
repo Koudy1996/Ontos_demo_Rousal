@@ -27,6 +27,7 @@ const history = Schema.decodeUnknownSync(ProductHistorySchema)({
     {
       actionInvocationId,
       changeKind: 'CREATED',
+      description: 'Original description',
       evidenceRefs: ['evidence:original'],
       lifecycle: 'DRAFT',
       name: 'Original name',
@@ -35,6 +36,23 @@ const history = Schema.decodeUnknownSync(ProductHistorySchema)({
       recordedAt,
       revision: 1,
       revisionReference: { resourceRef: productRef, revision: 1, revisionId },
+    },
+    {
+      actionInvocationId: '55555555-5555-4555-8555-555555555555',
+      changeKind: 'UPDATED',
+      description: 'Current description',
+      evidenceRefs: ['evidence:rename'],
+      lifecycle: 'ACTIVE',
+      name: 'Current name',
+      productRef,
+      reason: 'Renamed',
+      recordedAt: '2026-09-17T12:00:00.000Z',
+      revision: 2,
+      revisionReference: {
+        resourceRef: productRef,
+        revision: 2,
+        revisionId: '66666666-6666-4666-8666-666666666666',
+      },
     },
   ],
 });
@@ -97,11 +115,15 @@ describe('governed Product historical lookup', () => {
       expect(response.lookup?.kind).toBe('FOUND');
       if (response.lookup?.kind === 'FOUND') {
         expect(response.lookup.evidence.retained).toMatchObject({
+          description: 'Original description',
           historical: true,
           kind: 'PRODUCT',
           lifecycle: 'DRAFT',
+          name: 'Original name',
         });
-        expect(response.lookup.evidence.retained).not.toHaveProperty('name');
+        expect(response.lookup.evidence.reference).toEqual(firstReference);
+        expect(response.lookup.evidence.evidenceRefs).toEqual(['evidence:original']);
+        expect(response.lookup.evidence.retained).not.toHaveProperty('catalogReady');
       }
     }),
   );
@@ -139,12 +161,21 @@ describe('governed Product historical lookup', () => {
         tenantId,
         historyServices,
       );
-      expect(response.history.revisions[0]).not.toHaveProperty('name');
+      expect(response.history.revisions.map(({ description, name }) => ({ description, name }))).toEqual([
+        { description: 'Original description', name: 'Original name' },
+        { description: 'Current description', name: 'Current name' },
+      ]);
       expect(response.localizedRevisions?.map(({ name, revision }) => ({ name, revision }))).toEqual([
         { name: 'Starý název', revision: 1 },
         { name: 'Nový název', revision: 2 },
       ]);
       expect(response.lookup?.kind).toBe('FOUND');
+      if (response.lookup?.kind === 'FOUND') {
+        expect(response.lookup.evidence.retained).toMatchObject({
+          description: 'Original description',
+          name: 'Original name',
+        });
+      }
     }),
   );
 

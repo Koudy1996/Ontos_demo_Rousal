@@ -23,6 +23,7 @@ interface RetainedProductInput {
   historical: true;
   kind: 'PRODUCT';
   lifecycle: 'DRAFT' | 'ACTIVE' | 'RETIRED';
+  name?: string;
   reference: NonNullable<ProductHistoryRequest['revisionReference']>;
 }
 
@@ -68,20 +69,12 @@ export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function*
   if (Option.isNone(history)) {
     return yield* notFound();
   }
-  const canonicalHistory = {
-    ...history.value,
-    revisions: history.value.revisions.map(
-      ({ description: _legacyDescription, name: _legacyName, ...revision }) => revision,
-    ),
-  };
   const localizedRevisions =
     input.locale === undefined
       ? undefined
       : yield* services.productHistory(input.productRef, input.locale).pipe(Effect.mapError(unavailable));
   const responseBase =
-    localizedRevisions === undefined
-      ? { history: canonicalHistory }
-      : { history: canonicalHistory, localizedRevisions };
+    localizedRevisions === undefined ? { history: history.value } : { history: history.value, localizedRevisions };
   if (input.revisionReference === undefined) {
     return responseBase;
   }
@@ -106,6 +99,12 @@ export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function*
     lifecycle: revision.lifecycle,
     reference: requestedReference,
   };
+  if (revision.description !== undefined) {
+    retained.description = revision.description;
+  }
+  if (revision.name !== undefined) {
+    retained.name = revision.name;
+  }
   const candidate = {
     evidence: {
       capturedAt: revision.recordedAt,
