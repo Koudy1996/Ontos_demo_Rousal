@@ -194,6 +194,13 @@ export const productTypeRevisePersistenceForScope = (
       if (Option.isNone(effectiveAt)) {
         return { _tag: 'stale_basis', reason: 'The Product Type effective instant is invalid' };
       }
+      const recordedAt = yield* DateTime.now;
+      if (DateTime.toEpochMillis(effectiveAt.value) > DateTime.toEpochMillis(recordedAt)) {
+        return {
+          _tag: 'stale_basis',
+          reason: 'A future Product Type revision cannot become Current before its effective instant',
+        };
+      }
       yield* transaction
         .insert(productTypeRevisions)
         .values({
@@ -226,7 +233,7 @@ export const productTypeRevisePersistenceForScope = (
       }
       const [updated] = yield* transaction
         .update(productTypes)
-        .set({ currentRevision: nextRevision, updatedAt: DateTime.toDateUtc(yield* DateTime.now) })
+        .set({ currentRevision: nextRevision, updatedAt: DateTime.toDateUtc(recordedAt) })
         .where(
           and(
             eq(productTypes.tenantId, tenantId),
