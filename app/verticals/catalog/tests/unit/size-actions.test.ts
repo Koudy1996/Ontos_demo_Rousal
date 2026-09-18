@@ -2,6 +2,10 @@ import type { ActionHandlerContext } from '@app/core-runtime';
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
+import {
+  getActionDecodedSuccessHook,
+  getActionServiceFactory,
+} from '../../../../packages/core-runtime/src/actions/definition.ts';
 
 import {
   assertSizeEquivalenceAction,
@@ -15,6 +19,7 @@ import {
 } from '../../src/actions/replace-product-sizes.action.ts';
 import { SizePersistenceConflict } from '../../src/persistence/size-usage-persistence.ts';
 import type { SizeUsagePersistence } from '../../src/persistence/size-usage-persistence.ts';
+import { catalogResultSnapshots } from '../../src/database/schema.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const otherTenantId = '22222222-2222-4222-8222-222222222222';
@@ -59,6 +64,106 @@ const context = (overrides: Partial<SizeUsagePersistence> = {}) => {
 };
 
 describe('governed Size Actions', () => {
+  it.effect('captures each decoded success in the supplied transaction with its declared identity', () =>
+    Effect.gen(function* capturesSizeResults() {
+      const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
+      const transaction = {
+        insert: (table: typeof catalogResultSnapshots) => {
+          expect(table).toBe(catalogResultSnapshots);
+          return {
+            values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
+              onConflictDoNothing: () => ({
+                // oxlint-disable-next-line sonarjs/no-nested-functions -- Drizzle mock requires this fluent callback; remove-when: snapshot tests use a shared transaction fixture.
+                returning: () => {
+                  rows.push(row);
+                  return Effect.succeed([row]);
+                },
+              }),
+            }),
+          };
+        },
+      };
+      // @ts-expect-error Focused transaction mock implements only the snapshot insert chain.
+      const assertionServices = yield* getActionServiceFactory(assertSizeEquivalenceAction)(transaction, scope);
+      const assertionHook = getActionDecodedSuccessHook(assertSizeEquivalenceAction);
+      expect(assertionHook).toBeDefined();
+      if (assertionHook !== undefined) {
+        yield* assertionHook({
+          actionInvocationId: '77777777-7777-4777-8777-777777777777',
+          result: { assertionId: '88888888-8888-4888-8888-888888888888' },
+          scope,
+          services: assertionServices,
+        });
+      }
+      // @ts-expect-error Focused transaction mock implements only the snapshot insert chain.
+      const replacementServices = yield* getActionServiceFactory(replaceProductSizesAction)(transaction, scope);
+      const replacementHook = getActionDecodedSuccessHook(replaceProductSizesAction);
+      expect(replacementHook).toBeDefined();
+      if (replacementHook !== undefined) {
+        yield* replacementHook({
+          actionInvocationId: '77777777-7777-4777-8777-777777777777',
+          result: { revision: 3 },
+          scope,
+          services: replacementServices,
+        });
+      }
+      expect(
+        rows.map((row) => ({
+          actionKey: row.actionKey,
+          encodedResult: row.encodedResult,
+          schemaVersion: row.schemaVersion,
+        })),
+      ).toEqual([
+        {
+          actionKey: 'commerce.catalog.assert-size-equivalence',
+          encodedResult: { assertionId: '88888888-8888-4888-8888-888888888888' },
+          schemaVersion: 1,
+        },
+        { actionKey: 'commerce.catalog.replace-product-sizes', encodedResult: { revision: 3 }, schemaVersion: 1 },
+      ]);
+    }),
+  );
+
+  it.effect('fails the decoded-success hook when snapshot storage fails', () =>
+    Effect.gen(function* rejectsSnapshotFailure() {
+      const transaction = {
+        insert: () => ({
+          // oxlint-disable-next-line sonarjs/no-nested-functions -- Drizzle mock requires this fluent callback; remove-when: snapshot tests use a shared transaction fixture.
+          values: () => ({ onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('unavailable')) }) }),
+        }),
+      };
+      // @ts-expect-error Focused transaction mock implements only the failing snapshot insert chain.
+      const assertionServices = yield* getActionServiceFactory(assertSizeEquivalenceAction)(transaction, scope);
+      const assertionHook = getActionDecodedSuccessHook(assertSizeEquivalenceAction);
+      expect(assertionHook).toBeDefined();
+      if (assertionHook !== undefined) {
+        const failure = yield* Effect.flip(
+          assertionHook({
+            actionInvocationId: '77777777-7777-4777-8777-777777777777',
+            result: { assertionId: '88888888-8888-4888-8888-888888888888' },
+            scope,
+            services: assertionServices,
+          }),
+        );
+        expect(failure).toMatchObject({ code: 'action_transaction_failed' });
+      }
+      // @ts-expect-error Focused transaction mock implements only the failing snapshot insert chain.
+      const replacementServices = yield* getActionServiceFactory(replaceProductSizesAction)(transaction, scope);
+      const replacementHook = getActionDecodedSuccessHook(replaceProductSizesAction);
+      expect(replacementHook).toBeDefined();
+      if (replacementHook !== undefined) {
+        const failure = yield* Effect.flip(
+          replacementHook({
+            actionInvocationId: '77777777-7777-4777-8777-777777777777',
+            result: { revision: 3 },
+            scope,
+            services: replacementServices,
+          }),
+        );
+        expect(failure).toMatchObject({ code: 'action_transaction_failed' });
+      }
+    }),
+  );
   it.effect('preserves local order and revision CAS with trusted actor and evidence', () =>
     Effect.gen(function* replaceSizes() {
       const payload = Schema.decodeUnknownSync(ReplaceProductSizesPayloadSchema)({

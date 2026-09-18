@@ -3,7 +3,7 @@
 // @ontos-action-slug assert-size-equivalence
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import {
   AssertSizeEquivalencePayloadSchema,
   AssertSizeEquivalenceResultSchema,
@@ -11,10 +11,12 @@ import {
 import type { AssertSizeEquivalencePayload } from '../../shared/actions/assert-size-equivalence.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { SizePersistenceConflict, sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { SizeUsagePersistence } from '../persistence/size-usage-persistence.ts';
 
 const catalogModuleKey = 'commerce.catalog';
+const actionKey = 'commerce.catalog.assert-size-equivalence';
 
 export {
   AssertSizeEquivalencePayloadSchema,
@@ -63,7 +65,7 @@ export const assertSizeEquivalenceAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.assert-size-equivalence.access.v1',
     },
-    actionKey: 'commerce.catalog.assert-size-equivalence',
+    actionKey,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([SizePersistenceConflict, CatalogPersistenceUnavailable]),
@@ -71,7 +73,7 @@ export const assertSizeEquivalenceAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.assert-size-equivalence',
+      entrypointKey: actionKey,
       moduleKey: catalogModuleKey,
       role: 'action',
     }),
@@ -84,7 +86,32 @@ export const assertSizeEquivalenceAction = defineAction(
     schemaVersion: '1',
   },
   handleAssertSizeEquivalence,
-  (transaction, scope) => Effect.succeed(sizeUsagePersistenceForScope(transaction, scope)),
+  (transaction, scope) =>
+    Effect.succeed({
+      ...sizeUsagePersistenceForScope(transaction, scope),
+      captureResult: (actionInvocationId: string, result: typeof AssertSizeEquivalenceResultSchema.Type) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey, schemaVersion: 1 },
+          {
+            decode: Schema.decodeUnknownEffect(AssertSizeEquivalenceResultSchema),
+            encode: Schema.encodeEffect(AssertSizeEquivalenceResultSchema),
+          },
+          result,
+        ).pipe(
+          Effect.mapError((cause) =>
+            Object.assign(
+              new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              }),
+              { cause },
+            ),
+          ),
+        ),
+    }),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

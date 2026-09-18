@@ -3,7 +3,7 @@
 // @ontos-action-slug replace-product-sizes
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import {
   ReplaceProductSizesPayloadSchema,
   ReplaceProductSizesResultSchema,
@@ -11,10 +11,12 @@ import {
 import type { ReplaceProductSizesPayload } from '../../shared/actions/replace-product-sizes.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { SizePersistenceConflict, sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { SizeUsagePersistence } from '../persistence/size-usage-persistence.ts';
 
 const catalogModuleKey = 'commerce.catalog';
+const actionKey = 'commerce.catalog.replace-product-sizes';
 
 export {
   ReplaceProductSizesPayloadSchema,
@@ -69,7 +71,7 @@ export const replaceProductSizesAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.replace-product-sizes.access.v1',
     },
-    actionKey: 'commerce.catalog.replace-product-sizes',
+    actionKey,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([SizePersistenceConflict, CatalogPersistenceUnavailable]),
@@ -77,7 +79,7 @@ export const replaceProductSizesAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.replace-product-sizes',
+      entrypointKey: actionKey,
       moduleKey: catalogModuleKey,
       role: 'action',
     }),
@@ -90,7 +92,32 @@ export const replaceProductSizesAction = defineAction(
     schemaVersion: '1',
   },
   handleReplaceProductSizes,
-  (transaction, scope) => Effect.succeed(sizeUsagePersistenceForScope(transaction, scope)),
+  (transaction, scope) =>
+    Effect.succeed({
+      ...sizeUsagePersistenceForScope(transaction, scope),
+      captureResult: (actionInvocationId: string, result: typeof ReplaceProductSizesResultSchema.Type) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey, schemaVersion: 1 },
+          {
+            decode: Schema.decodeUnknownEffect(ReplaceProductSizesResultSchema),
+            encode: Schema.encodeEffect(ReplaceProductSizesResultSchema),
+          },
+          result,
+        ).pipe(
+          Effect.mapError((cause) =>
+            Object.assign(
+              new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              }),
+              { cause },
+            ),
+          ),
+        ),
+    }),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
