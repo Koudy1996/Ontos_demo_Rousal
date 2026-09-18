@@ -8,28 +8,24 @@ import type {
   SetCompositionBasis,
   SetCompositionPersistence,
 } from '../persistence/set-composition-persistence.ts';
-import {
-  SetCompositionPersistenceUnavailable,
-  setCompositionPersistenceForScope,
-} from '../persistence/set-composition-persistence.ts';
+import { setCompositionPersistenceForScope } from '../persistence/set-composition-persistence.ts';
+import { setCompositionComponentCurrentBasisForScope } from '../persistence/set-composition-component-current-basis.ts';
 
 type ScopedTransaction = Parameters<typeof setCompositionPersistenceForScope>[0];
 type Scope = Parameters<typeof setCompositionPersistenceForScope>[1];
 type Context = ActionHandlerContext<Readonly<Record<string, never>>, SetCompositionPersistence>;
 
-/** Until #479 can attest every exact Current component and open-selection impact, publication is unavailable. */
-export const unverifiedSetCompositionBasis: SetCompositionBasis = {
-  verify: () =>
-    Effect.fail(
-      new SetCompositionPersistenceUnavailable({
-        code: 'set_composition_persistence_unavailable',
-        reason: 'Exact Current component and open-selection impact proof is not available',
-      }),
-    ),
+export const setCompositionBasisForScope = (transaction: ScopedTransaction, scope: Scope): SetCompositionBasis => {
+  const current = setCompositionComponentCurrentBasisForScope(transaction, scope);
+  return {
+    verify: ({ at, revision }) => current.read(revision, at).pipe(Effect.map((result) => result.status === 'VALID')),
+  };
 };
 
 export const setCompositionPersistenceServiceFactory = (transaction: ScopedTransaction, scope: Scope) =>
-  Effect.succeed(setCompositionPersistenceForScope(transaction, scope, unverifiedSetCompositionBasis));
+  Effect.succeed(
+    setCompositionPersistenceForScope(transaction, scope, setCompositionBasisForScope(transaction, scope)),
+  );
 
 export const handleSetCompositionMutation = Effect.fn('SetCompositionAction.handleMutation')(
   function* handleSetCompositionMutation(

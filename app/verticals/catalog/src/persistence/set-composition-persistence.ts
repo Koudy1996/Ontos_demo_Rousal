@@ -50,10 +50,7 @@ export class SetCompositionPersistenceUnavailable extends Schema.TaggedError<Set
 export interface SetCompositionBasis {
   readonly verify: (input: {
     readonly at: Date;
-    readonly components: SetCompositionRevision['components'];
-    readonly productId: string;
-    readonly tenantId: string;
-    readonly variantId: string;
+    readonly revision: SetCompositionRevision;
   }) => Effect.Effect<boolean, SetCompositionPersistenceUnavailable>;
 }
 
@@ -406,10 +403,7 @@ export const setCompositionPersistenceForScope = (
       if (
         !(yield* basis.verify({
           at: input.effectiveFrom,
-          components: revision.components,
-          productId,
-          tenantId,
-          variantId,
+          revision,
         }))
       ) {
         return { _tag: 'invalid', reason: 'Component Current basis is invalid' };

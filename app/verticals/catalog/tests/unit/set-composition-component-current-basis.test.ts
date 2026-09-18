@@ -19,6 +19,7 @@ import {
   setCompositionComponentCurrentBasisForScope,
 } from '../../src/persistence/set-composition-component-current-basis.ts';
 import { SetCompositionPersistenceUnavailable } from '../../src/persistence/set-composition-persistence.ts';
+import { setCompositionBasisForScope } from '../../src/actions/set-composition-action-support.ts';
 import type { CurrentConfigurationAssessment } from '../../src/persistence/product-configuration-current-evaluator.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -172,6 +173,20 @@ const read = (options?: Parameters<typeof transactionFor>[0], candidate = revisi
 };
 
 describe('Set composition component Current basis', () => {
+  it.effect('connects the Action basis to every exact component and fails closed on invalid or unavailable reads', () =>
+    Effect.gen(function* actionBasis() {
+      // @ts-expect-error Only the exercised owner-local Drizzle query chains are mocked.
+      const valid = setCompositionBasisForScope(transactionFor(), scope);
+      expect(yield* valid.verify({ at, revision })).toBe(true);
+      // @ts-expect-error Only the exercised owner-local Drizzle query chains are mocked.
+      const invalid = setCompositionBasisForScope(transactionFor({ absentVariant: true }), scope);
+      expect(yield* invalid.verify({ at, revision })).toBe(false);
+      // @ts-expect-error Only the exercised owner-local Drizzle query chains are mocked.
+      const unavailable = setCompositionBasisForScope(transactionFor({ unavailableProduct: true }), scope);
+      const error = yield* unavailable.verify({ at, revision }).pipe(Effect.flip);
+      expect(Schema.is(SetCompositionPersistenceUnavailable)(error)).toBe(true);
+    }),
+  );
   it('preserves exact configured Definition and measurement Unit revisions', () => {
     const definitionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
     const configurationUnitId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';

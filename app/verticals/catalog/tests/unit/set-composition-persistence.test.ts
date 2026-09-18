@@ -121,6 +121,7 @@ describe('Set composition persistence', () => {
   it.effect('appends the complete fixed composition as one immutable revision', () =>
     Effect.gen(function* appendRevision() {
       const writes: { table: unknown; value: unknown }[] = [];
+      const verified: unknown[] = [];
       const transaction = {
         insert: (table: typeof setCompositions | typeof setCompositionRevisions | typeof setCompositionComponents) => ({
           values: (
@@ -145,8 +146,14 @@ describe('Set composition persistence', () => {
         }),
       };
       // @ts-expect-error Only the exercised Drizzle query chains are mocked.
-      const service = setCompositionPersistenceForScope(transaction, scope, { verify: () => Effect.succeed(true) });
+      const service = setCompositionPersistenceForScope(transaction, scope, {
+        verify: (candidate) => {
+          verified.push(candidate);
+          return Effect.succeed(true);
+        },
+      });
       const outcome = yield* service.publish(input);
+      expect(verified).toEqual([{ at: input.effectiveFrom, revision }]);
       expect(
         Match.value(outcome).pipe(
           Match.tag('published', ({ revision: number }) => number),
