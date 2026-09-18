@@ -46,12 +46,12 @@ const actions = [
     'variant',
   ],
 ] as const;
-const mappers = [
+const mappers: readonly ((error: AttributeValuesConflict | CatalogPersistenceUnavailable) => object)[] = [
   mapSetProductAttributeValuesActionProblem,
   mapRemoveProductAttributeValuesActionProblem,
   mapSetVariantAttributeOverrideActionProblem,
   mapRemoveVariantAttributeOverrideActionProblem,
-] as const;
+];
 
 describe('Attribute Value HTTP Actions', () => {
   it('publishes four independent tenant-scoped Action transports with Product Editor authority', () => {
