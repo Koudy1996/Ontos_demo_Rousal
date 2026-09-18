@@ -223,7 +223,7 @@ describe('Catalog quantity preparation', () => {
     }),
   );
 
-  it.effect('pins the exact normalized candidate amount through approval and commitment', () =>
+  it.effect('pins requested and resulting Quantity through approval and commitment', () =>
     Effect.gen(function* pinsCandidateAmount() {
       // @ts-expect-error The mock provides only the read chains exercised here.
       const prepared = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
@@ -246,12 +246,22 @@ describe('Catalog quantity preparation', () => {
       for (const phase of ['APPROVED', 'COMMITTING'] as const) {
         // @ts-expect-error The mock provides only the read chains exercised here.
         const unchanged = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
-          amount: '2.54',
+          amount: '2.537',
           expected,
           phase,
           selection,
         });
         expect(unchanged.status).toBe('PREPARED');
+        // @ts-expect-error The mock provides only the read chains exercised here.
+        const sameResultWithChangedRequest = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare(
+          {
+            amount: '2.54',
+            expected,
+            phase,
+            selection,
+          },
+        );
+        expect(sameResultWithChangedRequest.status).toBe('STALE');
         // @ts-expect-error The mock provides only the read chains exercised here.
         const changed = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
           amount: '2.55',

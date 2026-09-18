@@ -105,11 +105,7 @@ const changedCandidateSelection = (
 const changedCandidateQuantity = (
   quantity: Extract<QuantityNormalization, { status: 'VALID' }>,
   expected: NonNullable<CatalogQuantityPreparationRequest['expected']>,
-): boolean =>
-  quantity.resulting !== expected.quantity.resulting ||
-  quantity.targetId !== expected.quantity.targetId ||
-  quantity.tenantId !== expected.quantity.tenantId ||
-  quantity.unitId !== expected.quantity.unitId;
+): boolean => !isDeepStrictEqual(quantity, expected.quantity);
 
 const missingLaterPhaseBasis = (input: CatalogQuantityPreparationRequest): boolean =>
   input.phase !== 'PREPARE' && input.expected === undefined;
@@ -307,7 +303,7 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
         tenantId,
         unitId: unit.unitId,
       },
-      input.phase,
+      'PREPARE',
     );
     if (quantity.status !== 'VALID') {
       if (quantity.status === 'INVALID') {
