@@ -3,6 +3,7 @@ import { DateTime, Option, Schema, SchemaGetter } from 'effect';
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 import { ProductRevisionReferenceSchema } from './catalog-revision-reference.ts';
+import type { CatalogSelectionOwnerAssessmentResult } from './catalog-selection-owner-contract.ts';
 
 export const ProductLifecycleSchema = Schema.Literals(['DRAFT', 'ACTIVE', 'RETIRED']);
 export type ProductLifecycle = typeof ProductLifecycleSchema.Type;
@@ -168,22 +169,61 @@ export const productActivationBlockers = (
   return reasons;
 };
 
-/** Current owner-local localized names, not the legacy Product label, satisfy the text minimum. */
+const sameResourceRef = (
+  left: {
+    readonly moduleId: string;
+    readonly resourceId: string;
+    readonly resourceType: string;
+    readonly tenantId: string;
+  },
+  right: {
+    readonly moduleId: string;
+    readonly resourceId: string;
+    readonly resourceType: string;
+    readonly tenantId: string;
+  },
+): boolean =>
+  left.moduleId === right.moduleId &&
+  left.resourceId === right.resourceId &&
+  left.resourceType === right.resourceType &&
+  left.tenantId === right.tenantId;
+
+const hasCurrentValidSelection = (
+  product: Pick<Product, 'variants'>,
+  evidence: readonly CatalogSelectionOwnerAssessmentResult[],
+): boolean =>
+  evidence.some(
+    (assessment) =>
+      'status' in assessment &&
+      assessment.status === 'VALID' &&
+      assessment.purpose === 'PURCHASE_ACCEPTANCE' &&
+      product.variants.some(
+        (variant) =>
+          variant.lifecycle === 'ACTIVE' &&
+          sameResourceRef(assessment.selection.productRef, variant.productRef) &&
+          sameResourceRef(assessment.selection.variantRef, variant.variantRef),
+      ),
+  );
+
+/**
+ * Current owner-local localized names satisfy the text minimum. Catalog readiness additionally
+ * needs owner-issued Current evidence for one exact ACTIVE Variant selection. Missing,
+ * indeterminate, invalid, other-purpose, or differently targeted evidence fails closed.
+ */
 export const catalogReadiness = (
   product: Pick<Product, 'lifecycle' | 'variants'>,
   localizedNames: readonly string[],
+  selectionEvidence: readonly CatalogSelectionOwnerAssessmentResult[] = [],
 ): CatalogReadiness => {
-  const reasons = [
-    ...productActivationBlockers(product, localizedNames),
-    // Row state and a localized name are necessary, never sufficient, for a
-    // concrete Current selection. #479 must supply owner-issued proof of the
-    // effective Type, required facts, axes, Unit and dependent content first.
-    'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
-  ];
+  const reasons = [...productActivationBlockers(product, localizedNames)];
+  if (!hasCurrentValidSelection(product, selectionEvidence)) {
+    reasons.push('Current Product Type, required facts, Variant axes, Unit and dependent content are not verified');
+  }
   return { catalogReady: reasons.length === 0, reasons };
 };
 
 export const productIsCatalogReady = (
   product: Pick<Product, 'lifecycle' | 'variants'>,
   localizedNames: readonly string[],
-): boolean => catalogReadiness(product, localizedNames).catalogReady;
+  selectionEvidence: readonly CatalogSelectionOwnerAssessmentResult[] = [],
+): boolean => catalogReadiness(product, localizedNames, selectionEvidence).catalogReady;

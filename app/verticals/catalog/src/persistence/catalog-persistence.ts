@@ -23,6 +23,8 @@ import type { CreateProductResult } from '../../shared/actions/create-product.ts
 import { UpdateProductResultSchema } from '../../shared/actions/update-product.ts';
 import type { UpdateProductResult } from '../../shared/actions/update-product.ts';
 import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
+import type { CatalogSelectionEvidenceReader } from '../../shared/domain/catalog-open-selection-population.ts';
+import type { CatalogSelectionOwnerAssessmentResult } from '../../shared/domain/catalog-selection-owner-contract.ts';
 import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
 import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
@@ -244,6 +246,7 @@ const toProduct = (
   row: typeof products.$inferSelect,
   variants: readonly (typeof productVariants.$inferSelect)[],
   localizedNames: readonly string[],
+  selectionEvidence: readonly CatalogSelectionOwnerAssessmentResult[],
 ): Product => {
   const lifecycle = toLifecycle(row.lifecycleState);
   const candidate = {
@@ -251,7 +254,7 @@ const toProduct = (
     ...(row.name === null ? {} : { name: row.name }),
     variants: variants.map(toVariant),
   } as const;
-  const readiness = catalogReadiness(candidate, localizedNames);
+  const readiness = catalogReadiness(candidate, localizedNames, selectionEvidence);
   return {
     catalogReady: readiness.catalogReady,
     createdAt: row.createdAt.toISOString(),
@@ -264,6 +267,28 @@ const toProduct = (
     variants: candidate.variants,
   };
 };
+
+const readProductSelectionEvidence = Effect.fn('CatalogPersistence.readProductSelectionEvidence')(
+  function* readProductSelectionEvidence(
+    product: Pick<Product, 'variants'>,
+    selectionEvidence: CatalogSelectionEvidenceReader | undefined,
+  ) {
+    if (selectionEvidence === undefined) {
+      return [];
+    }
+    return yield* Effect.forEach(
+      product.variants.filter(({ lifecycle }) => lifecycle === 'ACTIVE'),
+      ({ productRef: productReference, variantRef: variantReference }) =>
+        selectionEvidence
+          .assess({
+            purpose: 'PURCHASE_ACCEPTANCE',
+            selection: { productRef: productReference, variantRef: variantReference },
+          })
+          .pipe(Effect.map(({ evidence }) => evidence)),
+      { concurrency: 1 },
+    );
+  },
+);
 
 const getProductRow = (transaction: ScopedTransaction, tenantId: string, productId: string) =>
   transaction
@@ -295,6 +320,7 @@ const loadProduct = Effect.fn('CatalogPersistence.loadProduct')(function* loadPr
   transaction: ScopedTransaction,
   tenantId: string,
   productId: string,
+  selectionEvidence: CatalogSelectionEvidenceReader | undefined,
 ) {
   const [row] = yield* getProductRow(transaction, tenantId, productId);
   if (row === undefined) {
@@ -302,7 +328,9 @@ const loadProduct = Effect.fn('CatalogPersistence.loadProduct')(function* loadPr
   }
   const variants = yield* getVariants(transaction, tenantId, productId);
   const localizedNames = yield* getLocalizedNames(transaction, tenantId, productId);
-  return Option.some(toProduct(tenantId, row, variants, localizedNames));
+  const candidate = { variants: variants.map(toVariant) };
+  const evidence = yield* readProductSelectionEvidence(candidate, selectionEvidence);
+  return Option.some(toProduct(tenantId, row, variants, localizedNames, evidence));
 });
 
 const insertRevision = (
@@ -398,6 +426,7 @@ export interface CatalogPersistence {
 export const catalogPersistenceForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
+  selectionEvidence?: CatalogSelectionEvidenceReader,
 ): Effect.Effect<CatalogPersistence> => {
   const tenantId = scope.tenantId;
 
@@ -509,7 +538,7 @@ export const catalogPersistenceForScope = (
       if (Option.isNone(parsedProductId)) {
         return Option.none<Product>();
       }
-      return yield* loadProduct(transaction, tenantId, parsedProductId.value);
+      return yield* loadProduct(transaction, tenantId, parsedProductId.value, selectionEvidence);
     },
   );
 
@@ -569,7 +598,7 @@ export const catalogPersistenceForScope = (
       revision: 1,
       tenantId,
     });
-    const product = yield* loadProduct(transaction, tenantId, productId);
+    const product = yield* loadProduct(transaction, tenantId, productId, selectionEvidence);
     if (Option.isNone(product)) {
       return yield* unavailable();
     }
@@ -578,7 +607,7 @@ export const catalogPersistenceForScope = (
 
   // oxlint-disable-next-line complexity -- Lifecycle and optimistic-concurrency branches are the complete Product update state machine. expires: 2027-03-31.
   const update: CatalogPersistence['update'] = Effect.fn('CatalogPersistence.update')(function* update(input) {
-    const current = yield* loadProduct(transaction, tenantId, input.productId);
+    const current = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
     if (Option.isNone(current)) {
       return { _tag: 'not_found' as const };
     }
@@ -676,14 +705,14 @@ export const catalogPersistenceForScope = (
         tenantId,
       });
     }
-    const resulting = yield* loadProduct(transaction, tenantId, input.productId);
+    const resulting = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
     return Option.isSome(resulting)
       ? { _tag: 'updated' as const, changed: true, product: resulting.value }
       : { _tag: 'not_found' as const };
   });
 
   const retire: CatalogPersistence['retire'] = Effect.fn('CatalogPersistence.retire')(function* retire(input) {
-    const current = yield* loadProduct(transaction, tenantId, input.productId);
+    const current = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
     if (Option.isNone(current)) {
       return { _tag: 'not_found' as const };
     }
@@ -744,7 +773,7 @@ export const catalogPersistenceForScope = (
       reason: input.reason,
       tenantId,
     });
-    const resulting = yield* loadProduct(transaction, tenantId, input.productId);
+    const resulting = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
     return Option.isSome(resulting)
       ? { _tag: 'retired' as const, product: resulting.value }
       : { _tag: 'not_found' as const };
@@ -752,7 +781,7 @@ export const catalogPersistenceForScope = (
 
   const reactivate: CatalogPersistence['reactivate'] = Effect.fn('CatalogPersistence.reactivate')(
     function* reactivate(input) {
-      const current = yield* loadProduct(transaction, tenantId, input.productId);
+      const current = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
       if (Option.isNone(current)) {
         return { _tag: 'not_found' as const };
       }
@@ -764,15 +793,11 @@ export const catalogPersistenceForScope = (
         return { _tag: 'lifecycle_conflict' as const, product: existing };
       }
       const localizedNames = yield* getLocalizedNames(transaction, tenantId, input.productId);
-      const blockers = productActivationBlockers(
-        {
-          lifecycle: 'ACTIVE',
-          variants: existing.variants,
-        },
-        localizedNames,
-      );
-      if (blockers.length > 0) {
-        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: blockers };
+      const candidate = { lifecycle: 'ACTIVE' as const, variants: existing.variants };
+      const currentEvidence = yield* readProductSelectionEvidence(candidate, selectionEvidence);
+      const readiness = catalogReadiness(candidate, localizedNames, currentEvidence);
+      if (!readiness.catalogReady) {
+        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
       }
       const revision = existing.revision + 1;
       const now = DateTime.toDateUtc(yield* DateTime.now);
@@ -823,7 +848,7 @@ export const catalogPersistenceForScope = (
         reason: input.reason,
         tenantId,
       });
-      const resulting = yield* loadProduct(transaction, tenantId, input.productId);
+      const resulting = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
       return Option.isSome(resulting)
         ? { _tag: 'reactivated' as const, product: resulting.value }
         : { _tag: 'not_found' as const };
@@ -831,7 +856,7 @@ export const catalogPersistenceForScope = (
   );
 
   const correct: CatalogPersistence['correct'] = Effect.fn('CatalogPersistence.correct')(function* correct(input) {
-    const current = yield* loadProduct(transaction, tenantId, input.productId);
+    const current = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
     if (Option.isNone(current)) {
       return { _tag: 'not_found' as const };
     }
@@ -888,7 +913,7 @@ export const catalogPersistenceForScope = (
       revision,
       tenantId,
     });
-    const resulting = yield* loadProduct(transaction, tenantId, input.productId);
+    const resulting = yield* loadProduct(transaction, tenantId, input.productId, selectionEvidence);
     return Option.isSome(resulting)
       ? { _tag: 'corrected' as const, changed: true, product: resulting.value }
       : { _tag: 'not_found' as const };
@@ -900,7 +925,7 @@ export const catalogPersistenceForScope = (
       if (Option.isNone(parsedProductId)) {
         return Option.none<ProductHistory>();
       }
-      const current = yield* loadProduct(transaction, tenantId, parsedProductId.value);
+      const current = yield* loadProduct(transaction, tenantId, parsedProductId.value, selectionEvidence);
       if (Option.isNone(current)) {
         return Option.none<ProductHistory>();
       }

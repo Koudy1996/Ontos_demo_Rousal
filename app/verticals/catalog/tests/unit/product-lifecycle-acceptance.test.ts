@@ -4,6 +4,9 @@ import { Effect, Match, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { catalogReadiness, productActivationBlockers, ProductSchema } from '../../shared/domain/product.ts';
+import type { CatalogSelectionEvidenceReader } from '../../shared/domain/catalog-open-selection-population.ts';
+import { CatalogSelectionEvidenceSchema } from '../../shared/domain/catalog-selection-evidence.ts';
+import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
   ProductLifecycleConflict,
   ProductNotFound,
@@ -56,6 +59,29 @@ const variantRef = {
   resourceType: 'commerce.catalog.variant',
   tenantId,
 } as const;
+
+const currentValidEvidence = (selection: CatalogSelection) =>
+  Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema)({
+    assessedAt: '2026-09-17T10:00:00.000Z',
+    basis: [
+      { role: 'PRODUCT', source: { resourceRef: selection.productRef, revision: 3 } },
+      { role: 'VARIANT', source: { resourceRef: selection.variantRef, revision: 1 } },
+    ],
+    membership: {
+      attestationId: 'product-lifecycle-current-membership',
+      observedAt: '2026-09-17T10:00:00.000Z',
+      productRef: selection.productRef,
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      variant: { resourceRef: selection.variantRef, revision: 1 },
+    },
+    purpose: 'PURCHASE_ACCEPTANCE',
+    selection,
+    status: 'VALID',
+  });
+
+const currentValidEvidenceReader: CatalogSelectionEvidenceReader = {
+  assess: ({ selection }) => Effect.succeed({ evidence: currentValidEvidence(selection) }),
+};
 
 const productAggregate = (
   lifecycle: ProductView['lifecycle'],
@@ -218,11 +244,14 @@ const makeTransaction = (input: {
   return { state, transaction };
 };
 
-const persistenceFor = (input: Parameters<typeof makeTransaction>[0]) => {
+const persistenceFor = (
+  input: Parameters<typeof makeTransaction>[0],
+  selectionEvidence?: CatalogSelectionEvidenceReader,
+) => {
   const harness = makeTransaction(input);
   return Effect.map(
     // @ts-expect-error Only the exercised Drizzle query chains are mocked.
-    catalogPersistenceForScope(harness.transaction, scope),
+    catalogPersistenceForScope(harness.transaction, scope, selectionEvidence),
     (persistence) => ({ persistence, state: harness.state }),
   );
 };
@@ -303,6 +332,25 @@ describe('Product lifecycle acceptance (#414)', () => {
     expect(productActivationBlockers(incomplete, ['Kladivo'])).toEqual(['Product needs at least one ACTIVE Variant']);
     // Necessary row evidence is never the derived Current Catalog-readiness of a concrete use (#479).
     expect(catalogReadiness(mixed, ['Kladivo'])).toEqual({
+      catalogReady: false,
+      reasons: ['Current Product Type, required facts, Variant axes, Unit and dependent content are not verified'],
+    });
+    expect(catalogReadiness(complete, ['Kladivo'], [currentValidEvidence({ productRef, variantRef })])).toEqual({
+      catalogReady: true,
+      reasons: [],
+    });
+    expect(
+      catalogReadiness(
+        complete,
+        ['Kladivo'],
+        [
+          currentValidEvidence({
+            productRef,
+            variantRef: { ...variantRef, resourceId: '00000000-0000-4000-8000-000000000099' },
+          }),
+        ],
+      ),
+    ).toEqual({
       catalogReady: false,
       reasons: ['Current Product Type, required facts, Variant axes, Unit and dependent content are not verified'],
     });
@@ -465,11 +513,14 @@ describe('Product lifecycle acceptance (#414)', () => {
 
   it.effect('reactivation keeps the same identity, re-assesses, and never restores a retired Variant', () =>
     Effect.gen(function* reactivateProduct() {
-      const { persistence, state } = yield* persistenceFor({
-        localizedNames: [{ name: 'Kladivo', state: 'SET' }],
-        product: retiredProduct(3),
-        variants: [variant('ACTIVE')],
-      });
+      const { persistence, state } = yield* persistenceFor(
+        {
+          localizedNames: [{ name: 'Kladivo', state: 'SET' }],
+          product: retiredProduct(3),
+          variants: [variant('ACTIVE')],
+        },
+        currentValidEvidenceReader,
+      );
       const outcome = yield* persistence.reactivate({
         actionInvocationId: invocationId,
         expectedRevision: 3,
@@ -488,10 +539,39 @@ describe('Product lifecycle acceptance (#414)', () => {
       }
       expect(reactivated.product.productRef.resourceId).toBe(productId);
       expect(reactivated.product.lifecycle).toBe('ACTIVE');
+      expect(reactivated.product.catalogReady).toBe(true);
       expect(reactivated.product.variants[0]).toMatchObject({ lifecycle: 'ACTIVE', variantId });
       expect(state.product.retiredReason).toBeNull();
       expect(state.revisions[0]).toMatchObject({ changeKind: 'LIFECYCLE', lifecycleState: 'ACTIVE', revision: 4 });
       expect(state.lifecycleEvents[0]).toMatchObject({ event: 'ACTIVATED' });
+    }),
+  );
+
+  it.effect('reactivation fails closed when no exact-selection Current evidence reader is bound', () =>
+    Effect.gen(function* refuseUnverifiedReactivation() {
+      const { persistence, state } = yield* persistenceFor({
+        localizedNames: [{ name: 'Kladivo', state: 'SET' }],
+        product: retiredProduct(3),
+        variants: [variant('ACTIVE')],
+      });
+      const outcome = yield* persistence.reactivate({
+        actionInvocationId: invocationId,
+        expectedRevision: 3,
+        principalId,
+        productId,
+        reason: 'Product lacks Current evidence',
+        tenantId,
+      });
+      const refused = Match.value(outcome).pipe(
+        Match.tag('not_catalog_ready', (value) => value),
+        Match.orElse(() => null),
+      );
+      expect(refused?.reasons).toEqual([
+        'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
+      ]);
+      expect(state.product.lifecycleState).toBe('RETIRED');
+      expect(state.revisions).toHaveLength(0);
+      expect(state.lifecycleEvents).toHaveLength(0);
     }),
   );
 
@@ -514,7 +594,10 @@ describe('Product lifecycle acceptance (#414)', () => {
         Match.tag('not_catalog_ready', (value) => value),
         Match.orElse(() => null),
       );
-      expect(refused?.reasons).toEqual(['Product needs at least one ACTIVE Variant']);
+      expect(refused?.reasons).toEqual([
+        'Product needs at least one ACTIVE Variant',
+        'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
+      ]);
       expect(state.product.lifecycleState).toBe('RETIRED');
       expect(state.revisions).toHaveLength(0);
     }),
