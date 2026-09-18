@@ -85,7 +85,7 @@ export const setCompositionCurrentRead = defineRead(
   (
     input: SetCompositionCurrentRequest,
     context: ReadHandlerContext<ReturnType<typeof setCompositionPersistenceForScope>>,
-  ) => readSetCompositionCurrent(input, context.scope.tenantId, context.services),
+  ) => Effect.suspend(() => readSetCompositionCurrent(input, context.scope.tenantId, context.services)),
   (transaction, scope) => Effect.succeed(setCompositionPersistenceForScope(transaction, scope)),
   () => ({ kind: 'tenant', permission: 'access' }),
 );
