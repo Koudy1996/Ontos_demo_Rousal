@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { SetCompositionRevisionSchema } from '../../shared/domain/set-composition.ts';
+import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
   packageContentRevisions,
   packageDefinitions,
@@ -13,8 +14,12 @@ import {
   setCompositions,
   variantUnitDivisibility,
 } from '../../src/database/schema.ts';
-import { setCompositionComponentCurrentBasisForScope } from '../../src/persistence/set-composition-component-current-basis.ts';
+import {
+  setComponentConfigurationDependencies,
+  setCompositionComponentCurrentBasisForScope,
+} from '../../src/persistence/set-composition-component-current-basis.ts';
 import { SetCompositionPersistenceUnavailable } from '../../src/persistence/set-composition-persistence.ts';
+import type { CurrentConfigurationAssessment } from '../../src/persistence/product-configuration-current-evaluator.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const setProductId = '22222222-2222-4222-8222-222222222222';
@@ -164,6 +169,105 @@ const read = (options?: Parameters<typeof transactionFor>[0], candidate = revisi
 };
 
 describe('Set composition component Current basis', () => {
+  it('preserves exact configured Definition and measurement Unit revisions', () => {
+    const definitionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const configurationUnitId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const selection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+      ...revision.components[0]?.selection,
+      configuration: {
+        choices: [
+          {
+            attributeDefinition: {
+              resourceRef: ref('attribute-definition', 'abababab-abab-4bab-8bab-abababababab'),
+              revision: 1,
+            },
+            choiceKey: 'length',
+            unit: { resourceRef: ref('unit', configurationUnitId), revision: 3 },
+            value: '83',
+          },
+        ],
+        definition: { resourceRef: ref('configuration-definition', definitionId), revision: 2 },
+        productRef: revision.components[0]?.selection.productRef,
+        variantRef: revision.components[0]?.selection.variantRef,
+      },
+    });
+    const chosenUnit = selection.configuration?.choices[0]?.unit;
+    if (chosenUnit === undefined) {
+      throw new Error('Configured test selection must contain a measured Unit');
+    }
+    const assessment: CurrentConfigurationAssessment = {
+      assessedAt: at,
+      choiceRevisions: [
+        {
+          choiceKey: 'length',
+          evidenceRefs: ['configured-length'],
+          kind: 'MEASURED_VALUE',
+          meaning: 'Length',
+          options: [],
+          ownerModuleId: 'commerce.catalog',
+          required: true,
+          revision: 2,
+          unitId: configurationUnitId,
+          unitRevision: 3,
+        },
+      ],
+      definitionId,
+      definitionRevision: 2,
+      rules: [],
+      status: 'VALID',
+      target: {
+        definitionId,
+        productId: selection.productRef.resourceId,
+        variantId: selection.variantRef.resourceId,
+      },
+      unitRevisions: [
+        {
+          dimension: 'length',
+          effectiveFrom: at,
+          evidenceRefs: ['unit-current'],
+          lifecycleState: 'ACTIVE',
+          meaning: 'cm',
+          ref: chosenUnit.resourceRef,
+          revision: 3,
+        },
+      ],
+    };
+    expect(setComponentConfigurationDependencies('component', selection, assessment)).toMatchObject({
+      dependencies: [
+        { resourceId: definitionId, revision: 2, role: 'CONFIGURATION_DEFINITION' },
+        { resourceId: configurationUnitId, revision: 3, role: 'UNIT' },
+      ],
+      status: 'PROVEN',
+    });
+    expect(setComponentConfigurationDependencies('component', selection, undefined)).toMatchObject({
+      code: 'CONFIGURATION_PROOF_INCOMPLETE',
+      status: 'INDETERMINATE',
+    });
+    expect(
+      setComponentConfigurationDependencies('component', selection, { ...assessment, definitionRevision: 3 }),
+    ).toMatchObject({
+      code: 'CONFIGURATION_PROOF_INCOMPLETE',
+      status: 'INDETERMINATE',
+    });
+    expect(
+      setComponentConfigurationDependencies('component', selection, { ...assessment, unitRevisions: [] }),
+    ).toMatchObject({
+      code: 'CONFIGURATION_UNIT_UNPROVEN',
+      status: 'INDETERMINATE',
+    });
+    expect(
+      setComponentConfigurationDependencies('component', selection, { ...assessment, choiceRevisions: [] }),
+    ).toMatchObject({
+      code: 'CONFIGURATION_PROOF_INCOMPLETE',
+      status: 'INDETERMINATE',
+    });
+    expect(
+      setComponentConfigurationDependencies('component', selection, {
+        ...assessment,
+        unitRevisions: [{ ...assessment.unitRevisions[0], revision: 4 }],
+      }),
+    ).toMatchObject({ code: 'CONFIGURATION_UNIT_UNPROVEN', status: 'INDETERMINATE' });
+  });
   it.effect('issues exact component and dependency revisions without claiming selection Current', () =>
     Effect.gen(function* validComponents() {
       const result = yield* read();

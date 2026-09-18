@@ -6,9 +6,12 @@ import { DateTime, Effect, Option } from 'effect';
 import type { SetComponentCurrentProof, SetComponentValidation } from '../../shared/domain/set-component-validation.ts';
 import { validateSetComponents } from '../../shared/domain/set-component-validation.ts';
 import type { CatalogRevisionInstant } from '../../shared/domain/catalog-revision-reference.ts';
+import type { CatalogSelection, CatalogSelectionRevision } from '../../shared/domain/catalog-selection-evidence.ts';
+import type { ConfigurationUnitRevision } from '../../shared/domain/configuration-unit.ts';
 import type { SetComponent, SetCompositionRevision } from '../../shared/domain/set-composition.ts';
 import { productVariants, products, setCompositions } from '../database/schema.ts';
 import { catalogSelectionPackageUnitBasisForScope } from './catalog-selection-package-unit-basis.ts';
+import type { CurrentConfigurationAssessment } from './product-configuration-current-evaluator.ts';
 import { SetCompositionPersistenceUnavailable } from './set-composition-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -25,7 +28,9 @@ export interface SetComponentDependencyRevision {
     | 'UNIT_RULE'
     | 'UNIT_TARGET_DIVISIBILITY'
     | 'PACKAGE_CONTENT'
-    | 'PACKAGE_OPTION_ROLE';
+    | 'PACKAGE_OPTION_ROLE'
+    | 'CONFIGURATION_DEFINITION'
+    | 'UNIT';
 }
 
 /** A component-only snapshot; it does not attest a Set selection or purchase as Current. */
@@ -45,6 +50,97 @@ const unavailable = (cause: unknown) => {
   });
   Object.defineProperty(error, 'cause', { configurable: true, value: cause });
   return error;
+};
+
+const exactConfigurationHeader = (
+  configuration: NonNullable<CatalogSelection['configuration']>,
+  assessment: CurrentConfigurationAssessment,
+): boolean =>
+  assessment.definitionId === configuration.definition.resourceRef.resourceId &&
+  assessment.definitionRevision === configuration.definition.revision &&
+  configuration.definition.revisionId === undefined &&
+  assessment.choiceRevisions.length === configuration.choices.length;
+
+const matchingConfigurationUnit = (
+  selected: CatalogSelectionRevision,
+  proven: CurrentConfigurationAssessment['choiceRevisions'][number],
+  ownerUnit: ConfigurationUnitRevision | undefined,
+): ConfigurationUnitRevision | undefined =>
+  proven.kind === 'MEASURED_VALUE' &&
+  proven.unitId === selected.resourceRef.resourceId &&
+  proven.unitRevision === selected.revision &&
+  selected.revisionId === undefined &&
+  selected.resourceRef.resourceType === 'commerce.catalog.unit' &&
+  ownerUnit?.revision === selected.revision &&
+  ownerUnit.ref.moduleId === selected.resourceRef.moduleId &&
+  ownerUnit.ref.resourceType === selected.resourceRef.resourceType &&
+  ownerUnit.ref.tenantId === selected.resourceRef.tenantId
+    ? ownerUnit
+    : undefined;
+
+/** Carry only revisions that the owner actually confirmed for the selected fixed values. */
+export const setComponentConfigurationDependencies = (
+  componentId: string,
+  selection: CatalogSelection,
+  assessment: CurrentConfigurationAssessment | undefined,
+):
+  | { readonly dependencies: readonly SetComponentDependencyRevision[]; readonly status: 'PROVEN' }
+  | { readonly code: string; readonly componentId: string; readonly status: 'INDETERMINATE' } => {
+  const { configuration } = selection;
+  const unproven = (code: string) => ({ code, componentId, status: 'INDETERMINATE' as const });
+  if (configuration === undefined) {
+    return assessment === undefined
+      ? { dependencies: [], status: 'PROVEN' }
+      : unproven('UNSELECTED_CONFIGURATION_PROOF');
+  }
+  if (assessment?.status !== 'VALID' || !exactConfigurationHeader(configuration, assessment)) {
+    return unproven('CONFIGURATION_PROOF_INCOMPLETE');
+  }
+  const dependencies: SetComponentDependencyRevision[] = [
+    {
+      componentId,
+      resourceId: configuration.definition.resourceRef.resourceId,
+      resourceType: configuration.definition.resourceRef.resourceType,
+      revision: configuration.definition.revision,
+      role: 'CONFIGURATION_DEFINITION',
+    },
+  ];
+  const choicesByKey = new Map(assessment.choiceRevisions.map((choice) => [choice.choiceKey, choice]));
+  const unitsById = new Map(assessment.unitRevisions.map((unit) => [unit.ref.resourceId, unit]));
+  if (choicesByKey.size !== assessment.choiceRevisions.length || unitsById.size !== assessment.unitRevisions.length) {
+    return unproven('CONFIGURATION_PROOF_CONFLICT');
+  }
+  for (const choice of configuration.choices) {
+    const proven = choicesByKey.get(choice.choiceKey);
+    if (proven === undefined) {
+      return unproven('CONFIGURATION_CHOICE_UNPROVEN');
+    }
+    if (choice.unit === undefined) {
+      if (proven.kind !== 'SINGLE_CHOICE') {
+        return unproven('CONFIGURATION_CHOICE_UNPROVEN');
+      }
+      continue;
+    }
+    const selectedUnit = choice.unit;
+    const ownerUnit = matchingConfigurationUnit(
+      selectedUnit,
+      proven,
+      unitsById.get(selectedUnit.resourceRef.resourceId),
+    );
+    if (ownerUnit === undefined) {
+      return unproven('CONFIGURATION_UNIT_UNPROVEN');
+    }
+    if (!dependencies.some((item) => item.role === 'UNIT' && item.resourceId === ownerUnit.ref.resourceId)) {
+      dependencies.push({
+        componentId,
+        resourceId: ownerUnit.ref.resourceId,
+        resourceType: ownerUnit.ref.resourceType,
+        revision: ownerUnit.revision,
+        role: 'UNIT',
+      });
+    }
+  }
+  return { dependencies, status: 'PROVEN' };
 };
 
 const readComponent = Effect.fn('SetCompositionComponentCurrentBasis.readComponent')(function* readComponent(
@@ -102,6 +198,10 @@ const readComponent = Effect.fn('SetCompositionComponentCurrentBasis.readCompone
   if (current.unit.id !== component.quantity.unitRef.resourceId) {
     return { code: 'COMPONENT_UNIT_MISMATCH', componentId, status: 'INVALID' as const };
   }
+  const configuration = setComponentConfigurationDependencies(componentId, selection, current.configuration);
+  if (configuration.status !== 'PROVEN') {
+    return configuration;
+  }
   const proof: SetComponentCurrentProof = {
     assessedAt,
     attestationId: randomUUID(),
@@ -156,6 +256,7 @@ const readComponent = Effect.fn('SetCompositionComponentCurrentBasis.readCompone
       revision: step.revision,
       role: 'PACKAGE_CONTENT' as const,
     })),
+    ...configuration.dependencies,
   ];
   if (selection.packageOption !== undefined && current.optionRevision !== undefined) {
     dependencies.push({
