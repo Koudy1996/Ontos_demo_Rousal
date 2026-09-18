@@ -77,6 +77,7 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_size_usage_sets',
   'product_type_assignment_events',
   'product_type_assignments',
+  'product_type_untyped_decisions',
   'product_type_revision_attributes',
   'product_type_revisions',
   'product_types',
@@ -2607,6 +2608,57 @@ export const productTypeAssignmentEvents = catalogSchema.table.withRLS(
   ],
 );
 
+/** Append-only owner decisions; absence of a Type or values is never itself an affirmative decision. */
+export const productTypeUntypedDecisions = catalogSchema.table.withRLS(
+  'product_type_untyped_decisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    decisionRevision: integer('decision_revision').notNull(),
+    decisionState: text('decision_state').notNull(),
+    structuredAttributesRequired: boolean('structured_attributes_required').notNull(),
+    variantAxesRequired: boolean('variant_axes_required').notNull(),
+    productRevision: integer('product_revision').notNull(),
+    axisRevision: integer('axis_revision').notNull(),
+    valueRevisionTokens: text('value_revision_tokens').array().notNull(),
+    variantRevisionTokens: text('variant_revision_tokens').array().notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.decisionRevision],
+      name: 'catalog_product_type_untyped_decisions_pk',
+    }),
+    unique('catalog_product_type_untyped_decisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.productId],
+      name: 'catalog_product_type_untyped_decisions_product_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_product_type_untyped_decisions_revision_ck',
+      sql`${table.decisionRevision} > 0 and ${table.productRevision} > 0 and ${table.axisRevision} >= 0`,
+    ),
+    check(
+      'catalog_product_type_untyped_decisions_state_ck',
+      sql`${table.decisionState} in ('CONFIRMED', 'REVOKED')`,
+    ),
+    check(
+      'catalog_product_type_untyped_decisions_confirmed_ck',
+      sql`${table.decisionState} <> 'CONFIRMED' or (not ${table.structuredAttributesRequired} and not ${table.variantAxesRequired})`,
+    ),
+    check(
+      'catalog_product_type_untyped_decisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_type_untyped_decisions_tenant', table.tenantId),
+  ],
+);
+
 export const productCategoryHierarchyRevisions = catalogSchema.table.withRLS(
   'product_category_hierarchy_revisions',
   {
@@ -3671,6 +3723,7 @@ const catalogDatabaseSchema = {
   productSizeUsageSets,
   productTypeAssignmentEvents,
   productTypeAssignments,
+  productTypeUntypedDecisions,
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
