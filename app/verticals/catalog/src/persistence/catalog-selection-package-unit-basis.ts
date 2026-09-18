@@ -63,8 +63,37 @@ interface PackageWalkState {
   readonly next: { readonly id: string; readonly revision: number } | null;
   readonly optionRevision?: number | undefined;
   readonly path: readonly PackageContentStep[];
+  readonly previousContent?: Content;
   readonly visited: ReadonlySet<string>;
 }
+
+const positiveDecimal = (value: string): { readonly coefficient: bigint; readonly scale: number } | null => {
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value)) {
+    return null;
+  }
+  const [whole = '', fraction = ''] = value.split('.');
+  const coefficient = BigInt(`${whole}${fraction}`);
+  return coefficient > 0n ? { coefficient, scale: fraction.length } : null;
+};
+
+const agreesWithLower = (upper: Content, lower: Content): boolean => {
+  const amount = positiveDecimal(upper.amount);
+  const lowerAmount = positiveDecimal(lower.amount);
+  const count = upper.lowerCount === null ? null : positiveDecimal(upper.lowerCount);
+  return (
+    amount !== null &&
+    lowerAmount !== null &&
+    count !== null &&
+    count.scale === 0 &&
+    upper.unitResourceId === lower.unitResourceId &&
+    upper.unitResourceType === lower.unitResourceType &&
+    upper.configurationKey === lower.configurationKey &&
+    upper.setCompositionResourceId === lower.setCompositionResourceId &&
+    upper.setCompositionRevision === lower.setCompositionRevision &&
+    amount.coefficient * 10n ** BigInt(lowerAmount.scale) ===
+      count.coefficient * lowerAmount.coefficient * 10n ** BigInt(amount.scale)
+  );
+};
 
 const fail = (status: Failure['status'], reason: string): Failure => ({ reason, status });
 const missingContentReason = 'Exact Package Content owner proof is missing';
@@ -112,6 +141,15 @@ const assessContent = (
     (content.lowerRevision === null) !== (content.lowerCount === null)
   ) {
     return fail('INDETERMINATE', 'Lower Package Content edge is incomplete');
+  }
+  if (positiveDecimal(content.amount) === null) {
+    return fail('INVALID', 'Package Content amount must be positive and exact');
+  }
+  if ((content.setCompositionResourceId === null) !== (content.setCompositionRevision === null)) {
+    return fail('INDETERMINATE', 'Package Set Composition reference is incomplete');
+  }
+  if (content.lowerRevision !== null && !revisionValid(content.lowerRevision)) {
+    return fail('INDETERMINATE', 'Lower Package Content revision is unusable');
   }
   return undefined;
 };
@@ -198,6 +236,9 @@ const readPackage = (
               failure: contentFailure ?? fail('INDETERMINATE', missingContentReason),
             };
           }
+          if (state.previousContent !== undefined && !agreesWithLower(state.previousContent, content)) {
+            return { ...state, failure: fail('INVALID', 'Higher Package Content disagrees with its lower revision') };
+          }
           let { optionRevision } = state;
           if (state.path.length === 0) {
             const [role] = yield* transaction
@@ -237,6 +278,7 @@ const readPackage = (
             next: lower,
             optionRevision,
             path: [...state.path, step],
+            previousContent: content,
             visited: new Set([...state.visited, next.id]),
           };
         }),

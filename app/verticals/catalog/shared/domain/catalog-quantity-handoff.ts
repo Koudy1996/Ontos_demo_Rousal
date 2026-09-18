@@ -39,6 +39,33 @@ const sameRef = (left: CatalogResourceRef, right: CatalogResourceRef): boolean =
   left.resourceId === right.resourceId &&
   left.tenantId === right.tenantId;
 
+const positiveDecimal = (value: string): { readonly coefficient: bigint; readonly scale: number } | null => {
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/u.test(value)) {
+    return null;
+  }
+  const [whole = '', fraction = ''] = value.split('.');
+  const coefficient = BigInt(`${whole}${fraction}`);
+  return coefficient > 0n ? { coefficient, scale: fraction.length } : null;
+};
+
+const matchesConvertedAmount = (
+  quantity: Extract<QuantityNormalization, { status: 'VALID' }>,
+  content: Extract<PackageResolution, { status: 'VALID' }>,
+  revision: PackageContentRevision,
+): boolean => {
+  const count = positiveDecimal(quantity.resulting);
+  const perPackage = positiveDecimal(revision.amount);
+  const total = positiveDecimal(content.amount);
+  return (
+    count !== null &&
+    count.scale === 0 &&
+    perPackage !== null &&
+    total !== null &&
+    count.coefficient * perPackage.coefficient * 10n ** BigInt(total.scale) ===
+      total.coefficient * 10n ** BigInt(perPackage.scale)
+  );
+};
+
 const matchesPackageSubject = (
   selection: CatalogSelection,
   content: Extract<PackageResolution, { status: 'VALID' }>,
@@ -132,6 +159,14 @@ export const prepareCatalogQuantityHandoff = (input: HandoffInput): CatalogQuant
   const failure = packageFailure(input);
   if (failure !== null) {
     return failure;
+  }
+  if (
+    input.selection.packageOption !== undefined &&
+    input.packageContent?.status === 'VALID' &&
+    input.packageRevision !== undefined &&
+    !matchesConvertedAmount(input.quantity, input.packageContent, input.packageRevision)
+  ) {
+    return { reason: 'Package content does not equal the prepared number of exact packages', status: 'STALE' };
   }
   const ready: Extract<CatalogQuantityHandoff, { status: 'READY' }> = {
     divisible: input.divisible,

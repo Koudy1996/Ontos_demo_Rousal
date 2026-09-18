@@ -171,4 +171,26 @@ describe('Catalog Selection package and Unit owner basis', () => {
       expect(cycle.status).toBe('INDETERMINATE');
     }),
   );
+
+  it.effect('rejects missing or contradictory exact content without turning it into purchase quantity', () =>
+    Effect.gen(function* checksContent() {
+      expect((yield* read(new Map([[packageContentRevisions, { ...content, amount: '0' }]]))).status).toBe('INVALID');
+      const top = { ...content, lowerCount: '2', lowerPackageDefinitionId: lowerPackageId, lowerRevision: 2 };
+      const definition = rows.get(packageDefinitions);
+      const mismatched = yield* read(
+        new Map<unknown, unknown>([
+          [packageDefinitions, [definition, definition]],
+          [packageContentRevisions, [top, { ...content, amount: '8' }]],
+        ]),
+      );
+      expect(mismatched.status).toBe('INVALID');
+      const unknown = yield* read(
+        new Map<unknown, unknown>([
+          [packageDefinitions, [definition, definition]],
+          [packageContentRevisions, [top, null]],
+        ]),
+      );
+      expect(unknown.status).toBe('INDETERMINATE');
+    }),
+  );
 });

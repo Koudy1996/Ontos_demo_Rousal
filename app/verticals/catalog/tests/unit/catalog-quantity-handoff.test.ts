@@ -127,6 +127,21 @@ describe('Catalog quantity handoff', () => {
     ).toBe('INVALID');
   });
 
+  it('ties converted content to prepared package count without replacing the purchase-line quantity', () => {
+    expect(prepareCatalogQuantityHandoff(input()).status).toBe('READY');
+    expect(prepareCatalogQuantityHandoff({ ...input(), packageContent: { ...content, amount: '16' } }).status).toBe(
+      'STALE',
+    );
+    expect(prepareCatalogQuantityHandoff({ ...input(), quantity: { ...quantity, resulting: '2.5' } }).status).toBe(
+      'STALE',
+    );
+    const ready = prepareCatalogQuantityHandoff(input());
+    if (ready.status === 'READY') {
+      expect(ready.quantity.resulting).toBe('2');
+      expect(ready.packageContent?.amount).toBe('20');
+    }
+  });
+
   it('rejects a different content Unit and Set composition', () => {
     const otherUnit = Schema.decodeUnknownSync(CatalogResourceRefSchema)(
       ref('commerce.catalog.unit', '66666666-6666-4666-8666-666666666666'),
