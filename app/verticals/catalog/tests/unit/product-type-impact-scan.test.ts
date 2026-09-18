@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Schema } from 'effect';
+import { Effect, Schema } from 'effect';
+
+import type { productTypeAssignments } from '../../src/database/schema.ts';
+import { productTypeRevisions, productTypes } from '../../src/database/schema.ts';
 
 import {
   ProductTypeImpactScanIncomplete,
   productTypeImpactRevisionToken,
+  productTypeImpactScanForScope,
+  verifyProductTypeValueSetBasis,
 } from '../../src/persistence/product-type-impact-scan.ts';
 
 const basis = {
@@ -35,6 +40,24 @@ const basis = {
   sourceRevisionId: 'r4',
   tenantId: 'tenant-1',
 };
+
+type ImpactTable = typeof productTypes | typeof productTypeRevisions | typeof productTypeAssignments;
+const mockRows = (table: ImpactTable) => {
+  if (table === productTypes) {
+    return [{ revision: 1 }];
+  }
+  if (table === productTypeRevisions) {
+    return [{ id: 'revision-1' }];
+  }
+  return [];
+};
+const mockFrom = (table: ImpactTable) => ({
+  where: () => {
+    const effect = Effect.succeed(mockRows(table));
+    return Object.assign(effect, { for: () => ({ limit: () => effect }), limit: () => effect });
+  },
+});
+const emptyPopulationTransaction = { select: () => ({ from: mockFrom }) };
 
 describe('Product Type impact scan basis', () => {
   it('binds direct Product, Variant, and open selection revisions deterministically', () => {
@@ -76,4 +99,50 @@ describe('Product Type impact scan basis', () => {
     });
     expect(Schema.is(ProductTypeImpactScanIncomplete)(failure)).toBe(true);
   });
+
+  it('accepts only a complete exact owner value-set basis', () => {
+    const set = {
+      attributeDefinitionId: 'capacity',
+      attributeValueSetId: 'set-1',
+      currentRevision: 2,
+      currentState: 'SET',
+      productId: 'p1',
+      tenantId: 'tenant-1',
+      variantId: null,
+    };
+    const entry = {
+      attributeDefinitionId: 'capacity',
+      attributeValueSetId: 'set-1',
+      currentState: 'SET' as const,
+      definitionRevision: 3,
+      productId: 'p1',
+      revision: 2,
+      sourceRevisionToken: 'definition-3:value-2',
+      valid: true,
+      variantId: null,
+    };
+    const proof = { complete: true, entries: [entry], tenantId: 'tenant-1' };
+    expect(verifyProductTypeValueSetBasis([set], proof, 'tenant-1')?.validity.get('set-1')).toBe(true);
+    expect(verifyProductTypeValueSetBasis([set], { ...proof, complete: false }, 'tenant-1')).toBeNull();
+    expect(verifyProductTypeValueSetBasis([set], { ...proof, entries: [] }, 'tenant-1')).toBeNull();
+    expect(
+      verifyProductTypeValueSetBasis([set], { ...proof, entries: [{ ...entry, currentState: 'REMOVED' }] }, 'tenant-1'),
+    ).toBeNull();
+    expect(
+      verifyProductTypeValueSetBasis([set], { ...proof, entries: [{ ...entry, definitionRevision: 0 }] }, 'tenant-1'),
+    ).toBeNull();
+  });
+
+  it.effect('obtains an empty complete value inventory from the owner reader in the same transaction', () =>
+    Effect.gen(function* emptyPopulation() {
+      const scope = { tenantId: 'tenant-1' };
+      // @ts-expect-error The mock provides only the queried scoped transaction methods.
+      const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope, {
+        openSelections: { complete: true, refs: [], revisionToken: 'selection-empty-1' },
+      });
+      const result = yield* scan.scan({ candidateRules: [], expectedCurrentRevision: 1, productTypeId: 'type-1' });
+      expect(result.preview).toEqual({ affectedProductIds: [], requiresExplicitRemediation: false, subjects: [] });
+      expect(result.token).toMatch(/^[0-9a-f]{64}$/u);
+    }),
+  );
 });

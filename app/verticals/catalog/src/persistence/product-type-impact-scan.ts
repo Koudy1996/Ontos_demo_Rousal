@@ -5,6 +5,8 @@ import { Effect, Schema } from 'effect';
 
 import type { ProductTypeImpactRule } from '../../shared/domain/product-type-impact.ts';
 import { previewProductTypeImpact } from '../../shared/domain/product-type-impact.ts';
+import type { AttributeValueSetValidityBasis } from './effective-attribute-value-reads.ts';
+import { effectiveAttributeValueReadsForScope } from './effective-attribute-value-reads.ts';
 import {
   attributeValueSets,
   productTypeAssignments,
@@ -28,21 +30,6 @@ interface OpenSelectionBasis {
   readonly complete: true;
   readonly refs: readonly { readonly productId: string; readonly selectionId: string; readonly variantId: string }[];
   readonly revisionToken: string;
-}
-
-interface ValueSetValidityBasis {
-  /** Complete #402 owner-side assessment from this transaction, not a request assertion. */
-  readonly complete: true;
-  readonly entries: readonly {
-    readonly attributeDefinitionId: string;
-    readonly attributeValueSetId: string;
-    readonly productId: string;
-    readonly revision: number;
-    readonly sourceRevisionToken: string;
-    readonly valid: boolean;
-    readonly variantId: string | null;
-  }[];
-  readonly tenantId: string;
 }
 
 interface ProductTypeImpactEvidence {
@@ -104,9 +91,20 @@ const variantValuesFor = (
   return values;
 };
 
-const verifiedValidityFor = (
-  sets: readonly (typeof attributeValueSets.$inferSelect)[],
-  basis: ValueSetValidityBasis,
+type ValueSetIdentity = Pick<
+  typeof attributeValueSets.$inferSelect,
+  | 'attributeValueSetId'
+  | 'tenantId'
+  | 'productId'
+  | 'variantId'
+  | 'attributeDefinitionId'
+  | 'currentRevision'
+  | 'currentState'
+>;
+
+export const verifyProductTypeValueSetBasis = (
+  sets: readonly ValueSetIdentity[],
+  basis: AttributeValueSetValidityBasis,
   tenantId: string,
 ) => {
   const entries = new Map(basis.entries.map((entry) => [entry.attributeValueSetId, entry]));
@@ -125,6 +123,9 @@ const verifiedValidityFor = (
         entry.variantId !== set.variantId ||
         entry.attributeDefinitionId !== set.attributeDefinitionId ||
         entry.revision !== set.currentRevision ||
+        entry.currentState !== set.currentState ||
+        !Number.isSafeInteger(entry.definitionRevision) ||
+        entry.definitionRevision < 1 ||
         entry.sourceRevisionToken.length === 0
       );
     })
@@ -315,7 +316,6 @@ export const productTypeImpactScanForScope = (
   authoritativeBasis: {
     /** Must be read inside this same Core-owned transaction; absent until #479 provides a reader. */
     readonly openSelections?: OpenSelectionBasis;
-    readonly valueSetValidity?: ValueSetValidityBasis;
   } = {},
 ) => ({
   scan: Effect.fn('ProductTypeImpactScan.scan')(function* scan(input: {
@@ -323,8 +323,8 @@ export const productTypeImpactScanForScope = (
     readonly expectedCurrentRevision: number;
     readonly productTypeId: string;
   }) {
-    if (authoritativeBasis.openSelections === undefined || authoritativeBasis.valueSetValidity === undefined) {
-      return yield* incomplete('Authoritative value and open-selection readers are required');
+    if (authoritativeBasis.openSelections === undefined) {
+      return yield* incomplete('Authoritative open-selection reader is required');
     }
     const { tenantId } = scope;
     const [type] = yield* transaction
@@ -398,7 +398,9 @@ export const productTypeImpactScanForScope = (
             .from(attributeValueSets)
             .where(and(eq(attributeValueSets.tenantId, tenantId), inArray(attributeValueSets.productId, ids)))
             .pipe(Effect.mapError(unavailable));
-    const verifiedValidity = verifiedValidityFor(sets, authoritativeBasis.valueSetValidity, tenantId);
+    const valueReads = yield* effectiveAttributeValueReadsForScope(transaction, scope);
+    const valueBasis = yield* valueReads.readProductTypeValidity(ids);
+    const verifiedValidity = verifyProductTypeValueSetBasis(sets, valueBasis, tenantId);
     if (verifiedValidity === null) {
       return yield* incomplete('Current Attribute Value validity evidence is incomplete or foreign');
     }
