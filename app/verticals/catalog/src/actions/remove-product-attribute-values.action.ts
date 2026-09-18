@@ -2,7 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug remove-product-attribute-values
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 
 import {
@@ -86,7 +87,32 @@ export const removeProductAttributeValuesAction = defineAction(
     schemaVersion: '1',
   },
   handleRemoveProductAttributeValues,
-  attributeValuesPersistenceForScope,
+  (transaction, scope) =>
+    attributeValuesPersistenceForScope(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof RemoveProductAttributeValuesResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.remove-product-attribute-values', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RemoveProductAttributeValuesResultSchema),
+              encode: Schema.encodeEffect(RemoveProductAttributeValuesResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

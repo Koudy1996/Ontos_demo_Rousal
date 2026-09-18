@@ -2,7 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug remove-variant-attribute-override
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 
 import {
@@ -86,7 +87,32 @@ export const removeVariantAttributeOverrideAction = defineAction(
     schemaVersion: '1',
   },
   handleRemoveVariantAttributeOverride,
-  attributeValuesPersistenceForScope,
+  (transaction, scope) =>
+    attributeValuesPersistenceForScope(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof RemoveVariantAttributeOverrideResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.remove-variant-attribute-override', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RemoveVariantAttributeOverrideResultSchema),
+              encode: Schema.encodeEffect(RemoveVariantAttributeOverrideResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

@@ -2,7 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug create-controlled-attribute-value
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { DateTime, Effect, Schema } from 'effect';
 
 import {
@@ -119,7 +120,32 @@ export const createControlledAttributeValueAction = defineAction(
     schemaVersion: '1',
   },
   handleCreateControlledAttributeValue,
-  attributePersistenceForScope,
+  (transaction, scope) =>
+    attributePersistenceForScope(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof CreateControlledAttributeValueResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.create-controlled-attribute-value', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(CreateControlledAttributeValueResultSchema),
+              encode: Schema.encodeEffect(CreateControlledAttributeValueResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

@@ -2,7 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug rename-controlled-attribute-value
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { DateTime, Effect, Schema } from 'effect';
 
 import {
@@ -108,7 +109,32 @@ export const renameControlledAttributeValueAction = defineAction(
     schemaVersion: '1',
   },
   handleRenameControlledAttributeValue,
-  attributePersistenceForScope,
+  (transaction, scope) =>
+    attributePersistenceForScope(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof RenameControlledAttributeValueResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.rename-controlled-attribute-value', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RenameControlledAttributeValueResultSchema),
+              encode: Schema.encodeEffect(RenameControlledAttributeValueResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
