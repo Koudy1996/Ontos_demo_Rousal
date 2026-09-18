@@ -4,7 +4,11 @@ import type { CatalogFactAdmission, CatalogFactScope } from './catalog-source-re
 
 const boundedText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
 const positiveDecimal = Schema.String.check(Schema.isPattern(/^(?:0|[1-9]\d*)(?:\.\d+)?$/u), Schema.isMaxLength(100));
-const MeasurementSchema = Schema.Struct({ amount: positiveDecimal, unitId: Schema.String.check(Schema.isUUID()) });
+const checkedUuid = Schema.String.check(Schema.isUUID());
+const CatalogSourceUnitIdSchema = checkedUuid.pipe(Schema.brand('CatalogSourceUnitId'), Schema.decodeTo(checkedUuid));
+const MeasurementSchema = Schema.Struct({ amount: positiveDecimal, unitId: CatalogSourceUnitIdSchema });
+export const CatalogSourceFactValueSchema = Schema.Union([boundedText, MeasurementSchema]);
+export type CatalogSourceFactValue = typeof CatalogSourceFactValueSchema.Type;
 
 export const CatalogAdmittedSourceFactKeySchema = Schema.Literals([
   'catalog.name',
@@ -78,7 +82,7 @@ export const catalogFactAdmissionForScope = (scope: CatalogFactScope): CatalogFa
     (definition) => definition.factKey === scope.factKey && definition.targetKinds.includes(scope.targetKind),
   ) ?? null;
 
-export const isCatalogSourceFactValueValid = (scope: CatalogFactScope, value: unknown): boolean => {
+export const isCatalogSourceFactValueValid = (scope: CatalogFactScope, value: CatalogSourceFactValue): boolean => {
   const definition = catalogFactAdmissionForScope(scope);
   return definition !== null && Schema.is(definition.valueSchema)(value);
 };

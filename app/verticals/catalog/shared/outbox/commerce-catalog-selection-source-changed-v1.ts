@@ -3,6 +3,14 @@
 // @ontos-outbox-topic commerce.catalog.selection-source-changed.v1
 import { Schema } from 'effect';
 
+import {
+  CatalogSourceAssertionIdSchema,
+  CatalogSourceFactKeySchema,
+  CatalogSourceIssuerSystemIdSchema,
+  CatalogSourceRecordIdSchema,
+  CatalogSourceTargetIdSchema,
+  CatalogSourceTargetKindSchema,
+} from '../actions/catalog-source-resolution.ts';
 import { CatalogSelectionRevisionSchema } from '../domain/catalog-selection-evidence.ts';
 import { ProductActionInvocationIdSchema } from '../domain/product.ts';
 import { ProductRefSchema } from '../resources/product.ts';
@@ -61,13 +69,13 @@ const CatalogFactSourceChangedPayloadSchema = Schema.Struct({
     'LOCAL_OVERRIDE_CHANGED',
     'LOCAL_OVERRIDE_RELEASED',
   ]),
-  factKey: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200), Schema.isTrimmed()),
+  factKey: CatalogSourceFactKeySchema,
   source: Schema.Union([
     Schema.Struct({
-      assertionId: checkedUuid,
-      issuerSystemId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
+      assertionId: CatalogSourceAssertionIdSchema,
+      issuerSystemId: CatalogSourceIssuerSystemIdSchema,
       kind: Schema.Literal('ACCEPTED_BASE'),
-      sourceRecordId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
+      sourceRecordId: CatalogSourceRecordIdSchema,
       sourceRevision: Schema.String.check(Schema.isPattern(/^\d+$/u)),
     }),
     Schema.Struct({
@@ -77,8 +85,8 @@ const CatalogFactSourceChangedPayloadSchema = Schema.Struct({
     }),
   ]),
   sourceKind: Schema.Literal('CATALOG_FACT'),
-  targetId: checkedUuid,
-  targetKind: Schema.Literals(['PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION']),
+  targetId: CatalogSourceTargetIdSchema,
+  targetKind: CatalogSourceTargetKindSchema,
   tenantId: TenantIdSchema,
 });
 

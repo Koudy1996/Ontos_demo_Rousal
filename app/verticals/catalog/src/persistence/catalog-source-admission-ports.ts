@@ -1,16 +1,18 @@
-import { Effect, Option } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 
-import { catalogFactAdmissionForScope, isCatalogSourceFactValueValid } from '../domain/catalog-source-admission.ts';
 import {
-  catalogLocalOverridePermission,
-  type CatalogLocalOverrideOperation,
-} from '../domain/catalog-local-override.ts';
+  CatalogSourceFactValueSchema,
+  catalogFactAdmissionForScope,
+  isCatalogSourceFactValueValid,
+} from '../domain/catalog-source-admission.ts';
+import { catalogLocalOverridePermission } from '../domain/catalog-local-override.ts';
+import type { CatalogLocalOverrideOperation } from '../domain/catalog-local-override.ts';
 import type { CatalogFactAdmissionPorts } from './catalog-source-resolution-ports.ts';
 
 export const catalogSourceAdmissionPorts = (input: {
   readonly allowedOverrideOperation: CatalogLocalOverrideOperation | null;
   readonly principalId: string;
-}): CatalogFactAdmissionPorts<unknown> => ({
+}): CatalogFactAdmissionPorts<Schema.Json> => ({
   authorizeOverrideOperation: ({ operation, permissionKey, principalId, scope }) =>
     Effect.succeed(
       input.allowedOverrideOperation === operation &&
@@ -19,8 +21,14 @@ export const catalogSourceAdmissionPorts = (input: {
         catalogFactAdmissionForScope(scope)?.admission.overridePermitted === true,
     ),
   isAssertionValueValid: ({ assertion, scope }) =>
-    Effect.succeed(isCatalogSourceFactValueValid(scope, assertion.value)),
+    Effect.succeed(
+      Schema.is(CatalogSourceFactValueSchema)(assertion.value) && isCatalogSourceFactValueValid(scope, assertion.value),
+    ),
   isOverrideValueValid: ({ principalId, scope, value }) =>
-    Effect.succeed(input.principalId === principalId && isCatalogSourceFactValueValid(scope, value)),
+    Effect.succeed(
+      input.principalId === principalId &&
+        Schema.is(CatalogSourceFactValueSchema)(value) &&
+        isCatalogSourceFactValueValid(scope, value),
+    ),
   readAdmission: (scope) => Effect.succeed(Option.fromNullishOr(catalogFactAdmissionForScope(scope)?.admission)),
 });

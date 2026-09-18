@@ -11,21 +11,50 @@ const boundedText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLengt
 const sourceRevision = Schema.BigIntFromString.check(Schema.isGreaterThanOrEqualToBigInt(0n));
 const overrideRevision = Schema.BigIntFromString.check(Schema.isGreaterThanOrEqualToBigInt(1n));
 
+export const CatalogSourceFactKeySchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(200),
+  Schema.isTrimmed(),
+).pipe(Schema.brand('CatalogSourceFactKey'), Schema.decodeTo(Schema.String));
+export const CatalogSourceTargetIdSchema = checkedUuid.pipe(
+  Schema.brand('CatalogSourceTargetId'),
+  Schema.decodeTo(checkedUuid),
+);
+export const CatalogSourceTargetKindSchema = Schema.Literals(['PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION']);
+export const CatalogSourceTenantIdSchema = checkedUuid.pipe(
+  Schema.brand('CatalogSourceTenantId'),
+  Schema.decodeTo(checkedUuid),
+);
+export const CatalogSourceAssertionIdSchema = checkedUuid.pipe(
+  Schema.brand('CatalogSourceAssertionId'),
+  Schema.decodeTo(checkedUuid),
+);
+export const CatalogSourceIssuerSystemIdSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(300),
+  Schema.isTrimmed(),
+).pipe(Schema.brand('CatalogSourceIssuerSystemId'), Schema.decodeTo(Schema.String));
+export const CatalogSourceRecordIdSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(300),
+  Schema.isTrimmed(),
+).pipe(Schema.brand('CatalogSourceRecordId'), Schema.decodeTo(Schema.String));
+
 export const CatalogSourceFactScopeSchema = Schema.Struct({
-  factKey: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200), Schema.isTrimmed()),
-  targetId: checkedUuid,
-  targetKind: Schema.Literals(['PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION']),
-  tenantId: checkedUuid,
+  factKey: CatalogSourceFactKeySchema,
+  targetId: CatalogSourceTargetIdSchema,
+  targetKind: CatalogSourceTargetKindSchema,
+  tenantId: CatalogSourceTenantIdSchema,
 });
 
 export const CatalogSourceAssertionSchema = Schema.Struct({
-  assertionId: checkedUuid,
+  assertionId: CatalogSourceAssertionIdSchema,
   effectiveFrom: Schema.DateFromString,
   effectiveTo: Schema.optionalKey(Schema.DateFromString),
   evidencedAt: Schema.DateFromString,
-  issuerSystemId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
+  issuerSystemId: CatalogSourceIssuerSystemIdSchema,
   scope: CatalogSourceFactScopeSchema,
-  sourceRecordId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
+  sourceRecordId: CatalogSourceRecordIdSchema,
   sourceRevision,
   value: Schema.Json,
   valueFingerprint: Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/u)),
@@ -35,7 +64,7 @@ const CatalogImportDeliveredItemSchema = Schema.Struct({
   assertion: CatalogSourceAssertionSchema,
   captureConfirmed: Schema.Boolean,
   classification: Schema.optionalKey(ProductChangeClassificationSchema),
-  recordMeaning: Schema.Literals(['PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION']),
+  recordMeaning: CatalogSourceTargetKindSchema,
   sourceRecord: CatalogExternalSourceRecordRefSchema,
 }).check(
   Schema.makeFilter(({ assertion, sourceRecord }) =>
@@ -53,7 +82,7 @@ export const ImportSourceAssertionPayloadSchema = Schema.Struct({
 export type ImportSourceAssertionPayload = typeof ImportSourceAssertionPayloadSchema.Type;
 
 const ImportAcceptedSchema = Schema.Struct({
-  assertionId: checkedUuid,
+  assertionId: CatalogSourceAssertionIdSchema,
   classification: Schema.optionalKey(CosmeticProductCorrectionSchema),
   resolvedCurrentChanged: Schema.Boolean,
   sourceRevision,

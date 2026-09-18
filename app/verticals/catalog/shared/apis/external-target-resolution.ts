@@ -3,6 +3,7 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import {
+  CatalogExternalDeterministicRuleSchema,
   CatalogExternalTargetRequestSchema,
   CatalogExternalTargetKindSchema,
 } from '../domain/external-target-resolution.ts';
@@ -26,7 +27,7 @@ export const ExternalTargetResolutionResponseSchema = Schema.Union([
   Schema.Struct({
     ...ResolvedTargetBaseSchema,
     capture: Schema.Literal('REQUIRED_BEFORE_ACCEPTANCE'),
-    ruleId: Schema.String,
+    ruleId: CatalogExternalDeterministicRuleSchema.fields.ruleId.pipe(Schema.decodeTo(Schema.String)),
     source: Schema.Literal('PRE_APPROVED_RULE'),
   }),
   Schema.Struct({

@@ -1,7 +1,8 @@
 import { Effect, Option } from 'effect';
 
 import { catalogFactAdmissionForScope } from '../domain/catalog-source-admission.ts';
-import { resolveCatalogSourceAuthority, type CatalogSourceAuthorityGrant } from '../domain/catalog-source-authority.ts';
+import { resolveCatalogSourceAuthority } from '../domain/catalog-source-authority.ts';
+import type { CatalogSourceAuthorityGrant } from '../domain/catalog-source-authority.ts';
 import type { CatalogSourceAuthorityPorts } from './catalog-source-resolution-ports.ts';
 
 /**

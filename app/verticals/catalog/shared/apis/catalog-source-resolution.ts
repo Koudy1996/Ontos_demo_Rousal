@@ -2,15 +2,20 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { CatalogSourceFactScopeSchema } from '../actions/catalog-source-resolution.ts';
+import {
+  CatalogSourceAssertionIdSchema,
+  CatalogSourceFactScopeSchema,
+  CatalogSourceIssuerSystemIdSchema,
+  CatalogSourceRecordIdSchema,
+} from '../actions/catalog-source-resolution.ts';
 
 export const CatalogSourceResolutionRequestSchema = Schema.Struct({ scope: CatalogSourceFactScopeSchema });
 export type CatalogSourceResolutionRequest = typeof CatalogSourceResolutionRequestSchema.Type;
 const AcceptedBaseReferenceSchema = Schema.Struct({
-  assertionId: Schema.String.check(Schema.isUUID()),
-  issuerSystemId: Schema.String,
+  assertionId: CatalogSourceAssertionIdSchema,
+  issuerSystemId: CatalogSourceIssuerSystemIdSchema,
   kind: Schema.Literal('ACCEPTED_BASE'),
-  sourceRecordId: Schema.String,
+  sourceRecordId: CatalogSourceRecordIdSchema,
   sourceRevision: Schema.BigIntFromString,
 });
 const OverrideReferenceSchema = Schema.Struct({
