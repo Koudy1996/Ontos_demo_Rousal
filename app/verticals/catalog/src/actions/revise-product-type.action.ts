@@ -2,11 +2,12 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug revise-product-type
 import { Effect, Schema } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import {
   ReviseProductTypePayloadSchema,
   ReviseProductTypeResultSchema,
 } from '../../shared/actions/revise-product-type.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 
 export {
   ReviseProductTypePayloadSchema,
@@ -63,6 +64,29 @@ export const reviseProductTypeAction = defineAction(
     schemaVersion: '1',
   },
   handleReviseProductType,
+  (transaction, scope) =>
+    Effect.succeed({
+      captureResult: (actionInvocationId: string, result: typeof ReviseProductTypeResultSchema.Type) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey: 'commerce.catalog.revise-product-type', schemaVersion: 1 },
+          {
+            decode: Schema.decodeUnknownEffect(ReviseProductTypeResultSchema),
+            encode: Schema.encodeEffect(ReviseProductTypeResultSchema),
+          },
+          result,
+        ).pipe(
+          Effect.mapError(
+            () =>
+              new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              }),
+          ),
+        ),
+    }),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
