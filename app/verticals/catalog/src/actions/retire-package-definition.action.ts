@@ -46,13 +46,15 @@ export const handleRetirePackageDefinition = Effect.fn('RetirePackageDefinitionA
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.retire-package-definition' as const;
+
 export const retirePackageDefinitionAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.retire-package-definition.access.v1',
     },
-    actionKey: 'commerce.catalog.retire-package-definition',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: PackageDefinitionAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: PackageDefinitionActionErrorSchema,
@@ -60,7 +62,7 @@ export const retirePackageDefinitionAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.retire-package-definition',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -75,28 +77,38 @@ export const retirePackageDefinitionAction = defineAction(
   handleRetirePackageDefinition,
   (transaction, scope) =>
     packageDefinitionPersistenceServiceFactory(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof RetirePackageDefinitionResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.retire-package-definition', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(RetirePackageDefinitionResultSchema),
-              encode: Schema.encodeEffect(RetirePackageDefinitionResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
+      Effect.map(
+        (
+          services,
+        ): PackagePersistence & {
+          captureResult: (
+            actionInvocationId: string,
+            result: typeof RetirePackageDefinitionResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (actionInvocationId: string, result: typeof RetirePackageDefinitionResultSchema.Type) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+              {
+                decode: Schema.decodeUnknownEffect(RetirePackageDefinitionResultSchema),
+                encode: Schema.encodeEffect(RetirePackageDefinitionResultSchema),
+              },
+              result,
+            ).pipe(
+              Effect.mapError((cause) => {
+                const failure = new ActionTransactionError({
                   code: 'action_transaction_failed',
                   reason: 'Catalog result capture failed',
-                }),
+                });
+                Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+                return failure;
+              }),
             ),
-          ),
-      })),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );

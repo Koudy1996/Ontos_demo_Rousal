@@ -28,20 +28,22 @@ type ActivatePackageOptionServices = PackageOptionPersistence & {
   ) => Effect.Effect<void, ActionTransactionError>;
 };
 
+const ACTION_KEY = 'commerce.catalog.activate-package-option' as const;
+
 export const activatePackageOptionAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.activate-package-option.access.v1',
     },
-    actionKey: 'commerce.catalog.activate-package-option',
+    actionKey: ACTION_KEY,
     auditProfile: 'standard',
     domainErrorSchema: PackageOptionActionErrorSchema,
     domainEvents: {},
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.activate-package-option',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -59,26 +61,27 @@ export const activatePackageOptionAction = defineAction(
   ) => runPackageOptionTransition('ACTIVATE', payload, context),
   (transaction, scope) =>
     packageOptionActionPersistenceServiceFactory(transaction, scope).pipe(
-      Effect.map((services) => ({
+      Effect.map((services): ActivatePackageOptionServices => ({
         ...services,
         captureResult: (actionInvocationId: string, result: typeof ActivatePackageOptionResultSchema.Type) =>
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.activate-package-option', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(ActivatePackageOptionResultSchema),
               encode: Schema.encodeEffect(ActivatePackageOptionResultSchema),
             },
             result,
           ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
-            ),
+            Effect.mapError((cause) => {
+              const failure = new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              });
+              Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+              return failure;
+            }),
           ),
       })),
     ),

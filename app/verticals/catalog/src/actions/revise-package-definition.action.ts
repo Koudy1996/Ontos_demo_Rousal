@@ -56,13 +56,15 @@ export const handleRevisePackageDefinition = Effect.fn('RevisePackageDefinitionA
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.revise-package-definition' as const;
+
 export const revisePackageDefinitionAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.revise-package-definition.access.v1',
     },
-    actionKey: 'commerce.catalog.revise-package-definition',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: PackageDefinitionAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: PackageDefinitionActionErrorSchema,
@@ -70,7 +72,7 @@ export const revisePackageDefinitionAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.revise-package-definition',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -85,28 +87,38 @@ export const revisePackageDefinitionAction = defineAction(
   handleRevisePackageDefinition,
   (transaction, scope) =>
     packageDefinitionPersistenceServiceFactory(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof RevisePackageDefinitionResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.revise-package-definition', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(RevisePackageDefinitionResultSchema),
-              encode: Schema.encodeEffect(RevisePackageDefinitionResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
+      Effect.map(
+        (
+          services,
+        ): PackagePersistence & {
+          captureResult: (
+            actionInvocationId: string,
+            result: typeof RevisePackageDefinitionResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (actionInvocationId: string, result: typeof RevisePackageDefinitionResultSchema.Type) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+              {
+                decode: Schema.decodeUnknownEffect(RevisePackageDefinitionResultSchema),
+                encode: Schema.encodeEffect(RevisePackageDefinitionResultSchema),
+              },
+              result,
+            ).pipe(
+              Effect.mapError((cause) => {
+                const failure = new ActionTransactionError({
                   code: 'action_transaction_failed',
                   reason: 'Catalog result capture failed',
-                }),
+                });
+                Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+                return failure;
+              }),
             ),
-          ),
-      })),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
