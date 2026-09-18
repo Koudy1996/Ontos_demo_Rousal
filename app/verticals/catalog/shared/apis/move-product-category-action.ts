@@ -82,7 +82,7 @@ export const MoveProductCategoryActionAlreadyCommittedProblemSchema = makeProble
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_MOVE_PRODUCT_CATEGORY'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -91,7 +91,7 @@ export const MoveProductCategoryActionCommitIndeterminateProblemSchema = makePro
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_MOVE_PRODUCT_CATEGORY'),
     retryCommand: Schema.Literal(false),
   },
 );

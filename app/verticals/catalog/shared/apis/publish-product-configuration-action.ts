@@ -81,7 +81,7 @@ export const PublishProductConfigurationActionAlreadyCommittedProblemSchema = ma
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_PUBLISH_PRODUCT_CONFIGURATION'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -90,7 +90,7 @@ export const PublishProductConfigurationActionCommitIndeterminateProblemSchema =
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_PUBLISH_PRODUCT_CONFIGURATION'),
     retryCommand: Schema.Literal(false),
   },
 );

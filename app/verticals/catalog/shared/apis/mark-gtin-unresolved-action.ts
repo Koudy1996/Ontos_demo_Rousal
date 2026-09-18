@@ -79,7 +79,7 @@ export const MarkGtinUnresolvedActionAlreadyCommittedProblemSchema = makeProblem
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_MARK_GTIN_UNRESOLVED'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -88,7 +88,7 @@ export const MarkGtinUnresolvedActionCommitIndeterminateProblemSchema = makeProb
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_MARK_GTIN_UNRESOLVED'),
     retryCommand: Schema.Literal(false),
   },
 );
