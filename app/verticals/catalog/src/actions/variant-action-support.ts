@@ -17,7 +17,7 @@ export const variantPersistenceForScope = (...args: Parameters<typeof makeVarian
 
 export class VariantActionConflict extends Schema.TaggedError<VariantActionConflict>()('VariantActionConflict', {
   code: Schema.Literal('variant_action_conflict'),
-  conflict: Schema.Literals(['REVISION', 'LIFECYCLE', 'IDENTITY', 'INVALID_CHANGE']),
+  conflict: Schema.Literals(['REVISION', 'LIFECYCLE', 'IDENTITY', 'INVALID_CHANGE', 'SELECTION_REVALIDATION']),
   reason: Schema.String,
 }) {}
 
@@ -43,18 +43,32 @@ export const checkVariantTenant = (tenantId: string, variantRef: VariantRef) =>
       );
 
 export const conflictForOutcome = (
-  tag: 'revision_conflict' | 'lifecycle_conflict' | 'identity_conflict' | 'invalid_change',
+  tag:
+    | 'revision_conflict'
+    | 'lifecycle_conflict'
+    | 'identity_conflict'
+    | 'invalid_change'
+    | 'selection_revalidation_required',
 ) => {
+  const stateReason = 'Variant cannot be changed from its current state';
   const codes = {
     identity_conflict: 'IDENTITY',
     invalid_change: 'INVALID_CHANGE',
     lifecycle_conflict: 'LIFECYCLE',
     revision_conflict: 'REVISION',
+    selection_revalidation_required: 'SELECTION_REVALIDATION',
+  } as const;
+  const reasons = {
+    identity_conflict: stateReason,
+    invalid_change: stateReason,
+    lifecycle_conflict: stateReason,
+    revision_conflict: stateReason,
+    selection_revalidation_required: 'Open Cart selections must be reselected before reactivation',
   } as const;
   return new VariantActionConflict({
     code: 'variant_action_conflict',
     conflict: codes[tag],
-    reason: 'Variant cannot be changed from its current state',
+    reason: reasons[tag],
   });
 };
 

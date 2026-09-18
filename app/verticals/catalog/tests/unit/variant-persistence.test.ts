@@ -8,6 +8,7 @@ import {
   variantPersistenceForScope,
   VariantCurrentBasisUnavailable,
 } from '../../src/persistence/variant-persistence.ts';
+import { VariantUseChangeConflict } from '../../shared/domain/variant-use-change.ts';
 
 const tenantId = '00000000-0000-4000-8000-000000000001';
 const productId = '00000000-0000-4000-8000-000000000002';
@@ -51,6 +52,11 @@ const row = {
 };
 const lockedRow = <T>(value: T) => ({ where: () => ({ for: () => ({ limit: () => Effect.succeed([value]) }) }) });
 const returnedRow = <T>(value: T) => ({ where: () => ({ returning: () => Effect.succeed([value]) }) });
+const rejectedCombinationRow = () => ({
+  where: () => ({
+    returning: () => Effect.fail({ code: '23505', constraint: 'catalog_product_variants_active_combination_uk' }),
+  }),
+});
 const noManufacturerRelations = () => ({ where: () => ({ for: () => ({ pipe: () => Effect.succeed([]) }) }) });
 const confirmedManufacturerRelations = () => ({
   where: () => ({
@@ -198,39 +204,60 @@ describe('Variant persistence', () => {
     }),
   );
 
+  const combinationKey = 'a'.repeat(64);
+  const reactivationTransaction = (
+    overrides: {
+      readonly onSet?: (values: Partial<typeof productVariants.$inferInsert>) => void;
+      readonly rejectCombination?: boolean;
+    } = {},
+  ) => {
+    const revisions: unknown[] = [];
+    const transaction = {
+      insert: (table: typeof productVariantRevisions) => {
+        expect(table).toBe(productVariantRevisions);
+        return {
+          values: (value: typeof productVariantRevisions.$inferInsert) => {
+            revisions.push(value);
+            return Effect.succeed([]);
+          },
+        };
+      },
+      select: () => ({
+        from: (table: typeof products | typeof productVariants) =>
+          lockedRow(
+            table === productVariants
+              ? { ...row, currentRevision: 2, lifecycleState: 'RETIRED' }
+              : { ...row, lifecycleState: 'ACTIVE' },
+          ),
+      }),
+      update: (table: typeof productVariants) => {
+        expect(table).toBe(productVariants);
+        return {
+          set: (values: Partial<typeof productVariants.$inferInsert>) => {
+            overrides.onSet?.(values);
+            return overrides.rejectCombination === true
+              ? rejectedCombinationRow()
+              : returnedRow({ ...row, ...values, lifecycleState: 'ACTIVE' });
+          },
+        };
+      },
+    };
+    return { revisions, transaction };
+  };
+  const provenAssessment = {
+    assessReactivation: () =>
+      Effect.succeed({
+        combinationAxisRevision: 1,
+        combinationKey,
+        decision: { changeKind: 'CORRECTED' as const, revalidation: 'NOT_REQUIRED' as const },
+      }),
+  };
+
   it.effect('reactivates a documented collision-free Variant once the #441 assessment proves it clear', () =>
     Effect.gen(function* reactivateVariant() {
-      const revisions: unknown[] = [];
-      const transaction = {
-        insert: (table: typeof productVariantRevisions) => {
-          expect(table).toBe(productVariantRevisions);
-          return {
-            values: (value: typeof productVariantRevisions.$inferInsert) => {
-              revisions.push(value);
-              return Effect.succeed([]);
-            },
-          };
-        },
-        select: () => ({
-          from: (table: typeof products | typeof productVariants) =>
-            lockedRow(
-              table === productVariants
-                ? { ...row, currentRevision: 2, lifecycleState: 'RETIRED' }
-                : { ...row, lifecycleState: 'ACTIVE' },
-            ),
-        }),
-        update: (table: typeof productVariants) => {
-          expect(table).toBe(productVariants);
-          return {
-            set: (values: Partial<typeof productVariants.$inferInsert>) =>
-              returnedRow({ ...row, ...values, lifecycleState: 'ACTIVE' }),
-          };
-        },
-      };
+      const { revisions, transaction } = reactivationTransaction();
       // @ts-expect-error Only the exercised Drizzle query chains are mocked.
-      const service = variantPersistenceForScope(transaction, scope, {
-        assessReactivation: () => Effect.succeed({ changeKind: 'CORRECTED', revalidation: 'NOT_REQUIRED' }),
-      });
+      const service = variantPersistenceForScope(transaction, scope, provenAssessment);
       const outcome = yield* service.reactivate({ ...evidence, expectedRevision: 2, variantRef });
       expect(
         Match.value(outcome).pipe(
@@ -247,6 +274,111 @@ describe('Variant persistence', () => {
           variantId,
         }),
       ]);
+    }),
+  );
+
+  it.effect('writes the proven Current combination identity when reactivating', () =>
+    Effect.gen(function* reactivateCombination() {
+      let written: Partial<typeof productVariants.$inferInsert> | undefined;
+      const { transaction } = reactivationTransaction({
+        onSet: (values) => {
+          written = values;
+        },
+      });
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope, provenAssessment);
+      yield* service.reactivate({ ...evidence, expectedRevision: 2, variantRef });
+      expect(written).toMatchObject({ combinationAxisRevision: 1, combinationKey, lifecycleState: 'ACTIVE' });
+    }),
+  );
+
+  it.effect('maps a partial-unique-index violation during reactivation to identity_conflict', () =>
+    Effect.gen(function* reactivateRace() {
+      const { transaction } = reactivationTransaction({ rejectCombination: true });
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope, provenAssessment);
+      const outcome = yield* service.reactivate({ ...evidence, expectedRevision: 2, variantRef });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('identity_conflict', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('maps a reactivation allowed-value violation to invalid_change without writing', () =>
+    Effect.gen(function* reactivateInvalidValue() {
+      const transaction = {
+        insert: () => {
+          throw new Error('an out-of-allowance reactivation must not append a revision');
+        },
+        select: () => ({
+          from: (table: typeof products | typeof productVariants) =>
+            lockedRow(
+              table === productVariants
+                ? { ...row, currentRevision: 2, lifecycleState: 'RETIRED' }
+                : { ...row, lifecycleState: 'ACTIVE' },
+            ),
+        }),
+        update: () => {
+          throw new Error('an out-of-allowance reactivation must not write');
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope, {
+        assessReactivation: () =>
+          Effect.fail(
+            new VariantUseChangeConflict({
+              code: 'variant_use_change_conflict',
+              conflict: 'INVALID_VALUE',
+              reason: 'Value retired from the Current allowed set',
+            }),
+          ),
+      });
+      const outcome = yield* service.reactivate({ ...evidence, expectedRevision: 2, variantRef });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('invalid_change', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('maps an open-selection revalidation conflict to its own typed outcome', () =>
+    Effect.gen(function* reactivateSelection() {
+      const transaction = {
+        select: () => ({
+          from: (table: typeof products | typeof productVariants) =>
+            lockedRow(
+              table === productVariants
+                ? { ...row, currentRevision: 2, lifecycleState: 'RETIRED' }
+                : { ...row, lifecycleState: 'ACTIVE' },
+            ),
+        }),
+        update: () => {
+          throw new Error('selection revalidation must not write');
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope, {
+        assessReactivation: () =>
+          Effect.fail(
+            new VariantUseChangeConflict({
+              code: 'variant_use_change_conflict',
+              conflict: 'OPEN_SELECTION_REVALIDATION_REQUIRED',
+              reason: 'Open selections',
+            }),
+          ),
+      });
+      const outcome = yield* service.reactivate({ ...evidence, expectedRevision: 2, variantRef });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('selection_revalidation_required', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
     }),
   );
 

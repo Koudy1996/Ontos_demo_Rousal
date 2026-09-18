@@ -7,6 +7,7 @@ import { handleChangeVariant } from '../../src/actions/change-variant.action.ts'
 import { handleCreateVariant } from '../../src/actions/create-variant.action.ts';
 import { handleRetireVariant } from '../../src/actions/retire-variant.action.ts';
 import { handleReactivateVariant } from '../../src/actions/reactivate-variant.action.ts';
+import { VariantActionConflict } from '../../src/actions/variant-action-support.ts';
 import { VariantCurrentBasisUnavailable } from '../../src/persistence/variant-persistence.ts';
 import type { VariantPersistence } from '../../src/persistence/variant-persistence.ts';
 
@@ -236,6 +237,18 @@ describe('Variant Action handlers', () => {
         collision.value,
       ).pipe(Effect.flip);
       expect(reactivateError).toMatchObject({ code: 'variant_action_conflict', conflict: 'IDENTITY' });
+    }),
+  );
+
+  it.effect('keeps an open-selection revalidation requirement distinct from a lifecycle conflict', () =>
+    Effect.gen(function* variantSelectionRevalidationTest() {
+      const run = context({ reactivate: () => Effect.succeed({ _tag: 'selection_revalidation_required' }) });
+      const error = yield* handleReactivateVariant(
+        { evidenceRefs: ['record'], expectedVariantRevision: 2, reason: 'Restore', variantRef },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(error).toMatchObject({ code: 'variant_action_conflict', conflict: 'SELECTION_REVALIDATION' });
+      expect(Schema.is(VariantActionConflict)(error) && error.conflict).not.toBe('LIFECYCLE');
     }),
   );
 });

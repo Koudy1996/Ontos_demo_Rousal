@@ -16,14 +16,20 @@ import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { packageDefinitions, packageOptionRoleRevisions, products } from '../database/schema.ts';
 import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
+import { axisFreeCombinationKey } from './variant-current-basis.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 import type {
+  CurrentAxisAllowedValues,
   CurrentVariantAxes,
   CurrentVariantAxisValue,
   RecordedVariantCombination,
   VariantAxisPersistence,
 } from './variant-axis-persistence.ts';
-import { recordedVariantCombinationKey, variantAxisPersistenceForScope } from './variant-axis-persistence.ts';
+import {
+  effectiveValueItemKeyHash,
+  recordedVariantCombinationKey,
+  variantAxisPersistenceForScope,
+} from './variant-axis-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
@@ -53,17 +59,30 @@ export interface VariantReactivationBasisPersistence {
   ) => Effect.Effect<VariantReactivationBasis, CatalogPersistenceUnavailable | VariantUseChangeBasisUnavailable>;
 }
 
+/**
+ * A proven reactivation: the decision plus the Current combination identity the Variant must be
+ * written back as. The identity is recomputed from the same effective values and allowed set that
+ * `confirm-variant-combination` validates, so a reactivation can never flip ACTIVE under an
+ * unvalidated or stale combination.
+ */
+export interface VariantReactivationAssessment {
+  readonly combinationAxisRevision: number;
+  readonly combinationKey: string;
+  readonly decision: VariantUseChangeDecision;
+}
+
 export interface VariantUseChangePersistence {
   /**
-   * Reconstruct a retired Variant's recorded combination from its Current effective values and
-   * compare it with the recorded ACTIVE combinations. A collision is a definite conflict. A clean
-   * identity is still confirmed against the injected Cart open-selection owner contract and
+   * Reconstruct a retired Variant's recorded combination from its Current effective values,
+   * revalidate the Product-specific allowed set exactly as `confirm-variant-combination` does, and
+   * compare the result with the recorded ACTIVE combinations. A collision is a definite conflict. A
+   * clean identity is still confirmed against the injected Cart open-selection owner contract and
    * Catalog's own #479 Current evidence; without that contract the result stays typed fail-closed.
    */
   readonly assessReactivation: (
     input: VariantReactivationAssessmentInput,
   ) => Effect.Effect<
-    VariantUseChangeDecision,
+    VariantReactivationAssessment,
     CatalogPersistenceUnavailable | VariantUseChangeBasisUnavailable | VariantUseChangeConflict
   >;
 }
@@ -105,12 +124,12 @@ const revalidateReactivationOpenSelections = Effect.fn(
   'VariantUseChangePersistence.revalidateReactivationOpenSelections',
 )(function* revalidateReactivationOpenSelections(
   authority: VariantReactivationSelectionAuthority | undefined,
-  decision: VariantUseChangeDecision,
+  assessment: VariantReactivationAssessment,
   input: VariantReactivationAssessmentInput,
   tenantId: string,
 ) {
-  if (decision.revalidation === 'NOT_REQUIRED') {
-    return decision;
+  if (assessment.decision.revalidation === 'NOT_REQUIRED') {
+    return assessment;
   }
   if (authority === undefined) {
     return yield* basisUnavailable();
@@ -139,7 +158,7 @@ const revalidateReactivationOpenSelections = Effect.fn(
       reason: 'Open Cart selections still reference this Variant; reactivation requires explicit reselection',
     });
   }
-  return { ...decision, revalidation: 'NOT_REQUIRED' as const };
+  return { ...assessment, decision: { ...assessment.decision, revalidation: 'NOT_REQUIRED' as const } };
 });
 
 const productLifecycle = (value: string): VariantReactivationBasis['parentProductLifecycle'] | undefined =>
@@ -293,13 +312,44 @@ export const variantUseChangePersistenceForAxes = (
     if (values.some((value) => value.source === 'MISSING')) {
       return yield* basisUnavailable();
     }
+    // Reactivation revalidates the Product-specific allowed set exactly as
+    // `confirm-variant-combination` does, so a value retired from the allowance after the
+    // recorded form was taken cannot be silently re-promoted to Current use.
+    if (current.axes.length > 0) {
+      const allowed: readonly CurrentAxisAllowedValues[] = yield* axes
+        .readCurrentAllowedValues(input.productRef, current)
+        .pipe(Effect.catchTag('VariantAxisBasisUnavailable', () => Effect.fail(basisUnavailable())));
+      const allowedByAxis = new Map(allowed.map((item) => [item.attributeDefinitionId, new Set(item.valueKeys)]));
+      const valuesByAxis = new Map(values.map((item) => [item.attributeDefinitionId, item]));
+      for (const axis of current.axes) {
+        const axisValue = valuesByAxis.get(axis.attributeDefinitionId);
+        const allowedKeys = allowedByAxis.get(axis.attributeDefinitionId);
+        if (axisValue === undefined || allowedKeys === undefined) {
+          return yield* basisUnavailable();
+        }
+        if (axisValue.items.some((item) => !allowedKeys.has(effectiveValueItemKeyHash(item)))) {
+          return yield* new VariantUseChangeConflict({
+            code: 'variant_use_change_conflict',
+            conflict: 'INVALID_VALUE',
+            reason: 'Reactivation would re-promote a value outside the Current Product-specific allowed set',
+          });
+        }
+      }
+    }
+    const combinationKey =
+      current.axes.length === 0 ? axisFreeCombinationKey() : recordedVariantCombinationKey(values, tenantId);
     const decision = yield* revalidateVariantReactivation({
       activeCombinationKeys: active.map((combination) => combination.combinationKey),
       parentProductLifecycle: basis.parentProductLifecycle,
-      reactivationCombinationKey: recordedVariantCombinationKey(values, tenantId),
+      reactivationCombinationKey: combinationKey,
       requiredPackageOptions: basis.requiredPackageOptions,
     });
-    return yield* revalidateReactivationOpenSelections(selectionAuthority, decision, input, tenantId);
+    return yield* revalidateReactivationOpenSelections(
+      selectionAuthority,
+      { combinationAxisRevision: current.axisRevision, combinationKey, decision },
+      input,
+      tenantId,
+    );
   }),
 });
 

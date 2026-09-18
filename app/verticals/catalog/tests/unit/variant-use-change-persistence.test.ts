@@ -22,6 +22,7 @@ import type {
   VariantAxisPersistence,
 } from '../../src/persistence/variant-axis-persistence.ts';
 import {
+  effectiveValueItemKeyHash,
   recordedVariantCombinationKey,
   VariantAxisBasisUnavailable,
 } from '../../src/persistence/variant-axis-persistence.ts';
@@ -44,7 +45,17 @@ const otherVariantId = '44444444-4444-4444-8444-444444444444';
 const definitionId = '55555555-5555-4555-8555-555555555555';
 const valueSetId = '66666666-6666-4666-8666-666666666666';
 const axes: CurrentVariantAxes = {
-  axes: [],
+  axes: [
+    {
+      attributeDefinitionId: definitionId,
+      controlledValueKind: 'COLOR',
+      definitionRevision: 3,
+      inheritable: false,
+      multiplicity: 'SINGLE',
+      ordinal: 0,
+      valueKind: 'CONTROLLED',
+    },
+  ],
   axisRevision: 1,
   productId: productRef.resourceId,
   productTypeRevision: 2,
@@ -70,6 +81,12 @@ const value: CurrentVariantAxisValue = {
   sourceValueSetRef: { attributeValueSetId: valueSetId, tenantId },
 };
 const reactivationKey = recordedVariantCombinationKey([value], tenantId);
+const allowedValues = {
+  allowanceRevision: 1,
+  attributeDefinitionId: definitionId,
+  definitionRevision: 3,
+  valueKeys: [effectiveValueItemKeyHash(item)],
+};
 const unexpected = () => Effect.die('Unexpected axis read');
 const basis = (overrides: Partial<VariantReactivationBasis> = {}): VariantReactivationBasisPersistence => ({
   read: () => Effect.succeed({ parentProductLifecycle: 'ACTIVE', requiredPackageOptions: [], ...overrides }),
@@ -97,7 +114,7 @@ const persistence = (
     govern: unexpected,
     governAllowedValues: unexpected,
     readCurrent: () => Effect.succeed(axes),
-    readCurrentAllowedValues: unexpected,
+    readCurrentAllowedValues: () => Effect.succeed([allowedValues]),
     readEffectiveValues: () => Effect.succeed([value]),
     readRecordedCombinations: () =>
       Effect.succeed([{ axisRevision: 1, combinationKey: 'a'.repeat(64), variantId: otherVariantId }]),
@@ -123,8 +140,42 @@ describe('Variant use change persistence (#441)', () => {
 
   it.effect('proves a collision-free reactivation against a complete Cart population and Catalog evidence', () =>
     Effect.gen(function* clean() {
-      const decision = yield* persistence({}).assessReactivation({ productRef, variantRef });
-      expect(decision).toEqual({ changeKind: 'CORRECTED', revalidation: 'NOT_REQUIRED' });
+      const assessment = yield* persistence({}).assessReactivation({ productRef, variantRef });
+      expect(assessment).toEqual({
+        combinationAxisRevision: 1,
+        combinationKey: reactivationKey,
+        decision: { changeKind: 'CORRECTED', revalidation: 'NOT_REQUIRED' },
+      });
+    }),
+  );
+
+  it.effect('rejects a value retired from the Current Product-specific allowed set', () =>
+    Effect.gen(function* impermissible() {
+      const retiredHash = effectiveValueItemKeyHash({
+        ...item,
+        controlledAttributeValueId: '88888888-8888-4888-8888-888888888888',
+      });
+      const failure = yield* persistence({
+        readCurrentAllowedValues: () => Effect.succeed([{ ...allowedValues, valueKeys: [retiredHash] }]),
+      })
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeConflict)(failure)).toBe(true);
+      expect(failure).toMatchObject({ conflict: 'INVALID_VALUE' });
+    }),
+  );
+
+  it.effect('fails closed when the Current Product-specific allowed set cannot be verified', () =>
+    Effect.gen(function* allowedUnavailable() {
+      const failure = yield* persistence({
+        readCurrentAllowedValues: () =>
+          Effect.fail(
+            new VariantAxisBasisUnavailable({ code: 'variant_axis_basis_unavailable', reason: 'allowance missing' }),
+          ),
+      })
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeBasisUnavailable)(failure)).toBe(true);
     }),
   );
 
@@ -134,7 +185,7 @@ describe('Variant use change persistence (#441)', () => {
         govern: unexpected,
         governAllowedValues: unexpected,
         readCurrent: () => Effect.succeed(axes),
-        readCurrentAllowedValues: unexpected,
+        readCurrentAllowedValues: () => Effect.succeed([allowedValues]),
         readEffectiveValues: () => Effect.succeed([value]),
         readRecordedCombinations: () =>
           Effect.succeed([{ axisRevision: 1, combinationKey: 'a'.repeat(64), variantId: otherVariantId }]),

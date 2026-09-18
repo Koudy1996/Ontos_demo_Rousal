@@ -14,6 +14,7 @@ import type { VariantRef } from '../../shared/resources/variant.ts';
 import { manufacturerRelations, productVariantRevisions, productVariants, products } from '../database/schema.ts';
 import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
 import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
+import type { VariantUseChangeConflict } from '../../shared/domain/variant-use-change.ts';
 import type { VariantUseChangePersistence } from './variant-use-change-persistence.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 import { axisFreeCombinationKey } from './variant-current-basis.ts';
@@ -114,6 +115,13 @@ const FailureOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('revision_conflict', { actualRevision: Schema.Int }),
 ]);
 type FailureOutcome = typeof FailureOutcomeSchema.Type;
+/**
+ * Reactivation-specific rejection: open Cart selections still reference the Variant, so it may not
+ * be re-promoted to Current use until they are explicitly reselected (#441 rule 11 / #479). Kept
+ * distinct from `lifecycle_conflict` so the caller can tell a reselection requirement from a
+ * retired parent or Package Option.
+ */
+export const SelectionRevalidationRequiredSchema = Schema.TaggedStruct('selection_revalidation_required', {});
 const CreatedOutcomeSchema = Schema.TaggedStruct('created', { revision: Schema.Int, variant: ProductVariantSchema });
 const ChangedOutcomeSchema = Schema.TaggedStruct('changed', { revision: Schema.Int, variant: ProductVariantSchema });
 const RetiredOutcomeSchema = Schema.TaggedStruct('retired', { revision: Schema.Int, variant: ProductVariantSchema });
@@ -137,7 +145,7 @@ export interface VariantPersistence {
   readonly reactivate: (
     input: VariantLifecyclePersistenceInput,
   ) => Effect.Effect<
-    FailureOutcome | SuccessOutcome<'changed'>,
+    FailureOutcome | typeof SelectionRevalidationRequiredSchema.Type | SuccessOutcome<'changed'>,
     CatalogPersistenceUnavailable | VariantCurrentBasisUnavailable
   >;
   readonly recoverCreateVariant: (
@@ -244,6 +252,23 @@ const mapCombinationError = (
       code === uniqueViolation && constraint === 'catalog_product_variants_active_combination_uk',
   );
   return Option.isSome(matched) ? { _tag: 'CombinationDuplicateSignal' } : unavailable(error);
+};
+
+/**
+ * Maps the #441 reactivation assessment's typed conflict to the exact lifecycle outcome. A
+ * duplicate combination is an identity conflict; an out-of-allowance value is an invalid change;
+ * open Cart selections require explicit reselection; every other conflict is a lifecycle conflict.
+ */
+const reactivationConflictOutcome = (
+  conflict: VariantUseChangeConflict['conflict'],
+): 'identity_conflict' | 'invalid_change' | 'lifecycle_conflict' | 'selection_revalidation_required' => {
+  if (conflict === 'DUPLICATE_COMBINATION') {
+    return 'identity_conflict';
+  }
+  if (conflict === 'INVALID_VALUE') {
+    return 'invalid_change';
+  }
+  return conflict === 'OPEN_SELECTION_REVALIDATION_REQUIRED' ? 'selection_revalidation_required' : 'lifecycle_conflict';
 };
 
 /**
@@ -473,7 +498,7 @@ export const variantPersistenceForScope = (
       if (reactivation === undefined) {
         return yield* basisUnavailable();
       }
-      const conflictOutcome = yield* reactivation
+      const assessed = yield* reactivation
         .assessReactivation({
           productRef: {
             moduleId: CATALOG_MODULE,
@@ -484,23 +509,24 @@ export const variantPersistenceForScope = (
           variantRef: input.variantRef,
         })
         .pipe(
-          Effect.map(() => 'PROVEN' as const),
+          Effect.map((assessment) => ({ assessment, kind: 'PROVEN' as const })),
           Effect.catchTags({
             // oxlint-disable sonarjs/function-name -- Effect catchTags keys are schema-owned error tags; #441 reactivation integration. expires: 2027-03-31.
             VariantUseChangeBasisUnavailable: () => Effect.fail(basisUnavailable()),
             VariantUseChangeConflict: (failure) =>
-              Effect.succeed(
-                failure.conflict === 'DUPLICATE_COMBINATION' ? ('IDENTITY' as const) : ('LIFECYCLE' as const),
-              ),
+              Effect.succeed({ kind: reactivationConflictOutcome(failure.conflict) }),
             // oxlint-enable sonarjs/function-name
           }),
         );
-      if (conflictOutcome !== 'PROVEN') {
-        return { _tag: conflictOutcome === 'IDENTITY' ? 'identity_conflict' : 'lifecycle_conflict' };
+      if (assessed.kind !== 'PROVEN') {
+        return { _tag: assessed.kind };
       }
-      const [updated] = yield* transaction
+      const { assessment } = assessed;
+      const updated = yield* transaction
         .update(productVariants)
         .set({
+          combinationAxisRevision: assessment.combinationAxisRevision,
+          combinationKey: assessment.combinationKey,
           currentRevision: row.currentRevision + 1,
           lifecycleState: 'ACTIVE',
           updatedAt: DateTime.toDateUtc(yield* DateTime.now),
@@ -513,12 +539,16 @@ export const variantPersistenceForScope = (
           ),
         )
         .returning()
-        .pipe(Effect.mapError(unavailable));
-      if (updated === undefined) {
-        return yield* unavailable();
+        .pipe(
+          Effect.mapError(mapCombinationError),
+          Effect.catchTag('CombinationDuplicateSignal', () => Effect.succeed<VariantRow[]>([])),
+        );
+      const [written] = updated;
+      if (written === undefined) {
+        return { _tag: 'identity_conflict' };
       }
-      yield* revision(updated, input, 'LIFECYCLE');
-      return { _tag: 'changed', revision: updated.currentRevision, variant: variant(updated) };
+      yield* revision(written, input, 'LIFECYCLE');
+      return { _tag: 'changed', revision: written.currentRevision, variant: variant(written) };
     },
   );
   // oxlint-disable-next-line complexity -- Confirmation enumerates the complete typed outcome set (duplicate, missing axis, impermissible, stale basis, unverifiable) in one owner-local transaction. expires: 2027-03-31.

@@ -60,6 +60,9 @@ export const handleReactivateVariant = Effect.fn('ReactivateVariantAction.handle
     Match.tag('lifecycle_conflict', () => Effect.fail(conflictForOutcome('lifecycle_conflict'))),
     Match.tag('identity_conflict', () => Effect.fail(conflictForOutcome('identity_conflict'))),
     Match.tag('invalid_change', () => Effect.fail(conflictForOutcome('invalid_change'))),
+    Match.tag('selection_revalidation_required', () =>
+      Effect.fail(conflictForOutcome('selection_revalidation_required')),
+    ),
     Match.exhaustive,
   );
   yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
