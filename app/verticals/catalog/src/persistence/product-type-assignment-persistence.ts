@@ -16,7 +16,7 @@ export class ProductTypeAssignmentRejected extends Schema.TaggedError<ProductTyp
   },
 ) {}
 
-interface SetProductTypePersistenceInput {
+export interface SetProductTypePersistenceInput {
   readonly actionInvocationId: string;
   readonly expectedProductRevision: number;
   readonly impactBasis: string;

@@ -44,13 +44,13 @@ interface ChangeEvidence {
   readonly reason: string;
 }
 
-interface CreateVariantPersistenceInput extends ChangeEvidence {
+export interface CreateVariantPersistenceInput extends ChangeEvidence {
   readonly expectedProductRevision: number;
   readonly productRef: ProductRef;
   readonly variantRef: VariantRef;
 }
 
-interface ChangeVariantPersistenceInput extends ChangeEvidence {
+export interface ChangeVariantPersistenceInput extends ChangeEvidence {
   readonly classification: 'SAME_MEANING' | 'EVIDENCED_CORRECTION' | 'EVIDENCED_PARENT_CORRECTION';
   readonly currentProductRef: ProductRef;
   readonly expectedRevision: number;
@@ -59,7 +59,7 @@ interface ChangeVariantPersistenceInput extends ChangeEvidence {
   readonly variantRef: VariantRef;
 }
 
-interface VariantLifecyclePersistenceInput extends ChangeEvidence {
+export interface VariantLifecyclePersistenceInput extends ChangeEvidence {
   readonly expectedRevision: number;
   readonly variantRef: VariantRef;
 }
