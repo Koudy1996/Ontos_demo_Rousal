@@ -77,7 +77,6 @@ const captureAssignCatalogMediaResult = ({
   };
 }) => services.captureResult(actionInvocationId, result);
 
-export { AssignCatalogMediaPayloadSchema } from '../../shared/actions/catalog-media.ts';
 export type { AssignCatalogMediaPayload } from '../../shared/actions/catalog-media.ts';
 
 const handleAssignCatalogMedia = Effect.fn('AssignCatalogMediaAction.handle')(function* handleAssignCatalogMediaEffect(

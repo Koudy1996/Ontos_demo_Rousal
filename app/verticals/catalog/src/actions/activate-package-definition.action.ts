@@ -109,7 +109,7 @@ export const handleActivatePackageDefinition = Effect.fn('ActivatePackageDefinit
   },
 );
 
-export const activatePackageDefinitionPersistenceServiceFactory = (
+const activatePackageDefinitionPersistenceServiceFactory = (
   transaction: Parameters<typeof packageActivationPersistenceForScope>[0],
   scope: Parameters<typeof packageActivationPersistenceForScope>[1],
 ) =>

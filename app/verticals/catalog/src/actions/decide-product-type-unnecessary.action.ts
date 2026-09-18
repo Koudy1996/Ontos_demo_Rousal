@@ -22,10 +22,7 @@ export {
   DecideProductTypeUnnecessaryPayloadSchema,
   DecideProductTypeUnnecessaryResultSchema,
 } from '../../shared/actions/decide-product-type-unnecessary.ts';
-export type {
-  DecideProductTypeUnnecessaryPayload,
-  DecideProductTypeUnnecessaryResult,
-} from '../../shared/actions/decide-product-type-unnecessary.ts';
+export type { DecideProductTypeUnnecessaryPayload } from '../../shared/actions/decide-product-type-unnecessary.ts';
 
 const domainEvents = {} as const;
 const actionKey = 'commerce.catalog.decide-product-type-unnecessary' as const;

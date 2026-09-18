@@ -23,10 +23,9 @@ import {
   relationshipPersistenceServiceFactory,
 } from './product-relationship-action-support.ts';
 
-export { ChangeProductRelationshipPayloadSchema } from '../../shared/actions/product-relationship-mutations.ts';
 export type { ChangeProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
-export const ChangeProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
-export type ChangeProductRelationshipResult = typeof ChangeProductRelationshipResultSchema.Type;
+const ChangeProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
+type ChangeProductRelationshipResult = typeof ChangeProductRelationshipResultSchema.Type;
 const domainEvents = {
   'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
 } as const;
@@ -167,9 +166,4 @@ export const changeProductRelationshipAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
-export { ChangeProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayloadSchema } from './change-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export { ChangeProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxProducerModuleKey } from './change-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export { ChangeProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxTopic } from './change-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export { createChangeProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './change-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export type { ChangeProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayload } from './change-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

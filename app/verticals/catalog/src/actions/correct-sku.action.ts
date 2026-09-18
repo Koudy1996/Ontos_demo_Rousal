@@ -16,8 +16,7 @@ import {
 } from './sku-action-support.ts';
 import type { SkuServices } from './sku-action-support.ts';
 
-export { CorrectSkuPayloadSchema, CorrectSkuResultSchema } from '../../shared/actions/correct-sku.ts';
-export type { CorrectSkuPayload, CorrectSkuResult } from '../../shared/actions/correct-sku.ts';
+export type { CorrectSkuPayload } from '../../shared/actions/correct-sku.ts';
 
 const ACTION_KEY = 'commerce.catalog.correct-sku' as const;
 

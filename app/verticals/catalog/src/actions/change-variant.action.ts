@@ -19,9 +19,6 @@ import {
   variantPersistenceForScope,
 } from './variant-action-support.ts';
 
-export { ChangeVariantPayloadSchema, ChangeVariantResultSchema } from '../../shared/actions/change-variant.ts';
-export type { ChangeVariantPayload, ChangeVariantResult } from '../../shared/actions/change-variant.ts';
-
 type ChangeVariantServices = VariantPersistence & {
   readonly captureResult: (
     actionInvocationId: string,

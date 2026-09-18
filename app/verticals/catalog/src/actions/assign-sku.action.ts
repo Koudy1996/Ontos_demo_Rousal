@@ -16,8 +16,7 @@ import {
 } from './sku-action-support.ts';
 import type { SkuServices } from './sku-action-support.ts';
 
-export { AssignSkuPayloadSchema, AssignSkuResultSchema } from '../../shared/actions/assign-sku.ts';
-export type { AssignSkuPayload, AssignSkuResult } from '../../shared/actions/assign-sku.ts';
+export type { AssignSkuPayload } from '../../shared/actions/assign-sku.ts';
 
 const ACTION_KEY = 'commerce.catalog.assign-sku' as const;
 

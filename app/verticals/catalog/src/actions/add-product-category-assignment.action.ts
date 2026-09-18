@@ -23,14 +23,8 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export {
-  AddProductCategoryAssignmentPayloadSchema,
-  AddProductCategoryAssignmentResultSchema,
-} from '../../shared/actions/add-product-category-assignment.ts';
-export type {
-  AddProductCategoryAssignmentPayload,
-  AddProductCategoryAssignmentResult,
-} from '../../shared/actions/add-product-category-assignment.ts';
+export { AddProductCategoryAssignmentPayloadSchema } from '../../shared/actions/add-product-category-assignment.ts';
+export type { AddProductCategoryAssignmentPayload } from '../../shared/actions/add-product-category-assignment.ts';
 
 const domainEvents = {
   'commerce.catalog.product-category-assignment-added.v1': AddProductCategoryAssignmentResultSchema,

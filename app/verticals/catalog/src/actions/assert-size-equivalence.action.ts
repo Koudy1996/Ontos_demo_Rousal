@@ -18,14 +18,8 @@ import type { SizeUsagePersistence } from '../persistence/size-usage-persistence
 const catalogModuleKey = 'commerce.catalog';
 const actionKey = 'commerce.catalog.assert-size-equivalence';
 
-export {
-  AssertSizeEquivalencePayloadSchema,
-  AssertSizeEquivalenceResultSchema,
-} from '../../shared/actions/assert-size-equivalence.ts';
-export type {
-  AssertSizeEquivalencePayload,
-  AssertSizeEquivalenceResult,
-} from '../../shared/actions/assert-size-equivalence.ts';
+export { AssertSizeEquivalencePayloadSchema } from '../../shared/actions/assert-size-equivalence.ts';
+export type { AssertSizeEquivalencePayload } from '../../shared/actions/assert-size-equivalence.ts';
 
 export const handleAssertSizeEquivalence = Effect.fn('AssertSizeEquivalenceAction.handle')(
   function* handleAssertSizeEquivalence(

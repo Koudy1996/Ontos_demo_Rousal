@@ -18,7 +18,6 @@ import {
   runPackageOptionTransition,
 } from './package-option-action-support.ts';
 
-export { ActivatePackageOptionPayloadSchema } from '../../shared/actions/activate-package-option.ts';
 export type { ActivatePackageOptionPayload } from '../../shared/actions/activate-package-option.ts';
 
 type ActivatePackageOptionServices = PackageOptionPersistence & {
