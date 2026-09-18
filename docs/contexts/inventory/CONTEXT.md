@@ -47,7 +47,7 @@ _Avoid_: Cart line as Reservation identity, synthetic Order Commitment Attempt c
 **Reservation Authority** — Owner capable of enforcing one exact Reservation obligation in the applicable scope and therefore of issuing authoritative Reservation evidence. It may be Inventory, an External Business System, or absent; Availability, an Integration Route, or a provider adapter does not gain this authority merely by consuming or transporting evidence.
 
 **Reservation Confirmation** — Attempt-bound owner proof issued by the actual Reservation Authority that one exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. It is not issued by Availability merely because Availability owns the customer-facing promise, and it is not part of the pre-attempt Order Acceptance Decision Bundle.
-_Avoid_: `Inventory/Availability-owner-issued`, local `RESERVED` bookkeeping treated as physical guarantee.
+_Avoid_: Availability treated as Reservation issuer, local `RESERVED` bookkeeping treated as physical guarantee.
 
 **Reservation Release** — Explicit owner-governed end of one whole provisional Inventory Reservation after release safety is proven. Confirmation expiry, `AT_RISK`, or `REVOKED` proof state is not Reservation Release.
 
