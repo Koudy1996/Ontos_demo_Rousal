@@ -75,13 +75,15 @@ export const handleRetireProductCategory = Effect.fn('RetireProductCategoryActio
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.retire-product-category';
+
 export const retireProductCategoryAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.retire-product-category.access.v1',
     },
-    actionKey: 'commerce.catalog.retire-product-category',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: CategoryAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: CategoryActionErrorSchema,
@@ -89,7 +91,7 @@ export const retireProductCategoryAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.retire-product-category',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -118,19 +120,21 @@ export const retireProductCategoryAction = defineAction(
             captureCatalogActionResult(
               transaction,
               scope,
-              { actionInvocationId, actionKey: 'commerce.catalog.retire-product-category', schemaVersion: 1 },
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
               {
                 decode: Schema.decodeUnknownEffect(RetireProductCategoryResultSchema),
                 encode: Schema.encodeEffect(RetireProductCategoryResultSchema),
               },
               result,
             ).pipe(
-              Effect.mapError(
-                () =>
+              Effect.mapError((cause) =>
+                Object.assign(
                   new ActionTransactionError({
                     code: 'action_transaction_failed',
                     reason: 'Catalog result capture failed',
                   }),
+                  { cause },
+                ),
               ),
             ),
         }),

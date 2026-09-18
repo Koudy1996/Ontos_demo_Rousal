@@ -82,13 +82,15 @@ export const handleAddProductCategoryAssignment = Effect.fn('AddProductCategoryA
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.add-product-category-assignment';
+
 export const addProductCategoryAssignmentAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.add-product-category-assignment.access.v1',
     },
-    actionKey: 'commerce.catalog.add-product-category-assignment',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: CategoryAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: CategoryActionErrorSchema,
@@ -96,7 +98,7 @@ export const addProductCategoryAssignmentAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.add-product-category-assignment',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -125,19 +127,21 @@ export const addProductCategoryAssignmentAction = defineAction(
             captureCatalogActionResult(
               transaction,
               scope,
-              { actionInvocationId, actionKey: 'commerce.catalog.add-product-category-assignment', schemaVersion: 1 },
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
               {
                 decode: Schema.decodeUnknownEffect(AddProductCategoryAssignmentResultSchema),
                 encode: Schema.encodeEffect(AddProductCategoryAssignmentResultSchema),
               },
               result,
             ).pipe(
-              Effect.mapError(
-                () =>
+              Effect.mapError((cause) =>
+                Object.assign(
                   new ActionTransactionError({
                     code: 'action_transaction_failed',
                     reason: 'Catalog result capture failed',
                   }),
+                  { cause },
+                ),
               ),
             ),
         }),

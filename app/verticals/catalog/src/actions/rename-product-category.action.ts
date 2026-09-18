@@ -76,13 +76,15 @@ export const handleRenameProductCategory = Effect.fn('RenameProductCategoryActio
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.rename-product-category';
+
 export const renameProductCategoryAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.rename-product-category.access.v1',
     },
-    actionKey: 'commerce.catalog.rename-product-category',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: CategoryAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: CategoryActionErrorSchema,
@@ -90,7 +92,7 @@ export const renameProductCategoryAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.rename-product-category',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -119,19 +121,21 @@ export const renameProductCategoryAction = defineAction(
             captureCatalogActionResult(
               transaction,
               scope,
-              { actionInvocationId, actionKey: 'commerce.catalog.rename-product-category', schemaVersion: 1 },
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
               {
                 decode: Schema.decodeUnknownEffect(RenameProductCategoryResultSchema),
                 encode: Schema.encodeEffect(RenameProductCategoryResultSchema),
               },
               result,
             ).pipe(
-              Effect.mapError(
-                () =>
+              Effect.mapError((cause) =>
+                Object.assign(
                   new ActionTransactionError({
                     code: 'action_transaction_failed',
                     reason: 'Catalog result capture failed',
                   }),
+                  { cause },
+                ),
               ),
             ),
         }),

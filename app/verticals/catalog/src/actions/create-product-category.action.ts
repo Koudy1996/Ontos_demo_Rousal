@@ -77,13 +77,15 @@ export const handleCreateProductCategory = Effect.fn('CreateProductCategoryActio
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.create-product-category';
+
 export const createProductCategoryAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.create-product-category.access.v1',
     },
-    actionKey: 'commerce.catalog.create-product-category',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: CategoryAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: CategoryActionErrorSchema,
@@ -91,7 +93,7 @@ export const createProductCategoryAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.create-product-category',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -120,19 +122,21 @@ export const createProductCategoryAction = defineAction(
             captureCatalogActionResult(
               transaction,
               scope,
-              { actionInvocationId, actionKey: 'commerce.catalog.create-product-category', schemaVersion: 1 },
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
               {
                 decode: Schema.decodeUnknownEffect(CreateProductCategoryResultSchema),
                 encode: Schema.encodeEffect(CreateProductCategoryResultSchema),
               },
               result,
             ).pipe(
-              Effect.mapError(
-                () =>
+              Effect.mapError((cause) =>
+                Object.assign(
                   new ActionTransactionError({
                     code: 'action_transaction_failed',
                     reason: 'Catalog result capture failed',
                   }),
+                  { cause },
+                ),
               ),
             ),
         }),

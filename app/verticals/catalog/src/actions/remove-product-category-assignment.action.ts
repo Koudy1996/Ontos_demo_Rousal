@@ -82,13 +82,15 @@ export const handleRemoveProductCategoryAssignment = Effect.fn('RemoveProductCat
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.remove-product-category-assignment';
+
 export const removeProductCategoryAssignmentAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.remove-product-category-assignment.access.v1',
     },
-    actionKey: 'commerce.catalog.remove-product-category-assignment',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: CategoryAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: CategoryActionErrorSchema,
@@ -96,7 +98,7 @@ export const removeProductCategoryAssignmentAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.remove-product-category-assignment',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -130,7 +132,7 @@ export const removeProductCategoryAssignmentAction = defineAction(
               scope,
               {
                 actionInvocationId,
-                actionKey: 'commerce.catalog.remove-product-category-assignment',
+                actionKey: ACTION_KEY,
                 schemaVersion: 1,
               },
               {
@@ -139,12 +141,14 @@ export const removeProductCategoryAssignmentAction = defineAction(
               },
               result,
             ).pipe(
-              Effect.mapError(
-                () =>
+              Effect.mapError((cause) =>
+                Object.assign(
                   new ActionTransactionError({
                     code: 'action_transaction_failed',
                     reason: 'Catalog result capture failed',
                   }),
+                  { cause },
+                ),
               ),
             ),
         }),
