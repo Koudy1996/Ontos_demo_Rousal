@@ -262,4 +262,65 @@ describe('private Product Type readiness evaluation', () => {
       status: 'INVALID',
     });
   });
+
+  it('verifies a required Variant fact supplied by an inherited Product value', () => {
+    const result = evaluateCurrentProductTypeReadiness({
+      productValues: [],
+      productValueSource: { complete: true, revisionTokens: [] },
+      source,
+      variantRefs: [variantRef],
+      variants: [
+        {
+          currentAttributeDefinitionIds: [],
+          currentValueSource: { complete: true, revisionTokens: [] },
+          effectiveValues: [
+            {
+              attributeDefinitionId: definitionRef.resourceId,
+              result: {
+                productRevision: 7,
+                source: { level: 'PRODUCT', productRef, revision: 7 },
+                status: 'CURRENT',
+                values: [{ kind: 'TEXT', text: 'inherited' }],
+                variantRevision: 5,
+              },
+            },
+          ],
+          variantRef,
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      rules: { minimumSatisfied: true, violations: [] },
+      status: 'VERIFIED_TYPE_MINIMUM',
+    });
+  });
+
+  it('fails closed when an inherited Product source revision no longer matches', () => {
+    const result = evaluateCurrentProductTypeReadiness({
+      productValues: [],
+      productValueSource: { complete: true, revisionTokens: [] },
+      source,
+      variantRefs: [variantRef],
+      variants: [
+        {
+          currentAttributeDefinitionIds: [],
+          currentValueSource: { complete: true, revisionTokens: [] },
+          effectiveValues: [
+            {
+              attributeDefinitionId: definitionRef.resourceId,
+              result: {
+                productRevision: 7,
+                source: { level: 'PRODUCT', productRef, revision: 6 },
+                status: 'CURRENT',
+                values: [{ kind: 'TEXT', text: 'inherited' }],
+                variantRevision: 5,
+              },
+            },
+          ],
+          variantRef,
+        },
+      ],
+    });
+    expect(result.status).toBe('INDETERMINATE');
+  });
 });

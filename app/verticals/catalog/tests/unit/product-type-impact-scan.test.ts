@@ -100,6 +100,42 @@ describe('Product Type impact scan basis', () => {
     expect(Schema.is(ProductTypeImpactScanIncomplete)(failure)).toBe(true);
   });
 
+  it.effect('fails closed when no owner-confirmed #479 open-selection evidence is injected', () =>
+    Effect.gen(function* missingOpenSelectionEvidence() {
+      const scope = { tenantId: 'tenant-1' };
+      // @ts-expect-error The mock provides only the queried scoped transaction methods.
+      const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope);
+      const failure = yield* Effect.flip(
+        scan.scan({ candidateRules: [], expectedCurrentRevision: 1, productTypeId: 'type-1' }),
+      );
+      expect(failure).toBeInstanceOf(ProductTypeImpactScanIncomplete);
+      expect(failure.code).toBe('product_type_impact_scan_incomplete');
+      expect(failure.reason).toContain('open-selection');
+    }),
+  );
+
+  it.effect('fails closed when a Variant may inherit a changed Product-level requirement', () =>
+    Effect.gen(function* unprovenInheritance() {
+      const scope = { tenantId: 'tenant-1' };
+      // @ts-expect-error The mock provides only the queried scoped transaction methods.
+      const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope, {
+        openSelections: { complete: true, refs: [], revisionToken: 'selection-empty-1' },
+      });
+      const failure = yield* Effect.flip(
+        scan.scan({
+          candidateRules: [
+            { attributeDefinitionId: 'capacity', level: 'PRODUCT', required: true },
+            { attributeDefinitionId: 'capacity', level: 'VARIANT', required: true },
+          ],
+          expectedCurrentRevision: 1,
+          productTypeId: 'type-1',
+        }),
+      );
+      expect(failure).toBeInstanceOf(ProductTypeImpactScanIncomplete);
+      expect(failure.reason).toContain('inheritance');
+    }),
+  );
+
   it('accepts only a complete exact owner value-set basis', () => {
     const set = {
       attributeDefinitionId: 'capacity',
