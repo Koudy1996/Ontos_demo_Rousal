@@ -1,5 +1,9 @@
 import type { CatalogResourceRef, CatalogRevisionInstant } from './catalog-revision-reference.ts';
 import { sameCatalogRevisionReference } from './catalog-revision-reference.ts';
+import {
+  classifyConfigurationChoiceKind,
+  inspectProductConfigurationDefinitionOwnership,
+} from './configuration-definition.ts';
 import type { CatalogSelectionRevision } from './catalog-selection-evidence.ts';
 import type { ProductRef } from '../resources/product.ts';
 import type { VariantRef } from '../resources/variant.ts';
@@ -127,14 +131,16 @@ const canonicalDecimal = (amount: string): string | null => {
 export const inspectConfigurationDefinition = (
   definition: ProductConfigurationDefinitionRevision,
 ): ConfigurationInspection => {
-  if (definition.reference.resourceRef.resourceType !== 'commerce.catalog.configuration-definition') {
-    return { reason: 'Expected a Configuration Definition revision', status: 'INVALID' };
-  }
-  if (definition.productRef.tenantId !== definition.reference.resourceRef.tenantId) {
-    return { reason: 'Definition and Product must share a Tenant', status: 'INVALID' };
+  const ownership = inspectProductConfigurationDefinitionOwnership(definition);
+  if (ownership.status !== 'VALID') {
+    return ownership;
   }
   const keys = new Set<string>();
   for (const choice of definition.choices) {
+    const classification = classifyConfigurationChoiceKind(choice.kind);
+    if (classification.status !== 'SUPPORTED') {
+      return { reason: classification.reason, status: 'INVALID' };
+    }
     if (!isKey(choice.choiceKey) || !isKey(choice.meaning) || keys.has(choice.choiceKey)) {
       return { reason: 'Choice keys and meanings must be nonempty and choice keys unique', status: 'INVALID' };
     }
@@ -150,7 +156,7 @@ export const inspectConfigurationDefinition = (
         }
         optionKeys.add(option.optionKey);
       }
-    } else if (choice.unitRef.tenantId !== definition.productRef.tenantId) {
+    } else if (!('unitRef' in choice) || choice.unitRef.tenantId !== definition.productRef.tenantId) {
       return { reason: 'Measured Unit must share the Product Tenant', status: 'INVALID' };
     }
   }
@@ -335,7 +341,7 @@ export const sameProductConfigurationSelectionAcrossRevisions = (
   leftDefinition: ProductConfigurationDefinitionRevision | undefined,
   right: ProductConfiguration,
   rightDefinition: ProductConfigurationDefinitionRevision | undefined,
-  attestation: ProductConfigurationRevisionEquivalenceAttestation | undefined,
+  attestation?: ProductConfigurationRevisionEquivalenceAttestation,
 ): ConfigurationInspection & { readonly same?: boolean } => {
   const leftInspection = inspectProductConfiguration(left, leftDefinition);
   if (leftInspection.status !== 'VALID') {
