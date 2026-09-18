@@ -14,6 +14,17 @@ import {
 import type { PackageDefinitionHistoryRequest } from '../../shared/apis/package-definition-history.ts';
 import { packageHistoryForScope } from '../persistence/package-persistence.ts';
 
+const missing = () =>
+  new ReadHandlerNotFound({ code: 'read_handler_not_found', reason: 'Requested historical revision was not found' });
+const unavailable = (cause: unknown) => {
+  const error = new ReadHandlerUnavailable({
+    code: 'read_handler_unavailable',
+    reason: 'Package Definition history is temporarily unavailable',
+  });
+  Object.defineProperty(error, 'cause', { configurable: true, value: cause });
+  return error;
+};
+
 export const packageDefinitionHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.package-definition-history' },
@@ -22,57 +33,51 @@ export const packageDefinitionHistoryEntrypoint = defineTenantModuleEntrypoint({
   role: 'api',
 });
 
-export const readPackageDefinitionHistory = (
-  input: PackageDefinitionHistoryRequest,
-  trustedTenantId: string,
-  services: ReturnType<typeof packageHistoryForScope>,
-) =>
-  Effect.gen(function* () {
-    const reference = input.reference;
-    const missing = () =>
-      new ReadHandlerNotFound({
-        code: 'read_handler_not_found',
-        reason: 'Requested historical revision was not found',
-      });
-    if (reference.resourceRef.tenantId !== trustedTenantId) return yield* missing();
-    const row = yield* services.getContentRevision(reference.resourceRef.resourceId, reference.revision).pipe(
-      Effect.mapError(
-        () =>
-          new ReadHandlerUnavailable({
-            code: 'read_handler_unavailable',
-            reason: 'Package Definition history is temporarily unavailable',
-          }),
-      ),
-    );
-    if (Option.isNone(row)) return yield* missing();
+export const readPackageDefinitionHistory = Effect.fn('PackageDefinitionHistoryRead.readPackageDefinitionHistory')(
+  function* readPackageDefinitionHistory(
+    input: PackageDefinitionHistoryRequest,
+    trustedTenantId: string,
+    services: ReturnType<typeof packageHistoryForScope>,
+  ) {
+    const { reference } = input;
+    if (reference.resourceRef.tenantId !== trustedTenantId) {
+      return yield* missing();
+    }
+    const row = yield* services
+      .getContentRevision(reference.resourceRef.resourceId, reference.revision)
+      .pipe(Effect.mapError(unavailable));
+    if (Option.isNone(row)) {
+      return yield* missing();
+    }
     const revision = row.value;
     return {
       evidence: { resultCount: 1 },
       result: {
-        historical: true as const,
-        reference,
-        productId: revision.productId,
-        variantId: revision.variantId,
-        lifecycle: revision.lifecycleState,
+        actionInvocationId: revision.actionInvocationId,
         amount: revision.amount,
-        unitResourceType: revision.unitResourceType,
-        unitResourceId: revision.unitResourceId,
+        changeKind: revision.changeKind,
         configurationKey: revision.configurationKey,
+        effectiveAt: revision.effectiveAt.toISOString(),
+        evidenceRefs: revision.evidenceRefs,
+        historical: true as const,
+        lifecycle: revision.lifecycleState,
+        lowerCount: revision.lowerCount,
         lowerPackageDefinitionId: revision.lowerPackageDefinitionId,
         lowerRevision: revision.lowerRevision,
-        lowerCount: revision.lowerCount,
+        priorErrorExplanation: revision.priorErrorExplanation,
+        productId: revision.productId,
+        reason: revision.reason,
+        recordedAt: revision.recordedAt.toISOString(),
+        reference,
         setCompositionResourceId: revision.setCompositionResourceId,
         setCompositionRevision: revision.setCompositionRevision,
-        changeKind: revision.changeKind,
-        priorErrorExplanation: revision.priorErrorExplanation,
-        reason: revision.reason,
-        evidenceRefs: revision.evidenceRefs,
-        effectiveAt: revision.effectiveAt.toISOString(),
-        recordedAt: revision.recordedAt.toISOString(),
-        actionInvocationId: revision.actionInvocationId,
+        unitResourceId: revision.unitResourceId,
+        unitResourceType: revision.unitResourceType,
+        variantId: revision.variantId,
       },
     };
-  });
+  },
+);
 
 export const packageDefinitionHistoryRead = defineRead(
   {

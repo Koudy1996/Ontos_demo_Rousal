@@ -14,6 +14,17 @@ import {
 import type { PackageOptionHistoryRequest } from '../../shared/apis/package-option-history.ts';
 import { packageOptionHistoryForScope } from '../persistence/package-option-persistence.ts';
 
+const missing = () =>
+  new ReadHandlerNotFound({ code: 'read_handler_not_found', reason: 'Requested historical revision was not found' });
+const unavailable = (cause: unknown) => {
+  const error = new ReadHandlerUnavailable({
+    code: 'read_handler_unavailable',
+    reason: 'Package Option history is temporarily unavailable',
+  });
+  Object.defineProperty(error, 'cause', { configurable: true, value: cause });
+  return error;
+};
+
 export const packageOptionHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.package-option-history' },
@@ -22,49 +33,43 @@ export const packageOptionHistoryEntrypoint = defineTenantModuleEntrypoint({
   role: 'api',
 });
 
-export const readPackageOptionHistory = (
-  input: PackageOptionHistoryRequest,
-  trustedTenantId: string,
-  services: ReturnType<typeof packageOptionHistoryForScope>,
-) =>
-  Effect.gen(function* () {
-    const reference = input.reference;
-    const missing = () =>
-      new ReadHandlerNotFound({
-        code: 'read_handler_not_found',
-        reason: 'Requested historical revision was not found',
-      });
-    if (reference.resourceRef.tenantId !== trustedTenantId) return yield* missing();
-    const row = yield* services.getRoleRevision(reference.resourceRef.resourceId, reference.roleRevision).pipe(
-      Effect.mapError(
-        () =>
-          new ReadHandlerUnavailable({
-            code: 'read_handler_unavailable',
-            reason: 'Package Option history is temporarily unavailable',
-          }),
-      ),
-    );
-    if (Option.isNone(row)) return yield* missing();
+export const readPackageOptionHistory = Effect.fn('PackageOptionHistoryRead.readPackageOptionHistory')(
+  function* readPackageOptionHistory(
+    input: PackageOptionHistoryRequest,
+    trustedTenantId: string,
+    services: ReturnType<typeof packageOptionHistoryForScope>,
+  ) {
+    const { reference } = input;
+    if (reference.resourceRef.tenantId !== trustedTenantId) {
+      return yield* missing();
+    }
+    const row = yield* services
+      .getRoleRevision(reference.resourceRef.resourceId, reference.roleRevision)
+      .pipe(Effect.mapError(unavailable));
+    if (Option.isNone(row)) {
+      return yield* missing();
+    }
     const revision = row.value;
     return {
       evidence: { resultCount: 1 },
       result: {
-        historical: true as const,
-        reference,
-        productId: revision.productId,
-        variantId: revision.variantId,
+        actionInvocationId: revision.actionInvocationId,
         contentRevision: revision.contentRevision,
-        state: revision.state,
+        effectiveAt: revision.effectiveAt.toISOString(),
+        evidenceRefs: revision.evidenceRefs,
+        historical: true as const,
         independentlyRequested: revision.independentlyRequested,
         looseUnitsSubstitutable: revision.looseUnitsSubstitutable,
-        validationReason: revision.validationReason,
-        evidenceRefs: revision.evidenceRefs,
-        effectiveAt: revision.effectiveAt.toISOString(),
+        productId: revision.productId,
         recordedAt: revision.recordedAt.toISOString(),
-        actionInvocationId: revision.actionInvocationId,
+        reference,
+        state: revision.state,
+        validationReason: revision.validationReason,
+        variantId: revision.variantId,
       },
     };
-  });
+  },
+);
 
 export const packageOptionHistoryRead = defineRead(
   {

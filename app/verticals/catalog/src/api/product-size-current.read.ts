@@ -74,8 +74,13 @@ export const productSizeCurrentRead = defineRead(
     if (Option.isNone(product)) {
       return yield* notFound();
     }
-    const usage = yield* context.services.read(input.productRef.resourceId).pipe(Effect.mapError(unavailable));
-    const measurements = yield* context.services.readMeasurements(input.productRef).pipe(Effect.mapError(unavailable));
+    const [usage, measurements] = yield* Effect.all(
+      [
+        context.services.read(input.productRef.resourceId).pipe(Effect.mapError(unavailable)),
+        context.services.readMeasurements(input.productRef).pipe(Effect.mapError(unavailable)),
+      ],
+      { concurrency: 1 },
+    );
     const result = {
       measurements,
       productRef: input.productRef,

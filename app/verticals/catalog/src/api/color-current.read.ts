@@ -14,6 +14,7 @@ import { colorReadsForScope } from '../persistence/color-reads.ts';
 import type { ColorReads } from '../persistence/color-reads.ts';
 
 const notFound = () => new ReadHandlerNotFound({ code: 'read_handler_not_found', reason: 'Color was not found' });
+const moduleKey = 'commerce.catalog';
 const unavailable = (cause: unknown) => {
   const error = new ReadHandlerUnavailable({ code: 'read_handler_unavailable', reason: 'Color read is unavailable' });
   Object.defineProperty(error, 'cause', { configurable: true, value: cause });
@@ -24,7 +25,7 @@ export const colorCurrentEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.color-current' },
   entrypointKey: 'commerce.catalog.api.color-current',
-  moduleKey: 'commerce.catalog',
+  moduleKey,
   role: 'api',
 });
 
@@ -38,7 +39,7 @@ export const colorCurrentRead = defineRead(
     },
     inputSchema: ColorCurrentRequestSchema,
     legalEntityScope: 'required',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: moduleKey,
     permissionTarget: 'module',
     policies: [],
     readKey: 'commerce.catalog.api.color-current',
@@ -53,9 +54,13 @@ export const colorCurrentRead = defineRead(
     input: ColorCurrentRequest,
     context: ReadHandlerContext<ColorReads>,
   ) {
-    if (input.valueRef.tenantId !== context.scope.tenantId) return yield* notFound();
+    if (input.valueRef.tenantId !== context.scope.tenantId) {
+      return yield* notFound();
+    }
     const current = yield* context.services.current(input.valueRef).pipe(Effect.mapError(unavailable));
-    if (Option.isNone(current)) return yield* notFound();
+    if (Option.isNone(current)) {
+      return yield* notFound();
+    }
     const {
       assignable,
       attributeDefinitionId,
@@ -81,5 +86,5 @@ export const colorCurrentRead = defineRead(
     };
   }),
   (transaction, scope) => Effect.succeed(colorReadsForScope(transaction, scope)),
-  () => ({ kind: 'module', moduleId: 'commerce.catalog' }),
+  () => ({ kind: 'module', moduleId: moduleKey }),
 );

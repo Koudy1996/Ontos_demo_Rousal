@@ -11,6 +11,17 @@ import { VariantHistoryRequestSchema, VariantHistoryResponseSchema } from '../..
 import type { VariantHistoryRequest } from '../../shared/apis/variant-history.ts';
 import { variantHistoryForScope } from '../persistence/variant-persistence.ts';
 
+const missing = () =>
+  new ReadHandlerNotFound({ code: 'read_handler_not_found', reason: 'Requested historical revision was not found' });
+const unavailable = (cause: unknown) => {
+  const error = new ReadHandlerUnavailable({
+    code: 'read_handler_unavailable',
+    reason: 'Variant history is temporarily unavailable',
+  });
+  Object.defineProperty(error, 'cause', { configurable: true, value: cause });
+  return error;
+};
+
 export const variantHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.variant-history' },
@@ -19,47 +30,39 @@ export const variantHistoryEntrypoint = defineTenantModuleEntrypoint({
   role: 'api',
 });
 
-export const readVariantHistory = (
+export const readVariantHistory = Effect.fn('VariantHistoryRead.readVariantHistory')(function* readVariantHistory(
   input: VariantHistoryRequest,
   trustedTenantId: string,
   services: ReturnType<typeof variantHistoryForScope>,
-) =>
-  Effect.gen(function* () {
-    const reference = input.reference;
-    const missing = () =>
-      new ReadHandlerNotFound({
-        code: 'read_handler_not_found',
-        reason: 'Requested historical revision was not found',
-      });
-    if (reference.resourceRef.tenantId !== trustedTenantId) return yield* missing();
-    const row = yield* services.getRevision(reference.resourceRef.resourceId, reference.revision).pipe(
-      Effect.mapError(
-        () =>
-          new ReadHandlerUnavailable({
-            code: 'read_handler_unavailable',
-            reason: 'Variant history is temporarily unavailable',
-          }),
-      ),
-    );
-    if (Option.isNone(row)) return yield* missing();
-    const revision = row.value;
-    return {
-      evidence: { resultCount: 1 },
-      result: {
-        historical: true as const,
-        reference,
-        productId: revision.productId,
-        lifecycle: revision.lifecycleState,
-        combinationKey: revision.combinationKey,
-        combinationAxisRevision: revision.combinationAxisRevision,
-        changeKind: revision.changeKind,
-        reason: revision.reason,
-        evidenceRefs: revision.evidenceRefs,
-        recordedAt: revision.recordedAt.toISOString(),
-        actionInvocationId: revision.actionInvocationId,
-      },
-    };
-  });
+) {
+  const { reference } = input;
+  if (reference.resourceRef.tenantId !== trustedTenantId) {
+    return yield* missing();
+  }
+  const row = yield* services
+    .getRevision(reference.resourceRef.resourceId, reference.revision)
+    .pipe(Effect.mapError(unavailable));
+  if (Option.isNone(row)) {
+    return yield* missing();
+  }
+  const revision = row.value;
+  return {
+    evidence: { resultCount: 1 },
+    result: {
+      actionInvocationId: revision.actionInvocationId,
+      changeKind: revision.changeKind,
+      combinationAxisRevision: revision.combinationAxisRevision,
+      combinationKey: revision.combinationKey,
+      evidenceRefs: revision.evidenceRefs,
+      historical: true as const,
+      lifecycle: revision.lifecycleState,
+      productId: revision.productId,
+      reason: revision.reason,
+      recordedAt: revision.recordedAt.toISOString(),
+      reference,
+    },
+  };
+});
 
 export const variantHistoryRead = defineRead(
   {

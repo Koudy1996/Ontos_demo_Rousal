@@ -15,6 +15,7 @@ import type { ColorReads } from '../persistence/color-reads.ts';
 
 const notFound = () =>
   new ReadHandlerNotFound({ code: 'read_handler_not_found', reason: 'Color history was not found' });
+const moduleKey = 'commerce.catalog';
 const unavailable = (cause: unknown) => {
   const error = new ReadHandlerUnavailable({
     code: 'read_handler_unavailable',
@@ -28,7 +29,7 @@ export const colorHistoryEntrypoint = defineTenantModuleEntrypoint({
   access: 'historical_read',
   authorization: { kind: 'context_permission', permission: 'commerce.catalog.read.color-history' },
   entrypointKey: 'commerce.catalog.api.color-history',
-  moduleKey: 'commerce.catalog',
+  moduleKey,
   role: 'api',
 });
 
@@ -42,7 +43,7 @@ export const colorHistoryRead = defineRead(
     },
     inputSchema: ColorHistoryRequestSchema,
     legalEntityScope: 'required',
-    owningModuleKey: 'commerce.catalog',
+    owningModuleKey: moduleKey,
     permissionTarget: 'module',
     policies: [],
     readKey: 'commerce.catalog.api.color-history',
@@ -57,9 +58,13 @@ export const colorHistoryRead = defineRead(
     input: ColorHistoryRequest,
     context: ReadHandlerContext<ColorReads>,
   ) {
-    if (input.valueRef.tenantId !== context.scope.tenantId) return yield* notFound();
+    if (input.valueRef.tenantId !== context.scope.tenantId) {
+      return yield* notFound();
+    }
     const rows = yield* context.services.history(input.valueRef).pipe(Effect.mapError(unavailable));
-    if (rows.length === 0) return yield* notFound();
+    if (rows.length === 0) {
+      return yield* notFound();
+    }
     const revisions = rows.map(
       ({
         attributeDefinitionId,
@@ -86,5 +91,5 @@ export const colorHistoryRead = defineRead(
     return { evidence: { resultCount: revisions.length }, result: { revisions } };
   }),
   (transaction, scope) => Effect.succeed(colorReadsForScope(transaction, scope)),
-  () => ({ kind: 'module', moduleId: 'commerce.catalog' }),
+  () => ({ kind: 'module', moduleId: moduleKey }),
 );
