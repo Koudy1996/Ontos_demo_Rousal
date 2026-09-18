@@ -1496,6 +1496,11 @@ it.live(
         expect(moduleApiContract).toMatch(
           /headers: \{\},\s+params: \{\},\s+payload: ResourceDetailRequestSchema,\s+query: \{\}/u,
         );
+        expect(moduleApiContract).toContain(
+          'export type ResourceDetailRequest = typeof ResourceDetailRequestSchema.Type;',
+        );
+        expect(moduleApiContract).toContain('export const ResourceDetailResponseSchema = Schema.Struct(');
+        expect(moduleApiContract).not.toMatch(/export type ResourceDetailResponse\b/u);
         expect(moduleApiClient).toMatch(
           /client\.resourceDetail\.execute\(\{\s+headers: \{\},\s+params: \{\},\s+payload,\s+query: \{\},?\s+\}\)/u,
         );

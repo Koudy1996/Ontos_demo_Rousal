@@ -353,7 +353,6 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi'
 export const ${type}RequestSchema = Schema.Struct({});
 export type ${type}Request = typeof ${type}RequestSchema.Type;
 export const ${type}ResponseSchema = Schema.Struct({ ok: Schema.Literal(true) });
-export type ${type}Response = typeof ${type}ResponseSchema.Type;
 
 export const ${type}AuthenticationProblemSchema = makeProblemDetailsSchema(
   '${type}AuthenticationProblem',
