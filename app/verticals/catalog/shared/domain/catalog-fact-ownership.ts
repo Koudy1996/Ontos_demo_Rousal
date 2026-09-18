@@ -2,7 +2,11 @@ import { Schema } from 'effect';
 
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
-import { CatalogDocumentOwnerRevisionSchema, CatalogDocumentResourceRefSchema } from './catalog-media-assignment.ts';
+import {
+  CatalogDocumentOwnerRevisionSchema,
+  CatalogDocumentResourceRefSchema,
+  sameCatalogDocumentResourceRef,
+} from './catalog-media-assignment.ts';
 import type { CatalogDocumentOwnerRevision, CatalogDocumentResourceRef } from './catalog-media-assignment.ts';
 import { CatalogResourceRefSchema, CatalogRevisionInstantSchema } from './catalog-revision-reference.ts';
 
@@ -260,9 +264,6 @@ export type CatalogDocumentReferenceDecision =
   | { readonly status: 'RELATION_CHANGE_REQUIRED' }
   | { readonly reason: string; readonly status: 'UNVERIFIABLE' };
 
-const sameDocumentResource = (left: CatalogDocumentResourceRef, right: CatalogDocumentResourceRef): boolean =>
-  left.moduleId === right.moduleId && left.resourceId === right.resourceId && left.resourceType === right.resourceType;
-
 /**
  * A live Catalog reference resolves to the Current version of the same Documents Center Resource
  * without per-version Catalog approval. A different Resource (D2) is not a new version of D1 and
@@ -277,7 +278,7 @@ export const assessCatalogDocumentReference = (input: {
   if (referenceResourceRef.tenantId !== currentOwnerResourceRef.tenantId) {
     return { reason: 'Catalog reference and owner Resource cross the Tenant boundary', status: 'UNVERIFIABLE' };
   }
-  if (!sameDocumentResource(referenceResourceRef, currentOwnerResourceRef)) {
+  if (!sameCatalogDocumentResourceRef(referenceResourceRef, currentOwnerResourceRef)) {
     return { status: 'RELATION_CHANGE_REQUIRED' };
   }
   return reference.mode === 'LIVE_CURRENT'
@@ -316,7 +317,7 @@ export type CatalogAcceptedEvidenceDecision =
   | { readonly reason: string; readonly status: 'UNVERIFIABLE' };
 
 const sameAcceptedEvidence = (left: CatalogAcceptedDocumentEvidence, right: CatalogAcceptedDocumentEvidence): boolean =>
-  sameDocumentResource(left.exact.resourceRef, right.exact.resourceRef) &&
+  sameCatalogDocumentResourceRef(left.exact.resourceRef, right.exact.resourceRef) &&
   left.exact.revision === right.exact.revision &&
   left.exact.revisionId === right.exact.revisionId;
 

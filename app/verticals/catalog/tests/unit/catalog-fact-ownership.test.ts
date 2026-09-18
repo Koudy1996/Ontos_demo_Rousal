@@ -270,6 +270,19 @@ describe('Catalog fact ownership boundaries', () => {
     });
   });
 
+  it('never merges accepted document evidence whose owner Resource differs only by Tenant', () => {
+    const retained = acceptedEvidence(1);
+    const crossTenant = acceptedEvidence(1, 'order-1', { ...documentRef, tenantId: otherTenantId });
+    const decision = preserveAcceptedDocumentEvidence({ retained, used: crossTenant });
+    expect(decision).toEqual({ rejected: crossTenant, retained, status: 'IMMUTABLE' });
+    expect(decision).not.toEqual({ evidence: retained, status: 'RETAINED' });
+    expect(preserveAcceptedDocumentEvidence({ retained: crossTenant, used: retained })).toEqual({
+      rejected: retained,
+      retained: crossTenant,
+      status: 'IMMUTABLE',
+    });
+  });
+
   it('never widens a Variant-only document assignment and keeps Product-level scope explicit', () => {
     expect(assessCatalogDocumentApplicability({ assignmentTarget: variantRef, requestedTarget: variantRef })).toEqual({
       scope: 'VARIANT',
