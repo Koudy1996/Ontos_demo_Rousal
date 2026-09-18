@@ -783,9 +783,10 @@ hash that identified the Attempt.
 ## Order acceptance and recovery
 
 **Reservation Confirmation** — Attempt-bound proof issued by the actual Reservation Authority,
-through Inventory's public boundary, that one exact Inventory Reservation for exact Stock Item(s),
-Quantities/Units and Allocations is provisionally guaranteed for one exact Order Commitment Attempt
-until its explicit validity boundary. Availability does not become the issuer merely by consuming the
+through Inventory's public boundary, that one exact authority-homogeneous Inventory Reservation for
+exact Stock Item(s), Quantities/Units and Allocations is provisionally guaranteed for one exact Order
+Commitment Attempt until its explicit validity boundary. One Attempt may therefore carry multiple
+Inventory Reservation Confirmations from different actual Reservation Authorities. Availability does not become the issuer merely by consuming the
 evidence. It has owner-scoped idempotency and correlation. Inventory preserves exact Catalog Selection
 and Quantity/Unit meaning; it does not decompose Package/Set contents or convert Units. It is not an
 Order or permanent Availability guarantee; an expired/unverifiable confirmation is not Current.
@@ -813,8 +814,9 @@ state and conflicts. A different Bundle cannot reuse the same Attempt identity.
 
 **Order Commitment Proof Set** — Exact set of owner-issued validations/confirmations used to prove one
 Order Commitment Attempt + its exact Bundle through the commitment boundary. It may include Approval
-Revalidation, Assortment Commitment Confirmation, Reservation Confirmation, Payment Authorization or
-analogous attempt-bound proofs. Legitimate renewal may replace an expired proof for the same
+Revalidation, Assortment Commitment Confirmation, every Reservation Confirmation and Commitment
+Protection required for the Attempt's complete Inventory Reservation Coverage, Payment Authorization
+or analogous attempt-bound proofs. Legitimate renewal may replace an expired proof for the same
 unchanged Attempt + Bundle under the owning contract; that renewal does not change the Bundle hash.
 _Avoid_: Proof Set as prospective purchase identity, proofs from different Attempts unioned together,
 proof renewal used to smuggle changed Bundle meaning into the same Attempt.
