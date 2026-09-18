@@ -2,7 +2,16 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { ProductHistorySchema } from '../domain/product.ts';
+import {
+  ProductDescriptionSchema,
+  ProductEvidenceReferenceSchema,
+  ProductHistorySchema,
+  ProductInstantSchema,
+  ProductNameSchema,
+  ProductReasonSchema,
+  ProductRevisionSchema,
+} from '../domain/product.ts';
+import { CatalogLocaleSchema } from '../domain/product-descriptive-facts.ts';
 import {
   CatalogRevisionLookupResultSchema,
   ProductRevisionReferenceSchema,
@@ -10,12 +19,36 @@ import {
 import { ProductRefSchema } from '../resources/product.ts';
 
 export const ProductHistoryRequestSchema = Schema.Struct({
+  locale: Schema.optionalKey(
+    CatalogLocaleSchema.check(
+      Schema.isMaxLength(64),
+      Schema.makeFilter((locale) => {
+        try {
+          return Intl.getCanonicalLocales(locale)[0] === locale ? undefined : 'Expected a canonical locale';
+        } catch {
+          return 'Expected a canonical locale';
+        }
+      }),
+    ),
+  ),
   productRef: ProductRefSchema,
   revisionReference: Schema.optionalKey(ProductRevisionReferenceSchema),
 });
 export type ProductHistoryRequest = typeof ProductHistoryRequestSchema.Type;
+export const ProductHistoricalLocalizedRevisionSchema = Schema.Struct({
+  description: Schema.optionalKey(ProductDescriptionSchema),
+  evidenceRefs: Schema.Array(ProductEvidenceReferenceSchema),
+  historical: Schema.Literal(true),
+  kind: Schema.Literals(['SET', 'REMOVED']),
+  locale: CatalogLocaleSchema,
+  name: Schema.optionalKey(ProductNameSchema),
+  reason: ProductReasonSchema,
+  recordedAt: ProductInstantSchema,
+  revision: ProductRevisionSchema,
+});
 export const ProductHistoryResponseSchema = Schema.Struct({
   history: ProductHistorySchema,
+  localizedRevisions: Schema.optionalKey(Schema.Array(ProductHistoricalLocalizedRevisionSchema)),
   lookup: Schema.optionalKey(CatalogRevisionLookupResultSchema),
 });
 export type ProductHistoryResponse = typeof ProductHistoryResponseSchema.Type;

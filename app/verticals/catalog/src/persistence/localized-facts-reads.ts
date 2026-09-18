@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 
 import type { ProductRef } from '../../shared/resources/product.ts';
+import type { ProductHistoryResponse } from '../../shared/apis/product-history.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import {
   productLocalizedFactRevisions,
@@ -50,6 +51,10 @@ export interface LocalizedFactsReads {
     variantRef: VariantRef,
     locale: string,
   ) => Effect.Effect<LocalizedFactRead, LocalizedFactsPersistenceUnavailable>;
+  readonly productHistory: (
+    productRef: ProductRef,
+    locale: string,
+  ) => Effect.Effect<NonNullable<ProductHistoryResponse['localizedRevisions']>, LocalizedFactsPersistenceUnavailable>;
   readonly productRevision: (
     productRef: ProductRef,
     locale: string,
@@ -238,6 +243,50 @@ export const localizedFactsReadsForScope = (
           );
     },
   );
+  const productHistory: LocalizedFactsReads['productHistory'] = Effect.fn('LocalizedFactsReads.productHistory')(
+    function* productHistory(ref, locale) {
+      if (!validLocale(locale) || !(yield* owner(ref))) {
+        return yield* unavailable();
+      }
+      const rows = yield* transaction
+        .select()
+        .from(productLocalizedFactRevisions)
+        .where(
+          and(
+            eq(productLocalizedFactRevisions.tenantId, tenantId),
+            eq(productLocalizedFactRevisions.productId, ref.resourceId),
+            eq(productLocalizedFactRevisions.locale, locale),
+          ),
+        )
+        .orderBy(productLocalizedFactRevisions.revision)
+        .pipe(Effect.mapError(unavailable));
+      return yield* Effect.forEach(
+        rows,
+        (row) => {
+          if (!validFact(row, tenantId, ref.resourceId, null, locale)) {
+            return unavailable();
+          }
+          const result: NonNullable<ProductHistoryResponse['localizedRevisions']>[number] = {
+            evidenceRefs: row.evidenceRefs,
+            historical: true,
+            kind: row.state === 'REMOVED' ? 'REMOVED' : 'SET',
+            locale,
+            reason: row.reason,
+            recordedAt: row.recordedAt.toISOString(),
+            revision: row.revision,
+          };
+          if (row.name !== null) {
+            Object.assign(result, { name: row.name });
+          }
+          if (row.description !== null) {
+            Object.assign(result, { description: row.description });
+          }
+          return Effect.succeed(result);
+        },
+        { concurrency: 1 },
+      );
+    },
+  );
   const variantRevision: LocalizedFactsReads['variantRevision'] = Effect.fn('LocalizedFactsReads.variantRevision')(
     function* variantRevision(productRef, variantRef, locale, revision) {
       if (!validLocale(locale) || !Number.isSafeInteger(revision) || revision < 1) {
@@ -397,5 +446,5 @@ export const localizedFactsReadsForScope = (
         : 'MISSING_NAME';
     },
   );
-  return { activeNameStatus, currentProduct, currentVariant, productRevision, variantRevision };
+  return { activeNameStatus, currentProduct, currentVariant, productHistory, productRevision, variantRevision };
 };

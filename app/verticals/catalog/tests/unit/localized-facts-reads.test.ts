@@ -69,13 +69,29 @@ type Table =
   | typeof variantLocalizedFacts;
 const selected = (values: readonly object[]) => {
   const effect = Effect.succeed(values);
-  return { limit: () => effect, pipe: () => effect };
+  return { limit: () => effect, orderBy: () => effect, pipe: () => effect };
 };
 const mockTransaction = (rows: Map<Table, readonly object[]>) => ({
   select: () => ({ from: (table: Table) => ({ where: () => selected(rows.get(table) ?? []) }) }),
 });
 
 describe('localized facts private reads', () => {
+  it.effect('lists only exact historical locale revisions, including removal, in revision order', () =>
+    Effect.gen(function* historicalTimeline() {
+      const rows = new Map<Table, readonly object[]>([
+        [products, [{ productId }]],
+        [productLocalizedFactRevisions, [revision, { ...revision, name: null, revision: 2, state: 'REMOVED' }]],
+      ]);
+      // @ts-expect-error Focused mock implements only queried Drizzle chains.
+      const reads = localizedFactsReadsForScope(mockTransaction(rows), scope);
+      expect(yield* reads.productHistory(productRef, 'cs-CZ')).toMatchObject([
+        { historical: true, kind: 'SET', locale: 'cs-CZ', name: 'Starý název', revision: 1 },
+        { historical: true, kind: 'REMOVED', locale: 'cs-CZ', revision: 2 },
+      ]);
+      rows.set(productLocalizedFactRevisions, []);
+      expect(yield* reads.productHistory(productRef, 'de-DE')).toEqual([]);
+    }),
+  );
   it.effect('keeps exact historical revision independent of Current and retains provenance', () =>
     Effect.gen(function* exactHistoricalRevision() {
       const rows = new Map<Table, readonly object[]>([

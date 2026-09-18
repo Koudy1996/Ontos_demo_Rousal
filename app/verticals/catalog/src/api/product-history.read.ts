@@ -13,6 +13,8 @@ import { ProductHistoryRequestSchema, ProductHistoryResponseSchema } from '../..
 import type { ProductHistoryRequest, ProductHistoryResponse } from '../../shared/apis/product-history.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
+import type { LocalizedFactsReads } from '../persistence/localized-facts-reads.ts';
+import { localizedFactsReadsForScope } from '../persistence/localized-facts-reads.ts';
 
 const catalogModuleKey = 'commerce.catalog';
 
@@ -21,7 +23,6 @@ interface RetainedProductInput {
   historical: true;
   kind: 'PRODUCT';
   lifecycle: 'DRAFT' | 'ACTIVE' | 'RETIRED';
-  name?: string;
   reference: NonNullable<ProductHistoryRequest['revisionReference']>;
 }
 
@@ -51,25 +52,40 @@ const unavailable = (cause: unknown) => {
 export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function* readProductHistory(
   input: ProductHistoryRequest,
   trustedTenantId: string,
-  services: CatalogPersistence,
+  services: CatalogPersistence & Pick<LocalizedFactsReads, 'productHistory'>,
 ): Effect.fn.Return<ProductHistoryResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
   if (input.productRef.tenantId !== trustedTenantId) {
+    return yield* notFound();
+  }
+  if (
+    input.revisionReference !== undefined &&
+    (input.revisionReference.resourceRef.resourceId !== input.productRef.resourceId ||
+      input.revisionReference.resourceRef.tenantId !== trustedTenantId)
+  ) {
     return yield* notFound();
   }
   const history = yield* services.getHistory(input.productRef.resourceId).pipe(Effect.mapError(unavailable));
   if (Option.isNone(history)) {
     return yield* notFound();
   }
+  const canonicalHistory = {
+    ...history.value,
+    revisions: history.value.revisions.map(
+      ({ description: _legacyDescription, name: _legacyName, ...revision }) => revision,
+    ),
+  };
+  const localizedRevisions =
+    input.locale === undefined
+      ? undefined
+      : yield* services.productHistory(input.productRef, input.locale).pipe(Effect.mapError(unavailable));
+  const responseBase =
+    localizedRevisions === undefined
+      ? { history: canonicalHistory }
+      : { history: canonicalHistory, localizedRevisions };
   if (input.revisionReference === undefined) {
-    return { history: history.value };
+    return responseBase;
   }
   const requestedReference = input.revisionReference;
-  if (
-    requestedReference.resourceRef.resourceId !== input.productRef.resourceId ||
-    requestedReference.resourceRef.tenantId !== trustedTenantId
-  ) {
-    return yield* notFound();
-  }
   const revision = history.value.revisions.find(
     (entry) =>
       entry.revision === requestedReference.revision &&
@@ -77,7 +93,7 @@ export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function*
   );
   if (revision === undefined) {
     return {
-      history: history.value,
+      ...responseBase,
       lookup: {
         kind: 'MISSING',
         requestedReference,
@@ -90,12 +106,6 @@ export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function*
     lifecycle: revision.lifecycle,
     reference: requestedReference,
   };
-  if (revision.name !== undefined) {
-    retained.name = revision.name;
-  }
-  if (revision.description !== undefined) {
-    retained.description = revision.description;
-  }
   const candidate = {
     evidence: {
       capturedAt: revision.recordedAt,
@@ -109,7 +119,7 @@ export const readProductHistory = Effect.fn('ProductHistoryRead.read')(function*
   } as const;
   const lookup = Schema.decodeOption(CatalogRevisionLookupResultSchema)(candidate);
   return {
-    history: history.value,
+    ...responseBase,
     lookup: Option.isSome(lookup)
       ? lookup.value
       : {
@@ -137,13 +147,19 @@ export const productHistoryRead = defineRead(
     resultSchema: ProductHistoryResponseSchema,
     schemaVersion: '1',
   },
-  (input, context: ReadHandlerContext<CatalogPersistence>) =>
+  (input, context: ReadHandlerContext<CatalogPersistence & Pick<LocalizedFactsReads, 'productHistory'>>) =>
     readProductHistory(input, context.scope.tenantId, context.services).pipe(
       Effect.map((result) => ({
         evidence: { resultCount: result.history.revisions.length },
         result,
       })),
     ),
-  (transaction, scope) => catalogPersistenceForScope(transaction, scope),
+  (transaction, scope) =>
+    catalogPersistenceForScope(transaction, scope).pipe(
+      Effect.map((catalog) => ({
+        ...catalog,
+        productHistory: localizedFactsReadsForScope(transaction, scope).productHistory,
+      })),
+    ),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

@@ -5,7 +5,9 @@ import { ProductHistorySchema } from '../../shared/domain/product.ts';
 import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import { ReadHandlerNotFound } from '@app/core-runtime';
 import { readProductHistory } from '../../src/api/product-history.read.ts';
+import { ProductHistoricalLocalizedRevisionSchema } from '../../shared/apis/product-history.ts';
 import type { CatalogPersistence } from '../../src/persistence/catalog-persistence.ts';
+import type { LocalizedFactsReads } from '../../src/persistence/localized-facts-reads.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const productRef = {
@@ -47,6 +49,34 @@ const services: CatalogPersistence = {
   retire: () => Effect.die('unused'),
   update: () => Effect.die('unused'),
 };
+const historyServices: CatalogPersistence & Pick<LocalizedFactsReads, 'productHistory'> = {
+  ...services,
+  productHistory: (_ref, locale) =>
+    Effect.succeed(
+      Schema.decodeUnknownSync(Schema.Array(ProductHistoricalLocalizedRevisionSchema))([
+        {
+          evidenceRefs: [],
+          historical: true as const,
+          kind: 'SET' as const,
+          locale,
+          name: 'Starý název',
+          reason: 'Original copy',
+          recordedAt,
+          revision: 1,
+        },
+        {
+          evidenceRefs: [],
+          historical: true as const,
+          kind: 'SET' as const,
+          locale,
+          name: 'Nový název',
+          reason: 'Rename',
+          recordedAt: '2026-09-17T12:00:00.000Z',
+          revision: 2,
+        },
+      ]),
+    ),
+};
 const firstReference = Schema.decodeUnknownSync(ProductRevisionReferenceSchema)({
   resourceRef: productRef,
   revision: 1,
@@ -62,7 +92,7 @@ describe('governed Product historical lookup', () => {
           revisionReference: firstReference,
         },
         tenantId,
-        services,
+        historyServices,
       );
       expect(response.lookup?.kind).toBe('FOUND');
       if (response.lookup?.kind === 'FOUND') {
@@ -70,8 +100,8 @@ describe('governed Product historical lookup', () => {
           historical: true,
           kind: 'PRODUCT',
           lifecycle: 'DRAFT',
-          name: 'Original name',
         });
+        expect(response.lookup.evidence.retained).not.toHaveProperty('name');
       }
     }),
   );
@@ -88,7 +118,7 @@ describe('governed Product historical lookup', () => {
           }),
         },
         tenantId,
-        services,
+        historyServices,
       );
       expect(response.lookup?.kind).toBe('MISSING');
       const foreign = yield* readProductHistory(
@@ -96,9 +126,53 @@ describe('governed Product historical lookup', () => {
           productRef: { ...productRef, tenantId: '99999999-9999-4999-8999-999999999999' },
         },
         tenantId,
-        services,
+        historyServices,
       ).pipe(Effect.catchTag('ReadHandlerNotFound', (error) => Effect.succeed(error)));
       expect(Schema.is(ReadHandlerNotFound)(foreign)).toBe(true);
+    }),
+  );
+
+  it.effect('returns exact locale-qualified rename revisions without substituting Current text', () =>
+    Effect.gen(function* localizedRename() {
+      const response = yield* readProductHistory(
+        { locale: 'cs-CZ', productRef, revisionReference: firstReference },
+        tenantId,
+        historyServices,
+      );
+      expect(response.history.revisions[0]).not.toHaveProperty('name');
+      expect(response.localizedRevisions?.map(({ name, revision }) => ({ name, revision }))).toEqual([
+        { name: 'Starý název', revision: 1 },
+        { name: 'Nový název', revision: 2 },
+      ]);
+      expect(response.lookup?.kind).toBe('FOUND');
+    }),
+  );
+
+  it.effect('keeps the old Product reference historical after retirement', () =>
+    Effect.gen(function* retiredProduct() {
+      const retiredHistory = Schema.decodeUnknownSync(ProductHistorySchema)({
+        ...history,
+        lifecycle: [
+          {
+            actionInvocationId,
+            effectiveAt: '2026-09-18T12:00:00.000Z',
+            event: 'RETIRED',
+            productRef,
+            reason: 'Discontinued',
+            recordedAt: '2026-09-18T12:00:00.000Z',
+          },
+        ],
+      });
+      const response = yield* readProductHistory(
+        { locale: 'cs-CZ', productRef, revisionReference: firstReference },
+        tenantId,
+        { ...historyServices, getHistory: () => Effect.succeed(Option.some(retiredHistory)) },
+      );
+      expect(response.history.lifecycle[0]?.event).toBe('RETIRED');
+      expect(response.lookup?.kind).toBe('FOUND');
+      if (response.lookup?.kind === 'FOUND') {
+        expect(response.lookup.evidence.retained.lifecycle).toBe('DRAFT');
+      }
     }),
   );
 });
