@@ -13,7 +13,7 @@ import { CatalogPersistenceUnavailable } from './errors.ts';
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 type RevisionRow = typeof controlledAttributeValueRevisions.$inferSelect;
 
-export interface ColorRevisionRead {
+interface ColorRevisionRead {
   readonly attributeDefinitionId: string;
   readonly colorDetails: ColorDetails | null;
   readonly displayName: string;
@@ -25,7 +25,7 @@ export interface ColorRevisionRead {
   readonly valueRef: ControlledAttributeValueRef;
 }
 
-export interface ColorCurrentRead extends ColorRevisionRead {
+interface ColorCurrentRead extends ColorRevisionRead {
   readonly assignable: boolean;
 }
 

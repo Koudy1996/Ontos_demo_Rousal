@@ -15,8 +15,6 @@ import {
 } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 
-export { CatalogPersistenceUnavailable as CatalogMediaPersistenceUnavailable } from './errors.ts';
-
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 type SubjectRef = ProductRef | VariantRef;
 type AssignmentRow = typeof catalogMediaAssignments.$inferSelect;

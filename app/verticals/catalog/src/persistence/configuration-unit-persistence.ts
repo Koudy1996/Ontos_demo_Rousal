@@ -28,7 +28,7 @@ export type ConfigurationUnitMutationOutcome =
   | { readonly status: 'NOT_FOUND' }
   | { readonly status: 'STALE' };
 
-export class ConfigurationUnitPersistenceUnavailable extends Schema.TaggedError<ConfigurationUnitPersistenceUnavailable>()(
+class ConfigurationUnitPersistenceUnavailable extends Schema.TaggedError<ConfigurationUnitPersistenceUnavailable>()(
   'ConfigurationUnitPersistenceUnavailable',
   { code: Schema.Literal('configuration_unit_persistence_unavailable'), reason: Schema.String },
 ) {}

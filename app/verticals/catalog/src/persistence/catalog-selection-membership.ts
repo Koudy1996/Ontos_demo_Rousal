@@ -5,21 +5,12 @@ import { DateTime, Effect, Schema } from 'effect';
 
 import { CatalogRevisionNumberSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import { CatalogSelectionMembershipSchema } from '../../shared/domain/catalog-selection-evidence.ts';
-import type { CatalogSelectionMembership } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { productVariants, products } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
-
-export type CatalogMembershipResult =
-  | { readonly membership: CatalogSelectionMembership; readonly status: 'ISSUED' }
-  | {
-      readonly reason: 'WRONG_SCOPE' | 'PRODUCT_MISSING' | 'VARIANT_MISSING' | 'WRONG_PRODUCT';
-      readonly status: 'INVALID';
-    }
-  | { readonly reason: 'CURRENT_REVISION_UNAVAILABLE'; readonly status: 'INDETERMINATE' };
 
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   const failure = new CatalogPersistenceUnavailable({

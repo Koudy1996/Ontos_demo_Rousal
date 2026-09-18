@@ -323,7 +323,7 @@ export const deriveAttributeImpact = (rows: ImpactRows): AttributeImpactSnapshot
 };
 
 /** Transaction-scoped current impact for a future #479 attestation; open selections require a separate authority. */
-export const inspectAttributeImpactForScope = Effect.fn('AttributePersistence.inspectAttributeImpactForScope')(
+const inspectAttributeImpactForScope = Effect.fn('AttributePersistence.inspectAttributeImpactForScope')(
   function* inspectAttributeImpact(
     transaction: ScopedTransaction,
     scope: OperationalScope,

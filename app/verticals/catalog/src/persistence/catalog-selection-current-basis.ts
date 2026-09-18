@@ -42,9 +42,6 @@ const variantType = 'commerce.catalog.variant';
 const configurationDefinitionType = 'commerce.catalog.configuration-definition';
 const catalogUnitType = 'commerce.catalog.unit';
 
-/** A point-in-time owner observation, never an Order-commit guarantee. */
-export type CatalogSelectionCurrentBasis = CatalogSelectionCurrentFacts;
-
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   const failure = new CatalogPersistenceUnavailable({
     code: 'catalog_persistence_unavailable',

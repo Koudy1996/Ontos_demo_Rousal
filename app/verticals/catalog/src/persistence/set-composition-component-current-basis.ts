@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { DateTime, Effect, Option } from 'effect';
 
-import type { SetComponentCurrentProof, SetComponentValidation } from '../../shared/domain/set-component-validation.ts';
+import type { SetComponentCurrentProof } from '../../shared/domain/set-component-validation.ts';
 import { validateSetComponents } from '../../shared/domain/set-component-validation.ts';
 import type { CatalogRevisionInstant } from '../../shared/domain/catalog-revision-reference.ts';
 import type { CatalogSelection, CatalogSelectionRevision } from '../../shared/domain/catalog-selection-evidence.ts';
@@ -32,16 +32,6 @@ export interface SetComponentDependencyRevision {
     | 'CONFIGURATION_DEFINITION'
     | 'UNIT';
 }
-
-/** A component-only snapshot; it does not attest a Set selection or purchase as Current. */
-export type SetCompositionComponentCurrentBasis =
-  | {
-      readonly assessedAt: CatalogRevisionInstant;
-      readonly dependencies: readonly SetComponentDependencyRevision[];
-      readonly proofs: readonly SetComponentCurrentProof[];
-      readonly status: 'VALID';
-    }
-  | Extract<SetComponentValidation, { readonly status: 'INVALID' | 'INDETERMINATE' }>;
 
 const unavailable = (cause: unknown) => {
   const error = new SetCompositionPersistenceUnavailable({

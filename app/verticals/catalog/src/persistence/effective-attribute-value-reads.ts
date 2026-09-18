@@ -63,7 +63,7 @@ export interface EffectiveAttributeValueReads {
   ) => Effect.Effect<EffectiveAttributeValuesResult, CatalogPersistenceUnavailable>;
 }
 
-export interface AttributeDefinitionCurrentProof {
+interface AttributeDefinitionCurrentProof {
   readonly attributeDefinitionId: string;
   readonly complete: boolean;
   readonly revision: number | null;

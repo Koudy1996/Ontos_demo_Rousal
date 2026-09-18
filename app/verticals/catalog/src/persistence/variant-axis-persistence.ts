@@ -44,7 +44,7 @@ export interface GovernVariantAxesInput {
   readonly reason: string;
 }
 
-export interface CurrentVariantAxis {
+interface CurrentVariantAxis {
   readonly attributeDefinitionId: string;
   readonly controlledValueKind: string | null;
   readonly definitionRevision: number;

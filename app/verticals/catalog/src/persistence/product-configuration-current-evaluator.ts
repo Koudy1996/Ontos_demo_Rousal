@@ -39,7 +39,7 @@ interface CurrentConfigurationRuleEvidence {
 }
 
 /** Exact owner-recorded meanings, not a claim about external Attribute or Unit Current state. */
-export interface CurrentConfigurationChoiceEvidence {
+interface CurrentConfigurationChoiceEvidence {
   readonly choiceKey: string;
   readonly evidenceRefs: readonly string[];
   readonly kind: 'SINGLE_CHOICE' | 'MEASURED_VALUE';

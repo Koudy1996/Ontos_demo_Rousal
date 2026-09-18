@@ -450,7 +450,7 @@ const inspectCompatibility = (
   return null;
 };
 
-export const inspectProductConfigurationRules = (input: ConfigurationRuleSnapshot): string | null => {
+const inspectProductConfigurationRules = (input: ConfigurationRuleSnapshot): string | null => {
   if (input.choices.length === 0 || !unique(input.choices.map((choice) => choice.choiceKey))) {
     return 'Choices must be explicit and unique';
   }

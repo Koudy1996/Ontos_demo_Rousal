@@ -35,7 +35,7 @@ export interface ProductMeasurement {
   readonly unit: string;
 }
 
-export type ProductMeasurementsResult =
+type ProductMeasurementsResult =
   | { readonly measurements: readonly ProductMeasurement[]; readonly status: 'KNOWN' }
   | { readonly status: 'ABSENT' }
   | { readonly status: 'UNAVAILABLE' };

@@ -35,7 +35,7 @@ import type {
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
-export class ProductTypeReadinessSourceInvalid extends Schema.TaggedError<ProductTypeReadinessSourceInvalid>()(
+class ProductTypeReadinessSourceInvalid extends Schema.TaggedError<ProductTypeReadinessSourceInvalid>()(
   'ProductTypeReadinessSourceInvalid',
   { code: Schema.Literal('product_type_readiness_source_invalid'), reason: Schema.String },
 ) {}

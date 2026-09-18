@@ -11,31 +11,6 @@ import { variantAxisPersistenceForScope } from './variant-axis-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
-/** A diagnostic basis only. No result from this service authorizes Current activation. */
-export type VariantCurrentBasis =
-  | {
-      readonly reason:
-        | 'WRONG_SCOPE'
-        | 'MISSING_PRODUCT'
-        | 'WRONG_PRODUCT'
-        | 'NOT_CURRENT'
-        | 'UNRECORDED_COMBINATION'
-        | 'MISSING_AXIS_VALUE'
-        | 'DUPLICATE_COMBINATION';
-      readonly status: 'INVALID';
-    }
-  | {
-      readonly axisRevision?: number;
-      /** Canonical candidate for an empty axis vector; it is not an activation token. */
-      readonly combinationKey?: string;
-      readonly reason:
-        | 'AXIS_BASIS_UNAVAILABLE'
-        | 'AXIS_REVISION_MISSING'
-        | 'ALLOWED_SET_UNPROVEN'
-        | 'OPEN_SELECTION_UNPROVEN';
-      readonly status: 'INDETERMINATE';
-    };
-
 /** Stable length-independent encoding of the empty axis vector. */
 export const axisFreeCombinationKey = (): string => createHash('sha256').update('[]').digest('hex');
 

@@ -63,8 +63,6 @@ type SuccessOutcome<Tag extends 'created' | 'changed' | 'retired'> = Extract<
   typeof CreatedOutcomeSchema.Type | typeof ChangedOutcomeSchema.Type | typeof RetiredOutcomeSchema.Type,
   { readonly _tag: Tag }
 >;
-export type VariantPersistenceOutcome = FailureOutcome | SuccessOutcome<'created' | 'changed' | 'retired'>;
-
 export interface VariantPersistence {
   readonly change: (
     input: ChangeVariantPersistenceInput,
