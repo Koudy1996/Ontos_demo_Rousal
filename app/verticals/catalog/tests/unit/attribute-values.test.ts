@@ -174,6 +174,11 @@ describe('Attribute Definition and per-subject values', () => {
     expect(Schema.is(AttributeValueSchema)({ amount: 80, kind: 'MEASUREMENT' })).toBe(false);
     expect(Schema.is(AttributeValueSchema)({ amount: 80, kind: 'MEASUREMENT', unit: '' })).toBe(false);
     expect(Schema.is(AttributeValueSchema)({ kind: 'TEXT', text: '' })).toBe(false);
+    expect(validateAttributeValues(definition, [null])).toEqual({
+      normalized: [],
+      reasons: ['Malformed value'],
+      valid: false,
+    });
   });
 
   it('enforces single versus multiple values and never mixes a special state with facts', () => {

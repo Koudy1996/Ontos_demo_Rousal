@@ -247,7 +247,7 @@ const validateMeasurement = (
 
 const validateValue = (
   definition: AttributeDefinition,
-  value: AttributeValue,
+  value: AttributeValue | null,
   specialStates: ReadonlySet<AttributeDefinition['specialStates'][number]>,
   conversions: readonly UnitConversion[],
 ): ValueResult => {
@@ -279,7 +279,7 @@ const validateValue = (
 /** Pure per-subject validation; Product Type owns required/optional and applicability. */
 export const validateAttributeValues = (
   definition: AttributeDefinition,
-  values: readonly AttributeValue[],
+  values: readonly (AttributeValue | null)[],
   conversions: readonly UnitConversion[] = [],
 ): AttributeValidation => {
   const reasons: string[] = [];
@@ -290,7 +290,7 @@ export const validateAttributeValues = (
   if (definition.multiplicity === 'SINGLE' && values.length > 1) {
     reasons.push('Single attribute has multiple values');
   }
-  if (values.some((value) => value.kind === 'SPECIAL') && values.length > 1) {
+  if (values.some((value) => Schema.is(AttributeValueSchema)(value) && value.kind === 'SPECIAL') && values.length > 1) {
     reasons.push('A special state cannot coexist with another value');
   }
   const specialStates = new Set(definition.specialStates);
