@@ -908,10 +908,7 @@ Pricing does not create, merge or split Pricing Lines as a calculation side effe
 aggregation group or bounded quantity/calculation portion is not another Pricing Line. Pricing Line
 does not by itself define Cart/Order line lifecycle.
 
-**Inventory** — Domain owning stock and reservations when the Customer Configuration owns those
-lifecycles. Inventory maps exact Catalog selections to explicitly owned stock requirements without
-redefining product identity or package/composition semantics. Separate Catalog selection identity
-neither requires separate stock nor permits double reservation of a Set and its components.
+**Inventory** — Domain owning the one-to-one binding from each exact Catalog Selection to one Stock Item, plus stock facts, Stock Requirements/Allocations, and Inventory-recognized stock obligations within declared authority boundaries. Inventory preserves exact Quantity/Unit meaning; Package/Set contents are not decomposed for stock, and the actual Reservation Authority may be Inventory, an External Business System, or absent.
 
 **Availability** — Current promise that an exact Catalog Selection and Quantity can be sold and
 delivered in a Commerce Purchasing Context. It may derive from Inventory or an External Business
