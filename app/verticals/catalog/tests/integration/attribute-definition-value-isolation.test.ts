@@ -1,0 +1,218 @@
+import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { and, eq, sql } from 'drizzle-orm';
+import { Effect, Schema } from 'effect';
+import { expect, it } from 'effect-rstest';
+import { randomUUID } from 'node:crypto';
+
+import {
+  makeTestDatabaseFromPool,
+  testDatabasePools,
+} from '../../../../packages/core-runtime/tests/support/database.ts';
+import {
+  attributeDefinitions,
+  attributeValueItems,
+  attributeValueRevisions,
+  attributeValueSets,
+  catalogRelations,
+  productTypeAssignments,
+  productTypeRevisionAttributes,
+  productTypeRevisions,
+  productTypes,
+  products,
+} from '../../src/database/schema.ts';
+import type { CatalogTransaction } from '../../src/database/types.ts';
+import { attributeValuesPersistenceForScope } from '../../src/persistence/attribute-values-persistence.ts';
+
+// Append-only revisions remain in the disposable integration database; fresh IDs isolate every run.
+it.live('keeps two Products using one material definition independent in Current and history', () =>
+  Effect.scoped(
+    Effect.gen(function* attributeValueIsolation() {
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      const principalId = randomUUID();
+      const definitionId = randomUUID();
+      const typeId = randomUUID();
+      const p1 = randomUUID();
+      const p2 = randomUUID();
+      const { admin: adminPool, runtimePool } = yield* testDatabasePools;
+      const admin = yield* makeTestDatabaseFromPool(adminPool, catalogRelations);
+      const runtime = yield* makeTestDatabaseFromPool(runtimePool, catalogRelations);
+      const scopeFor = (tenantId: string) => ({
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:attribute-isolation-test:run:1',
+          authMethod: 'system',
+          principalId,
+          tenantId,
+        }),
+        correlationId: 'attribute-isolation-test',
+      });
+      const withTenant = <Value, Failure>(
+        tenantId: string,
+        operation: (transaction: CatalogTransaction) => Effect.Effect<Value, Failure>,
+      ) =>
+        runtime.transaction((transaction) =>
+          Effect.gen(function* scopedAttributeTransaction() {
+            yield* transaction.execute(sql`select set_config('ontos.tenant_id', ${tenantId}, true)`, 'objects');
+            return yield* operation(transaction);
+          }),
+        );
+      const reference = (resourceType: 'attribute-definition' | 'product', resourceId: string, tenantId = tenantA) => ({
+        moduleId: 'commerce.catalog' as const,
+        resourceId,
+        resourceType: `commerce.catalog.${resourceType}` as const,
+        tenantId,
+      });
+      const setMaterial = (tenantId: string, productId: string, material: string, expectedRevision: number | null) =>
+        withTenant(tenantId, (transaction) =>
+          Effect.gen(function* persistMaterial() {
+            const service = yield* attributeValuesPersistenceForScope(
+              // @ts-expect-error The real test transaction lacks only Core's private scope brand.
+              transaction,
+              scopeFor(tenantId),
+            );
+            return yield* service.setProductValues({
+              actionInvocationId: randomUUID(),
+              attributeDefinitionRef: reference('attribute-definition', definitionId),
+              expectedRevision,
+              principalId,
+              productRef: reference('product', productId, tenantId),
+              reason: 'Verified material correction',
+              values: [{ kind: 'TEXT', text: material }],
+            });
+          }),
+        );
+
+      yield* admin.insert(products).values(
+        [p1, p2].map((productId) => ({
+          createdByActionInvocationId: randomUUID(),
+          createdByPrincipalId: principalId,
+          lifecycleState: 'ACTIVE',
+          productId,
+          tenantId: tenantA,
+        })),
+      );
+      yield* admin.insert(attributeDefinitions).values({
+        applicableLevels: ['PRODUCT'],
+        attributeDefinitionId: definitionId,
+        createdByActionInvocationId: randomUUID(),
+        createdByPrincipalId: principalId,
+        meaning: 'Constituent material of the Product',
+        multiplicity: 'SINGLE',
+        name: 'Material',
+        tenantId: tenantA,
+        valueKind: 'TEXT',
+      });
+      yield* admin.insert(productTypes).values({
+        createdByActionInvocationId: randomUUID(),
+        createdByPrincipalId: principalId,
+        name: 'Material-bearing Product',
+        productTypeId: typeId,
+        tenantId: tenantA,
+      });
+      yield* admin.insert(productTypeRevisions).values({
+        actionInvocationId: randomUUID(),
+        actingPrincipalId: principalId,
+        effectiveAt: new Date('2020-01-01T00:00:00.000Z'),
+        productTypeId: typeId,
+        reason: 'Fixture type revision',
+        revision: 1,
+        tenantId: tenantA,
+      });
+      yield* admin.insert(productTypeRevisionAttributes).values({
+        attributeDefinitionId: definitionId,
+        level: 'PRODUCT',
+        productTypeId: typeId,
+        requirement: 'OPTIONAL',
+        revision: 1,
+        tenantId: tenantA,
+      });
+      yield* admin.insert(productTypeAssignments).values(
+        [p1, p2].map((productId) => ({
+          assignedByActionInvocationId: randomUUID(),
+          assignedByPrincipalId: principalId,
+          productId,
+          productTypeId: typeId,
+          tenantId: tenantA,
+        })),
+      );
+
+      const first = yield* setMaterial(tenantA, p1, 'steel', null);
+      const second = yield* setMaterial(tenantA, p2, 'wood', null);
+      expect(first.revision).toBe(1);
+      expect(second.revision).toBe(1);
+      expect(first.attributeValueSetId).not.toBe(second.attributeValueSetId);
+
+      const p2Before = {
+        current: yield* admin
+          .select()
+          .from(attributeValueSets)
+          .where(eq(attributeValueSets.attributeValueSetId, second.attributeValueSetId)),
+        items: yield* admin
+          .select()
+          .from(attributeValueItems)
+          .where(eq(attributeValueItems.attributeValueSetId, second.attributeValueSetId)),
+        history: yield* admin
+          .select()
+          .from(attributeValueRevisions)
+          .where(eq(attributeValueRevisions.attributeValueSetId, second.attributeValueSetId)),
+      };
+      expect(p2Before.current).toMatchObject([
+        { attributeDefinitionId: definitionId, currentRevision: 1, productId: p2 },
+      ]);
+      expect(p2Before.items).toMatchObject([{ textValue: 'wood' }]);
+      expect(p2Before.history).toMatchObject([
+        { revision: 1, valueSnapshot: { values: [{ kind: 'TEXT', text: 'wood' }] } },
+      ]);
+
+      expect(yield* setMaterial(tenantA, p1, 'stainless steel', 1)).toMatchObject({
+        attributeValueSetId: first.attributeValueSetId,
+        revision: 2,
+      });
+      expect(
+        yield* admin
+          .select()
+          .from(attributeValueSets)
+          .where(eq(attributeValueSets.attributeValueSetId, second.attributeValueSetId)),
+      ).toEqual(p2Before.current);
+      expect(
+        yield* admin
+          .select()
+          .from(attributeValueItems)
+          .where(eq(attributeValueItems.attributeValueSetId, second.attributeValueSetId)),
+      ).toEqual(p2Before.items);
+      expect(
+        yield* admin
+          .select()
+          .from(attributeValueRevisions)
+          .where(eq(attributeValueRevisions.attributeValueSetId, second.attributeValueSetId)),
+      ).toEqual(p2Before.history);
+
+      const p1Current = yield* admin
+        .select()
+        .from(attributeValueItems)
+        .where(eq(attributeValueItems.attributeValueSetId, first.attributeValueSetId));
+      const p1History = yield* admin
+        .select()
+        .from(attributeValueRevisions)
+        .where(eq(attributeValueRevisions.attributeValueSetId, first.attributeValueSetId));
+      expect(p1Current).toMatchObject([{ textValue: 'stainless steel' }]);
+      expect(p1History).toMatchObject([
+        { revision: 1, valueSnapshot: { values: [{ kind: 'TEXT', text: 'steel' }] } },
+        { revision: 2, valueSnapshot: { values: [{ kind: 'TEXT', text: 'stainless steel' }] } },
+      ]);
+
+      expect(yield* withTenant(tenantB, (transaction) => transaction.select().from(attributeValueSets))).toEqual([]);
+      expect(yield* withTenant(tenantB, (transaction) => transaction.select().from(attributeValueRevisions))).toEqual(
+        [],
+      );
+      const foreign = yield* Effect.either(setMaterial(tenantB, p2, 'intrusion', null));
+      expect(foreign).toMatchObject({ _tag: 'Left', left: { conflict: 'INVALID_INPUT' } });
+      expect(
+        yield* admin
+          .select()
+          .from(attributeValueSets)
+          .where(and(eq(attributeValueSets.tenantId, tenantA), eq(attributeValueSets.productId, p2))),
+      ).toEqual(p2Before.current);
+    }),
+  ),
+);
