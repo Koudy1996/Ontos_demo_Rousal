@@ -110,12 +110,10 @@ export const handleReviseProductType = Effect.fn('ReviseProductTypeAction.handle
           previousSourceLevel: 'PRODUCT',
         });
         if (decision.kind !== 'CHANGED') {
-          return yield* Effect.fail(
-            new CatalogPersistenceUnavailable({
-              code: 'catalog_persistence_unavailable',
-              reason: 'Catalog could not prove the committed Product Type changed resolved Current selection evidence',
-            }),
-          );
+          return yield* new CatalogPersistenceUnavailable({
+            code: 'catalog_persistence_unavailable',
+            reason: 'Catalog could not prove the committed Product Type changed resolved Current selection evidence',
+          });
         }
         const eventPayload = yield* Schema.decodeEffect(SelectionSourceChangedEventSchema)({
           changeId: context.actionInvocationId,
