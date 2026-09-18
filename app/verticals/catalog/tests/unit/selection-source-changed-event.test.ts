@@ -97,7 +97,6 @@ describe('Selection source changed outbox contract', () => {
     const productTypePayload = {
       changeId,
       changeKind: 'SOURCE_REVISED',
-      productRef,
       source: {
         resourceRef: {
           moduleId: 'commerce.catalog',
@@ -111,7 +110,12 @@ describe('Selection source changed outbox contract', () => {
       tenantId,
     } as const;
     expect(Schema.decodeUnknownSync(OutboxPayloadSchema)(productTypePayload)).toEqual(productTypePayload);
-    expect(() => Schema.decodeUnknownSync(OutboxPayloadSchema)({ ...productTypePayload, variantRef })).toThrow();
+    expect(Schema.decodeUnknownSync(OutboxPayloadSchema)({ ...productTypePayload, productRef, variantRef })).toEqual(
+      productTypePayload,
+    );
+    expect(() =>
+      Schema.decodeUnknownSync(OutboxPayloadSchema)({ ...productTypePayload, changeKind: 'OVERRIDE_SET' }),
+    ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(OutboxPayloadSchema)({
         ...productTypePayload,
@@ -122,6 +126,7 @@ describe('Selection source changed outbox contract', () => {
 
   it('does not carry a Current-at-commit claim', () => {
     expect(Object.keys(inheritedValuePayload)).not.toContain('currentAtCommit');
-    expect(Object.keys(OutboxPayloadSchema.fields)).not.toContain('currentAtCommit');
+    const decoded = Schema.decodeUnknownSync(OutboxPayloadSchema)({ ...inheritedValuePayload, currentAtCommit: true });
+    expect(Object.keys(decoded)).not.toContain('currentAtCommit');
   });
 });

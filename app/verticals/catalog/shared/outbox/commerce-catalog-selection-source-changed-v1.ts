@@ -13,44 +13,57 @@ const TenantIdSchema = checkedUuid.pipe(Schema.brand('CatalogTenantId'), Schema.
 const productTypeResourceType = 'commerce.catalog.product-type';
 const attributeValueSetResourceType = 'commerce.catalog.attribute-value-set';
 
-/**
- * A committed change to a Product Type or inherited Attribute Value source that can alter
- * selection without editing a Variant. The subject is the exact changed source revision, never
- * a fabricated per-Variant edit. The payload carries only source revision identity; it does not
- * claim that the value is Current at delivery.
- */
-export const OutboxPayloadSchema = Schema.Struct({
+const ProductTypeSourceChangedPayloadSchema = Schema.Struct({
   changeId: ProductActionInvocationIdSchema,
-  changeKind: Schema.Literals(['SOURCE_REVISED', 'OVERRIDE_SET', 'OVERRIDE_RELEASED']),
-  productRef: ProductRefSchema,
+  changeKind: Schema.Literal('SOURCE_REVISED'),
   source: CatalogSelectionRevisionSchema,
-  sourceKind: Schema.Literals(['PRODUCT_TYPE', 'INHERITED_VALUE']),
+  sourceKind: Schema.Literal('PRODUCT_TYPE'),
   tenantId: TenantIdSchema,
-  variantRef: Schema.optionalKey(VariantRefSchema),
 }).check(
-  Schema.makeFilter(({ changeKind, productRef, source, sourceKind, tenantId, variantRef }) => {
-    if (productRef.tenantId !== tenantId || source.resourceRef.tenantId !== tenantId) {
-      return 'Selection source event Product and source must share the event Tenant';
+  Schema.makeFilter(({ source, tenantId }) => {
+    if (source.resourceRef.tenantId !== tenantId) {
+      return 'Selection source event source must share the event Tenant';
     }
-    if (variantRef !== undefined && variantRef.tenantId !== tenantId) {
-      return 'Selection source event Variant must share the event Tenant';
-    }
-    if (sourceKind === 'PRODUCT_TYPE') {
-      if (source.resourceRef.resourceType !== productTypeResourceType) {
-        return 'A PRODUCT_TYPE source must name the changed Product Type revision';
-      }
-      return changeKind === 'SOURCE_REVISED' && variantRef === undefined
-        ? undefined
-        : 'A Product Type source change is a source revision, not a Variant override';
-    }
-    if (source.resourceRef.resourceType !== attributeValueSetResourceType) {
-      return 'An INHERITED_VALUE source must name the changed Attribute Value Set revision';
-    }
-    return variantRef === undefined
-      ? 'An inherited value override change must name the exact resolved Variant'
-      : undefined;
+    return source.resourceRef.resourceType === productTypeResourceType
+      ? undefined
+      : 'A PRODUCT_TYPE source must name the changed Product Type revision';
   }),
 );
+
+const InheritedValueSourceChangedPayloadSchema = Schema.Struct({
+  changeId: ProductActionInvocationIdSchema,
+  changeKind: Schema.Literals(['OVERRIDE_SET', 'OVERRIDE_RELEASED']),
+  productRef: ProductRefSchema,
+  source: CatalogSelectionRevisionSchema,
+  sourceKind: Schema.Literal('INHERITED_VALUE'),
+  tenantId: TenantIdSchema,
+  variantRef: VariantRefSchema,
+}).check(
+  Schema.makeFilter(({ productRef, source, tenantId, variantRef }) => {
+    if (
+      productRef.tenantId !== tenantId ||
+      source.resourceRef.tenantId !== tenantId ||
+      variantRef.tenantId !== tenantId
+    ) {
+      return 'Selection source event Product, source, and Variant must share the event Tenant';
+    }
+    return source.resourceRef.resourceType === attributeValueSetResourceType
+      ? undefined
+      : 'An INHERITED_VALUE source must name the changed Attribute Value Set revision';
+  }),
+);
+
+/**
+ * A committed change to a Product Type or inherited Attribute Value source that can alter
+ * selection without editing a Variant. A Product Type revision names only the exact changed
+ * shared source; it does not fabricate one affected Product or a per-Variant edit. An inherited
+ * value override names its exact Product and Variant resolution. The payload carries only source
+ * revision identity; it does not claim that the value is Current at delivery.
+ */
+export const OutboxPayloadSchema = Schema.Union([
+  ProductTypeSourceChangedPayloadSchema,
+  InheritedValueSourceChangedPayloadSchema,
+]);
 export type OutboxPayload = Schema.Schema.Type<typeof OutboxPayloadSchema>;
 
 export const outboxTopic = 'commerce.catalog.selection-source-changed.v1' as const;
