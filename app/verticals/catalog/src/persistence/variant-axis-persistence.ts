@@ -77,6 +77,20 @@ export interface VariantAxisPersistence {
     variantRef: VariantRef,
     axes: CurrentVariantAxes,
   ) => Effect.Effect<readonly CurrentVariantAxisValue[], CatalogPersistenceUnavailable | VariantAxisBasisUnavailable>;
+  /** Only explicit ACTIVE rows are combinations; values never imply a Cartesian product. */
+  readonly readRecordedCombinations: (
+    productRef: ProductRef,
+    axes: CurrentVariantAxes,
+  ) => Effect.Effect<
+    readonly RecordedVariantCombination[],
+    CatalogPersistenceUnavailable | VariantAxisBasisUnavailable
+  >;
+}
+
+export interface RecordedVariantCombination {
+  readonly variantId: string;
+  readonly combinationKey: string;
+  readonly axisRevision: number;
 }
 
 export interface CurrentVariantAxisValue {
@@ -513,6 +527,52 @@ export const variantAxisPersistenceForScope = (
     return yield* Effect.forEach(axes.axes, (axis) => readOneValue(productRef, variantRef, axis), { concurrency: 1 });
   });
 
+  const readRecordedCombinations: VariantAxisPersistence['readRecordedCombinations'] = Effect.fn(
+    'VariantAxisPersistence.readRecordedCombinations',
+  )(function* readRecordedCombinations(productRef, axes) {
+    if (
+      productRef.tenantId !== tenantId ||
+      productRef.moduleId !== catalogModuleId ||
+      productRef.resourceType !== productResourceType ||
+      axes.productId !== productRef.resourceId ||
+      !Number.isSafeInteger(axes.axisRevision) ||
+      axes.axisRevision < 1
+    ) {
+      return yield* basisUnavailable();
+    }
+    const rows = yield* transaction
+      .select({
+        axisRevision: productVariants.combinationAxisRevision,
+        combinationKey: productVariants.combinationKey,
+        lifecycleState: productVariants.lifecycleState,
+        productId: productVariants.productId,
+        tenantId: productVariants.tenantId,
+        variantId: productVariants.variantId,
+      })
+      .from(productVariants)
+      .where(and(eq(productVariants.tenantId, tenantId), eq(productVariants.productId, productRef.resourceId)))
+      .pipe(Effect.mapError(unavailable));
+    const active = rows.filter((row) => row.lifecycleState === 'ACTIVE');
+    if (
+      active.some(
+        (row) =>
+          row.tenantId !== tenantId ||
+          row.productId !== productRef.resourceId ||
+          row.axisRevision !== axes.axisRevision ||
+          row.combinationKey === null ||
+          !/^[0-9a-f]{64}$/.test(row.combinationKey),
+      ) ||
+      new Set(active.map((row) => row.combinationKey)).size !== active.length
+    ) {
+      return yield* basisUnavailable();
+    }
+    return active.map((row) => ({
+      axisRevision: axes.axisRevision,
+      combinationKey: row.combinationKey ?? '',
+      variantId: row.variantId,
+    }));
+  });
+
   const govern: VariantAxisPersistence['govern'] = Effect.fn('VariantAxisPersistence.govern')(function* govern(input) {
     const conflict = writeConflict;
     if (invalidGovernInput(input, tenantId)) {
@@ -738,5 +798,5 @@ export const variantAxisPersistenceForScope = (
     return { axisRevision, changed: true };
   });
 
-  return { govern, readCurrent, readEffectiveValues };
+  return { govern, readCurrent, readEffectiveValues, readRecordedCombinations };
 };

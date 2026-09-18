@@ -19,6 +19,7 @@ export type VariantCurrentBasis =
         | 'MISSING_PRODUCT'
         | 'WRONG_PRODUCT'
         | 'NOT_CURRENT'
+        | 'UNRECORDED_COMBINATION'
         | 'MISSING_AXIS_VALUE'
         | 'DUPLICATE_COMBINATION';
       readonly status: 'INVALID';
@@ -101,6 +102,15 @@ export const variantCurrentBasisForScope = (transaction: ScopedTransaction, scop
     }
     if (axisBasis.axisRevision === 0) {
       return { reason: 'AXIS_REVISION_MISSING', status: 'INDETERMINATE' } as const;
+    }
+    const recorded = yield* axisReader
+      .readRecordedCombinations(productRef, axisBasis)
+      .pipe(Effect.catchTag('VariantAxisBasisUnavailable', () => Effect.succeed(null)));
+    if (recorded === null) {
+      return { reason: 'AXIS_BASIS_UNAVAILABLE', status: 'INDETERMINATE' } as const;
+    }
+    if (!recorded.some((item) => item.variantId === variantRef.resourceId)) {
+      return { reason: 'UNRECORDED_COMBINATION', status: 'INVALID' } as const;
     }
     if (axisBasis.axes.length > 0) {
       const effectiveValues = yield* axisReader

@@ -428,6 +428,75 @@ describe('Variant Axis Current basis', () => {
     }),
   );
 
+  it.effect('lists only three explicitly recorded combinations and excludes an unconfirmed draft', () =>
+    Effect.gen(function* readsOnlyRecorded() {
+      const recorded = [
+        { variantId, combinationKey: 'a'.repeat(64) },
+        { variantId: '88888888-8888-4888-8888-888888888888', combinationKey: 'b'.repeat(64) },
+        { variantId: '99999999-9999-4999-8999-999999999999', combinationKey: 'c'.repeat(64) },
+      ];
+      const transaction = transactionWith(
+        new Map([
+          [
+            productVariants,
+            [
+              ...recorded.map((row) => ({
+                ...row,
+                axisRevision: 1,
+                combinationAxisRevision: 1,
+                lifecycleState: 'ACTIVE',
+                productId,
+                tenantId,
+              })),
+              {
+                variantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                combinationKey: null,
+                combinationAxisRevision: null,
+                lifecycleState: 'WORK_IN_PROGRESS',
+                productId,
+                tenantId,
+              },
+            ],
+          ],
+        ]),
+      );
+      // @ts-expect-error Focused Drizzle read-chain mock.
+      const persistence = variantAxisPersistenceForScope(transaction, scope);
+      const axes = yield* persistence.readCurrent(productRef);
+      expect(yield* persistence.readRecordedCombinations(productRef, axes)).toEqual(
+        recorded.map((row) => ({ axisRevision: 1, ...row })),
+      );
+    }),
+  );
+
+  it.effect('fails closed when a recorded combination does not match the Current axis revision', () =>
+    Effect.gen(function* rejectsStaleCombination() {
+      const transaction = transactionWith(
+        new Map([
+          [
+            productVariants,
+            [
+              {
+                variantId,
+                axisRevision: 2,
+                combinationKey: 'a'.repeat(64),
+                combinationAxisRevision: 2,
+                lifecycleState: 'ACTIVE',
+                productId,
+                tenantId,
+              },
+            ],
+          ],
+        ]),
+      );
+      // @ts-expect-error Focused Drizzle read-chain mock.
+      const persistence = variantAxisPersistenceForScope(transaction, scope);
+      const axes = yield* persistence.readCurrent(productRef);
+      const failure = yield* Effect.flip(persistence.readRecordedCombinations(productRef, axes));
+      expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+
   it.effect('reports an absent effective axis as missing without synthesizing an allowed value', () =>
     Effect.gen(function* readsMissingValue() {
       // @ts-expect-error Focused Drizzle read-chain mock.
