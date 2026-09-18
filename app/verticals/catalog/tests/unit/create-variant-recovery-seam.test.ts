@@ -95,6 +95,16 @@ describe('create Variant recovery response', () => {
         .pipe(Effect.provideService(ActionRuntime, runtime));
       expect(recovered).toEqual({ result, status: 'committed' });
       expect(snapshotReads).toBe(2);
+
+      const otherPrincipal = variantPersistenceForScope(
+        // @ts-expect-error Only the exercised snapshot read chain is mocked.
+        snapshotTransaction({ ...row, actingPrincipalId: '77777777-7777-4777-8777-777777777777' }, () => {}),
+        scope,
+      );
+      const hidden = yield* otherPrincipal
+        .recoverCreateVariant(invocationId)
+        .pipe(Effect.provideService(ActionRuntime, runtime));
+      expect(hidden).toEqual({ status: 'absent' });
     }),
   );
 
