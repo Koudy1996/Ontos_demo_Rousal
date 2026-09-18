@@ -4,6 +4,7 @@ import { describe, expect, it } from 'effect-rstest';
 
 import {
   attributeDefinitions,
+  attributeDefinitionRevisions,
   attributeValueItems,
   attributeValueRevisions,
   attributeValueSets,
@@ -83,6 +84,7 @@ type QueryTable =
   | typeof products
   | typeof productVariants
   | typeof attributeDefinitions
+  | typeof attributeDefinitionRevisions
   | typeof productTypeAssignments
   | typeof productTypes
   | typeof productTypeRevisions
@@ -97,25 +99,67 @@ const queryResult = (result: ReturnType<(table: QueryTable) => readonly object[]
 const serviceWith = (
   sets: readonly SetFixture[],
   texts: Readonly<Record<string, string>>,
-  options: { readonly malformedItem?: boolean; readonly malformedRevision?: boolean } = {},
+  options: {
+    readonly malformedDefinitionRevision?: boolean;
+    readonly malformedItem?: boolean;
+    readonly malformedRevision?: boolean;
+    readonly malformedValueSnapshot?: boolean;
+  } = {},
 ) => {
   const queried: QueryTable[] = [];
   let revisionReads = 0;
   let itemReads = 0;
+  const revisionRows = () => {
+    const set = sets[revisionReads];
+    revisionReads += 1;
+    if (set === undefined) {
+      return [];
+    }
+    const currentText = texts[set.attributeValueSetId];
+    const revisionValues = currentText === undefined ? [] : [{ kind: 'TEXT', text: currentText }];
+    return [
+      {
+        attributeValueSetId: options.malformedRevision === true ? variantSetId : set.attributeValueSetId,
+        changeKind: set.currentState,
+        revision: set.currentRevision,
+        tenantId,
+        valueSnapshot: {
+          attributeDefinitionRevision: 2,
+          productTypeId: '88888888-8888-4888-8888-888888888888',
+          productTypeRevision: 3,
+          sourceProductValueRevision: null,
+          values: options.malformedValueSnapshot === true ? [{ kind: 'TEXT', text: 'wrong' }] : revisionValues,
+        },
+      },
+    ];
+  };
   const rows = (table: QueryTable) => {
-    if (table === products || table === productVariants) {
+    if (table === products) {
+      return [{ lifecycleState: 'ACTIVE', productId }];
+    }
+    if (table === productVariants) {
       return [{ lifecycleState: 'ACTIVE' }];
     }
-    if (table === attributeDefinitions) {
+    if (table === attributeDefinitions || table === attributeDefinitionRevisions) {
       return [
         {
           allowsNone: 0,
           allowsNotApplicable: 0,
           allowsUnknown: 1,
           applicableLevels: ['PRODUCT', 'VARIANT'],
+          canonicalUnit: null,
+          controlledValueKind: null,
+          currentRevision: 2,
+          decimalPlaces: null,
+          maximumValue: null,
           meaning: 'Product material',
+          measuredQuantity: null,
+          minimumValue: null,
           multiplicity: 'SINGLE',
-          name: 'Material',
+          name:
+            table === attributeDefinitionRevisions && options.malformedDefinitionRevision === true
+              ? 'Other meaning'
+              : 'Material',
           valueKind: 'TEXT',
         },
       ];
@@ -145,18 +189,7 @@ const serviceWith = (
       return sets;
     }
     if (table === attributeValueRevisions) {
-      const set = sets[revisionReads];
-      revisionReads += 1;
-      return set === undefined
-        ? []
-        : [
-            {
-              attributeValueSetId: options.malformedRevision === true ? variantSetId : set.attributeValueSetId,
-              changeKind: set.currentState,
-              revision: set.currentRevision,
-              tenantId,
-            },
-          ];
+      return revisionRows();
     }
     if (table === attributeValueItems) {
       const set = sets[itemReads];
@@ -190,6 +223,44 @@ const serviceWith = (
 };
 
 describe('private effective attribute value reads', () => {
+  it.effect('attests the exact Current definition and all current Product value sets', () =>
+    Effect.gen(function* ownerValidity() {
+      const reads = yield* serviceWith([productSet], { [productSetId]: 'steel' }).service;
+      expect(yield* reads.readDefinitionCurrent(input.attributeDefinitionRef)).toEqual({
+        attributeDefinitionId: definitionId,
+        complete: true,
+        revision: 2,
+        tenantId,
+      });
+      const basis = yield* reads.readProductTypeValidity([productId]);
+      expect(basis.complete).toBe(true);
+      expect(basis.entries).toMatchObject([
+        {
+          attributeValueSetId: productSetId,
+          currentState: 'SET',
+          definitionRevision: 2,
+          revision: 4,
+          valid: true,
+        },
+      ]);
+    }),
+  );
+
+  it.effect('does not attest a mismatched immutable definition revision', () =>
+    Effect.gen(function* mismatchedDefinition() {
+      const reads = yield* serviceWith([productSet], { [productSetId]: 'steel' }, { malformedDefinitionRevision: true })
+        .service;
+      expect((yield* reads.readDefinitionCurrent(input.attributeDefinitionRef)).complete).toBe(false);
+      expect((yield* reads.readProductTypeValidity([productId])).complete).toBe(false);
+    }),
+  );
+  it.effect('does not attest a Current set that differs from its immutable revision', () =>
+    Effect.gen(function* mismatchedValueRevision() {
+      const reads = yield* serviceWith([productSet], { [productSetId]: 'steel' }, { malformedValueSnapshot: true })
+        .service;
+      expect((yield* reads.readProductTypeValidity([productId])).complete).toBe(false);
+    }),
+  );
   it.effect('rejects foreign references before querying', () =>
     Effect.gen(function* foreignReferences() {
       const { queried, service } = serviceWith([], {});

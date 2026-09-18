@@ -1,4 +1,4 @@
-import { Schema } from 'effect';
+import { Equal, Schema } from 'effect';
 
 import { CatalogResourceRefSchema } from './catalog-revision-reference.ts';
 
@@ -55,6 +55,52 @@ export const AttributeDefinitionSchema = Schema.Struct({
   }),
 );
 export type AttributeDefinition = typeof AttributeDefinitionSchema.Type;
+
+export interface DefinitionRuleChangeAssessment {
+  readonly kind: 'UNCHANGED' | 'RULE_REVISION' | 'NEW_DEFINITION_REQUIRED';
+  readonly reasons: readonly string[];
+}
+
+const identityAndMeaning = (definition: AttributeDefinition) => [
+  definition.ref.tenantId,
+  definition.ref.resourceId,
+  definition.meaning,
+  definition.valueKind,
+  definition.measurement?.quantity,
+];
+const ruleFields = (definition: AttributeDefinition) => [
+  definition.multiplicity,
+  definition.measurement?.canonicalUnit,
+  definition.measurement?.decimalPlaces,
+  [definition.measurement?.minimum, definition.measurement?.maximum],
+  [...definition.levels].toSorted(),
+  [...definition.specialStates].toSorted(),
+];
+
+/** A rule revision can retain identity only when the question being answered stays the same. */
+export const assessDefinitionRuleChange = (
+  current: AttributeDefinition,
+  proposed: AttributeDefinition,
+): DefinitionRuleChangeAssessment => {
+  if (!Schema.is(AttributeDefinitionSchema)(current) || !Schema.is(AttributeDefinitionSchema)(proposed)) {
+    return { kind: 'NEW_DEFINITION_REQUIRED', reasons: ['Invalid definition'] };
+  }
+  if (!Equal.equals(identityAndMeaning(current), identityAndMeaning(proposed))) {
+    return { kind: 'NEW_DEFINITION_REQUIRED', reasons: ['The measured or described meaning changed'] };
+  }
+  const before = ruleFields(current);
+  const after = ruleFields(proposed);
+  const names = [
+    'Multiplicity changed',
+    'Canonical unit changed',
+    'Precision changed',
+    'Range changed',
+    'Applicable levels changed',
+    'Special states changed',
+  ];
+  const reasons = names.filter((_, index) => !Equal.equals(before[index], after[index]));
+  return { kind: reasons.length === 0 ? 'UNCHANGED' : 'RULE_REVISION', reasons };
+};
 
 /** Absence is represented by no values, never by a fabricated zero, blank, or special state. */
 export const AttributeValueSchema = Schema.Union([

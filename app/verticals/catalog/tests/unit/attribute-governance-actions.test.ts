@@ -146,6 +146,7 @@ describe('Catalog attribute governance Actions', () => {
         renameControlledValue: unexpected,
         renameDefinition: unexpected,
         retireControlledValue: unexpected,
+        reviseDefinitionRules: unexpected,
       };
       const context: ActionHandlerContext<Readonly<Record<string, never>>, AttributePersistence> = {
         actionInvocationId: '55555555-5555-4555-8555-555555555555',

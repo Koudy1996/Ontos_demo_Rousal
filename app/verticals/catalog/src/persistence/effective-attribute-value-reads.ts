@@ -1,9 +1,14 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { DateTime, Effect, Match, Option, Schema } from 'effect';
+import { isDeepStrictEqual } from 'node:util';
 
 import type { AttributeDefinition, AttributeValue } from '../../shared/domain/attribute-values.ts';
-import { AttributeDefinitionSchema, AttributeValueSchema } from '../../shared/domain/attribute-values.ts';
+import {
+  AttributeDefinitionSchema,
+  AttributeValueSchema,
+  validateAttributeValues,
+} from '../../shared/domain/attribute-values.ts';
 import type {
   EffectiveAttributeValuesResult,
   AttributeValueSetSnapshot,
@@ -21,10 +26,12 @@ import type { VariantRef } from '../../shared/resources/variant.ts';
 import { VariantRefSchema } from '../../shared/resources/variant.ts';
 import {
   attributeDefinitions,
+  attributeDefinitionRevisions,
   attributeValueItems,
   attributeValueRevisions,
   attributeValueSets,
   controlledAttributeValues,
+  controlledAttributeValueRevisions,
   productTypeAssignments,
   productTypeRevisionAttributes,
   productTypeRevisions,
@@ -43,13 +50,45 @@ interface EffectiveAttributeValueReadInput {
 }
 
 export interface EffectiveAttributeValueReads {
+  readonly readDefinitionCurrent: (
+    attributeDefinitionRef: AttributeDefinitionRef,
+  ) => Effect.Effect<AttributeDefinitionCurrentProof, CatalogPersistenceUnavailable>;
+  readonly readProductTypeValidity: (
+    productIds: readonly string[],
+  ) => Effect.Effect<AttributeValueSetValidityBasis, CatalogPersistenceUnavailable>;
   readonly resolveVariant: (
     input: EffectiveAttributeValueReadInput,
   ) => Effect.Effect<EffectiveAttributeValuesResult, CatalogPersistenceUnavailable>;
 }
 
+export interface AttributeDefinitionCurrentProof {
+  readonly attributeDefinitionId: string;
+  readonly complete: boolean;
+  readonly revision: number | null;
+  readonly tenantId: string;
+}
+
+export interface AttributeValueSetValidityEntry {
+  readonly attributeDefinitionId: string;
+  readonly attributeValueSetId: string;
+  readonly currentState: 'SET' | 'REMOVED';
+  readonly definitionRevision: number;
+  readonly productId: string;
+  readonly revision: number;
+  readonly sourceRevisionToken: string;
+  readonly valid: boolean;
+  readonly variantId: string | null;
+}
+
+export interface AttributeValueSetValidityBasis {
+  readonly complete: boolean;
+  readonly entries: readonly AttributeValueSetValidityEntry[];
+  readonly tenantId: string;
+}
+
+const CATALOG_MODULE_ID = 'commerce.catalog';
 const ref = (tenantId: string, resourceId: string, resourceType: string) => ({
-  moduleId: 'commerce.catalog',
+  moduleId: CATALOG_MODULE_ID,
   resourceId,
   resourceType,
   tenantId,
@@ -78,6 +117,30 @@ type DefinitionRow = typeof attributeDefinitions.$inferSelect;
 type ValueItemRow = typeof attributeValueItems.$inferSelect;
 type ValueSetRow = typeof attributeValueSets.$inferSelect;
 type ValueRevisionRow = typeof attributeValueRevisions.$inferSelect;
+const ValueRevisionSnapshotSchema = Schema.Struct({
+  attributeDefinitionRevision: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+  productTypeId: Schema.String.pipe(Schema.brand('ProductTypeId')),
+  productTypeRevision: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+  sourceProductValueRevision: Schema.OptionFromNullOr(Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0))),
+  values: Schema.Array(AttributeValueSchema),
+});
+
+const definitionRuleFields = (row: DefinitionRow | typeof attributeDefinitionRevisions.$inferSelect) => ({
+  allowsNone: row.allowsNone,
+  allowsNotApplicable: row.allowsNotApplicable,
+  allowsUnknown: row.allowsUnknown,
+  applicableLevels: row.applicableLevels,
+  canonicalUnit: row.canonicalUnit,
+  controlledValueKind: row.controlledValueKind,
+  decimalPlaces: row.decimalPlaces,
+  maximumValue: row.maximumValue,
+  meaning: row.meaning,
+  measuredQuantity: row.measuredQuantity,
+  minimumValue: row.minimumValue,
+  multiplicity: row.multiplicity,
+  name: row.name,
+  valueKind: row.valueKind,
+});
 
 const malformedSetSnapshot = (
   set: ValueSetRow,
@@ -140,6 +203,48 @@ const decodeDefinition = (
   );
 };
 
+const readCurrentDefinition = Effect.fn('EffectiveAttributeValueReads.readCurrentDefinition')(
+  function* readCurrentDefinition(transaction: ScopedTransaction, tenantId: string, definitionId: string) {
+    const [definition] = yield* transaction
+      .select()
+      .from(attributeDefinitions)
+      .where(
+        and(eq(attributeDefinitions.tenantId, tenantId), eq(attributeDefinitions.attributeDefinitionId, definitionId)),
+      )
+      .limit(1);
+    if (definition === undefined) {
+      return Option.none<DefinitionRow>();
+    }
+    const [revision] = yield* transaction
+      .select()
+      .from(attributeDefinitionRevisions)
+      .where(
+        and(
+          eq(attributeDefinitionRevisions.tenantId, tenantId),
+          eq(attributeDefinitionRevisions.attributeDefinitionId, definitionId),
+          eq(attributeDefinitionRevisions.revision, definition.currentRevision),
+        ),
+      )
+      .limit(2);
+    if (
+      revision === undefined ||
+      !isDeepStrictEqual(definitionRuleFields(definition), definitionRuleFields(revision)) ||
+      Option.isNone(
+        decodeDefinition(definition, {
+          moduleId: CATALOG_MODULE_ID,
+          resourceId: definitionId,
+          resourceType: 'commerce.catalog.attribute-definition',
+          tenantId,
+        }),
+      )
+    ) {
+      return Option.none<DefinitionRow>();
+    }
+    return Option.some(definition);
+  },
+  Effect.mapError(unavailable),
+);
+
 const decodePlainItem = (item: ValueItemRow): Option.Option<AttributeValue> =>
   Match.value(item.valueKind).pipe(
     Match.when('TEXT', () => Schema.decodeUnknownOption(AttributeValueSchema)({ kind: 'TEXT', text: item.textValue })),
@@ -185,7 +290,6 @@ const decodeItem = Effect.fn('EffectiveAttributeValueReads.decodeItem')(function
     controlled === undefined ||
     controlled.tenantId !== tenantId ||
     controlled.attributeDefinitionId !== definitionId ||
-    controlled.lifecycleState !== 'ACTIVE' ||
     controlled.specialization !== controlledKind
   ) {
     return Option.none<AttributeValue>();
@@ -196,12 +300,228 @@ const decodeItem = Effect.fn('EffectiveAttributeValueReads.decodeItem')(function
   });
 });
 
+const readControlledDependency = Effect.fn('EffectiveAttributeValueReads.readControlledDependency')(
+  function* readControlledDependency(
+    transaction: ScopedTransaction,
+    tenantId: string,
+    definitionId: string,
+    controlledId: string | null,
+  ) {
+    if (controlledId === null) {
+      return Option.none<string>();
+    }
+    const [value] = yield* transaction
+      .select()
+      .from(controlledAttributeValues)
+      .where(
+        and(
+          eq(controlledAttributeValues.tenantId, tenantId),
+          eq(controlledAttributeValues.attributeDefinitionId, definitionId),
+          eq(controlledAttributeValues.controlledAttributeValueId, controlledId),
+        ),
+      )
+      .limit(1);
+    if (value === undefined) {
+      return Option.none<string>();
+    }
+    const [revision] = yield* transaction
+      .select()
+      .from(controlledAttributeValueRevisions)
+      .where(
+        and(
+          eq(controlledAttributeValueRevisions.tenantId, tenantId),
+          eq(controlledAttributeValueRevisions.controlledAttributeValueId, controlledId),
+          eq(controlledAttributeValueRevisions.revision, value.currentRevision),
+        ),
+      )
+      .limit(1);
+    if (
+      revision === undefined ||
+      revision.attributeDefinitionId !== definitionId ||
+      revision.lifecycleState !== value.lifecycleState ||
+      revision.meaning !== value.meaning ||
+      revision.name !== value.name ||
+      revision.specialization !== value.specialization
+    ) {
+      return Option.none<string>();
+    }
+    return Option.some(`${controlledId}@${value.currentRevision}`);
+  },
+  Effect.mapError(unavailable),
+);
+
+const readValidityEntry = Effect.fn('EffectiveAttributeValueReads.readValidityEntry')(function* readValidityEntry(
+  transaction: ScopedTransaction,
+  tenantId: string,
+  set: ValueSetRow,
+) {
+  const definition = yield* readCurrentDefinition(transaction, tenantId, set.attributeDefinitionId);
+  if (Option.isNone(definition) || (set.currentState !== 'SET' && set.currentState !== 'REMOVED')) {
+    return Option.none<AttributeValueSetValidityEntry>();
+  }
+  const [records, items] = yield* Effect.all(
+    [
+      transaction
+        .select()
+        .from(attributeValueRevisions)
+        .where(
+          and(
+            eq(attributeValueRevisions.tenantId, tenantId),
+            eq(attributeValueRevisions.attributeValueSetId, set.attributeValueSetId),
+            eq(attributeValueRevisions.revision, set.currentRevision),
+          ),
+        )
+        .limit(2)
+        .pipe(Effect.mapError(unavailable)),
+      transaction
+        .select()
+        .from(attributeValueItems)
+        .where(
+          and(
+            eq(attributeValueItems.tenantId, tenantId),
+            eq(attributeValueItems.attributeValueSetId, set.attributeValueSetId),
+          ),
+        )
+        .orderBy(attributeValueItems.ordinal)
+        .pipe(Effect.mapError(unavailable)),
+    ],
+    { concurrency: 2 },
+  );
+  if (
+    malformedSetSnapshot(set, records, items, tenantId, set.productId, set.attributeDefinitionId, set.variantId ?? '')
+  ) {
+    return Option.none<AttributeValueSetValidityEntry>();
+  }
+  const snapshot = Schema.decodeUnknownOption(ValueRevisionSnapshotSchema)(records[0]?.valueSnapshot);
+  if (Option.isNone(snapshot)) {
+    return Option.none<AttributeValueSetValidityEntry>();
+  }
+  const dependencies = yield* Effect.forEach(
+    items.filter((item) => item.valueKind === 'CONTROLLED'),
+    (item) =>
+      readControlledDependency(transaction, tenantId, set.attributeDefinitionId, item.controlledAttributeValueId),
+    { concurrency: 1 },
+  );
+  if (dependencies.some(Option.isNone)) {
+    return Option.none<AttributeValueSetValidityEntry>();
+  }
+  const decoded = yield* Effect.forEach(
+    items,
+    (item) => decodeItem(transaction, tenantId, set.attributeDefinitionId, definition.value.controlledValueKind, item),
+    { concurrency: 1 },
+  );
+  if (decoded.some(Option.isNone)) {
+    return Option.none<AttributeValueSetValidityEntry>();
+  }
+  const values = Option.all(decoded);
+  const currentDefinition = decodeDefinition(definition.value, {
+    moduleId: CATALOG_MODULE_ID,
+    resourceId: set.attributeDefinitionId,
+    resourceType: 'commerce.catalog.attribute-definition',
+    tenantId,
+  });
+  if (Option.isNone(values) || Option.isNone(currentDefinition)) {
+    return Option.none<AttributeValueSetValidityEntry>();
+  }
+  if (
+    !isDeepStrictEqual(snapshot.value.values, values.value) ||
+    (set.currentState === 'SET' && snapshot.value.attributeDefinitionRevision !== definition.value.currentRevision)
+  ) {
+    return Option.none<AttributeValueSetValidityEntry>();
+  }
+  const checked =
+    set.currentState === 'REMOVED' || validateAttributeValues(currentDefinition.value, values.value).valid;
+  const dependencyTokens = dependencies.flatMap((dependency) => (Option.isSome(dependency) ? [dependency.value] : []));
+  return Option.some<AttributeValueSetValidityEntry>({
+    attributeDefinitionId: set.attributeDefinitionId,
+    attributeValueSetId: set.attributeValueSetId,
+    currentState: set.currentState,
+    definitionRevision: definition.value.currentRevision,
+    productId: set.productId,
+    revision: set.currentRevision,
+    sourceRevisionToken: [
+      set.attributeValueSetId,
+      set.currentRevision,
+      set.attributeDefinitionId,
+      definition.value.currentRevision,
+      snapshot.value.attributeDefinitionRevision,
+      ...dependencyTokens.toSorted(),
+    ].join(':'),
+    valid: checked,
+    variantId: set.variantId,
+  });
+});
+
 /** Private owner service; Core supplies the already scoped read transaction and authorizes its caller. */
 export const effectiveAttributeValueReadsForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
 ): Effect.Effect<EffectiveAttributeValueReads> =>
   Effect.succeed({
+    readDefinitionCurrent: Effect.fn('EffectiveAttributeValueReads.readDefinitionCurrent')(
+      function* readDefinitionCurrent(attributeDefinitionRef) {
+        const { tenantId } = scope;
+        const attributeDefinitionId = attributeDefinitionRef.resourceId;
+        if (
+          !Schema.is(AttributeDefinitionRefSchema)(attributeDefinitionRef) ||
+          attributeDefinitionRef.tenantId !== tenantId
+        ) {
+          return { attributeDefinitionId, complete: false, revision: null, tenantId };
+        }
+        const current = yield* readCurrentDefinition(transaction, tenantId, attributeDefinitionId);
+        return {
+          attributeDefinitionId,
+          complete: Option.isSome(current),
+          revision: Option.isSome(current) ? current.value.currentRevision : null,
+          tenantId,
+        };
+      },
+    ),
+    readProductTypeValidity: Effect.fn('EffectiveAttributeValueReads.readProductTypeValidity')(
+      function* readProductTypeValidity(productIds) {
+        const { tenantId } = scope;
+        const invalidBasis = (): AttributeValueSetValidityBasis => ({ complete: false, entries: [], tenantId });
+        if (
+          new Set(productIds).size !== productIds.length ||
+          productIds.some(
+            (id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id),
+          )
+        ) {
+          return invalidBasis();
+        }
+        if (productIds.length === 0) {
+          return { complete: true, entries: [], tenantId };
+        }
+        const [subjects, sets] = yield* Effect.all(
+          [
+            transaction
+              .select({ productId: products.productId })
+              .from(products)
+              .where(and(eq(products.tenantId, tenantId), inArray(products.productId, [...productIds])))
+              .pipe(Effect.mapError(unavailable)),
+            transaction
+              .select()
+              .from(attributeValueSets)
+              .where(
+                and(eq(attributeValueSets.tenantId, tenantId), inArray(attributeValueSets.productId, [...productIds])),
+              )
+              .pipe(Effect.mapError(unavailable)),
+          ],
+          { concurrency: 2 },
+        );
+        if (subjects.length !== productIds.length) {
+          return invalidBasis();
+        }
+        const loaded = yield* Effect.forEach(sets, (set) => readValidityEntry(transaction, tenantId, set), {
+          concurrency: 1,
+        });
+        if (loaded.some(Option.isNone)) {
+          return invalidBasis();
+        }
+        const entries = Option.all(loaded);
+        return Option.isSome(entries) ? { complete: true, entries: entries.value, tenantId } : invalidBasis();
+      },
+    ),
     resolveVariant: Effect.fn('EffectiveAttributeValueReads.resolveVariant')(function* resolveVariant(input) {
       const { tenantId } = scope;
       if (!validInput(input, tenantId)) {

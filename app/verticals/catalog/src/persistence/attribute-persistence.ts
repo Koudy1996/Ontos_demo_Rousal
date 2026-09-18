@@ -3,7 +3,10 @@ import { findPostgresFailure } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Option, Schema } from 'effect';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
+import type { AttributeDefinition } from '../../shared/domain/attribute-values.ts';
+import { AttributeDefinitionSchema } from '../../shared/domain/attribute-values.ts';
 import type { AttributeDefinitionRef } from '../../shared/resources/attribute-definition.ts';
 import type { ControlledAttributeValueRef } from '../../shared/resources/controlled-attribute-value.ts';
 import {
@@ -118,6 +121,16 @@ export interface RenameAttributeDefinitionInput extends ChangeMetadata {
   readonly sameMeaning: true;
 }
 
+/** The open-selection check must be an authoritative owner-local read in this same transaction. */
+export interface ReviseAttributeDefinitionRulesInput extends ChangeMetadata {
+  readonly attributeDefinitionRef: AttributeDefinitionRef;
+  readonly checkOpenSelections: Effect.Effect<boolean, CatalogPersistenceUnavailable>;
+  readonly evidence: string;
+  readonly expectedRevision: number;
+  readonly proposed: AttributeDefinition;
+  readonly sameMeaning: true;
+}
+
 export interface CreateControlledAttributeValueInput extends ChangeMetadata {
   readonly attributeDefinitionRef: AttributeDefinitionRef;
   readonly colorGroup?: string | undefined;
@@ -178,6 +191,59 @@ export interface AttributeImpactSnapshot {
   readonly productTypes: readonly string[];
   readonly variantAxisProducts: readonly string[];
 }
+
+const hasAttributeImpact = (impact: AttributeImpactSnapshot): boolean =>
+  impact.directProducts.length +
+    impact.directVariants.length +
+    impact.inheritedVariants.length +
+    impact.productTypes.length +
+    impact.variantAxisProducts.length >
+  0;
+
+const proposedRuleSnapshot = (proposed: AttributeDefinition) => ({
+  allowsNone: proposed.specialStates.includes('NONE') ? 1 : 0,
+  allowsNotApplicable: proposed.specialStates.includes('NOT_APPLICABLE') ? 1 : 0,
+  allowsUnknown: proposed.specialStates.includes('UNKNOWN') ? 1 : 0,
+  applicableLevels: [...proposed.levels].toSorted(),
+  canonicalUnit: proposed.measurement?.canonicalUnit ?? null,
+  decimalPlaces: proposed.measurement?.decimalPlaces ?? null,
+  maximumValue: proposed.measurement?.maximum?.toString() ?? null,
+  measuredQuantity: proposed.measurement?.quantity ?? null,
+  minimumValue: proposed.measurement?.minimum?.toString() ?? null,
+  multiplicity: proposed.multiplicity,
+});
+
+const currentRuleSnapshot = (current: typeof attributeDefinitions.$inferSelect) => ({
+  allowsNone: current.allowsNone,
+  allowsNotApplicable: current.allowsNotApplicable,
+  allowsUnknown: current.allowsUnknown,
+  applicableLevels: [...current.applicableLevels].toSorted(),
+  canonicalUnit: current.canonicalUnit,
+  decimalPlaces: current.decimalPlaces,
+  maximumValue: current.maximumValue,
+  measuredQuantity: current.measuredQuantity,
+  minimumValue: current.minimumValue,
+  multiplicity: current.multiplicity,
+});
+
+const validRuleRevisionInput = (input: ReviseAttributeDefinitionRulesInput, tenantId: string): boolean =>
+  validDefinitionRef(input.attributeDefinitionRef, tenantId) &&
+  Schema.is(AttributeDefinitionSchema)(input.proposed) &&
+  input.proposed.ref.resourceId === input.attributeDefinitionRef.resourceId &&
+  input.proposed.ref.tenantId === tenantId &&
+  input.sameMeaning &&
+  validText(input.evidence, 1000) &&
+  validText(input.reason, 1000);
+
+const preservesDefinitionMeaning = (
+  current: typeof attributeDefinitions.$inferSelect,
+  proposed: AttributeDefinition,
+): boolean =>
+  proposed.meaning === current.meaning &&
+  proposed.valueKind === current.valueKind &&
+  proposed.label === current.name &&
+  proposed.measurement?.quantity === (current.measuredQuantity ?? undefined) &&
+  (current.valueKind !== 'CONTROLLED' || current.controlledValueKind !== null);
 
 interface ImpactRows {
   readonly axisProductIds: readonly string[];
@@ -504,6 +570,76 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     return { attributeDefinitionRef: input.attributeDefinitionRef, changed: true, revision };
   });
 
+  const reviseDefinitionRules = Effect.fn('AttributePersistence.reviseDefinitionRules')(function* reviseDefinitionRules(
+    input: ReviseAttributeDefinitionRulesInput,
+  ) {
+    if (!validRuleRevisionInput(input, tenantId)) {
+      return yield* conflict('INVALID_INPUT', 'Rule revision requires a valid same-meaning proposal and evidence');
+    }
+    const id = input.attributeDefinitionRef.resourceId;
+    const [current] = yield* transaction
+      .select()
+      .from(attributeDefinitions)
+      .where(and(eq(attributeDefinitions.tenantId, tenantId), eq(attributeDefinitions.attributeDefinitionId, id)))
+      .for('update')
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (current === undefined) {
+      return yield* notFound('DEFINITION');
+    }
+    if (current.currentRevision !== input.expectedRevision) {
+      return yield* conflict('REVISION', 'Attribute definition revision changed');
+    }
+    const { proposed } = input;
+    if (!preservesDefinitionMeaning(current, proposed)) {
+      return yield* conflict('INVALID_INPUT', 'Changed meaning or value kind requires a new definition');
+    }
+    const proposedRules = proposedRuleSnapshot(proposed);
+    if (isDeepStrictEqual(proposedRules, currentRuleSnapshot(current))) {
+      return {
+        attributeDefinitionRef: input.attributeDefinitionRef,
+        changed: false,
+        revision: current.currentRevision,
+      };
+    }
+    const impact = yield* inspectAttributeImpactForScope(transaction, scope, input.attributeDefinitionRef);
+    if (hasAttributeImpact(impact)) {
+      return yield* conflict(
+        'INVALID_STATE',
+        'Existing values, type rules, or axes require explicit remediation before rule revision',
+      );
+    }
+    if (!(yield* input.checkOpenSelections)) {
+      return yield* conflict('INVALID_STATE', 'Open selection impact is not proven clear');
+    }
+    const revision = current.currentRevision + 1;
+    const rules = proposedRules;
+    yield* transaction
+      .update(attributeDefinitions)
+      .set({ ...rules, currentRevision: revision })
+      .where(and(eq(attributeDefinitions.tenantId, tenantId), eq(attributeDefinitions.attributeDefinitionId, id)))
+      .pipe(Effect.mapError(mapAttributeWriteError));
+    yield* transaction
+      .insert(attributeDefinitionRevisions)
+      .values({
+        ...rules,
+        actingPrincipalId: input.principalId,
+        actionInvocationId: input.actionInvocationId,
+        attributeDefinitionId: id,
+        controlledValueKind: current.controlledValueKind,
+        effectiveAt: input.effectiveAt,
+        evidenceRefs: [...(input.evidenceRefs ?? []), input.evidence],
+        meaning: current.meaning,
+        name: current.name,
+        reason: input.reason,
+        revision,
+        tenantId,
+        valueKind: current.valueKind,
+      })
+      .pipe(Effect.mapError(mapAttributeWriteError));
+    return { attributeDefinitionRef: input.attributeDefinitionRef, changed: true, revision };
+  });
+
   const createControlledValue = Effect.fn('AttributePersistence.createControlledValue')(function* createControlledValue(
     input: CreateControlledAttributeValueInput,
   ) {
@@ -681,6 +817,7 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     renameDefinition,
     retireControlledValue: (input: ChangeControlledAttributeValueInput) =>
       changeValue(input, { lifecycleState: 'RETIRED' }),
+    reviseDefinitionRules,
   });
 };
 

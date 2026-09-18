@@ -4,6 +4,7 @@ import { Schema } from 'effect';
 import {
   AttributeDefinitionSchema,
   AttributeValueSchema,
+  assessDefinitionRuleChange,
   validateAttributeValues,
 } from '../../shared/domain/attribute-values.ts';
 
@@ -31,6 +32,29 @@ describe('Attribute Definition and per-subject values', () => {
     expect(Schema.is(AttributeDefinitionSchema)({ ...definition, label: 'Product width' })).toBe(true);
     expect(Schema.is(AttributeDefinitionSchema)({ ...definition, measurement: null })).toBe(false);
     expect(Schema.is(AttributeDefinitionSchema)({ ...definition, levels: [] })).toBe(false);
+  });
+
+  it('distinguishes presentation, rule revisions, and genuinely different meaning', () => {
+    expect(assessDefinitionRuleChange(definition, { ...definition, label: 'Product width' }).kind).toBe('UNCHANGED');
+    expect(assessDefinitionRuleChange(definition, { ...definition, multiplicity: 'MULTIPLE' })).toEqual({
+      kind: 'RULE_REVISION',
+      reasons: ['Multiplicity changed'],
+    });
+    expect(
+      assessDefinitionRuleChange(definition, {
+        ...definition,
+        measurement: { canonicalUnit: 'cm', decimalPlaces: 2, maximum: 1000, minimum: 0, quantity: 'length' },
+      }).kind,
+    ).toBe('RULE_REVISION');
+    expect(assessDefinitionRuleChange(definition, { ...definition, meaning: 'Width of shipping package' }).kind).toBe(
+      'NEW_DEFINITION_REQUIRED',
+    );
+    expect(
+      assessDefinitionRuleChange(definition, {
+        ...definition,
+        measurement: { canonicalUnit: 'mm', decimalPlaces: 2, maximum: 1000, minimum: 0, quantity: 'mass' },
+      }).kind,
+    ).toBe('NEW_DEFINITION_REQUIRED');
   });
 
   it('normalizes evidenced compatible units without silently changing magnitude', () => {
