@@ -10,10 +10,12 @@ import {
   inspectProductConfigurationCurrentActivation,
   inspectProductConfiguration,
   sameProductConfigurationSelection,
+  sameProductConfigurationSelectionAcrossRevisions,
 } from '../../shared/domain/product-configuration.ts';
 import type {
   ProductConfiguration,
   ProductConfigurationDefinitionRevision,
+  ProductConfigurationRevisionEquivalenceAttestation,
 } from '../../shared/domain/product-configuration.ts';
 import { ProductRefSchema } from '../../shared/resources/product.ts';
 import { VariantRefSchema } from '../../shared/resources/variant.ts';
@@ -204,6 +206,92 @@ describe('Product Configuration definition and identity', () => {
         definition,
         { ...activation, ruleRevisions: [{ ...activation.ruleRevisions[0], revision: 0 }] },
         assessedAt,
+      ).status,
+    ).toBe('INDETERMINATE');
+  });
+
+  it('fails closed across Definition revisions until Catalog attests exact meaning and admissibility', () => {
+    const nextRevision = Schema.decodeUnknownSync(CatalogRevisionNumberSchema)(2);
+    const nextDefinition: ProductConfigurationDefinitionRevision = {
+      ...definition,
+      choices: definition.choices.map((choice) =>
+        choice.kind === 'SINGLE_CHOICE'
+          ? { ...choice, options: choice.options.map((option) => ({ ...option, label: `Renamed ${option.label}` })) }
+          : choice,
+      ),
+      reference: { ...definition.reference, revision: nextRevision },
+    };
+    const nextSelection: ProductConfiguration = { ...selected, definition: nextDefinition.reference };
+    const compare = (evidence?: ProductConfigurationRevisionEquivalenceAttestation) =>
+      sameProductConfigurationSelectionAcrossRevisions(selected, definition, nextSelection, nextDefinition, evidence);
+    expect(compare().status).toBe('INDETERMINATE');
+    const evidence: ProductConfigurationRevisionEquivalenceAttestation = {
+      admissibility: {
+        completeCurrentRuleBasis: true,
+        left: 'ADMISSIBLE',
+        leftRuleRevisions: [
+          {
+            definitionRevision: definition.reference,
+            kind: 'MEASURED',
+            ownerModuleId: 'commerce.catalog',
+            revision: 1,
+            ruleId: 'length-range',
+          },
+        ],
+        right: 'ADMISSIBLE',
+        rightRuleRevisions: [
+          {
+            definitionRevision: nextDefinition.reference,
+            kind: 'MEASURED',
+            ownerModuleId: 'commerce.catalog',
+            revision: 2,
+            ruleId: 'length-range',
+          },
+        ],
+      },
+      attestationId: '88888888-8888-4888-8888-888888888888',
+      leftSelection: selected,
+      meaning: { choicesAndValues: 'SAME', units: 'SAME' },
+      ownerModuleId: 'commerce.catalog',
+      rightSelection: nextSelection,
+      source: 'CATALOG_OWNER_EQUIVALENCE_ASSESSMENT',
+      status: 'CONFIRMED',
+    };
+    expect(compare(evidence)).toMatchObject({ same: true, status: 'VALID' });
+    const wrongOwner = structuredClone(evidence);
+    Reflect.set(wrongOwner, 'ownerModuleId', 'other');
+    expect(compare(wrongOwner).status).toBe('INDETERMINATE');
+    const incompleteRules = structuredClone(evidence);
+    Reflect.set(incompleteRules.admissibility, 'completeCurrentRuleBasis', false);
+    expect(compare(incompleteRules).status).toBe('INDETERMINATE');
+    expect(compare({ ...evidence, rightSelection: { ...nextSelection, variantRef: blackVariant } }).status).toBe(
+      'INDETERMINATE',
+    );
+    expect(
+      compare({
+        ...evidence,
+        admissibility: { ...evidence.admissibility, rightRuleRevisions: evidence.admissibility.leftRuleRevisions },
+      }).status,
+    ).toBe('INDETERMINATE');
+    expect(
+      sameProductConfigurationSelectionAcrossRevisions(
+        selected,
+        definition,
+        { ...nextSelection, variantRef: blackVariant },
+        nextDefinition,
+        evidence,
+      ),
+    ).toMatchObject({ same: false, status: 'VALID' });
+    expect(
+      sameProductConfigurationSelectionAcrossRevisions(
+        selected,
+        definition,
+        {
+          ...nextSelection,
+          values: [{ ...selected.values[0] }, { amount: '84', choiceKey: 'length', kind: 'MEASURED_VALUE', unitRef }],
+        },
+        nextDefinition,
+        evidence,
       ).status,
     ).toBe('INDETERMINATE');
   });

@@ -81,6 +81,27 @@ export type ConfigurationInspection =
   | { readonly reason: string; readonly status: 'INVALID' }
   | { readonly reason: string; readonly status: 'INDETERMINATE' };
 
+/** Issued by Catalog after assessing both exact selections against complete rule bases. */
+export interface ProductConfigurationRevisionEquivalenceAttestation {
+  readonly admissibility: {
+    readonly completeCurrentRuleBasis: true;
+    readonly left: 'ADMISSIBLE';
+    readonly leftRuleRevisions: readonly ConfigurationRuleRevisionEvidence[];
+    readonly right: 'ADMISSIBLE';
+    readonly rightRuleRevisions: readonly ConfigurationRuleRevisionEvidence[];
+  };
+  readonly attestationId: string;
+  readonly leftSelection: ProductConfiguration;
+  readonly meaning: {
+    readonly choicesAndValues: 'SAME';
+    readonly units: 'SAME';
+  };
+  readonly ownerModuleId: 'commerce.catalog';
+  readonly rightSelection: ProductConfiguration;
+  readonly source: 'CATALOG_OWNER_EQUIVALENCE_ASSESSMENT';
+  readonly status: 'CONFIRMED';
+}
+
 const sameRef = (left: CatalogResourceRef, right: CatalogResourceRef): boolean =>
   left.moduleId === right.moduleId &&
   left.resourceType === right.resourceType &&
@@ -88,6 +109,7 @@ const sameRef = (left: CatalogResourceRef, right: CatalogResourceRef): boolean =
   left.resourceId === right.resourceId;
 
 const isKey = (key: string): boolean => key.length > 0 && key === key.trim();
+const catalogOwnerModuleId = 'commerce.catalog';
 const decimalPattern = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/u;
 
 /** Normalize only an exact decimal's spelling; no rounding or Unit conversion occurs. */
@@ -148,7 +170,7 @@ export const inspectProductConfigurationCurrentActivation = (
   if (
     activation.source !== 'CATALOG_OWNER_CURRENT_READ' ||
     activation.status !== 'CONFIRMED' ||
-    activation.ownerModuleId !== 'commerce.catalog' ||
+    activation.ownerModuleId !== catalogOwnerModuleId ||
     !isKey(activation.attestationId) ||
     activation.observedAt !== assessedAt ||
     !sameCatalogRevisionReference(activation.definitionRevision, definition.reference) ||
@@ -157,7 +179,7 @@ export const inspectProductConfigurationCurrentActivation = (
     (activation.effectiveTo !== undefined && assessedAt >= activation.effectiveTo) ||
     activation.ruleRevisions.some(
       (rule) =>
-        rule.ownerModuleId !== 'commerce.catalog' ||
+        rule.ownerModuleId !== catalogOwnerModuleId ||
         !sameCatalogRevisionReference(rule.definitionRevision, activation.definitionRevision) ||
         !isKey(rule.ruleId) ||
         !Number.isSafeInteger(rule.revision) ||
@@ -271,4 +293,82 @@ export const sameProductConfigurationSelection = (
     }
   }
   return { same: left.values.length === right.values.length, status: 'VALID' };
+};
+
+/**
+ * Consume an owner-issued assessment; this pure check cannot issue or authenticate it.
+ * A caller must obtain the attestation from the trusted Catalog Current/equivalence reader.
+ */
+const hasCompleteEquivalenceEvidence = (
+  left: ProductConfiguration,
+  leftDefinition: ProductConfigurationDefinitionRevision,
+  right: ProductConfiguration,
+  rightDefinition: ProductConfigurationDefinitionRevision,
+  attestation: ProductConfigurationRevisionEquivalenceAttestation | undefined,
+): boolean =>
+  attestation !== undefined &&
+  attestation.source === 'CATALOG_OWNER_EQUIVALENCE_ASSESSMENT' &&
+  attestation.ownerModuleId === catalogOwnerModuleId &&
+  attestation.status === 'CONFIRMED' &&
+  isKey(attestation.attestationId) &&
+  attestation.meaning.choicesAndValues === 'SAME' &&
+  attestation.meaning.units === 'SAME' &&
+  attestation.admissibility.left === 'ADMISSIBLE' &&
+  attestation.admissibility.right === 'ADMISSIBLE' &&
+  attestation.admissibility.completeCurrentRuleBasis &&
+  sameProductConfigurationSelection(left, attestation.leftSelection, leftDefinition).same === true &&
+  sameProductConfigurationSelection(right, attestation.rightSelection, rightDefinition).same === true &&
+  ![
+    ...attestation.admissibility.leftRuleRevisions.map((rule) => ({ revision: left.definition, rule })),
+    ...attestation.admissibility.rightRuleRevisions.map((rule) => ({ revision: right.definition, rule })),
+  ].some(
+    ({ revision, rule }) =>
+      rule.ownerModuleId !== catalogOwnerModuleId ||
+      !sameCatalogRevisionReference(rule.definitionRevision, revision) ||
+      !isKey(rule.ruleId) ||
+      !Number.isSafeInteger(rule.revision) ||
+      rule.revision < 1,
+  );
+
+export const sameProductConfigurationSelectionAcrossRevisions = (
+  left: ProductConfiguration,
+  leftDefinition: ProductConfigurationDefinitionRevision | undefined,
+  right: ProductConfiguration,
+  rightDefinition: ProductConfigurationDefinitionRevision | undefined,
+  attestation: ProductConfigurationRevisionEquivalenceAttestation | undefined,
+): ConfigurationInspection & { readonly same?: boolean } => {
+  const leftInspection = inspectProductConfiguration(left, leftDefinition);
+  if (leftInspection.status !== 'VALID') {
+    return leftInspection;
+  }
+  const rightInspection = inspectProductConfiguration(right, rightDefinition);
+  if (rightInspection.status !== 'VALID') {
+    return rightInspection;
+  }
+  if (leftDefinition === undefined || rightDefinition === undefined) {
+    return { reason: 'Exact Definition revisions are unavailable', status: 'INDETERMINATE' };
+  }
+  if (
+    !sameRef(left.productRef, right.productRef) ||
+    !sameRef(left.variantRef, right.variantRef) ||
+    (left.packageOptionRef === undefined) !== (right.packageOptionRef === undefined) ||
+    (left.packageOptionRef !== undefined &&
+      right.packageOptionRef !== undefined &&
+      !sameRef(left.packageOptionRef, right.packageOptionRef))
+  ) {
+    return { same: false, status: 'VALID' };
+  }
+  if (sameCatalogRevisionReference(left.definition, right.definition)) {
+    return sameProductConfigurationSelection(left, right, leftDefinition);
+  }
+  if (!sameRef(left.definition.resourceRef, right.definition.resourceRef)) {
+    return { reason: 'Different Definition Resources need a separate owner assessment', status: 'INDETERMINATE' };
+  }
+  if (!hasCompleteEquivalenceEvidence(left, leftDefinition, right, rightDefinition, attestation)) {
+    return {
+      reason: 'Complete owner-attested meaning and admissibility evidence is unavailable',
+      status: 'INDETERMINATE',
+    };
+  }
+  return { same: true, status: 'VALID' };
 };
