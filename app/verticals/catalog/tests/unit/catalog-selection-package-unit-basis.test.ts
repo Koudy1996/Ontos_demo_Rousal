@@ -11,9 +11,9 @@ import {
   productUnits,
   productVariants,
   products,
-  productConfigurationDefinitions,
   variantUnitDivisibility,
 } from '../../src/database/schema.ts';
+import type { productConfigurationDefinitions } from '../../src/database/schema.ts';
 import { catalogSelectionPackageUnitBasisForScope } from '../../src/persistence/catalog-selection-package-unit-basis.ts';
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 
@@ -55,7 +55,9 @@ const content = {
   lowerCount: null,
   lowerPackageDefinitionId: null,
   lowerRevision: null,
+  packageDefinitionId: packageId,
   productId,
+  revision: 4,
   setCompositionResourceId: null,
   setCompositionRevision: null,
   unitResourceId: unitId,
@@ -72,21 +74,25 @@ const role = {
   state: 'ACTIVE',
   variantId,
 };
+const revisionsWith = <T extends object>(selected: T) => [
+  { ...content, effectiveAt: new Date('2026-09-13T00:00:00.000Z'), revision: 1 },
+  { ...content, effectiveAt: new Date('2026-09-14T00:00:00.000Z'), revision: 2 },
+  { ...content, effectiveAt: new Date('2026-09-15T00:00:00.000Z'), revision: 3 },
+  selected,
+];
+const definition = {
+  currentOptionRevision: 2,
+  currentRevision: 4,
+  lifecycleState: 'ACTIVE',
+  optionState: 'ACTIVE',
+  productId,
+  variantId,
+};
 const rows = new Map<unknown, unknown>([
   [products, { currentRevision: 2, lifecycleState: 'ACTIVE', productId }],
   [productVariants, { currentRevision: 3, lifecycleState: 'ACTIVE', productId, variantId }],
-  [
-    packageDefinitions,
-    {
-      currentOptionRevision: 2,
-      currentRevision: 4,
-      lifecycleState: 'ACTIVE',
-      optionState: 'ACTIVE',
-      productId,
-      variantId,
-    },
-  ],
-  [packageContentRevisions, content],
+  [packageDefinitions, definition],
+  [packageContentRevisions, revisionsWith(content)],
   [packageOptionRoleRevisions, role],
   [packageUnitDivisibility, { currentRevision: 5, divisible: false, unitId }],
   [productUnits, { currentRuleRevision: 6, lifecycleState: 'ACTIVE', unitId }],
@@ -108,10 +114,19 @@ const queryResult = (table: ReadTable, overrides: Map<unknown, unknown>) => {
   const row = Array.isArray(candidate) ? candidate.shift() : candidate;
   return Effect.succeed(row === null || row === undefined ? [] : [row]);
 };
+const contentRows = (overrides: Map<unknown, unknown>) => {
+  const candidate = overrides.has(packageContentRevisions)
+    ? overrides.get(packageContentRevisions)
+    : rows.get(packageContentRevisions);
+  const result = Array.isArray(candidate) && Array.isArray(candidate[0]) ? candidate.shift() : candidate;
+  if (result === null || result === undefined) {
+    return Effect.succeed([]);
+  }
+  return Effect.succeed(Array.isArray(result) ? result : [result]);
+};
 const makeLimit = (table: ReadTable, overrides: Map<unknown, unknown>) => () => queryResult(table, overrides);
-const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>) => () => ({
-  limit: makeLimit(table, overrides),
-});
+const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>) => () =>
+  table === packageContentRevisions ? contentRows(overrides) : { limit: makeLimit(table, overrides) };
 const makeFrom = (overrides: Map<unknown, unknown>) => (table: ReadTable) => ({ where: makeWhere(table, overrides) });
 const transactionFor = (overrides = new Map<unknown, unknown>()) => ({ select: () => ({ from: makeFrom(overrides) }) });
 const read = (overrides = new Map<unknown, unknown>()) =>
@@ -139,18 +154,73 @@ describe('Catalog Selection package and Unit owner basis', () => {
       );
       expect(substitute.status).toBe('INVALID');
       const future = yield* read(
-        new Map([[packageContentRevisions, { ...content, effectiveAt: new Date('2026-09-18T00:00:00.000Z') }]]),
+        new Map<unknown, unknown>([
+          [packageContentRevisions, revisionsWith({ ...content, effectiveAt: new Date('2026-09-18T00:00:00.000Z') })],
+        ]),
       );
       expect(future.status).toBe('INVALID');
+    }),
+  );
+
+  it.effect('uses the effective content at assessment time, not the latest scheduled revision', () =>
+    Effect.gen(function* scheduled() {
+      const future = {
+        ...content,
+        amount: '8',
+        effectiveAt: new Date('2026-09-18T00:00:00.000Z'),
+        revision: 5,
+      };
+      const scheduledDefinition = { ...definition, currentRevision: 5 };
+      const prior = yield* read(
+        new Map<unknown, unknown>([
+          [packageDefinitions, scheduledDefinition],
+          [packageContentRevisions, [...revisionsWith(content), future]],
+        ]),
+      );
+      expect(prior).toMatchObject({
+        contentPath: [{ amount: '10', revision: 4 }],
+        status: 'CURRENT',
+      });
+      const after = yield* catalogSelectionPackageUnitBasisForScope(
+        // @ts-expect-error The mock supplies only the read chains exercised here.
+        transactionFor(
+          new Map<unknown, unknown>([
+            [packageDefinitions, scheduledDefinition],
+            [packageContentRevisions, [...revisionsWith(content), future]],
+          ]),
+        ),
+        scope,
+      ).read(selection, new Date('2026-09-18T10:00:00.000Z'));
+      expect(after.status).toBe('INVALID');
+    }),
+  );
+
+  it.effect('keeps an incomplete owner history indeterminate and rejects conflicting effectivity', () =>
+    Effect.gen(function* history() {
+      const missing = yield* read(new Map([[packageContentRevisions, revisionsWith(content).slice(1)]]));
+      expect(missing.status).toBe('INDETERMINATE');
+      const conflict = yield* read(
+        new Map([
+          [
+            packageContentRevisions,
+            revisionsWith({
+              ...content,
+              effectiveAt: new Date('2026-09-15T00:00:00.000Z'),
+            }),
+          ],
+        ]),
+      );
+      expect(conflict.status).toBe('INVALID');
     }),
   );
 
   it.effect('keeps missing owner facts and unverified configuration indeterminate', () =>
     Effect.gen(function* incomplete() {
       expect((yield* read(new Map([[packageOptionRoleRevisions, null]]))).status).toBe('INDETERMINATE');
-      expect((yield* read(new Map([[packageContentRevisions, { ...content, configurationKey: 'red' }]]))).status).toBe(
-        'INDETERMINATE',
-      );
+      expect(
+        (yield* read(new Map([[packageContentRevisions, revisionsWith({ ...content, configurationKey: 'red' })]])))
+          .status,
+      ).toBe('INDETERMINATE');
     }),
   );
 
@@ -189,11 +259,13 @@ describe('Catalog Selection package and Unit owner basis', () => {
   it.effect('retains a pinned lower Package Content revision and refuses a cycle', () =>
     Effect.gen(function* nested() {
       const top = { ...content, lowerCount: '2', lowerPackageDefinitionId: lowerPackageId, lowerRevision: 2 };
-      const lower = { ...content, amount: '5' };
-      const definition = rows.get(packageDefinitions);
+      const lower = { ...content, amount: '5', packageDefinitionId: lowerPackageId, revision: 2 };
       const overrides = new Map<unknown, unknown>([
-        [packageDefinitions, [definition, definition]],
-        [packageContentRevisions, [top, lower]],
+        [packageDefinitions, [definition, { ...definition, currentRevision: 2 }]],
+        [
+          packageContentRevisions,
+          [revisionsWith(top), [{ ...lower, effectiveAt: new Date('2026-09-14T00:00:00.000Z'), revision: 1 }, lower]],
+        ],
       ]);
       const current = yield* read(overrides);
       expect(current).toMatchObject({
@@ -203,27 +275,44 @@ describe('Catalog Selection package and Unit owner basis', () => {
         ],
         status: 'CURRENT',
       });
-      const cycle = yield* read(new Map([[packageContentRevisions, { ...top, lowerPackageDefinitionId: packageId }]]));
+      const cycle = yield* read(
+        new Map([[packageContentRevisions, revisionsWith({ ...top, lowerPackageDefinitionId: packageId })]]),
+      );
       expect(cycle.status).toBe('INDETERMINATE');
     }),
   );
 
   it.effect('rejects missing or contradictory exact content without turning it into purchase quantity', () =>
     Effect.gen(function* checksContent() {
-      expect((yield* read(new Map([[packageContentRevisions, { ...content, amount: '0' }]]))).status).toBe('INVALID');
+      expect(
+        (yield* read(new Map([[packageContentRevisions, revisionsWith({ ...content, amount: '0' })]]))).status,
+      ).toBe('INVALID');
       const top = { ...content, lowerCount: '2', lowerPackageDefinitionId: lowerPackageId, lowerRevision: 2 };
-      const definition = rows.get(packageDefinitions);
       const mismatched = yield* read(
         new Map<unknown, unknown>([
-          [packageDefinitions, [definition, definition]],
-          [packageContentRevisions, [top, { ...content, amount: '8' }]],
+          [packageDefinitions, [definition, { ...definition, currentRevision: 2 }]],
+          [
+            packageContentRevisions,
+            [
+              revisionsWith(top),
+              [
+                {
+                  ...content,
+                  effectiveAt: new Date('2026-09-14T00:00:00.000Z'),
+                  packageDefinitionId: lowerPackageId,
+                  revision: 1,
+                },
+                { ...content, amount: '8', packageDefinitionId: lowerPackageId, revision: 2 },
+              ],
+            ],
+          ],
         ]),
       );
       expect(mismatched.status).toBe('INVALID');
       const unknown = yield* read(
         new Map<unknown, unknown>([
-          [packageDefinitions, [definition, definition]],
-          [packageContentRevisions, [top, null]],
+          [packageDefinitions, [definition, { ...definition, currentRevision: 2 }]],
+          [packageContentRevisions, [revisionsWith(top), []]],
         ]),
       );
       expect(unknown.status).toBe('INDETERMINATE');

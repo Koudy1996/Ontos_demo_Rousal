@@ -1,6 +1,6 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { DateTime, Effect, Option, Schema } from 'effect';
+import { DateTime, Effect, Match, Option, Schema } from 'effect';
 
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
@@ -18,6 +18,7 @@ import {
   variantUnitDivisibility,
 } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
+import { resolveEffectiveRevision } from './package-persistence.ts';
 import { productConfigurationPersistenceForScope } from './product-configuration-persistence.ts';
 import { evaluateCurrentProductConfiguration } from './product-configuration-current-evaluator.ts';
 import type {
@@ -105,6 +106,18 @@ const agreesWithLower = (upper: Content, lower: Content): boolean => {
 const fail = (status: Failure['status'], reason: string): Failure => ({ reason, status });
 const missingContentReason = 'Exact Package Content owner proof is missing';
 const revisionValid = (revision: number): boolean => Number.isSafeInteger(revision) && revision > 0;
+const completeContentHistory = (definition: Definition, revisions: readonly Content[], id: string): boolean =>
+  revisionValid(definition.currentRevision) &&
+  revisions.length === definition.currentRevision &&
+  revisions.every((revision) => revision.packageDefinitionId === id);
+const contentAtRevision = (revisions: readonly Content[], revision: number): Content | undefined =>
+  revisions.find((row) => row.revision === revision);
+const effectiveContentRevision = (revisions: readonly Content[], at: Date): number | null =>
+  Match.value(resolveEffectiveRevision(revisions, at)).pipe(
+    Match.tag('invalid', () => null),
+    Match.tag('resolved', ({ revision }) => revision),
+    Match.exhaustive,
+  );
 const RoundingSchema = Schema.Literals(['UP', 'DOWN', 'HALF_UP']);
 const activeAt = (at: Date, now: Date): boolean =>
   Option.isSome(DateTime.make(at)) &&
@@ -165,6 +178,7 @@ const assessRole = (
   definition: Definition,
   role: Role | undefined,
   contentRevision: number,
+  effectiveRevision: number,
   productId: string,
   variantId: string,
   now: Date,
@@ -172,7 +186,7 @@ const assessRole = (
   if (
     definition.lifecycleState !== 'ACTIVE' ||
     definition.optionState !== 'ACTIVE' ||
-    definition.currentRevision !== contentRevision ||
+    effectiveRevision !== contentRevision ||
     !revisionValid(definition.currentOptionRevision)
   ) {
     return fail('INVALID', 'Selected Package Option is not Current');
@@ -225,17 +239,19 @@ const readPackage = (
           if (definition === undefined) {
             return { ...state, failure: fail('INDETERMINATE', missingContentReason) };
           }
-          const [content]: (Content | undefined)[] = yield* transaction
+          const revisions: Content[] = yield* transaction
             .select()
             .from(packageContentRevisions)
             .where(
               and(
                 eq(packageContentRevisions.tenantId, tenantId),
                 eq(packageContentRevisions.packageDefinitionId, definition.packageDefinitionId),
-                eq(packageContentRevisions.revision, next.revision),
               ),
-            )
-            .limit(1);
+            );
+          const content = contentAtRevision(revisions, next.revision);
+          if (!completeContentHistory(definition, revisions, next.id)) {
+            return { ...state, failure: fail('INDETERMINATE', missingContentReason) };
+          }
           const contentFailure = assessContent(definition, content, productId, variantId, now);
           if (contentFailure !== undefined || definition === undefined || content === undefined) {
             return {
@@ -248,6 +264,10 @@ const readPackage = (
           }
           let { optionRevision } = state;
           if (state.path.length === 0) {
+            const effectiveRevision = effectiveContentRevision(revisions, now);
+            if (effectiveRevision === null) {
+              return { ...state, failure: fail('INVALID', 'Package Content has no unambiguous effective revision') };
+            }
             const [role] = yield* transaction
               .select()
               .from(packageOptionRoleRevisions)
@@ -259,7 +279,15 @@ const readPackage = (
                 ),
               )
               .limit(1);
-            const roleFailure = assessRole(definition, role, next.revision, productId, variantId, now);
+            const roleFailure = assessRole(
+              definition,
+              role,
+              next.revision,
+              effectiveRevision,
+              productId,
+              variantId,
+              now,
+            );
             if (roleFailure !== undefined || role === undefined) {
               return {
                 ...state,
