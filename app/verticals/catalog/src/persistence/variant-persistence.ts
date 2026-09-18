@@ -12,7 +12,10 @@ import { AttributeDefinitionRefSchema } from '../../shared/resources/attribute-d
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { manufacturerRelations, productVariantRevisions, productVariants, products } from '../database/schema.ts';
-import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
+import {
+  recoverCatalogActionResult,
+  recoverCatalogActionResultVersions,
+} from '../api/catalog-action-result-recovery.ts';
 import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
 import type { VariantUseChangeConflict } from '../../shared/domain/variant-use-change.ts';
 import type { VariantUseChangePersistence } from './variant-use-change-persistence.ts';
@@ -286,14 +289,16 @@ export const variantPersistenceForScope = (
 ): VariantPersistence => {
   const { tenantId } = scope;
   const recoverCreateVariant: VariantPersistence['recoverCreateVariant'] = (invocationId) =>
-    recoverCatalogActionResult(
-      transaction,
-      scope,
-      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-variant', schemaVersion: 1 },
-      {
-        decode: Schema.decodeUnknownEffect(CreateVariantResultSchema),
-        encode: Schema.encodeEffect(CreateVariantResultSchema),
-      },
+    recoverCatalogActionResultVersions([2, 1], (schemaVersion) =>
+      recoverCatalogActionResult(
+        transaction,
+        scope,
+        { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-variant', schemaVersion },
+        {
+          decode: Schema.decodeUnknownEffect(CreateVariantResultSchema),
+          encode: Schema.encodeEffect(CreateVariantResultSchema),
+        },
+      ),
     );
   const getVariant = (variantId: string) =>
     transaction

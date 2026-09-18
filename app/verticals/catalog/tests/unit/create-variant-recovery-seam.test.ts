@@ -21,6 +21,19 @@ const productRef = {
   tenantId,
 } as const;
 const result = Schema.decodeUnknownSync(CreateVariantResultSchema)({
+  classification: {
+    affectsOpenSelection: true,
+    evidenceRefs: ['urn:evidence:create-variant'],
+    kind: 'NEW_REALIZATION',
+    newVariantRef: {
+      moduleId: 'commerce.catalog',
+      resourceId: '55555555-5555-4555-8555-555555555555',
+      resourceType: 'commerce.catalog.variant',
+      tenantId,
+    },
+    productRef,
+    reason: 'A new atomic realization requires its own Variant',
+  },
   variant: {
     lifecycle: 'WORK_IN_PROGRESS',
     productRef,
@@ -74,7 +87,7 @@ describe('create Variant recovery response', () => {
         actionInvocationId: invocationId,
         actionKey: 'commerce.catalog.create-variant',
         encodedResult,
-        schemaVersion: 1,
+        schemaVersion: 2,
         tenantId,
       };
       let snapshotReads = 0;
@@ -94,6 +107,7 @@ describe('create Variant recovery response', () => {
         .recoverCreateVariant(invocationId)
         .pipe(Effect.provideService(ActionRuntime, runtime));
       expect(recovered).toEqual({ result, status: 'committed' });
+      expect(recovered).toMatchObject({ result: { classification: { kind: 'NEW_REALIZATION' } } });
       expect(snapshotReads).toBe(2);
 
       const otherPrincipal = variantPersistenceForScope(
@@ -105,6 +119,39 @@ describe('create Variant recovery response', () => {
         .recoverCreateVariant(invocationId)
         .pipe(Effect.provideService(ActionRuntime, runtime));
       expect(hidden).toEqual({ status: 'absent' });
+    }),
+  );
+
+  it.effect('recovers an explicit legacy v1 Variant result without manufacturing a classification', () =>
+    Effect.gen(function* recoverLegacyVariant() {
+      const { classification: _classification, ...legacyResult } = result;
+      const encodedResult = yield* Schema.encodeEffect(CreateVariantResultSchema)(legacyResult);
+      const row = {
+        actingPrincipalId: principalId,
+        actionInvocationId: invocationId,
+        actionKey: 'commerce.catalog.create-variant',
+        encodedResult,
+        schemaVersion: 1,
+        tenantId,
+      };
+      let snapshotReads = 0;
+      const transaction = snapshotTransaction(row, () => {
+        snapshotReads += 1;
+      });
+      // @ts-expect-error Only the exercised snapshot read chain is mocked.
+      const services = variantPersistenceForScope(transaction, scope);
+      const runtime = {
+        resolveActionCommit: () =>
+          Effect.fail(
+            new ActionAlreadyCommitted({ code: 'action_already_committed', invocationId, reason: 'committed' }),
+          ),
+        runAction: () => Effect.die('No write may run during recovery'),
+      };
+      const recovered = yield* services
+        .recoverCreateVariant(invocationId)
+        .pipe(Effect.provideService(ActionRuntime, runtime));
+      expect(recovered).toEqual({ result: legacyResult, status: 'committed' });
+      expect(snapshotReads).toBe(3);
     }),
   );
 

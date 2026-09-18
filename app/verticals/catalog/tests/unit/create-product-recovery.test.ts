@@ -29,6 +29,7 @@ const productRef = {
   tenantId,
 } as const;
 const result = Schema.decodeUnknownSync(CreateProductResultSchema)({
+  classification: { kind: 'INDEPENDENT_PRODUCT' },
   product: {
     catalogReady: false,
     createdAt: '2026-09-17T10:00:00.000Z',
@@ -219,12 +220,21 @@ const canonicalCreateRows = () => {
 type CanonicalCreateRows = ReturnType<typeof canonicalCreateRows>;
 type CatalogTable = typeof catalogResultSnapshots | typeof products | typeof productRevisions | typeof productVariants;
 
-const reconciliationTransaction = (rows?: CanonicalCreateRows) => {
+interface SnapshotRow {
+  readonly actingPrincipalId: string;
+  readonly actionInvocationId: string;
+  readonly actionKey: string;
+  readonly encodedResult: object;
+  readonly schemaVersion: number;
+  readonly tenantId: string;
+}
+
+const reconciliationTransaction = (rows?: CanonicalCreateRows, snapshot?: SnapshotRow) => {
   let snapshotReads = 0;
   const limit = (table: CatalogTable) => {
     if (table === catalogResultSnapshots) {
       snapshotReads += 1;
-      return Effect.succeed([]);
+      return Effect.succeed(snapshot === undefined ? [] : [snapshot]);
     }
     if (rows === undefined) {
       return Effect.succeed([]);
@@ -257,10 +267,18 @@ const reconciliationTransaction = (rows?: CanonicalCreateRows) => {
   };
 };
 
-describe('create Product lost-result reconciliation (#478)', () => {
-  it.effect('reconciles a committed create whose immutable snapshot is missing from the canonical Product row', () =>
+describe('create Product exact result recovery (#415/#478)', () => {
+  it.effect('recovers the exact v2 Product result including its creation classification', () =>
     Effect.gen(function* reconcileLostCreate() {
-      const mock = reconciliationTransaction(canonicalCreateRows());
+      const encodedResult = yield* Schema.encodeEffect(CreateProductResultSchema)(result);
+      const mock = reconciliationTransaction(undefined, {
+        actingPrincipalId: principalId,
+        actionInvocationId: invocationId,
+        actionKey: 'commerce.catalog.create-product',
+        encodedResult,
+        schemaVersion: 2,
+        tenantId,
+      });
       const persistence = yield* catalogPersistenceForScope(
         // @ts-expect-error Focused mock implements only snapshot and canonical-row select chains.
         mock.transaction,
@@ -270,7 +288,49 @@ describe('create Product lost-result reconciliation (#478)', () => {
         .recoverCreateProduct(invocationId)
         .pipe(Effect.provideService(ActionRuntime, committedRuntime));
       expect(recovery).toEqual({ result, status: 'committed' });
-      expect(mock.snapshotReads).toBe(1);
+      expect(recovery).toMatchObject({ result: { classification: { kind: 'INDEPENDENT_PRODUCT' } } });
+      expect(mock.snapshotReads).toBe(2);
+    }),
+  );
+
+  it.effect('recovers an explicit legacy v1 Product result without manufacturing a classification', () =>
+    Effect.gen(function* recoverLegacyCreate() {
+      const { classification: _classification, ...legacyResult } = result;
+      const encodedResult = yield* Schema.encodeEffect(CreateProductResultSchema)(legacyResult);
+      const mock = reconciliationTransaction(undefined, {
+        actingPrincipalId: principalId,
+        actionInvocationId: invocationId,
+        actionKey: 'commerce.catalog.create-product',
+        encodedResult,
+        schemaVersion: 1,
+        tenantId,
+      });
+      const persistence = yield* catalogPersistenceForScope(
+        // @ts-expect-error Focused mock implements only snapshot select chains.
+        mock.transaction,
+        scope,
+      );
+      const recovery = yield* persistence
+        .recoverCreateProduct(invocationId)
+        .pipe(Effect.provideService(ActionRuntime, committedRuntime));
+      expect(recovery).toEqual({ result: legacyResult, status: 'committed' });
+      expect(mock.snapshotReads).toBe(3);
+    }),
+  );
+
+  it.effect('does not invent a classification from canonical Product rows when the v2 snapshot is missing', () =>
+    Effect.gen(function* rejectIncompleteFallback() {
+      const mock = reconciliationTransaction(canonicalCreateRows());
+      const persistence = yield* catalogPersistenceForScope(
+        // @ts-expect-error Focused mock implements only snapshot and canonical-row select chains.
+        mock.transaction,
+        scope,
+      );
+      const recovery = yield* persistence
+        .recoverCreateProduct(invocationId)
+        .pipe(Effect.provideService(ActionRuntime, committedRuntime));
+      expect(recovery).toEqual({ status: 'unavailable' });
+      expect(mock.snapshotReads).toBe(2);
     }),
   );
 

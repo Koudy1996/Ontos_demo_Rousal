@@ -25,7 +25,10 @@ import type { UpdateProductResult } from '../../shared/actions/update-product.ts
 import { ProductRevisionReferenceSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import type { CatalogSelectionEvidenceReader } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { CatalogSelectionOwnerAssessmentResult } from '../../shared/domain/catalog-selection-owner-contract.ts';
-import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
+import {
+  recoverCatalogActionResult,
+  recoverCatalogActionResultVersions,
+} from '../api/catalog-action-result-recovery.ts';
 import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
 import {
@@ -498,27 +501,17 @@ export const catalogPersistenceForScope = (
   const recoverCreateProduct: CatalogPersistence['recoverCreateProduct'] = Effect.fn(
     'CatalogPersistence.recoverCreateProduct',
   )(function* recoverCreateProduct(invocationId) {
-    const snapshotRecovery = yield* recoverCatalogActionResult(
-      transaction,
-      scope,
-      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-product', schemaVersion: 1 },
-      {
-        decode: Schema.decodeUnknownEffect(CreateProductResultSchema),
-        encode: Schema.encodeEffect(CreateProductResultSchema),
-      },
+    return yield* recoverCatalogActionResultVersions([2, 1], (schemaVersion) =>
+      recoverCatalogActionResult(
+        transaction,
+        scope,
+        { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-product', schemaVersion },
+        {
+          decode: Schema.decodeUnknownEffect(CreateProductResultSchema),
+          encode: Schema.encodeEffect(CreateProductResultSchema),
+        },
+      ),
     );
-    if (snapshotRecovery.status !== 'unavailable') {
-      return snapshotRecovery;
-    }
-    // Core confirmed the original commit, but the immutable owner snapshot is missing or
-    // unreadable. Reconcile against the canonical Product row created by this invocation and
-    // principal so a lost create response resolves to its original result, never a second Product.
-    const reconciled = yield* getCreatedByInvocation(invocationId, scope.principalId).pipe(
-      Effect.orElseSucceed(() => Option.none<CreateProductResult>()),
-    );
-    return Option.isSome(reconciled)
-      ? ({ result: reconciled.value, status: 'committed' } as const)
-      : ({ status: 'unavailable' } as const);
   });
 
   const recoverUpdateProduct: CatalogPersistence['recoverUpdateProduct'] = (invocationId) =>
