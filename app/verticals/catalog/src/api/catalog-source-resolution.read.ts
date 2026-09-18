@@ -6,7 +6,7 @@ import {
   defineRead,
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Option, Schema } from 'effect';
 
 import {
   CatalogSourceResolutionRequestSchema,
@@ -25,6 +25,11 @@ const readKey = 'commerce.catalog.api.catalog-source-resolution';
 const moduleKey = 'commerce.catalog';
 const valuesEqual = Schema.toEquivalence(Schema.Json);
 type Services = ReturnType<typeof catalogSourceResolutionReadStoreForScope>;
+const toEpochMillis = (value: Date): number =>
+  DateTime.make(value).pipe(
+    Option.map(DateTime.toEpochMillis),
+    Option.getOrElse(() => Number.NaN),
+  );
 
 const catalogSourceResolutionEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
@@ -49,17 +54,19 @@ const notFound = () =>
   });
 
 const newestBase = <Value>(bases: readonly CatalogSourceAssertion<Value>[], at: Date) => {
-  const epoch = at.getTime();
+  const epoch = toEpochMillis(at);
   const usable = bases.filter(
     (base) =>
       Number.isFinite(epoch) &&
-      base.effectiveFrom.getTime() <= epoch &&
-      (base.effectiveTo === undefined || epoch < base.effectiveTo.getTime()),
+      toEpochMillis(base.effectiveFrom) <= epoch &&
+      (base.effectiveTo === undefined || epoch < toEpochMillis(base.effectiveTo)),
   );
   return usable.toSorted((left, right) => {
-    if (left.sourceRevision !== right.sourceRevision) return left.sourceRevision < right.sourceRevision ? 1 : -1;
-    const effectiveOrder = right.effectiveFrom.getTime() - left.effectiveFrom.getTime();
-    return effectiveOrder === 0 ? right.evidencedAt.getTime() - left.evidencedAt.getTime() : effectiveOrder;
+    if (left.sourceRevision !== right.sourceRevision) {
+      return left.sourceRevision < right.sourceRevision ? 1 : -1;
+    }
+    const effectiveOrder = toEpochMillis(right.effectiveFrom) - toEpochMillis(left.effectiveFrom);
+    return effectiveOrder === 0 ? toEpochMillis(right.evidencedAt) - toEpochMillis(left.evidencedAt) : effectiveOrder;
   })[0];
 };
 
@@ -69,12 +76,14 @@ export const readCatalogSourceResolution = Effect.fn('CatalogSourceResolutionRea
     tenantId: string,
     services: Services,
   ): Effect.fn.Return<CatalogSourceResolutionResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
-    if (input.scope.tenantId !== tenantId) return yield* notFound();
+    if (input.scope.tenantId !== tenantId) {
+      return yield* notFound();
+    }
     const at = yield* DateTime.nowAsDate;
-    const [acceptedBases, overrides] = yield* Effect.all([
-      services.readAcceptedBases(input.scope),
-      services.readOverrides(input.scope),
-    ]).pipe(Effect.mapError(unavailable));
+    const [acceptedBases, overrides] = yield* Effect.all(
+      [services.readAcceptedBases(input.scope), services.readOverrides(input.scope)],
+      { concurrency: 2 },
+    ).pipe(Effect.mapError(unavailable));
     const resolved = resolveCatalogSourceFact({
       acceptedBases,
       admission: catalogFactAdmissionForScope(input.scope)?.admission ?? null,
@@ -83,12 +92,16 @@ export const readCatalogSourceResolution = Effect.fn('CatalogSourceResolutionRea
       scope: input.scope,
       valuesEqual,
     });
-    if (resolved.status !== 'CURRENT') return resolved;
+    if (resolved.status !== 'CURRENT') {
+      return resolved;
+    }
     if (resolved.source === 'LOCAL_OVERRIDE') {
       const override = overrides.find(
         (candidate) => candidate.lifecycle === 'ACTIVE' && valuesEqual(candidate.value, resolved.value),
       );
-      if (override === undefined) return yield* unavailable('Active override revision evidence is inconsistent');
+      if (override === undefined) {
+        return yield* unavailable('Active override revision evidence is inconsistent');
+      }
       return {
         source: { evidenceRef: override.evidenceRef, kind: 'LOCAL_OVERRIDE', revision: override.revision },
         status: 'CURRENT',

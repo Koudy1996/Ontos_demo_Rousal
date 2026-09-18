@@ -6,7 +6,7 @@ import {
   defineRead,
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
-import { Effect, Option } from 'effect';
+import { Context, Effect, Option, Schema } from 'effect';
 
 import {
   CatalogDocumentCurrentRequestSchema,
@@ -17,7 +17,6 @@ import type {
   CatalogDocumentCurrentResponse,
 } from '../../shared/apis/catalog-document-current.ts';
 import type {
-  CatalogCurrentUse,
   CatalogDocumentAvailability,
   CatalogDocumentResourceRef,
 } from '../../shared/domain/catalog-media-assignment.ts';
@@ -33,13 +32,15 @@ export interface CatalogDocumentOwnerAvailabilityPort {
   }) => Effect.Effect<readonly CatalogDocumentAvailability[], { readonly _tag: string }>;
 }
 
+export class CatalogDocumentOwnerAvailability extends Context.Service<
+  CatalogDocumentOwnerAvailability,
+  CatalogDocumentOwnerAvailabilityPort
+>()('@app/catalog/api/catalog-document-current.read/CatalogDocumentOwnerAvailability') {}
+
 interface CatalogDocumentCurrentServices {
   readonly current: ReturnType<typeof catalogDocumentReadsForScope>['current'];
   readonly readCurrentAvailability: CatalogDocumentOwnerAvailabilityPort['readCurrentAvailability'];
 }
-type GovernedDocumentUse = CatalogDocumentCurrentResponse['assignments'][number];
-const hasOwnerDecision = (use: CatalogCurrentUse): use is GovernedDocumentUse => use.kind !== 'OWNER_CHECK_REQUIRED';
-
 const unavailableOwner: CatalogDocumentOwnerAvailabilityPort = {
   readCurrentAvailability: () => Effect.fail({ _tag: 'DocumentsCenterCurrentUnavailable' }),
 };
@@ -81,9 +82,13 @@ export const readCatalogDocumentCurrent = Effect.fn('CatalogDocumentCurrentRead.
     tenantId: string,
     services: CatalogDocumentCurrentServices,
   ): Effect.fn.Return<CatalogDocumentCurrentResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
-    if (input.target.tenantId !== tenantId) return yield* notFound();
+    if (input.target.tenantId !== tenantId) {
+      return yield* notFound();
+    }
     const catalogOnly = yield* services.current(input.target).pipe(Effect.mapError(unavailable));
-    if (Option.isNone(catalogOnly)) return yield* notFound();
+    if (Option.isNone(catalogOnly)) {
+      return yield* notFound();
+    }
     if (catalogOnly.value.assignments.length === 0) {
       return { assignments: [], setRevision: catalogOnly.value.setRevision };
     }
@@ -92,12 +97,17 @@ export const readCatalogDocumentCurrent = Effect.fn('CatalogDocumentCurrentRead.
       .readCurrentAvailability({ resources, target: input.target })
       .pipe(Effect.mapError(unavailable));
     const revalidated = yield* services.current(input.target, ownerEvidence).pipe(Effect.mapError(unavailable));
-    if (Option.isNone(revalidated)) return yield* notFound();
-    const assignments = revalidated.value.assignments.filter(hasOwnerDecision);
-    if (assignments.length !== revalidated.value.assignments.length) {
+    if (Option.isNone(revalidated)) {
+      return yield* notFound();
+    }
+    const response = {
+      assignments: revalidated.value.assignments,
+      setRevision: revalidated.value.setRevision,
+    };
+    if (!Schema.is(CatalogDocumentCurrentResponseSchema)(response)) {
       return yield* unavailable('Documents Center did not cover every exact assigned Resource');
     }
-    return { assignments, setRevision: revalidated.value.setRevision };
+    return response;
   },
 );
 

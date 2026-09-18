@@ -11,15 +11,11 @@ import type {
   ExternalTargetResolutionRequest,
   ExternalTargetResolutionResponse,
 } from '../../shared/apis/external-target-resolution.ts';
-import {
-  makeExternalCorrelationResolver,
-  type ExternalCorrelationRegistryPorts,
-  type ExternalCorrelationResolverRules,
-} from '../persistence/external-correlation-resolver.ts';
+import type { ExternalCorrelationResolutionFailure } from '../persistence/external-correlation-resolver.ts';
+import { CatalogExternalCorrelationResolver } from '../persistence/external-correlation-resolver.ts';
 
 const readKey = 'commerce.catalog.api.external-target-resolution';
 const moduleKey = 'commerce.catalog';
-type Services = ReturnType<typeof makeExternalCorrelationResolver>;
 
 const externalTargetResolutionEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
@@ -38,27 +34,36 @@ const unavailable = (cause: unknown) => {
   return error;
 };
 
+const onAmbiguous = (
+  failure: Extract<ExternalCorrelationResolutionFailure, { readonly _tag: 'ExternalCorrelationAmbiguous' }>,
+) => Effect.succeed({ candidates: failure.candidates, reason: failure.reason, status: 'AMBIGUOUS' as const });
+const onInvalid = (
+  failure: Extract<ExternalCorrelationResolutionFailure, { readonly _tag: 'ExternalCorrelationInvalid' }>,
+) => Effect.succeed({ reason: failure.reason, status: 'INVALID' as const });
+const onMissingLink = () =>
+  Effect.succeed({
+    reason: 'No confirmed owner correlation addresses this source record',
+    status: 'MISSING_LINK' as const,
+  });
+const onTargetTypeMismatch = (
+  failure: Extract<ExternalCorrelationResolutionFailure, { readonly _tag: 'ExternalCorrelationTargetTypeMismatch' }>,
+) => Effect.succeed({ reason: failure.reason, status: 'TARGET_TYPE_MISMATCH' as const });
+
 export const readExternalTargetResolution = Effect.fn('ExternalTargetResolutionRead.read')(
   function* readExternalTargetResolution(
     input: ExternalTargetResolutionRequest,
     tenantId: string,
-    services: Services,
-  ): Effect.fn.Return<ExternalTargetResolutionResponse, ReadHandlerUnavailable> {
+  ): Effect.fn.Return<ExternalTargetResolutionResponse, ReadHandlerUnavailable, CatalogExternalCorrelationResolver> {
     if (input.sourceRecord.tenantId !== tenantId) {
       return { reason: 'Source record does not belong to the trusted Tenant', status: 'INVALID' };
     }
+    const services = yield* CatalogExternalCorrelationResolver;
     return yield* services.resolve(input).pipe(
       Effect.catchTags({
-        ExternalCorrelationAmbiguous: (failure) =>
-          Effect.succeed({ candidates: failure.candidates, reason: failure.reason, status: 'AMBIGUOUS' as const }),
-        ExternalCorrelationInvalid: (failure) => Effect.succeed({ reason: failure.reason, status: 'INVALID' as const }),
-        ExternalCorrelationMissingLink: () =>
-          Effect.succeed({
-            reason: 'No confirmed owner correlation addresses this source record',
-            status: 'MISSING_LINK' as const,
-          }),
-        ExternalCorrelationTargetTypeMismatch: (failure) =>
-          Effect.succeed({ reason: failure.reason, status: 'TARGET_TYPE_MISMATCH' as const }),
+        ExternalCorrelationAmbiguous: onAmbiguous,
+        ExternalCorrelationInvalid: onInvalid,
+        ExternalCorrelationMissingLink: onMissingLink,
+        ExternalCorrelationTargetTypeMismatch: onTargetTypeMismatch,
         ExternalCorrelationUnverifiable: unavailable,
       }),
     );
@@ -66,10 +71,7 @@ export const readExternalTargetResolution = Effect.fn('ExternalTargetResolutionR
 );
 
 /** Connector Registry and deterministic-rule evidence are deployment bindings; no binding fails closed. */
-export const makeExternalTargetResolutionRead = (
-  registry?: ExternalCorrelationRegistryPorts,
-  rules?: ExternalCorrelationResolverRules,
-) =>
+export const makeExternalTargetResolutionRead = () =>
   defineRead(
     {
       accessKind: 'detail',
@@ -84,11 +86,11 @@ export const makeExternalTargetResolutionRead = (
       resultSchema: ExternalTargetResolutionResponseSchema,
       schemaVersion: '1',
     },
-    (input, context: ReadHandlerContext<Services>) =>
-      readExternalTargetResolution(input, context.scope.tenantId, context.services).pipe(
+    (input, context: ReadHandlerContext<void>) =>
+      readExternalTargetResolution(input, context.scope.tenantId).pipe(
         Effect.map((result) => ({ evidence: { resultCount: result.status === 'RESOLVED' ? 1 : 0 }, result })),
       ),
-    () => Effect.succeed(makeExternalCorrelationResolver(registry, rules)),
+    () => Effect.void,
     () => ({ kind: 'tenant', permission: 'access' }),
   );
 
