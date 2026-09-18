@@ -199,7 +199,7 @@ describe('Package Option persistence', () => {
     }),
   );
 
-  it.effect('uses the effective successor even while the Definition pointer remains old', () =>
+  it.effect('blocks Option activation until the due successor is explicitly promoted', () =>
     Effect.gen(function* effectiveSuccessor() {
       const writes: Write[] = [];
       const observed: number[] = [];
@@ -232,12 +232,12 @@ describe('Package Option persistence', () => {
       const outcome = yield* service.activate({ ...input, expectedContentRevision: 2 });
       expect(
         Match.value(outcome).pipe(
-          Match.tag('changed', (value) => value.contentRevision),
+          Match.tag('stale', (value) => value.actualContentRevision),
           Match.orElse(() => 0),
         ),
       ).toBe(2);
-      expect(observed).toEqual([2, 2]);
-      expect(writes[1]).toEqual([packageOptionRoleRevisions, expect.objectContaining({ contentRevision: 2 })]);
+      expect(observed).toEqual([]);
+      expect(writes).toEqual([]);
     }),
   );
 
@@ -265,7 +265,7 @@ describe('Package Option persistence', () => {
     }),
   );
 
-  it.effect('retires against effective successor while retaining the attested role evidence', () =>
+  it.effect('blocks Option retirement until due content is explicitly promoted', () =>
     Effect.gen(function* retireSuccessor() {
       const writes: Write[] = [];
       const active = { ...definition, currentOptionRevision: 1, optionState: 'ACTIVE' };
@@ -280,14 +280,11 @@ describe('Package Option persistence', () => {
       const outcome = yield* service.retire({ ...input, expectedContentRevision: 2, expectedOptionRevision: 1 });
       expect(
         Match.value(outcome).pipe(
-          Match.tag('changed', (value) => [value.contentRevision, value.state]),
-          Match.orElse(() => []),
+          Match.tag('stale', (value) => value.actualContentRevision),
+          Match.orElse(() => 0),
         ),
-      ).toEqual([2, 'RETIRED']);
-      expect(writes[1]).toEqual([
-        packageOptionRoleRevisions,
-        expect.objectContaining({ contentRevision: 2, evidenceRefs: finding.evidenceRefs, state: 'RETIRED' }),
-      ]);
+      ).toBe(2);
+      expect(writes).toEqual([]);
     }),
   );
 

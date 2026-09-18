@@ -27,7 +27,7 @@ export class PackageOptionPersistenceUnavailable extends Schema.TaggedError<Pack
   { code: Schema.Literal('package_option_persistence_unavailable'), reason: Schema.String },
 ) {}
 
-interface PackageOptionRoleFinding {
+export interface PackageOptionRoleFinding {
   readonly evidenceRefs: readonly string[];
   readonly independentlyRequested: boolean;
   readonly looseUnitsSubstitutable: boolean;
@@ -94,7 +94,7 @@ const unavailable = (cause?: unknown): PackageOptionPersistenceUnavailable => {
   return error;
 };
 
-const validFinding = (finding: PackageOptionRoleFinding): boolean =>
+export const validPackageOptionRoleFinding = (finding: PackageOptionRoleFinding): boolean =>
   finding.validationReason.length > 0 &&
   finding.validationReason.length <= 1000 &&
   finding.validationReason === finding.validationReason.trim() &&
@@ -151,7 +151,7 @@ const optionOf = <T>(value: T | undefined): Option.Option<T> =>
   value === undefined ? Option.none() : Option.some(value);
 
 const trustedFinding = (candidate: Option.Option<PackageOptionRoleFinding>): Option.Option<PackageOptionRoleFinding> =>
-  Option.isSome(candidate) && validFinding(candidate.value) ? candidate : Option.none();
+  Option.isSome(candidate) && validPackageOptionRoleFinding(candidate.value) ? candidate : Option.none();
 
 const effectiveContent = (contents: readonly Content[], row: Definition, at: Date): Content | undefined => {
   if (contents.length < row.currentRevision || contents.length > row.currentRevision + 1) {
@@ -288,6 +288,7 @@ export const packageOptionPersistenceForScope = (
     const effectiveRevision = content.revision;
     if (
       effectiveRevision !== input.expectedContentRevision ||
+      effectiveRevision !== row.currentRevision ||
       row.currentOptionRevision !== input.expectedOptionRevision
     ) {
       return {

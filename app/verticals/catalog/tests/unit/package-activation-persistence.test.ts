@@ -1,8 +1,8 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Match, Schema } from 'effect';
+import { Effect, Match, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
-import { packageContentRevisions, packageDefinitions } from '../../src/database/schema.ts';
+import { packageContentRevisions, packageDefinitions, packageOptionRoleRevisions } from '../../src/database/schema.ts';
 import type { productVariants, products } from '../../src/database/schema.ts';
 import {
   packageActivationPersistenceForScope,
@@ -55,12 +55,22 @@ const content = {
   unitResourceType: 'commerce.catalog.product-unit',
   variantId,
 };
-type Table = typeof packageDefinitions | typeof packageContentRevisions | typeof products | typeof productVariants;
-type WriteValue = Partial<typeof packageDefinitions.$inferInsert> | typeof packageContentRevisions.$inferInsert;
+type Table =
+  | typeof packageDefinitions
+  | typeof packageContentRevisions
+  | typeof packageOptionRoleRevisions
+  | typeof products
+  | typeof productVariants;
+type WriteValue =
+  | Partial<typeof packageDefinitions.$inferInsert>
+  | typeof packageContentRevisions.$inferInsert
+  | typeof packageOptionRoleRevisions.$inferInsert;
 interface Overrides {
+  casMiss?: boolean;
   content?: typeof content;
   contents?: readonly (typeof content & { revision: number })[];
   definition?: typeof definition;
+  role?: Partial<typeof packageOptionRoleRevisions.$inferSelect>;
 }
 const rows = (table: Table, overrides: Overrides) => {
   if (table === packageDefinitions) {
@@ -69,18 +79,26 @@ const rows = (table: Table, overrides: Overrides) => {
   if (table === packageContentRevisions) {
     return overrides.contents ?? [{ ...(overrides.content ?? content), revision: 1 }];
   }
+  if (table === packageOptionRoleRevisions) {
+    return overrides.role === undefined ? [] : [overrides.role];
+  }
   return [{ lifecycleState: 'ACTIVE' }];
 };
 const readLimit = (table: Table, overrides: Overrides) => Effect.succeed(rows(table, overrides));
-const writeUpdate = (table: Table, writes: unknown[], value: WriteValue) => {
+const writeUpdate = (table: Table, writes: unknown[], value: WriteValue, casMiss = false) => {
+  if (casMiss) {
+    return Effect.succeed([]);
+  }
   writes.push([table, value]);
   return Effect.succeed([{ ...definition, currentRevision: 2 }]);
 };
 const queryFor = (table: Table, overrides: Overrides) => ({
   where: () => ({ for: () => ({ limit: () => readLimit(table, overrides), pipe: () => readLimit(table, overrides) }) }),
 });
-const updateFor = (table: Table, writes: unknown[]) => ({
-  set: (value: WriteValue) => ({ where: () => ({ returning: () => writeUpdate(table, writes, value) }) }),
+const updateFor = (table: Table, writes: unknown[], overrides: Overrides) => ({
+  set: (value: WriteValue) => ({
+    where: () => ({ returning: () => writeUpdate(table, writes, value, overrides.casMiss) }),
+  }),
 });
 const fixture = (writes: unknown[], overrides: Overrides = {}) => ({
   insert: (table: Table) => ({
@@ -90,9 +108,165 @@ const fixture = (writes: unknown[], overrides: Overrides = {}) => ({
     },
   }),
   select: () => ({ from: (table: Table) => queryFor(table, overrides) }),
-  update: (table: Table) => updateFor(table, writes),
+  update: (table: Table) => updateFor(table, writes, overrides),
 });
 
+describe('Package successor promotion persistence', () => {
+  it.effect('promotes only a due immutable successor under the Definition lock', () =>
+    Effect.gen(function* duePromotion() {
+      const writes: unknown[] = [];
+      const active = { ...definition, currentOptionRevision: 0, currentRevision: 1, lifecycleState: 'ACTIVE' };
+      const future = {
+        ...content,
+        effectiveAt: new Date('2999-01-01T00:00:00.000Z'),
+        lifecycleState: 'ACTIVE',
+        revision: 2,
+      };
+      const service = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, {
+          contents: [{ ...content, lifecycleState: 'ACTIVE', revision: 1 }, future],
+          definition: active,
+        }),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        undefined,
+        { verify: () => Effect.succeed(true) },
+      );
+      const early = yield* service.promote({ ...input, expectedOptionRevision: 0 });
+      expect(
+        Match.value(early).pipe(
+          Match.tag('invalid', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+      expect(writes).toEqual([]);
+      const dueService = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, {
+          contents: [
+            { ...content, lifecycleState: 'ACTIVE', revision: 1 },
+            { ...future, effectiveAt: new Date('1970-01-01T00:00:00.000Z') },
+          ],
+          definition: active,
+        }),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        undefined,
+        { verify: () => Effect.succeed(true) },
+      );
+      const due = yield* dueService.promote({ ...input, expectedOptionRevision: 0 });
+      expect(
+        Match.value(due).pipe(
+          Match.tag('promoted', ({ optionRevision, revision }) => [optionRevision, revision]),
+          Match.orElse(() => []),
+        ),
+      ).toEqual([0, 2]);
+      expect(writes).toEqual([[packageDefinitions, expect.objectContaining({ currentRevision: 2 })]]);
+    }),
+  );
+
+  it.effect('requires fresh Option role proof before promoting an active selectable package', () =>
+    Effect.gen(function* activeOptionPromotion() {
+      const writes: unknown[] = [];
+      const active = {
+        ...definition,
+        currentOptionRevision: 1,
+        currentRevision: 1,
+        lifecycleState: 'ACTIVE',
+        optionState: 'ACTIVE',
+      };
+      const successor = {
+        ...content,
+        effectiveAt: new Date('1970-01-01T00:00:00.000Z'),
+        lifecycleState: 'ACTIVE',
+        revision: 2,
+      };
+      const overrides = {
+        contents: [{ ...content, lifecycleState: 'ACTIVE', revision: 1 }, successor],
+        definition: active,
+        role: { contentRevision: 1, productId, state: 'ACTIVE', variantId },
+      };
+      const noRole = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, overrides),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        undefined,
+        { verify: () => Effect.succeed(true) },
+      );
+      yield* noRole.promote({ ...input, expectedOptionRevision: 1 }).pipe(Effect.flip);
+      expect(writes).toEqual([]);
+      const service = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, overrides),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        undefined,
+        { verify: () => Effect.succeed(true) },
+        {
+          verify: () =>
+            Effect.succeed(
+              Option.some({
+                evidenceRefs: ['role:verified'],
+                independentlyRequested: true,
+                looseUnitsSubstitutable: false,
+                validationReason: 'Still independently requested',
+              }),
+            ),
+        },
+      );
+      expect(
+        Match.value(yield* service.promote({ ...input, expectedOptionRevision: 1 })).pipe(
+          Match.tag('promoted', ({ optionRevision, revision }) => [optionRevision, revision]),
+          Match.orElse(() => []),
+        ),
+      ).toEqual([2, 2]);
+      expect(writes[1]).toEqual([
+        packageOptionRoleRevisions,
+        expect.objectContaining({ contentRevision: 2, revision: 2, state: 'ACTIVE' }),
+      ]);
+    }),
+  );
+
+  it.effect('fails closed on ambiguous successor schedules and on a lost pointer CAS', () =>
+    Effect.gen(function* ambiguousOrRaced() {
+      const writes: unknown[] = [];
+      const active = { ...definition, currentOptionRevision: 0, lifecycleState: 'ACTIVE' };
+      const prior = { ...content, lifecycleState: 'ACTIVE', revision: 1 };
+      const successor = { ...prior, effectiveAt: new Date('1970-01-01T00:00:00.000Z'), revision: 2 };
+      const ambiguous = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, { contents: [prior, successor, { ...successor, revision: 3 }], definition: active }),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        undefined,
+        { verify: () => Effect.succeed(true) },
+      );
+      expect(
+        Schema.is(PackageActivationUnavailable)(
+          yield* ambiguous.promote({ ...input, expectedOptionRevision: 0 }).pipe(Effect.flip),
+        ),
+      ).toBe(true);
+      const raced = packageActivationPersistenceForScope(
+        // @ts-expect-error Mock covers only the exercised Drizzle chain.
+        fixture(writes, { casMiss: true, contents: [prior, successor], definition: active }),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        undefined,
+        { verify: () => Effect.succeed(true) },
+      );
+      const outcome = yield* raced.promote({ ...input, expectedOptionRevision: 0 });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('stale', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+      expect(writes).toEqual([]);
+    }),
+  );
+});
 describe('Package Definition activation persistence', () => {
   it.effect('fails closed without selection impact proof before any write', () =>
     Effect.gen(function* noImpact() {
