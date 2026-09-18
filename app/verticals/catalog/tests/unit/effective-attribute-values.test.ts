@@ -94,11 +94,26 @@ describe('effective Product/Variant attribute values', () => {
 
   it('uses the entire explicit multiple override and does not merge Product values', () => {
     const variantSet = { revision: 6, state: 'SET' as const, values: [text('Wood'), text('Aluminum')] };
-    expect(resolveEffectiveAttributeValues({ ...input, variantSet })).toMatchObject({
+    const before = resolveEffectiveAttributeValues({ ...input, variantSet });
+    expect(before).toMatchObject({
+      productRevision: 3,
       source: { level: 'VARIANT', revision: 6 },
       status: 'CURRENT',
       values: variantSet.values,
     });
+    expect(
+      resolveEffectiveAttributeValues({
+        ...input,
+        productSet: { revision: 4, state: 'SET', values: [text('Stainless')] },
+        variantSet,
+      }),
+    ).toMatchObject({
+      productRevision: 4,
+      source: { level: 'VARIANT', revision: 6 },
+      status: 'CURRENT',
+      values: variantSet.values,
+    });
+    expect(before).toMatchObject({ productRevision: 3, values: variantSet.values });
   });
 
   it('distinguishes explicit UNKNOWN and NOT_APPLICABLE from absent and removal', () => {
@@ -114,6 +129,7 @@ describe('effective Product/Variant attribute values', () => {
       status: 'CURRENT',
       values: [],
     });
+    expect(resolveEffectiveAttributeValues({ ...input, productSet: null })).not.toHaveProperty('source');
     expect(
       resolveEffectiveAttributeValues({ ...input, variantSet: { revision: 7, state: 'REMOVED', values: [] } }),
     ).toMatchObject({ source: { level: 'PRODUCT' }, status: 'CURRENT', values: [text('Steel')] });
@@ -124,6 +140,30 @@ describe('effective Product/Variant attribute values', () => {
         variantSet: { revision: 7, state: 'REMOVED', values: [] },
       }),
     ).toMatchObject({ status: 'CURRENT', values: [] });
+    expect(
+      resolveEffectiveAttributeValues({
+        ...input,
+        productSet: null,
+        variantSet: { revision: 7, state: 'REMOVED', values: [] },
+      }),
+    ).not.toHaveProperty('source');
+  });
+
+  it('revalidates an override against the Current definition instead of treating existence as validity', () => {
+    expect(
+      resolveEffectiveAttributeValues({
+        ...input,
+        definition: { ...definition, specialStates: [] },
+        variantSet: { revision: 8, state: 'SET', values: [{ kind: 'SPECIAL', state: 'UNKNOWN' }] },
+      }),
+    ).toMatchObject({ status: 'INVALID_VALUE' });
+    expect(
+      resolveEffectiveAttributeValues({
+        ...input,
+        definition: { ...definition, multiplicity: 'SINGLE' },
+        variantSet: { revision: 8, state: 'SET', values: [text('Wood'), text('Aluminum')] },
+      }),
+    ).toMatchObject({ status: 'INVALID_VALUE' });
   });
 
   it('rejects stale removal basis, missing type authority, disallowed inheritance, and empty SET', () => {
