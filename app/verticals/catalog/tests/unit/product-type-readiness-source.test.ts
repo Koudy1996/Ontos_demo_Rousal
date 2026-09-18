@@ -9,9 +9,11 @@ import {
   attributeValueRevisions,
   attributeValueSets,
   productTypeAssignments,
+  productTypeUntypedDecisions,
   productTypeRevisions,
   productTypes,
   productVariantAxes,
+  productVariantAxisEvents,
   productVariants,
   products,
 } from '../../src/database/schema.ts';
@@ -51,19 +53,23 @@ type Table =
   | typeof attributeValueRevisions
   | typeof products
   | typeof productTypeAssignments
+  | typeof productTypeUntypedDecisions
   | typeof productTypes
   | typeof productTypeRevisions
   | typeof productTypeRevisionAttributes
   | typeof attributeValueSets
   | typeof productVariantAxes
+  | typeof productVariantAxisEvents
   | typeof productVariants;
 interface Rows {
   readonly assigned?: boolean;
+  readonly decisionState?: 'CONFIRMED' | 'REVOKED';
   readonly foreignRule?: boolean;
   readonly malformedValueSet?: boolean;
   readonly optionalRule?: boolean;
   readonly revision?: number;
   readonly specialState?: 'UNKNOWN' | 'NONE' | 'NOT_APPLICABLE';
+  readonly staleDecision?: boolean;
 }
 const rowsFor = (table: Table, options: Rows) => {
   if (table === attributeDefinitions || table === attributeDefinitionRevisions) {
@@ -134,8 +140,29 @@ const rowsFor = (table: Table, options: Rows) => {
   if (table === productVariantAxes || table === productVariants) {
     return [];
   }
+  if (table === productVariantAxisEvents) {
+    return [];
+  }
+  if (table === productTypeUntypedDecisions) {
+    return options.decisionState === undefined
+      ? []
+      : [
+          {
+            axisRevision: 0,
+            decisionRevision: 2,
+            decisionState: options.decisionState,
+            productId,
+            productRevision: options.staleDecision === true ? 2 : 1,
+            structuredAttributesRequired: false,
+            tenantId,
+            valueRevisionTokens: [],
+            variantAxesRequired: false,
+            variantRevisionTokens: [],
+          },
+        ];
+  }
   if (table === products) {
-    return [{ productId }];
+    return [{ currentRevision: 1, productId, tenantId }];
   }
   if (table === productTypeAssignments) {
     return options.assigned === false ? [] : [{ assignmentRevision: 3, productId, productTypeId: typeId, tenantId }];
@@ -294,6 +321,26 @@ describe('Product Type Current readiness source', () => {
       const source = productTypeReadinessSourceForScope(transaction({ assigned: false }), scope);
       const result = yield* source.evaluate(productRef, at);
       expect(result).toMatchObject({ status: 'UNTYPED_PARTIAL' });
+    }),
+  );
+  it.effect('attests only a matching latest confirmed unnecessary decision', () =>
+    Effect.gen(function* confirmedUntyped() {
+      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+      const source = productTypeReadinessSourceForScope(transaction({ assigned: false, decisionState: 'CONFIRMED' }), scope);
+      expect(yield* source.evaluate(productRef, at)).toMatchObject({
+        decisionRevision: 2,
+        status: 'CONFIRMED_UNTYPED_MINIMUM',
+      });
+    }),
+  );
+  it.effect('fails closed on decision revocation or Product revision drift', () =>
+    Effect.gen(function* staleUntyped() {
+      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+      const revoked = productTypeReadinessSourceForScope(transaction({ assigned: false, decisionState: 'REVOKED' }), scope);
+      expect(yield* revoked.evaluate(productRef, at)).toMatchObject({ status: 'UNTYPED_PARTIAL' });
+      // @ts-expect-error Mock supplies only the selected Drizzle query chain.
+      const stale = productTypeReadinessSourceForScope(transaction({ assigned: false, decisionState: 'CONFIRMED', staleDecision: true }), scope);
+      expect(yield* stale.evaluate(productRef, at)).toMatchObject({ status: 'INDETERMINATE' });
     }),
   );
   it.effect('returns UNTYPED without fabricating rules', () =>

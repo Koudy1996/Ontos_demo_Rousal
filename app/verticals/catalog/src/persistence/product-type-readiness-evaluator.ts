@@ -12,6 +12,8 @@ import type { ProductTypeReadinessSource } from './product-type-readiness-source
 
 /** A complete, owner-verified Current snapshot; callers must not construct this from browser input. */
 export interface ProductTypeReadinessSnapshot {
+  /** Owner-validated latest decision; absent means Type necessity remains unresolved. */
+  readonly confirmedUntypedDecisionRevision?: number | undefined;
   readonly productValues: readonly ProductTypeCurrentValue[];
   /** Exact owner-read value-set/definition revisions; an empty list is valid only with complete inventory proof. */
   readonly productValueSource?: { readonly complete: true; readonly revisionTokens: readonly string[] };
@@ -36,6 +38,11 @@ export type ProductTypeReadinessEvaluation =
   | {
       readonly rules: ProductTypeRulesResult;
       readonly status: 'UNTYPED_PARTIAL';
+    }
+  | {
+      readonly decisionRevision: number;
+      readonly rules: ProductTypeRulesResult;
+      readonly status: 'CONFIRMED_UNTYPED_MINIMUM';
     }
   | {
       readonly assignmentRevision: number;
@@ -205,6 +212,41 @@ const snapshotProblem = ({
   return null;
 };
 
+const evaluateUntypedReadiness = (
+  snapshot: ProductTypeReadinessSnapshot,
+): ProductTypeReadinessEvaluation => {
+  const { productValues, productValueSource, source, variants } = snapshot;
+  if (source.status !== 'UNTYPED' || productValueSource === undefined) {
+    return { reason: 'Untyped Product source is unavailable', status: 'INDETERMINATE' };
+  }
+  if (variants.some((variant) => variant.effectiveValues.length > 0)) {
+    return { reason: 'Untyped Variant value authority is unavailable', status: 'INDETERMINATE' };
+  }
+  const rules = evaluateProductTypeRules({
+    productRef: source.productRef,
+    productValues,
+    variants: variants.map((variant) => ({
+      effectiveValues: untypedVariantValues(variant, source.productRef.tenantId),
+      productRef: source.productRef,
+      variantRef: variant.variantRef,
+    })),
+  });
+  if (rules.basisStatus !== 'UNTYPED') {
+    return { reason: 'Untyped Product snapshot is malformed', status: 'INDETERMINATE' };
+  }
+  const revision = snapshot.confirmedUntypedDecisionRevision;
+  if (revision === undefined) {
+    return { rules, status: 'UNTYPED_PARTIAL' };
+  }
+  if (!Number.isSafeInteger(revision) || revision < 1) {
+    return { reason: 'Untyped decision revision is invalid', status: 'INDETERMINATE' };
+  }
+  if (productValues.length > 0 || variants.some((variant) => variant.currentAttributeDefinitionIds?.length !== 0)) {
+    return { reason: 'Confirmed untyped Product has structured Current facts', status: 'INDETERMINATE' };
+  }
+  return { decisionRevision: revision, rules, status: 'CONFIRMED_UNTYPED_MINIMUM' };
+};
+
 /** #424 partial minimum only; no result here asserts overall #414 Catalog readiness. */
 export const evaluateCurrentProductTypeReadiness = (
   snapshot: ProductTypeReadinessSnapshot,
@@ -218,21 +260,7 @@ export const evaluateCurrentProductTypeReadiness = (
     return { reason: 'Current Product value source is unavailable', status: 'INDETERMINATE' };
   }
   if (source.status === 'UNTYPED') {
-    if (variants.some((variant) => variant.effectiveValues.length > 0)) {
-      return { reason: 'Untyped Variant value authority is unavailable', status: 'INDETERMINATE' };
-    }
-    const rules = evaluateProductTypeRules({
-      productRef: source.productRef,
-      productValues,
-      variants: variants.map((variant) => ({
-        effectiveValues: untypedVariantValues(variant, source.productRef.tenantId),
-        productRef: source.productRef,
-        variantRef: variant.variantRef,
-      })),
-    });
-    return rules.basisStatus === 'UNTYPED'
-      ? { rules, status: 'UNTYPED_PARTIAL' }
-      : { reason: 'Untyped Product snapshot is malformed', status: 'INDETERMINATE' };
+    return evaluateUntypedReadiness(snapshot);
   }
   const { basis, rulesRevision } = source;
   if (!Number.isSafeInteger(source.assignmentRevision) || source.assignmentRevision < 1) {

@@ -1,5 +1,5 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { DateTime, Effect, Option, Schema } from 'effect';
 
 import {
@@ -19,6 +19,8 @@ import {
   productVariantAxes,
   productVariants,
   productTypeAssignments,
+  productTypeUntypedDecisions,
+  productVariantAxisEvents,
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
@@ -53,6 +55,8 @@ const invalid = (reason: string) =>
 const malformedRulesReason = 'Current Product Type rules are malformed';
 const catalogModuleId = 'commerce.catalog' as const;
 const attributeDefinitionResourceType = 'commerce.catalog.attribute-definition' as const;
+const sameTokens = (actual: readonly string[], expected: readonly string[]): boolean =>
+  actual.length === expected.length && actual.every((token, index) => token === expected[index]);
 
 interface ProductTypeReadinessService {
   readonly evaluate: (
@@ -160,6 +164,7 @@ export const productTypeReadinessSourceForScope = (
     }
     const variantRows = yield* transaction
       .select({
+        currentRevision: productVariants.currentRevision,
         lifecycleState: productVariants.lifecycleState,
         productId: productVariants.productId,
         tenantId: productVariants.tenantId,
@@ -216,6 +221,7 @@ export const productTypeReadinessSourceForScope = (
       (variantRef) => readVariantSnapshot(reads, inventory, source, productRef, variantRef),
       { concurrency: 1 },
     );
+    let confirmedUntypedDecisionRevision: number | undefined;
     if (source.status === 'UNTYPED') {
       const axes = yield* transaction
         .select({ attributeDefinitionId: productVariantAxes.attributeDefinitionId })
@@ -228,8 +234,90 @@ export const productTypeReadinessSourceForScope = (
       if (axes.length > 0) {
         return { reason: 'Untyped Product still has Variant Axes', status: 'INDETERMINATE' };
       }
+      const [productRows, decisions, axisEvents] = yield* Effect.all(
+        [
+          transaction
+            .select({
+              currentRevision: products.currentRevision,
+              productId: products.productId,
+              tenantId: products.tenantId,
+            })
+            .from(products)
+            .where(and(eq(products.tenantId, scope.tenantId), eq(products.productId, productRef.resourceId)))
+            .for('share')
+            .limit(1)
+            .pipe(Effect.mapError(unavailable)),
+          transaction
+            .select()
+            .from(productTypeUntypedDecisions)
+            .where(
+              and(
+                eq(productTypeUntypedDecisions.tenantId, scope.tenantId),
+                eq(productTypeUntypedDecisions.productId, productRef.resourceId),
+              ),
+            )
+            .orderBy(desc(productTypeUntypedDecisions.decisionRevision))
+            .limit(1)
+            .pipe(Effect.mapError(unavailable)),
+          transaction
+            .select()
+            .from(productVariantAxisEvents)
+            .where(
+              and(
+                eq(productVariantAxisEvents.tenantId, scope.tenantId),
+                eq(productVariantAxisEvents.productId, productRef.resourceId),
+              ),
+            )
+            .orderBy(desc(productVariantAxisEvents.axisRevision))
+            .limit(1)
+            .pipe(Effect.mapError(unavailable)),
+        ],
+        { concurrency: 1 },
+      );
+      const [product] = productRows;
+      const [decision] = decisions;
+      if (product === undefined || product.tenantId !== scope.tenantId || product.productId !== productRef.resourceId) {
+        return { reason: 'Current Product revision is unavailable', status: 'INDETERMINATE' };
+      }
+      if (decision !== undefined) {
+        if (
+          decision.tenantId !== scope.tenantId ||
+          decision.productId !== productRef.resourceId ||
+          !Number.isSafeInteger(decision.decisionRevision) ||
+          decision.decisionRevision < 1
+        ) {
+          return { reason: 'Untyped decision provenance is invalid', status: 'INDETERMINATE' };
+        }
+        if (decision.decisionState === 'CONFIRMED') {
+          const valueTokens = productEntries.map((entry) => entry.sourceRevisionToken).toSorted();
+          const variantTokens = [
+            ...currentVariants.map((variant) => `${variant.variantId}:${variant.currentRevision}`),
+            ...inventory.entries
+              .filter((entry) => entry.variantId !== null)
+              .map((entry) => `${entry.variantId}:${entry.sourceRevisionToken}`),
+          ].toSorted();
+          if (
+            decision.structuredAttributesRequired ||
+            decision.variantAxesRequired ||
+            decision.productRevision !== product.currentRevision ||
+            decision.axisRevision !== (axisEvents[0]?.axisRevision ?? 0) ||
+            !sameTokens(valueTokens, decision.valueRevisionTokens) ||
+            !sameTokens(variantTokens, decision.variantRevisionTokens) ||
+            inventory.entries.some((entry) => entry.currentState === 'SET')
+          ) {
+            return {
+              reason: 'Confirmed untyped decision no longer matches Current Product, axis, value, or Variant inventory',
+              status: 'INDETERMINATE',
+            };
+          }
+          confirmedUntypedDecisionRevision = decision.decisionRevision;
+        } else if (decision.decisionState !== 'REVOKED') {
+          return { reason: 'Untyped decision state is invalid', status: 'INDETERMINATE' };
+        }
+      }
     }
     return evaluateCurrentProductTypeReadiness({
+      confirmedUntypedDecisionRevision,
       productValues,
       productValueSource: {
         complete: true,
