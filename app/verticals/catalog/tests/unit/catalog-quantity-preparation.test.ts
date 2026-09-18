@@ -147,11 +147,111 @@ describe('Catalog quantity preparation', () => {
   it.effect('returns stale when a candidate pins an older Unit rule', () =>
     Effect.gen(function* detectsStaleRule() {
       // @ts-expect-error The mock provides only the read chains exercised here.
+      const prepared = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
+        amount: '2.53',
+        phase: 'PREPARE',
+        selection,
+      });
+      expect(prepared.status).toBe('PREPARED');
+      if (prepared.status !== 'PREPARED') {
+        return;
+      }
+      // @ts-expect-error The mock provides only the read chains exercised here.
       const result = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
         amount: '2.53',
-        expected: { productRevision: 2, targetDivisibilityRevision: 5, unitRuleRevision: 6, variantRevision: 3 },
+        expected: {
+          productRevision: 2,
+          quantity: prepared.quantity,
+          selection: prepared.selection,
+          targetDivisibilityRevision: 5,
+          unitRuleRevision: 6,
+          variantRevision: 3,
+        },
         phase: 'APPROVED',
         selection,
+      });
+      expect(result.status).toBe('STALE');
+    }),
+  );
+
+  it.effect('pins the exact normalized candidate amount through approval and commitment', () =>
+    Effect.gen(function* pinsCandidateAmount() {
+      // @ts-expect-error The mock provides only the read chains exercised here.
+      const prepared = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
+        amount: '2.537',
+        phase: 'PREPARE',
+        selection,
+      });
+      expect(prepared.status).toBe('PREPARED');
+      if (prepared.status !== 'PREPARED') {
+        return;
+      }
+      const expected = {
+        productRevision: prepared.sources.product.revision,
+        quantity: prepared.quantity,
+        selection: prepared.selection,
+        targetDivisibilityRevision: prepared.sources.targetDivisibilityRevision,
+        unitRuleRevision: prepared.sources.unitRuleRevision,
+        variantRevision: prepared.sources.variant.revision,
+      };
+      for (const phase of ['APPROVED', 'COMMITTING'] as const) {
+        // @ts-expect-error The mock provides only the read chains exercised here.
+        const unchanged = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
+          amount: '2.54',
+          expected,
+          phase,
+          selection,
+        });
+        expect(unchanged.status).toBe('PREPARED');
+        // @ts-expect-error The mock provides only the read chains exercised here.
+        const changed = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
+          amount: '2.55',
+          expected,
+          phase,
+          selection,
+        });
+        expect(changed.status).toBe('STALE');
+      }
+    }),
+  );
+
+  it.effect('rejects a changed selection even when the quantity sources still match', () =>
+    Effect.gen(function* pinsCandidateSelection() {
+      // @ts-expect-error The mock provides only the read chains exercised here.
+      const prepared = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
+        amount: '2',
+        phase: 'PREPARE',
+        selection,
+      });
+      expect(prepared.status).toBe('PREPARED');
+      if (prepared.status !== 'PREPARED') {
+        return;
+      }
+      const changedSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        setComposition: {
+          resourceRef: {
+            moduleId: 'commerce.catalog',
+            resourceId: '77777777-7777-4777-8777-777777777777',
+            resourceType: 'commerce.catalog.set-composition',
+            tenantId,
+          },
+          revision: 1,
+        },
+      });
+      // @ts-expect-error The mock provides only the read chains exercised here.
+      const result = yield* catalogQuantityPreparationForScope(transactionFor(), scope).prepare({
+        amount: '2',
+        expected: {
+          productRevision: prepared.sources.product.revision,
+          quantity: prepared.quantity,
+          selection: prepared.selection,
+          targetDivisibilityRevision: prepared.sources.targetDivisibilityRevision,
+          unitRuleRevision: prepared.sources.unitRuleRevision,
+          variantRevision: prepared.sources.variant.revision,
+        },
+        phase: 'APPROVED',
+        selection: changedSelection,
       });
       expect(result.status).toBe('STALE');
     }),

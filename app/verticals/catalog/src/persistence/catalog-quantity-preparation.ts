@@ -1,6 +1,7 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
+import { isDeepStrictEqual } from 'node:util';
 
 import type { CatalogSelection, CatalogSelectionRevision } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
@@ -25,10 +26,12 @@ type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, n
 
 export interface CatalogQuantityPreparationRequest {
   readonly amount: string;
-  /** Revisions previously observed by the candidate; mismatch requires re-preparation. */
+  /** The prepared candidate and its observed revisions; mismatch requires re-preparation. */
   readonly expected?: {
     readonly packageDefinitionRevision?: number;
     readonly productRevision: number;
+    readonly quantity: Extract<QuantityNormalization, { status: 'VALID' }>;
+    readonly selection: CatalogSelection;
     readonly targetDivisibilityRevision: number;
     readonly unitRuleRevision: number;
     readonly variantRevision: number;
@@ -71,9 +74,18 @@ const failure = (status: 'INVALID' | 'INDETERMINATE' | 'STALE', reason: string):
 const validRevision = (revision: number): boolean =>
   Number.isSafeInteger(revision) && revision > 0 && revision <= 2_147_483_647;
 
+type QuantitySourceRevisions = Pick<
+  NonNullable<CatalogQuantityPreparationRequest['expected']>,
+  | 'packageDefinitionRevision'
+  | 'productRevision'
+  | 'targetDivisibilityRevision'
+  | 'unitRuleRevision'
+  | 'variantRevision'
+>;
+
 const changedSources = (
-  expected: NonNullable<CatalogQuantityPreparationRequest['expected']>,
-  actual: Omit<NonNullable<CatalogQuantityPreparationRequest['expected']>, 'packageDefinitionRevision'> & {
+  expected: QuantitySourceRevisions,
+  actual: Omit<QuantitySourceRevisions, 'packageDefinitionRevision'> & {
     readonly packageDefinitionRevision: number | undefined;
   },
 ): boolean =>
@@ -82,6 +94,28 @@ const changedSources = (
   expected.packageDefinitionRevision !== actual.packageDefinitionRevision ||
   expected.unitRuleRevision !== actual.unitRuleRevision ||
   expected.targetDivisibilityRevision !== actual.targetDivisibilityRevision;
+
+const changedCandidateSelection = (
+  input: CatalogQuantityPreparationRequest,
+  expected: NonNullable<CatalogQuantityPreparationRequest['expected']>,
+): boolean => input.phase !== 'PREPARE' && !isDeepStrictEqual(input.selection, expected.selection);
+
+const changedCandidateQuantity = (
+  quantity: Extract<QuantityNormalization, { status: 'VALID' }>,
+  expected: NonNullable<CatalogQuantityPreparationRequest['expected']>,
+): boolean =>
+  quantity.resulting !== expected.quantity.resulting ||
+  quantity.targetId !== expected.quantity.targetId ||
+  quantity.tenantId !== expected.quantity.tenantId ||
+  quantity.unitId !== expected.quantity.unitId;
+
+const missingLaterPhaseBasis = (input: CatalogQuantityPreparationRequest): boolean =>
+  input.phase !== 'PREPARE' && input.expected === undefined;
+
+const changedCandidateSources = (
+  expected: CatalogQuantityPreparationRequest['expected'],
+  actual: Parameters<typeof changedSources>[1],
+): boolean => expected !== undefined && changedSources(expected, actual);
 
 const readSelectionBasis = Effect.fn('CatalogQuantityPreparation.readSelectionBasis')(
   function* readSelectionBasisOperation(transaction: ScopedTransaction, tenantId: string, selection: CatalogSelection) {
@@ -202,8 +236,11 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
     if (!Schema.is(CatalogSelectionSchema)(selection) || selection.productRef.tenantId !== tenantId) {
       return failure('INVALID', 'Selection is malformed or outside the trusted Tenant');
     }
-    if (input.phase !== 'PREPARE' && input.expected === undefined) {
-      return failure('INDETERMINATE', 'Later phases require the prepared candidate revisions');
+    if (missingLaterPhaseBasis(input)) {
+      return failure('INDETERMINATE', 'Later phases require the prepared candidate and revisions');
+    }
+    if (input.expected !== undefined && changedCandidateSelection(input, input.expected)) {
+      return failure('STALE', 'Candidate Catalog selection changed');
     }
     const selectionBasis = yield* readSelectionBasis(transaction, tenantId, selection);
     if ('status' in selectionBasis) {
@@ -220,8 +257,7 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
 
     const { expected } = input;
     if (
-      expected !== undefined &&
-      changedSources(expected, {
+      changedCandidateSources(expected, {
         packageDefinitionRevision: pack?.currentRevision,
         productRevision: product.currentRevision,
         targetDivisibilityRevision: target.currentRevision,
@@ -257,6 +293,9 @@ export const catalogQuantityPreparationForScope = (transaction: ScopedTransactio
         return failure('STALE', quantity.reason);
       }
       return failure('INDETERMINATE', quantity.reason);
+    }
+    if (input.phase !== 'PREPARE' && expected !== undefined && changedCandidateQuantity(quantity, expected)) {
+      return failure('STALE', 'Candidate Catalog quantity changed');
     }
     const unitRef = {
       moduleId: 'commerce.catalog',
