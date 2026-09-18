@@ -13,6 +13,6 @@ Later Stock Allocation may satisfy one Stock Requirement from one or more owner-
 ## Considered Options
 
 - Bind one exact Catalog Selection to one Stock Item and preserve its requested Quantity + Unit before Location/Position allocation — accepted.
-- Add a separate Stock Basis/decomposition layer that may represent Package/Set selections through components — rejected because the exact Package/Set is itself the selected stock subject and decomposition changes the selected meaning.
+- Add a separate alternative stock-representation/decomposition layer that may represent Package/Set selections through components — rejected because the exact Package/Set is itself the selected stock subject and decomposition changes the selected meaning.
 - Convert Product Configuration attributes or Units into a different Inventory Quantity — rejected because attributes of one unit and purchase Quantity are distinct business facts, and Inventory must preserve the explicit Unit.
 - Select Location first or choose an alternative stock representation according to current availability — rejected because allocation must not redefine the purchase demand.
