@@ -45,7 +45,7 @@ export class VariantUseChangeBasisUnavailable extends Schema.TaggedError<Variant
   { code: Schema.Literal('variant_use_change_basis_unavailable'), reason: Schema.String },
 ) {}
 
-export interface VariantReactivationAssessmentInput {
+interface VariantReactivationAssessmentInput {
   readonly productRef: ProductRef;
   readonly variantRef: VariantRef;
 }
@@ -68,7 +68,7 @@ export interface VariantReactivationBasisPersistence {
  * `confirm-variant-combination` validates, so a reactivation can never flip ACTIVE under an
  * unvalidated or stale combination.
  */
-export interface VariantReactivationAssessment {
+interface VariantReactivationAssessment {
   readonly combinationAxisRevision: number;
   readonly combinationKey: string;
   readonly decision: VariantUseChangeDecision;

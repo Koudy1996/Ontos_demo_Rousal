@@ -23,7 +23,7 @@ import { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
-export interface ReviseProductTypePersistenceInput {
+interface ReviseProductTypePersistenceInput {
   readonly actionInvocationId: string;
   readonly effectiveFrom: string;
   readonly expectedCurrentRevision: number;
@@ -34,7 +34,7 @@ export interface ReviseProductTypePersistenceInput {
   readonly unresolvedProductRefs: readonly ProductRef[];
 }
 
-export const ReviseProductTypePersistenceOutcomeSchema = Schema.Union([
+const ReviseProductTypePersistenceOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('revised', { result: ReviseProductTypeResultSchema }),
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('stale_basis', { reason: Schema.String }),

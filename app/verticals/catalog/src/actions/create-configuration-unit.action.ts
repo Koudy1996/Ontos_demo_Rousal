@@ -32,7 +32,7 @@ type CreateConfigurationUnitServices = ConfigurationUnitPersistence & {
   ) => Effect.Effect<void, ActionTransactionError>;
 };
 
-export const handleCreateConfigurationUnit = Effect.fn('CreateConfigurationUnitAction.handle')(function* handle(
+const handleCreateConfigurationUnit = Effect.fn('CreateConfigurationUnitAction.handle')(function* handle(
   payload: CreateConfigurationUnitPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, ConfigurationUnitPersistence>,
 ) {

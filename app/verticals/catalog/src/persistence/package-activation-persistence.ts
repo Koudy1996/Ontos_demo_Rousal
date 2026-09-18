@@ -55,14 +55,6 @@ export interface PackagePromotionSelectionImpact {
   }) => Effect.Effect<boolean, PackageActivationUnavailable>;
 }
 
-const PackageActivationOutcomeSchema = Schema.Union([
-  Schema.TaggedStruct('activated', { revision: Schema.Int }),
-  Schema.TaggedStruct('invalid', { reason: Schema.String }),
-  Schema.TaggedStruct('not_found', {}),
-  Schema.TaggedStruct('stale', { actualRevision: Schema.Int }),
-]);
-export type PackageActivationOutcome = typeof PackageActivationOutcomeSchema.Type;
-
 const unavailable = (cause?: unknown): PackageActivationUnavailable => {
   const failure = new PackageActivationUnavailable({
     code: 'package_activation_unavailable',

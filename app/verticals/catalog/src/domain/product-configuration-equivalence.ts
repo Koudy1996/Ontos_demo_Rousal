@@ -443,7 +443,7 @@ export const assessProductConfigurationEquivalence = (
   return structural;
 };
 
-export interface ProductConfigurationEquivalenceAttestationSide {
+interface ProductConfigurationEquivalenceAttestationSide {
   readonly assessment?: CurrentConfigurationAssessment;
   readonly definition?: ProductConfigurationDefinitionRevision;
   readonly input: CurrentConfigurationAssessmentInput;

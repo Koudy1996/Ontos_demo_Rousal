@@ -12,14 +12,6 @@ import type {
 } from '../persistence/category-persistence.ts';
 import { CategoryPersistenceUnavailable } from '../persistence/category-persistence.ts';
 
-export {
-  CategoryNameSchema,
-  CategoryReasonSchema,
-  CategoryRevisionSchema,
-} from '../../shared/actions/create-product-category.ts';
-export { CreateProductCategoryResultSchema as CategoryMutationResultSchema } from '../../shared/actions/create-product-category.ts';
-export { AddProductCategoryAssignmentResultSchema as CategoryAssignmentResultSchema } from '../../shared/actions/add-product-category-assignment.ts';
-
 export const CategoryAuditEvidenceSchema = Schema.Struct({ reason: CategoryReasonSchema });
 
 export class CategoryActionRejected extends Schema.TaggedError<CategoryActionRejected>()('CategoryActionRejected', {

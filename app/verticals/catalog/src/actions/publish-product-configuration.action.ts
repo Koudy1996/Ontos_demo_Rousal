@@ -22,7 +22,7 @@ const MODULE_KEY = 'commerce.catalog' as const;
 const CONFIGURATION_PUBLISHED_EVENT_TYPE = 'commerce.catalog.product-configuration-published.v1' as const;
 const domainEvents = { [CONFIGURATION_PUBLISHED_EVENT_TYPE]: OutboxPayloadSchema } as const;
 
-export const publishProductConfigurationPersistenceServiceFactory = Effect.fn(
+const publishProductConfigurationPersistenceServiceFactory = Effect.fn(
   'PublishProductConfigurationAction.makePersistence',
 )(function* makeProductConfigurationPersistence(
   transaction: Parameters<typeof productConfigurationPersistenceForScope>[0],

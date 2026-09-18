@@ -9,7 +9,7 @@ import type { CatalogSourceAuthorityPorts } from './catalog-source-resolution-po
  * Source authority is deployment evidence. This repository ships no invented grant: a deployment
  * must bind exact Tenant, issuer, target kind, and admitted fact grants from reviewed configuration.
  */
-export const CATALOG_DEPLOYMENT_SOURCE_AUTHORITY_GRANTS: readonly CatalogSourceAuthorityGrant[] = [];
+const CATALOG_DEPLOYMENT_SOURCE_AUTHORITY_GRANTS: readonly CatalogSourceAuthorityGrant[] = [];
 
 export const catalogSourceAuthorityPorts = (
   grants: readonly CatalogSourceAuthorityGrant[] = CATALOG_DEPLOYMENT_SOURCE_AUTHORITY_GRANTS,

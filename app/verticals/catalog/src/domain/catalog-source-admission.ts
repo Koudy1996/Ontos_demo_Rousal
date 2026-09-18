@@ -10,7 +10,7 @@ const MeasurementSchema = Schema.Struct({ amount: positiveDecimal, unitId: Catal
 export const CatalogSourceFactValueSchema = Schema.Union([boundedText, MeasurementSchema]);
 export type CatalogSourceFactValue = typeof CatalogSourceFactValueSchema.Type;
 
-export const CatalogAdmittedSourceFactKeySchema = Schema.Literals([
+const CatalogAdmittedSourceFactKeySchema = Schema.Literals([
   'catalog.name',
   'catalog.factual-description',
   'catalog.dimension.height',
@@ -19,7 +19,7 @@ export const CatalogAdmittedSourceFactKeySchema = Schema.Literals([
   'catalog.weight.net',
   'catalog.weight.gross',
 ]);
-export type CatalogAdmittedSourceFactKey = typeof CatalogAdmittedSourceFactKeySchema.Type;
+type CatalogAdmittedSourceFactKey = typeof CatalogAdmittedSourceFactKeySchema.Type;
 
 interface CatalogFactAdmissionDefinition {
   readonly admission: CatalogFactAdmission;
@@ -33,7 +33,7 @@ interface CatalogFactAdmissionDefinition {
  * accept an assertion from one separately verified external authority. Unknown and foreign-owner
  * fact families fail closed instead of becoming writable through a caller supplied key.
  */
-export const catalogSourceFactAdmissions: readonly CatalogFactAdmissionDefinition[] = [
+const catalogSourceFactAdmissions: readonly CatalogFactAdmissionDefinition[] = [
   {
     admission: {
       assertionAdmission: 'EXTERNAL_SOURCE',

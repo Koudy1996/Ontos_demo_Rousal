@@ -50,7 +50,7 @@ export const ReviseProductTypeStaleBasisSchema = Schema.TaggedStruct('ReviseProd
 const staleBasis = (reason: string): typeof ReviseProductTypeStaleBasisSchema.Type =>
   ReviseProductTypeStaleBasisSchema.make({ code: 'product_type_stale_basis', reason });
 
-export const reviseProductTypePersistenceServiceFactory = Effect.fn(
+const reviseProductTypePersistenceServiceFactory = Effect.fn(
   'ReviseProductTypeAction.reviseProductTypePersistenceServiceFactory',
 )(function* reviseProductTypePersistenceServiceFactory(
   transaction: Parameters<typeof productTypeRevisePersistenceForScope>[0],

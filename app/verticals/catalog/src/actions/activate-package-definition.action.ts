@@ -95,20 +95,20 @@ export const handleActivatePackageDefinition = Effect.fn('ActivatePackageDefinit
   },
 );
 
-export const activatePackageDefinitionPersistenceServiceFactory = Effect.fn(
-  'ActivatePackageDefinitionAction.makePersistence',
-)(function* makePackageActivationPersistence(
-  transaction: Parameters<typeof packageActivationPersistenceForScope>[0],
-  scope: Parameters<typeof packageActivationPersistenceForScope>[1],
-) {
-  const configuredPopulation = yield* cartOpenSelectionPopulationFromEnvironment;
-  return packageActivationPersistenceForScope(
-    transaction,
-    scope,
-    packageContentBasisForTransaction(transaction, scope),
-    packageActivationSelectionImpactForScope(transaction, scope, configuredPopulation),
-  );
-});
+const activatePackageDefinitionPersistenceServiceFactory = Effect.fn('ActivatePackageDefinitionAction.makePersistence')(
+  function* makePackageActivationPersistence(
+    transaction: Parameters<typeof packageActivationPersistenceForScope>[0],
+    scope: Parameters<typeof packageActivationPersistenceForScope>[1],
+  ) {
+    const configuredPopulation = yield* cartOpenSelectionPopulationFromEnvironment;
+    return packageActivationPersistenceForScope(
+      transaction,
+      scope,
+      packageContentBasisForTransaction(transaction, scope),
+      packageActivationSelectionImpactForScope(transaction, scope, configuredPopulation),
+    );
+  },
+);
 
 const ACTION_KEY = 'commerce.catalog.activate-package-definition' as const;
 

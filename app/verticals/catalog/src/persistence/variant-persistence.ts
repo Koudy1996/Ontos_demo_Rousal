@@ -86,12 +86,12 @@ export const DuplicateVariantCombinationSchema = Schema.TaggedStruct('duplicate_
 export const ImpermissibleVariantCombinationSchema = Schema.TaggedStruct('impermissible_value', {
   attributeDefinitionId: AttributeDefinitionRefSchema.fields.resourceId,
 });
-export const InvalidVariantCombinationChangeSchema = Schema.TaggedStruct('invalid_change', {});
-export const LifecycleVariantCombinationConflictSchema = Schema.TaggedStruct('lifecycle_conflict', {});
+const InvalidVariantCombinationChangeSchema = Schema.TaggedStruct('invalid_change', {});
+const LifecycleVariantCombinationConflictSchema = Schema.TaggedStruct('lifecycle_conflict', {});
 export const MissingVariantCombinationAxisSchema = Schema.TaggedStruct('missing_axis', {
   attributeDefinitionId: AttributeDefinitionRefSchema.fields.resourceId,
 });
-export const VariantCombinationNotFoundSchema = Schema.TaggedStruct('not_found', {});
+const VariantCombinationNotFoundSchema = Schema.TaggedStruct('not_found', {});
 export const VariantCombinationRevisionConflictSchema = Schema.TaggedStruct('revision_conflict', {
   actualRevision: Schema.Int,
 });
@@ -110,7 +110,7 @@ export const ConfirmVariantCombinationOutcomeSchema = Schema.Union([
   VariantCombinationRevisionConflictSchema,
   VariantCombinationStaleBasisSchema,
 ]);
-export type ConfirmVariantCombinationOutcome = typeof ConfirmVariantCombinationOutcomeSchema.Type;
+type ConfirmVariantCombinationOutcome = typeof ConfirmVariantCombinationOutcomeSchema.Type;
 
 const FailureOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
@@ -126,7 +126,7 @@ type FailureOutcome = typeof FailureOutcomeSchema.Type;
  * distinct from `lifecycle_conflict` so the caller can tell a reselection requirement from a
  * retired parent or Package Option.
  */
-export const SelectionRevalidationRequiredSchema = Schema.TaggedStruct('selection_revalidation_required', {});
+const SelectionRevalidationRequiredSchema = Schema.TaggedStruct('selection_revalidation_required', {});
 const CreatedOutcomeSchema = Schema.TaggedStruct('created', { revision: Schema.Int, variant: ProductVariantSchema });
 const ChangedOutcomeSchema = Schema.TaggedStruct('changed', { revision: Schema.Int, variant: ProductVariantSchema });
 const RetiredOutcomeSchema = Schema.TaggedStruct('retired', { revision: Schema.Int, variant: ProductVariantSchema });

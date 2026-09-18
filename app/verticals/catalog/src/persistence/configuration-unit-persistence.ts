@@ -12,7 +12,7 @@ import { configurationUnitRevisions, configurationUnits } from '../database/sche
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 type UnitRevisionRow = typeof configurationUnitRevisions.$inferSelect;
-export interface MutationInput<Payload> {
+interface MutationInput<Payload> {
   readonly actionInvocationId: string;
   readonly payload: Payload;
   readonly principalId: string;

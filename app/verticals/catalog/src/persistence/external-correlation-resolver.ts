@@ -16,7 +16,7 @@ import { ExternalCorrelationTargetTypeMismatch } from './external-correlation-ta
 import { ExternalCorrelationUnverifiable } from './external-correlation-unverifiable.ts';
 
 /** Opaque failure raised by the owner-local Connector Registry read; Catalog does not inspect it. */
-export interface ExternalCorrelationRegistryFailure {
+interface ExternalCorrelationRegistryFailure {
   readonly _tag: string;
 }
 
@@ -115,7 +115,7 @@ export class CatalogExternalCorrelationResolver extends Context.Service<
   ExternalCorrelationResolver
 >()('@app/catalog/persistence/external-correlation-resolver/CatalogExternalCorrelationResolver') {}
 
-export const catalogExternalCorrelationResolverLayer = (
+const catalogExternalCorrelationResolverLayer = (
   configuredPorts?: ExternalCorrelationRegistryPorts,
   rules?: ExternalCorrelationResolverRules,
 ) => Layer.succeed(CatalogExternalCorrelationResolver, makeExternalCorrelationResolver(configuredPorts, rules));

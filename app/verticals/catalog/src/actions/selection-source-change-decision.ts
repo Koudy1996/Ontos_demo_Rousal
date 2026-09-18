@@ -6,7 +6,7 @@ const ResolvedSourceLevelSchema = Schema.Literals(['PRODUCT', 'VARIANT', 'ABSENT
  * A single resolved Current selection fact is decided by one source level and exact revision.
  * `ABSENT` means the owner proved that no value is resolved at that level.
  */
-export const ResolvedCurrentSelectionChangeSchema = Schema.Struct({
+const ResolvedCurrentSelectionChangeSchema = Schema.Struct({
   // oxlint-disable-next-line effect-native/no-nullable-schema-field -- null is the explicit "no value at this level" marker, distinct from an omitted field. expires: 2027-03-31.
   nextRevision: Schema.NullOr(Schema.Int.check(Schema.isGreaterThan(0))),
   nextSourceLevel: ResolvedSourceLevelSchema,

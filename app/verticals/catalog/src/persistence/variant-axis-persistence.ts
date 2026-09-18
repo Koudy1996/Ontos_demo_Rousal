@@ -178,7 +178,7 @@ export const GovernVariantAllowedValuesGovernedSchema = Schema.TaggedStruct('gov
   allowanceRevision: Schema.Int,
   changed: Schema.Boolean,
 });
-export const GovernVariantAllowedValuesNotFoundSchema = Schema.TaggedStruct('not_found', {});
+const GovernVariantAllowedValuesNotFoundSchema = Schema.TaggedStruct('not_found', {});
 export const GovernVariantAllowedValuesRevisionConflictSchema = Schema.TaggedStruct('revision_conflict', {
   actualAllowanceRevision: Schema.Int,
 });
@@ -195,7 +195,7 @@ export const GovernVariantAllowedValuesOutcomeSchema = Schema.Union([
   GovernVariantAllowedValuesAxisConflictSchema,
   GovernVariantAllowedValuesInvalidInputSchema,
 ]);
-export type GovernVariantAllowedValuesOutcome = typeof GovernVariantAllowedValuesOutcomeSchema.Type;
+type GovernVariantAllowedValuesOutcome = typeof GovernVariantAllowedValuesOutcomeSchema.Type;
 
 const controlledValueResourceType = 'commerce.catalog.controlled-attribute-value';
 

@@ -3,7 +3,7 @@ import { Schema } from 'effect';
 import type { CatalogFactScope, CatalogLocalOverride } from './catalog-source-resolution.ts';
 
 /** Activate, change, and release are distinct operations with distinct #477 Permissions. */
-export const CatalogLocalOverrideOperationSchema = Schema.Literals(['ACTIVATE', 'CHANGE', 'RELEASE']);
+const CatalogLocalOverrideOperationSchema = Schema.Literals(['ACTIVATE', 'CHANGE', 'RELEASE']);
 export type CatalogLocalOverrideOperation = typeof CatalogLocalOverrideOperationSchema.Type;
 
 export const catalogLocalOverridePermission = {
@@ -11,8 +11,6 @@ export const catalogLocalOverridePermission = {
   CHANGE: 'commerce.catalog.change-local-override',
   RELEASE: 'commerce.catalog.release-local-override',
 } as const satisfies Record<CatalogLocalOverrideOperation, string>;
-
-export type CatalogLocalOverridePermission = (typeof catalogLocalOverridePermission)[CatalogLocalOverrideOperation];
 
 const FOREIGN_FACT_FAMILIES = ['inventory', 'legal-entity', 'party', 'permission', 'price'] as const;
 const FACT_FAMILY_SEPARATORS = ['.', '/', ':', '-'] as const;
