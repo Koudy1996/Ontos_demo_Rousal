@@ -782,14 +782,16 @@ hash that identified the Attempt.
 
 ## Order acceptance and recovery
 
-**Reservation Confirmation** — Attempt-bound proof issued by the actual Reservation Authority,
-through Inventory's public boundary, that one exact authority-homogeneous Inventory Reservation for
-exact Stock Item(s), Quantities/Units and Allocations is provisionally guaranteed for one exact Order
-Commitment Attempt until its explicit validity boundary. One Attempt may therefore carry multiple
-Inventory Reservation Confirmations from different actual Reservation Authorities. Availability does not become the issuer merely by consuming the
-evidence. It has owner-scoped idempotency and correlation. Inventory preserves exact Catalog Selection
-and Quantity/Unit meaning; it does not decompose Package/Set contents or convert Units. It is not an
-Order or permanent Availability guarantee; an expired/unverifiable confirmation is not Current.
+**Reservation Confirmation** — Attempt-bound proof issued by the selected Inventory Backend
+in its role as actual Reservation Authority, through Inventory's public boundary, that the one exact
+Inventory Reservation for exact Stock Item(s), Quantities/Units and Allocations is provisionally
+guaranteed for one exact Order Commitment Attempt until its explicit validity boundary. One Attempt
+has one normal-runtime Inventory Reservation; an External Business System and the OntOS-provided WMS
+are alternative backend modes, not simultaneous issuers. Availability does not become the issuer
+merely by consuming the evidence. It has owner-scoped idempotency and correlation. Inventory
+preserves exact Catalog Selection and Quantity/Unit meaning; it does not decompose Package/Set
+contents or convert Units. It is not an Order or permanent Availability guarantee; an
+expired/unverifiable confirmation is not Current.
 
 **Payment Authorization** — Payment-owned proof that the required Payment method/amount/currency is
 authorized for one exact Order Commitment Attempt under the resolved Payment Term. It is distinct
