@@ -38,6 +38,7 @@ export * from './create-product-type-action-client.ts';
 export * from './create-product-unit-action-client.ts';
 export * from './create-set-composition-action-client.ts';
 export * from './create-variant-action-client.ts';
+export * from './govern-variant-axes-action-client.ts';
 export * from './mark-gtin-unresolved-action-client.ts';
 export * from './move-product-category-action-client.ts';
 export * from './publish-product-configuration-action-client.ts';

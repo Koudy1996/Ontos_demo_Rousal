@@ -9,14 +9,18 @@ import {
   attributeValueSets,
   productTypeAssignments,
   productTypeRevisionAttributes,
+  productAttributeApplicability,
+  productAttributeApplicabilityRevisions,
   productTypeRevisions,
   productTypes,
   productVariantAxes,
   productVariantAxisEvents,
+  productVariants,
   products,
 } from '../../src/database/schema.ts';
 import {
   VariantAxisBasisUnavailable,
+  VariantAxisWriteConflict,
   variantAxisPersistenceForScope,
 } from '../../src/persistence/variant-axis-persistence.ts';
 
@@ -67,6 +71,7 @@ const variantRef = {
 type AxisTable =
   | typeof products
   | typeof productVariantAxisEvents
+  | typeof productVariants
   | typeof productVariantAxes
   | typeof productTypeAssignments
   | typeof productTypes
@@ -74,10 +79,16 @@ type AxisTable =
   | typeof attributeDefinitions
   | typeof attributeDefinitionRevisions
   | typeof productTypeRevisionAttributes
+  | typeof productAttributeApplicability
+  | typeof productAttributeApplicabilityRevisions
   | typeof attributeValueSets
   | typeof attributeValueItems;
 
-const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) => {
+type AxisWriteValues =
+  | typeof productVariantAxisEvents.$inferInsert
+  | readonly (typeof productVariantAxes.$inferInsert)[];
+
+const transactionWith = (overrides = new Map<AxisTable, readonly object[]>(), writes: object[] = []) => {
   const rows = new Map<AxisTable, readonly object[]>([
     [products, [{ productId }]],
     [
@@ -131,6 +142,14 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) =>
       ],
     ],
     [productTypeRevisionAttributes, [{ attributeDefinitionId: definitionId }]],
+    [
+      productAttributeApplicability,
+      [{ attributeDefinitionId: definitionId, currentRevision: 1, productId, tenantId, variantLevel: true }],
+    ],
+    [
+      productAttributeApplicabilityRevisions,
+      [{ attributeDefinitionId: definitionId, productId, revision: 1, tenantId, variantLevel: true }],
+    ],
   ]);
   for (const [table, value] of overrides) {
     rows.set(table, value);
@@ -139,9 +158,21 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>()) =>
     const result = Object.assign(Effect.succeed(rows.get(table) ?? []), {
       limit: () => Effect.succeed(rows.get(table) ?? []),
     });
-    return { where: () => ({ limit: () => result, orderBy: () => result, pipe: () => result }) };
+    return { where: () => ({ for: () => result, limit: () => result, orderBy: () => result, pipe: () => result }) };
   };
   return {
+    delete: (table: AxisTable) => ({
+      where: () =>
+        Effect.sync(() => {
+          writes.push({ delete: table });
+        }),
+    }),
+    insert: (table: AxisTable) => ({
+      values: (values: AxisWriteValues) =>
+        Effect.sync(() => {
+          writes.push({ insert: table, values });
+        }),
+    }),
     select: () => ({ from: selected }),
   };
 };
@@ -396,6 +427,139 @@ describe('Variant Axis Current basis', () => {
       );
       const failure = yield* Effect.flip(persistence.readCurrent(productRef));
       expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+});
+
+describe('Variant Axis governed write', () => {
+  const input = {
+    actionInvocationId: '99999999-9999-4999-8999-999999999999',
+    axes: [{ attributeDefinitionId: definitionId, definitionRevision: 3 }],
+    expectedAxisRevision: 1,
+    principalId: scope.principalId,
+    productRef,
+    reason: 'Distinguishes the physical forms',
+  };
+
+  it.effect('requires compare-and-swap before writing', () =>
+    Effect.gen(function* staleWrite() {
+      const writes: object[] = [];
+      // @ts-expect-error Focused Drizzle transaction mock.
+      const persistence = variantAxisPersistenceForScope(transactionWith(new Map(), writes), scope);
+      const error = yield* Effect.flip(persistence.govern({ ...input, expectedAxisRevision: 0 }));
+      expect(Schema.is(VariantAxisWriteConflict)(error)).toBe(true);
+      expect(error).toMatchObject({ conflict: 'REVISION' });
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('rejects changed axes while an active Variant exists', () =>
+    Effect.gen(function* activeSelection() {
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<AxisTable, readonly object[]>([[productVariants, [{ lifecycleState: 'ACTIVE', variantId }]]]),
+          writes,
+        ),
+        scope,
+      );
+      const error = yield* Effect.flip(persistence.govern({ ...input, axes: [] }));
+      expect(Schema.is(VariantAxisWriteConflict)(error)).toBe(true);
+      expect(error).toMatchObject({ conflict: 'ACTIVE_SELECTION' });
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('rejects an outdated Definition pin', () =>
+    Effect.gen(function* staleDefinition() {
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<AxisTable, readonly object[]>([
+            [productVariantAxes, []],
+            [
+              productVariantAxisEvents,
+              [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 1, productId, tenantId }],
+            ],
+            [attributeDefinitions, [{ attributeDefinitionId: definitionId, currentRevision: 4, tenantId }]],
+          ]),
+          writes,
+        ),
+        scope,
+      );
+      const error = yield* Effect.flip(persistence.govern(input));
+      expect(Schema.is(VariantAxisWriteConflict)(error)).toBe(true);
+      expect(error).toMatchObject({ conflict: 'DEFINITION' });
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('requires a Product-local Variant applicability declaration', () =>
+    Effect.gen(function* missingApplicability() {
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<AxisTable, readonly object[]>([
+            [productVariantAxes, []],
+            [
+              productVariantAxisEvents,
+              [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 1, productId, tenantId }],
+            ],
+            [productAttributeApplicability, []],
+          ]),
+          writes,
+        ),
+        scope,
+      );
+      const error = yield* Effect.flip(persistence.govern(input));
+      expect(Schema.is(VariantAxisWriteConflict)(error)).toBe(true);
+      expect(error).toMatchObject({ conflict: 'TYPE_RULE' });
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('appends an exact revision event and current role after validation', () =>
+    Effect.gen(function* storesPinnedAxis() {
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<AxisTable, readonly object[]>([
+            [productVariantAxes, []],
+            [
+              productVariantAxisEvents,
+              [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 1, productId, tenantId }],
+            ],
+          ]),
+          writes,
+        ),
+        scope,
+      );
+      expect(yield* persistence.govern(input)).toEqual({ axisRevision: 2, changed: true });
+      expect(writes).toEqual([
+        { delete: productVariantAxes },
+        {
+          insert: productVariantAxisEvents,
+          values: expect.objectContaining({
+            attributeDefinitionIds: [definitionId],
+            attributeDefinitionRevisions: [3],
+            axisRevision: 2,
+          }),
+        },
+        {
+          insert: productVariantAxes,
+          values: [
+            expect.objectContaining({
+              attributeDefinitionId: definitionId,
+              definitionRevision: 3,
+              ordinal: 0,
+            }),
+          ],
+        },
+      ]);
     }),
   );
 });

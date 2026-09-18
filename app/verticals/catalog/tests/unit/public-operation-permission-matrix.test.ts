@@ -115,6 +115,13 @@ it('maps every published Action and governed read to one explicit atomic permiss
 it('keeps read, ordinary edit, shared-definition, and high-impact lifecycle authority disjoint', () => {
   const bundles = catalogAuthorityBundles;
   expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.update-product');
+  expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.govern-variant-axes');
+  expect(bundles.CATALOG_DEFINITION_MANAGER).not.toContain('commerce.catalog.govern-variant-axes');
+  expect(catalogPublicOperationContracts['commerce.catalog.govern-variant-axes']).toMatchObject({
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permissionKind: 'action_execution',
+  });
   expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.set-product-brand');
   expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.set-product-manufacturer');
   expect(bundles.PRODUCT_EDITOR).toContain('commerce.catalog.assign-catalog-media');

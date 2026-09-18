@@ -29,6 +29,7 @@ import { createProductTypeAction } from './src/actions/create-product-type.actio
 import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
 import { createSetCompositionAction } from './src/actions/create-set-composition.action.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
+import { governVariantAxesAction } from './src/actions/govern-variant-axes.action.ts';
 import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
 import { publishProductConfigurationAction } from './src/actions/publish-product-configuration.action.ts';
@@ -106,6 +107,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     createProductUnitAction,
     createSetCompositionAction,
     createVariantAction,
+    governVariantAxesAction,
     markGtinUnresolvedAction,
     moveProductCategoryAction,
     publishProductConfigurationAction,

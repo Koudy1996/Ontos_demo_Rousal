@@ -55,6 +55,7 @@ import { createProductTypeActionApiLive } from './create-product-type-action-ser
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createSetCompositionActionApiLive } from './create-set-composition-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
+import { governVariantAxesActionApiLive } from './govern-variant-axes-action-server.ts';
 import { gtinCurrentReadApiLive } from './gtin-current-read-server.ts';
 import { gtinHistoryReadApiLive } from './gtin-history-read-server.ts';
 import { manufacturerRelationCurrentReadApiLive } from './manufacturer-relation-current-read-server.ts';
@@ -246,6 +247,7 @@ export const makeCatalogApiRuntime = (
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    governVariantAxesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     gtinCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     gtinHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),

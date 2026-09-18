@@ -37,6 +37,7 @@ import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateSetCompositionActionApi } from './apis/create-set-composition-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
+import { GovernVariantAxesActionApi } from './apis/govern-variant-axes-action.ts';
 import { GtinCurrentApi } from './apis/gtin-current.ts';
 import { GtinHistoryApi } from './apis/gtin-history.ts';
 import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
@@ -152,6 +153,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateSetCompositionActionApi)
   .addHttpApi(CreateVariantActionApi)
+  .addHttpApi(GovernVariantAxesActionApi)
   .addHttpApi(GtinCurrentApi)
   .addHttpApi(GtinHistoryApi)
   .addHttpApi(ManufacturerRelationCurrentApi)
@@ -378,16 +380,6 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
-  'commerce.catalog.api.product-size-current': {
-    authorityBundle: 'CATALOG_READER',
-    businessTarget: 'product',
-    permission: 'commerce.catalog.read.product-size-current',
-    permissionKind: 'context_permission',
-    permissionTarget: 'module',
-    resourcePermission: 'read',
-    scope: 'tenant',
-    version: '1',
-  },
   'commerce.catalog.api.product-category-classification': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: productCategoryBusinessTarget,
@@ -436,6 +428,16 @@ export const catalogPublicOperationContracts = {
     permission: 'commerce.catalog.read.product-relationship-history',
     permissionKind: 'context_permission',
     permissionTarget: 'module',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.product-size-current': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.product-size-current',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
     scope: 'tenant',
     version: '1',
   },
@@ -631,6 +633,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'variant',
     permission: 'commerce.catalog.create-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.govern-variant-axes': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.govern-variant-axes',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -1089,6 +1099,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.correct-sku',
     'commerce.catalog.create-set-composition',
     'commerce.catalog.create-variant',
+    'commerce.catalog.govern-variant-axes',
     'commerce.catalog.mark-gtin-unresolved',
     'commerce.catalog.remove-product-attribute-values',
     'commerce.catalog.remove-catalog-media',
