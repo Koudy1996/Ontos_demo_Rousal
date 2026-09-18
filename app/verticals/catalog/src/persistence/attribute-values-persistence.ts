@@ -5,6 +5,7 @@ import { Effect, Option, Schema } from 'effect';
 import { randomUUID } from 'node:crypto';
 
 import type { AttributeValue, UnitConversion } from '../../shared/domain/attribute-values.ts';
+import type { VariantAttributeChangeClassification } from '../../shared/actions/attribute-value-mutations.ts';
 import { AttributeDefinitionSchema, validateAttributeValues } from '../../shared/domain/attribute-values.ts';
 import type { AttributeDefinitionRef } from '../../shared/resources/attribute-definition.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
@@ -85,6 +86,7 @@ interface SetInput extends ChangeInput {
   readonly values: readonly AttributeValue[];
 }
 interface VariantChangeInput extends ChangeInput {
+  readonly classification: VariantAttributeChangeClassification;
   readonly variantRef: VariantRef;
 }
 interface RemoveVariantInput extends VariantChangeInput {
@@ -172,6 +174,7 @@ export const attributeValuesPersistenceForScope = (
 
   const change = Effect.fn('AttributeValuesPersistence.change')(function* change(
     input: ChangeInput & {
+      readonly classification?: VariantAttributeChangeClassification;
       readonly conversions?: readonly UnitConversion[];
       readonly expectedProductValueRevision?: number | null;
       readonly values?: readonly AttributeValue[];
@@ -544,6 +547,7 @@ export const attributeValuesPersistenceForScope = (
         tenantId,
         valueSnapshot: {
           attributeDefinitionRevision: definition.currentRevision,
+          classification: input.classification ?? null,
           productTypeId: assignment.productTypeId,
           productTypeRevision: productType.currentRevision,
           sourceProductValueRevision: variantId === undefined ? null : (input.expectedProductValueRevision ?? null),
@@ -557,8 +561,14 @@ export const attributeValuesPersistenceForScope = (
 
   return Effect.succeed({
     removeProductValues: (input) => change(input, 'REMOVED'),
-    removeVariantOverride: (input) => change(input, 'REMOVED'),
+    removeVariantOverride: (input) =>
+      input.classification.kind === 'NEW_REALIZATION'
+        ? Effect.fail(conflict('IDENTITY_IMPACT', 'A new realization requires a distinct Variant'))
+        : change(input, 'REMOVED'),
     setProductValues: (input) => change(input, 'SET'),
-    setVariantOverride: (input) => change(input, 'SET'),
+    setVariantOverride: (input) =>
+      input.classification.kind === 'NEW_REALIZATION'
+        ? Effect.fail(conflict('IDENTITY_IMPACT', 'A new realization requires a distinct Variant'))
+        : change(input, 'SET'),
   });
 };

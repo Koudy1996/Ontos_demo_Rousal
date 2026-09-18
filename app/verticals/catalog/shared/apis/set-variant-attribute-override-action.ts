@@ -48,6 +48,7 @@ export const SetVariantAttributeOverrideActionConflictProblemSchema = makeProble
       'action_request_hash_conflict',
       'action_invocation_state_invalid',
       'attribute_values_conflict',
+      'variant_attribute_change_conflict',
     ]),
   },
 );
@@ -72,6 +73,7 @@ export const SetVariantAttributeOverrideActionUnavailableProblemSchema = makeRet
       'module_state_check_unavailable',
       'operation_context_unavailable',
       'catalog_persistence_unavailable',
+      'catalog_open_selection_impact_unavailable',
     ]),
   },
 );

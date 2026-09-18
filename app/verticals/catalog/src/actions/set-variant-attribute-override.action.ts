@@ -9,6 +9,8 @@ import { Effect, Schema } from 'effect';
 import {
   SetVariantAttributeOverridePayloadSchema,
   SetVariantAttributeOverrideResultSchema,
+  VariantAttributeChangeConflict,
+  requireVariantAttributeChange,
 } from '../../shared/actions/attribute-value-mutations.ts';
 import type { SetVariantAttributeOverridePayload } from '../../shared/actions/attribute-value-mutations.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
@@ -18,6 +20,10 @@ import {
 } from '../persistence/attribute-values-persistence.ts';
 import type { AttributeValuesPersistence } from '../persistence/attribute-values-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
+import {
+  CatalogOpenSelectionImpactUnavailable,
+  catalogOpenSelectionImpactForScope,
+} from '../persistence/catalog-open-selection-impact.ts';
 
 export {
   SetVariantAttributeOverridePayloadSchema,
@@ -27,11 +33,20 @@ export type { SetVariantAttributeOverridePayload } from '../../shared/actions/at
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 const domainEvents = {} as const;
+type VariantAttributeServices = AttributeValuesPersistence & {
+  readonly assessOpenSelectionImpact: (
+    productRef: SetVariantAttributeOverridePayload['productRef'],
+  ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable>;
+};
 export const handleSetVariantAttributeOverride = Effect.fn('SetVariantAttributeOverrideAction.handle')(
   function* handleSetVariantAttributeOverride(
     payload: SetVariantAttributeOverridePayload,
-    context: ActionHandlerContext<typeof domainEvents, AttributeValuesPersistence>,
+    context: ActionHandlerContext<typeof domainEvents, VariantAttributeServices>,
   ) {
+    const impact = yield* requireVariantAttributeChange(payload.classification);
+    if (impact === 'REVALIDATION_REQUIRED') {
+      yield* context.services.assessOpenSelectionImpact(payload.productRef);
+    }
     const result = yield* context.services.setVariantOverride({
       ...payload,
       actionInvocationId: context.actionInvocationId,
@@ -46,7 +61,7 @@ export const handleSetVariantAttributeOverride = Effect.fn('SetVariantAttributeO
       targetResourceId: payload.variantRef.resourceId,
       targetResourceType: 'commerce.catalog.variant',
     });
-    yield* context.recordAuditEvidence({ reason: payload.reason });
+    yield* context.recordAuditEvidence({ evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason });
     return yield* Schema.decodeEffect(SetVariantAttributeOverrideResultSchema)(result).pipe(
       Effect.mapError((cause) => {
         const failure = new CatalogPersistenceUnavailable({
@@ -78,7 +93,12 @@ export const setVariantAttributeOverrideAction = defineAction(
     actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
-    domainErrorSchema: Schema.Union([AttributeValuesConflict, CatalogPersistenceUnavailable]),
+    domainErrorSchema: Schema.Union([
+      AttributeValuesConflict,
+      CatalogPersistenceUnavailable,
+      VariantAttributeChangeConflict,
+      CatalogOpenSelectionImpactUnavailable,
+    ]),
     domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
@@ -101,13 +121,14 @@ export const setVariantAttributeOverrideAction = defineAction(
       Effect.map(
         (
           services,
-        ): AttributeValuesPersistence & {
+        ): VariantAttributeServices & {
           captureResult: (
             actionInvocationId: string,
             result: typeof SetVariantAttributeOverrideResultSchema.Type,
           ) => Effect.Effect<void, ActionTransactionError>;
         } => ({
           ...services,
+          assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope).assess,
           captureResult: (actionInvocationId: string, result: typeof SetVariantAttributeOverrideResultSchema.Type) =>
             captureCatalogActionResult(
               transaction,

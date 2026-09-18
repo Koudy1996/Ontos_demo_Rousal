@@ -140,8 +140,12 @@ const mapDomainProblem = (error: DomainError): RemoveVariantAttributeOverrideAct
           ),
           Match.exhaustive,
         ),
+      CatalogOpenSelectionImpactUnavailable: () =>
+        removeVariantAttributeOverrideActionProblem.unavailable('catalog_open_selection_impact_unavailable'),
       CatalogPersistenceUnavailable: () =>
         removeVariantAttributeOverrideActionProblem.unavailable('catalog_persistence_unavailable'),
+      VariantAttributeChangeConflict: () =>
+        removeVariantAttributeOverrideActionProblem.conflict('variant_attribute_change_conflict'),
     }),
     Match.exhaustive,
   );

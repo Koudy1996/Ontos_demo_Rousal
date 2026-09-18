@@ -429,7 +429,11 @@ describe('Controlled value persistence lifecycle', () => {
         };
         return variantId === undefined
           ? assignments.setProductValues(input)
-          : assignments.setVariantOverride({ ...input, variantRef: ref('variant', variantId) });
+          : assignments.setVariantOverride({
+              ...input,
+              classification: { evidenceRefs: ['catalog-review-1'], kind: 'NON_MATERIAL', reason: input.reason },
+              variantRef: ref('variant', variantId),
+            });
       };
       const original = yield* assign(p1, 'assign-p1');
       expect(original.state).toBe('SET');

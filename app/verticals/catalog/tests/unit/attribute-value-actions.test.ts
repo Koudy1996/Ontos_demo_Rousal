@@ -8,6 +8,8 @@ import {
   RemoveVariantAttributeOverridePayloadSchema,
   SetProductAttributeValuesPayloadSchema,
   SetVariantAttributeOverridePayloadSchema,
+  VariantAttributeChangeClassificationSchema,
+  VariantAttributeChangeConflict,
 } from '../../shared/actions/attribute-value-mutations.ts';
 import {
   handleRemoveProductAttributeValues,
@@ -52,6 +54,11 @@ const base = { attributeDefinitionRef, expectedRevision: null, productRef, reaso
 const classification = {
   evidenceRefs: ['catalog-review-1'],
   kind: 'EVIDENCED_CORRECTION',
+  reason: base.reason,
+} as const;
+const variantClassification = {
+  evidenceRefs: ['catalog-review-1'],
+  kind: 'NON_MATERIAL',
   reason: base.reason,
 } as const;
 const unexpected = () => Effect.die('Unexpected persistence method');
@@ -114,6 +121,7 @@ describe('Catalog attribute value Actions', () => {
     expect(
       Schema.is(SetVariantAttributeOverridePayloadSchema)({
         ...base,
+        classification: variantClassification,
         values: [{ kind: 'TEXT', text: 'Blue' }],
         variantRef,
       }),
@@ -122,6 +130,7 @@ describe('Catalog attribute value Actions', () => {
     expect(
       Schema.is(RemoveVariantAttributeOverridePayloadSchema)({
         ...base,
+        classification: variantClassification,
         expectedProductValueRevision: null,
         variantRef,
       }),
@@ -179,6 +188,7 @@ describe('Catalog attribute value Actions', () => {
     Effect.gen(function* removeOverrideHandoff() {
       const payload = Schema.decodeUnknownSync(RemoveVariantAttributeOverridePayloadSchema)({
         ...base,
+        classification: variantClassification,
         expectedProductValueRevision: 3,
         expectedRevision: 2,
         variantRef,
@@ -205,6 +215,57 @@ describe('Catalog attribute value Actions', () => {
     }),
   );
 
+  it.effect('rejects a new Variant realization and fails closed on correction without Current revalidation', () =>
+    Effect.gen(function* classifyVariantChange() {
+      const services: AttributeValuesPersistence = {
+        removeProductValues: unexpected,
+        removeVariantOverride: unexpected,
+        setProductValues: unexpected,
+        setVariantOverride: unexpected,
+      };
+      const newRealization = Schema.decodeUnknownSync(SetVariantAttributeOverridePayloadSchema)({
+        ...base,
+        classification: {
+          evidenceRefs: ['manufacturer-revision-2'],
+          kind: 'NEW_REALIZATION',
+          newVariantRef: { ...variantRef, resourceId: '88888888-8888-4888-8888-888888888888' },
+          reason: 'Manufacturer changed the atomic form',
+        },
+        values: [{ kind: 'TEXT', text: '90 cm' }],
+        variantRef,
+      });
+      const correction = Schema.decodeUnknownSync(RemoveVariantAttributeOverridePayloadSchema)({
+        ...base,
+        classification: {
+          evidenceRefs: ['original-measurement-error'],
+          kind: 'EVIDENCED_CORRECTION',
+          originalDataErrorEvidenceRef: 'original-measurement-error',
+          reason: 'Original record measured the same form incorrectly',
+        },
+        expectedProductValueRevision: null,
+        variantRef,
+      });
+      expect(
+        yield* handleSetVariantAttributeOverride(newRealization, makeContext(services)).pipe(Effect.flip),
+      ).toBeInstanceOf(VariantAttributeChangeConflict);
+      expect(
+        yield* handleRemoveVariantAttributeOverride(correction, makeContext(services, unavailableImpact)).pipe(
+          Effect.flip,
+        ),
+      ).toBeInstanceOf(CatalogOpenSelectionImpactUnavailable);
+    }),
+  );
+
+  it('requires original-error evidence for a claimed Variant correction', () => {
+    expect(
+      Schema.is(VariantAttributeChangeClassificationSchema)({
+        evidenceRefs: ['supplier-note'],
+        kind: 'EVIDENCED_CORRECTION',
+        reason: 'Original data was wrong',
+      }),
+    ).toBe(false);
+  });
+
   it.effect('preserves typed fail-closed conflicts from all four persistence operations', () =>
     Effect.gen(function* rejectedChanges() {
       const services: AttributeValuesPersistence = {
@@ -225,11 +286,13 @@ describe('Catalog attribute value Actions', () => {
       });
       const variantSet = Schema.decodeUnknownSync(SetVariantAttributeOverridePayloadSchema)({
         ...base,
+        classification: variantClassification,
         values: [{ kind: 'TEXT', text: 'Blue' }],
         variantRef,
       });
       const variantRemove = Schema.decodeUnknownSync(RemoveVariantAttributeOverridePayloadSchema)({
         ...base,
+        classification: variantClassification,
         expectedProductValueRevision: null,
         variantRef,
       });

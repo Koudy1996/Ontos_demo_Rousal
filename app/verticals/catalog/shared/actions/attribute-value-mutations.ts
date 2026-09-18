@@ -6,6 +6,9 @@ import { ProductEvidenceReferenceSchema, ProductReasonSchema } from '../domain/p
 import { AttributeDefinitionRefSchema } from '../resources/attribute-definition.ts';
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
+import { VariantAttributeChangeConflict } from './variant-attribute-change-conflict.ts';
+
+export { VariantAttributeChangeConflict } from './variant-attribute-change-conflict.ts';
 
 // oxlint-disable-next-line effect-native/no-nullable-schema-field -- null is the explicit optimistic-create marker, distinct from an omitted revision. expires: 2027-03-31.
 const revision = Schema.NullOr(CatalogRevisionNumberSchema);
@@ -34,6 +37,53 @@ export const ProductAttributeChangeClassificationSchema = Schema.Union([
   }),
 ]);
 export type ProductAttributeChangeClassification = typeof ProductAttributeChangeClassificationSchema.Type;
+
+/** Classify the change in the selected Variant's meaning, not by the attribute's name. */
+export const VariantAttributeChangeClassificationSchema = Schema.Union([
+  Schema.Struct({
+    evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
+    kind: Schema.Literal('NON_MATERIAL'),
+    reason: ProductReasonSchema,
+  }),
+  Schema.Struct({
+    evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
+    kind: Schema.Literal('EVIDENCED_CORRECTION'),
+    originalDataErrorEvidenceRef: ProductEvidenceReferenceSchema,
+    reason: ProductReasonSchema,
+  }),
+  Schema.Struct({
+    evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
+    kind: Schema.Literal('NEW_REALIZATION'),
+    newVariantRef: VariantRefSchema,
+    reason: ProductReasonSchema,
+  }),
+]);
+export type VariantAttributeChangeClassification = typeof VariantAttributeChangeClassificationSchema.Type;
+
+export const requireVariantAttributeChange = (
+  classification: VariantAttributeChangeClassification,
+): Effect.Effect<'NON_MATERIAL' | 'REVALIDATION_REQUIRED', VariantAttributeChangeConflict> => {
+  if (classification.kind === 'NEW_REALIZATION') {
+    return Effect.fail(
+      new VariantAttributeChangeConflict({
+        code: 'variant_attribute_change_conflict',
+        reason: 'A new atomic realization requires a distinct Variant identity, not an in-place override',
+      }),
+    );
+  }
+  if (
+    classification.kind === 'EVIDENCED_CORRECTION' &&
+    !classification.evidenceRefs.includes(classification.originalDataErrorEvidenceRef)
+  ) {
+    return Effect.fail(
+      new VariantAttributeChangeConflict({
+        code: 'variant_attribute_change_conflict',
+        reason: 'Correction evidence must identify the original data error',
+      }),
+    );
+  }
+  return Effect.succeed(classification.kind === 'NON_MATERIAL' ? 'NON_MATERIAL' : 'REVALIDATION_REQUIRED');
+};
 
 export class ProductAttributeChangeConflict extends Schema.TaggedError<ProductAttributeChangeConflict>()(
   'ProductAttributeChangeConflict',
@@ -78,10 +128,15 @@ export const SetProductAttributeValuesPayloadSchema = Schema.Struct({
 export type SetProductAttributeValuesPayload = typeof SetProductAttributeValuesPayloadSchema.Type;
 export const RemoveProductAttributeValuesPayloadSchema = Schema.Struct(productFields);
 export type RemoveProductAttributeValuesPayload = typeof RemoveProductAttributeValuesPayloadSchema.Type;
-export const SetVariantAttributeOverridePayloadSchema = Schema.Struct({ ...setFields, variantRef: VariantRefSchema });
+export const SetVariantAttributeOverridePayloadSchema = Schema.Struct({
+  ...setFields,
+  classification: VariantAttributeChangeClassificationSchema,
+  variantRef: VariantRefSchema,
+});
 export type SetVariantAttributeOverridePayload = typeof SetVariantAttributeOverridePayloadSchema.Type;
 export const RemoveVariantAttributeOverridePayloadSchema = Schema.Struct({
   ...variantFields,
+  classification: VariantAttributeChangeClassificationSchema,
   expectedProductValueRevision: revision,
 });
 export type RemoveVariantAttributeOverridePayload = typeof RemoveVariantAttributeOverridePayloadSchema.Type;
