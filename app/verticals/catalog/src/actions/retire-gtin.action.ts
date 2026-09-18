@@ -2,11 +2,12 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug retire-gtin
 import type { ActionHandlerContext, ActionRegistration } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
 import { RetireGtinPayloadSchema, RetireGtinResultSchema } from '../../shared/actions/retire-gtin.ts';
 import type { RetireGtinPayload } from '../../shared/actions/retire-gtin.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   completeGtinChange,
   GtinActionErrorSchema,
@@ -15,12 +16,21 @@ import {
 } from './gtin-action-support.ts';
 import type { GtinServices } from './gtin-action-support.ts';
 
+const ACTION_KEY = 'commerce.catalog.retire-gtin' as const;
+
+type RetireGtinServices = GtinServices & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof RetireGtinResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
+
 export { RetireGtinPayloadSchema, RetireGtinResultSchema } from '../../shared/actions/retire-gtin.ts';
 export type { RetireGtinPayload, RetireGtinResult } from '../../shared/actions/retire-gtin.ts';
 
 const handleRetireGtin = Effect.fn('RetireGtinAction.handle')(function* handleRetireGtin(
   payload: RetireGtinPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, GtinServices>,
+  context: ActionHandlerContext<Readonly<Record<string, never>>, RetireGtinServices>,
 ) {
   const outcome = yield* context.services.retire({
     ...payload,
@@ -37,11 +47,11 @@ export const retireGtinAction: ActionRegistration<
   typeof GtinActionErrorSchema,
   Readonly<Record<string, never>>,
   'commerce.catalog',
-  GtinServices
+  RetireGtinServices
 > = defineAction(
   {
     accessEvidencePolicy: { captureMode: 'metadata_only', policyKey: 'commerce.catalog.retire-gtin.access.v1' },
-    actionKey: 'commerce.catalog.retire-gtin',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: GtinActionErrorSchema,
@@ -49,7 +59,7 @@ export const retireGtinAction: ActionRegistration<
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.retire-gtin',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -62,7 +72,34 @@ export const retireGtinAction: ActionRegistration<
     schemaVersion: '1',
   },
   handleRetireGtin,
-  gtinServicesForScope,
+  (transaction, scope) =>
+    gtinServicesForScope(transaction, scope).pipe(
+      Effect.map((services): RetireGtinServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RetireGtinResultSchema),
+              encode: Schema.encodeEffect(RetireGtinResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((error) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause: error },
+              ),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

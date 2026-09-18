@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Schema } from 'effect';
+import { Effect, Schema } from 'effect';
+import { ActionTransactionError, TrustedPrincipalContextSchema } from '@app/core-runtime';
+import {
+  getActionDecodedSuccessHook,
+  getActionServiceFactory,
+} from '../../../../packages/core-runtime/src/actions/definition.ts';
 
 import { mapConfirmGtinActionProblem } from '../../api/confirm-gtin-action-problems.ts';
 import { mapCorrectGtinActionProblem } from '../../api/correct-gtin-action-problems.ts';
@@ -15,6 +20,9 @@ import { markGtinUnresolvedAction } from '../../src/actions/mark-gtin-unresolved
 import { retireGtinAction } from '../../src/actions/retire-gtin.action.ts';
 import { GtinActionInvalid, GtinActionStale } from '../../src/actions/gtin-action-support.ts';
 import { GtinPersistenceUnavailable } from '../../src/persistence/gtin-persistence.ts';
+import { catalogResultSnapshots } from '../../src/database/schema.ts';
+
+/* oxlint-disable sonarjs/no-nested-functions -- The typed transaction mock mirrors the snapshot persistence chain for the Action hook. owner: Catalog #478; remove with shared transaction fixture. expires: 2027-03-31. */
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const variantId = '22222222-2222-4222-8222-222222222222';
@@ -30,6 +38,95 @@ const base = {
 };
 
 describe('governed GTIN Action contracts', () => {
+  it.effect('captures each decoded GTIN success under its exact Action identity', () =>
+    Effect.gen(function* capturesGtinResults() {
+      const scope = {
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:gtin-snapshot-test:run:1',
+          authMethod: 'system',
+          principalId: '00000000-0000-4000-8000-000000000002',
+          tenantId,
+        }),
+        correlationId: 'gtin-snapshot-test',
+      };
+      const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
+      const transaction = {
+        insert: (table: typeof catalogResultSnapshots) => {
+          expect(table).toBe(catalogResultSnapshots);
+          return {
+            values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
+              onConflictDoNothing: () => ({
+                returning: () => {
+                  rows.push(row);
+                  return Effect.succeed([row]);
+                },
+              }),
+            }),
+          };
+        },
+      };
+      const invocationId = '00000000-0000-4000-8000-000000000003';
+      for (const action of [
+        confirmGtinAction,
+        correctGtinAction,
+        markGtinUnresolvedAction,
+        retireGtinAction,
+      ] as const) {
+        // @ts-expect-error A union of distinct payload schemas cannot satisfy one registration generic.
+        const services = yield* getActionServiceFactory(action)(transaction, scope);
+        // @ts-expect-error A union of distinct payload schemas cannot satisfy one registration generic.
+        const hook = getActionDecodedSuccessHook(action);
+        expect(hook).toBeDefined();
+        if (hook !== undefined) {
+          yield* hook({ actionInvocationId: invocationId, result: { revision: 2 }, scope, services });
+        }
+      }
+      expect(
+        rows.map(({ actionKey, encodedResult, schemaVersion }) => ({ actionKey, encodedResult, schemaVersion })),
+      ).toEqual([
+        { actionKey: 'commerce.catalog.confirm-gtin', encodedResult: { revision: 2 }, schemaVersion: 1 },
+        { actionKey: 'commerce.catalog.correct-gtin', encodedResult: { revision: 2 }, schemaVersion: 1 },
+        { actionKey: 'commerce.catalog.mark-gtin-unresolved', encodedResult: { revision: 2 }, schemaVersion: 1 },
+        { actionKey: 'commerce.catalog.retire-gtin', encodedResult: { revision: 2 }, schemaVersion: 1 },
+      ]);
+    }),
+  );
+
+  it.effect('fails decoded GTIN success when snapshot persistence fails', () =>
+    Effect.gen(function* rejectsFailedCapture() {
+      const scope = {
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:gtin-snapshot-test:run:2',
+          authMethod: 'system',
+          principalId: '00000000-0000-4000-8000-000000000002',
+          tenantId,
+        }),
+        correlationId: 'gtin-snapshot-failure',
+      };
+      const transaction = {
+        insert: () => ({
+          values: () => ({
+            onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('database unavailable')) }),
+          }),
+        }),
+      };
+      // @ts-expect-error The focused mock implements only the failing snapshot insert chain.
+      const services = yield* getActionServiceFactory(confirmGtinAction)(transaction, scope);
+      const hook = getActionDecodedSuccessHook(confirmGtinAction);
+      expect(hook).toBeDefined();
+      if (hook !== undefined) {
+        const error = yield* Effect.flip(
+          hook({
+            actionInvocationId: '00000000-0000-4000-8000-000000000004',
+            result: { revision: 1 },
+            scope,
+            services,
+          }),
+        );
+        expect(Schema.is(ActionTransactionError)(error)).toBe(true);
+      }
+    }),
+  );
   it('requires code format, exact target, evidence and revision intent', () => {
     expect(Schema.decodeUnknownSync(ConfirmGtinPayloadSchema)({ ...base, expectedRevision: 0 }).target).toEqual(target);
     expect(

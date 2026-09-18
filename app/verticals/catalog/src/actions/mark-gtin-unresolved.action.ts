@@ -2,14 +2,15 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug mark-gtin-unresolved
 import type { ActionHandlerContext, ActionRegistration } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
 import {
   MarkGtinUnresolvedPayloadSchema,
   MarkGtinUnresolvedResultSchema,
 } from '../../shared/actions/mark-gtin-unresolved.ts';
 import type { MarkGtinUnresolvedPayload } from '../../shared/actions/mark-gtin-unresolved.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   completeGtinChange,
   GtinActionErrorSchema,
@@ -17,6 +18,15 @@ import {
   gtinServicesForScope,
 } from './gtin-action-support.ts';
 import type { GtinServices } from './gtin-action-support.ts';
+
+const ACTION_KEY = 'commerce.catalog.mark-gtin-unresolved' as const;
+
+type MarkGtinUnresolvedServices = GtinServices & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof MarkGtinUnresolvedResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
 
 export {
   MarkGtinUnresolvedPayloadSchema,
@@ -26,7 +36,7 @@ export type { MarkGtinUnresolvedPayload, MarkGtinUnresolvedResult } from '../../
 
 const handleMarkGtinUnresolved = Effect.fn('MarkGtinUnresolvedAction.handle')(function* handleMarkGtinUnresolved(
   payload: MarkGtinUnresolvedPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, GtinServices>,
+  context: ActionHandlerContext<Readonly<Record<string, never>>, MarkGtinUnresolvedServices>,
 ) {
   const outcome = yield* context.services.markUnresolved({
     ...payload,
@@ -43,14 +53,14 @@ export const markGtinUnresolvedAction: ActionRegistration<
   typeof GtinActionErrorSchema,
   Readonly<Record<string, never>>,
   'commerce.catalog',
-  GtinServices
+  MarkGtinUnresolvedServices
 > = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.mark-gtin-unresolved.access.v1',
     },
-    actionKey: 'commerce.catalog.mark-gtin-unresolved',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: GtinActionErrorSchema,
@@ -58,7 +68,7 @@ export const markGtinUnresolvedAction: ActionRegistration<
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.mark-gtin-unresolved',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -71,7 +81,34 @@ export const markGtinUnresolvedAction: ActionRegistration<
     schemaVersion: '1',
   },
   handleMarkGtinUnresolved,
-  gtinServicesForScope,
+  (transaction, scope) =>
+    gtinServicesForScope(transaction, scope).pipe(
+      Effect.map((services): MarkGtinUnresolvedServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(MarkGtinUnresolvedResultSchema),
+              encode: Schema.encodeEffect(MarkGtinUnresolvedResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((error) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause: error },
+              ),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

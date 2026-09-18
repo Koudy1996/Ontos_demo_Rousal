@@ -2,11 +2,12 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug confirm-gtin
 import type { ActionHandlerContext, ActionRegistration } from '@app/core-runtime';
-import { Effect } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { ConfirmGtinPayloadSchema, ConfirmGtinResultSchema } from '../../shared/actions/confirm-gtin.ts';
 import type { ConfirmGtinPayload } from '../../shared/actions/confirm-gtin.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   completeGtinChange,
   GtinActionErrorSchema,
@@ -15,12 +16,21 @@ import {
 } from './gtin-action-support.ts';
 import type { GtinServices } from './gtin-action-support.ts';
 
+const ACTION_KEY = 'commerce.catalog.confirm-gtin' as const;
+
+type ConfirmGtinServices = GtinServices & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof ConfirmGtinResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
+
 export { ConfirmGtinPayloadSchema, ConfirmGtinResultSchema } from '../../shared/actions/confirm-gtin.ts';
 export type { ConfirmGtinPayload, ConfirmGtinResult } from '../../shared/actions/confirm-gtin.ts';
 
 const handleConfirmGtin = Effect.fn('ConfirmGtinAction.handle')(function* handleConfirmGtin(
   payload: ConfirmGtinPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, GtinServices>,
+  context: ActionHandlerContext<Readonly<Record<string, never>>, ConfirmGtinServices>,
 ) {
   const outcome = yield* context.services.confirm({
     ...payload,
@@ -37,14 +47,14 @@ export const confirmGtinAction: ActionRegistration<
   typeof GtinActionErrorSchema,
   Readonly<Record<string, never>>,
   'commerce.catalog',
-  GtinServices
+  ConfirmGtinServices
 > = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.confirm-gtin.access.v1',
     },
-    actionKey: 'commerce.catalog.confirm-gtin',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: GtinActionErrorSchema,
@@ -52,7 +62,7 @@ export const confirmGtinAction: ActionRegistration<
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.confirm-gtin',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -65,7 +75,34 @@ export const confirmGtinAction: ActionRegistration<
     schemaVersion: '1',
   },
   handleConfirmGtin,
-  gtinServicesForScope,
+  (transaction, scope) =>
+    gtinServicesForScope(transaction, scope).pipe(
+      Effect.map((services): ConfirmGtinServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ConfirmGtinResultSchema),
+              encode: Schema.encodeEffect(ConfirmGtinResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((error) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause: error },
+              ),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
