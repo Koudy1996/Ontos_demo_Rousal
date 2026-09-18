@@ -1,12 +1,7 @@
-import type { ActionHandlerContext, OutboxMessage, ScopedTransactionExecutor } from '@app/core-runtime';
+import type { ActionHandlerContext, OutboxMessage } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 
 import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
-import type { CatalogLocalOverrideOperation } from '../domain/catalog-local-override.ts';
-import { makeExternalCorrelationResolver } from '../persistence/external-correlation-resolver.ts';
-import { catalogSourceAdmissionPorts } from '../persistence/catalog-source-admission-ports.ts';
-import { catalogSourceAuthorityPorts } from '../persistence/catalog-source-authority-map.ts';
-import { catalogSourceResolutionStoreForScope } from '../persistence/catalog-source-resolution-store.ts';
 import { CatalogSourceResolutionUnavailable } from '../persistence/catalog-source-resolution-ports.ts';
 import type {
   CatalogResolvedCurrentEventPorts,
@@ -29,29 +24,17 @@ export const CatalogSourceAuditEvidenceSchema = Schema.Struct({
   reason: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed()),
 });
 
-export const catalogSourceValuesEqual = Schema.toEquivalence(Schema.Json);
-
-export const makeCatalogSourceActionServices = (
-  transaction: ScopedTransactionExecutor,
-  scope: Parameters<typeof catalogSourceResolutionStoreForScope>[1],
-  allowedOverrideOperation: CatalogLocalOverrideOperation | null,
-) => ({
-  admission: catalogSourceAdmissionPorts({ allowedOverrideOperation, principalId: scope.principalId }),
-  authority: catalogSourceAuthorityPorts(),
-  resolveTarget: makeExternalCorrelationResolver().resolve,
-  storeAt: (input: { readonly actionInvocationId: string; readonly at: Date; readonly principalId: string }) =>
-    catalogSourceResolutionStoreForScope(transaction, scope, {
-      acceptedAt: input.at,
-      actionInvocationId: input.actionInvocationId,
-      principalId: input.principalId,
-    }),
-});
-
 const changeKind = {
   IMPORT_ACCEPTED: 'BASE_ACCEPTED',
   OVERRIDE_ACTIVATED: 'LOCAL_OVERRIDE_ACTIVATED',
   OVERRIDE_CHANGED: 'LOCAL_OVERRIDE_CHANGED',
   OVERRIDE_RELEASED: 'LOCAL_OVERRIDE_RELEASED',
+} as const;
+
+const subjectResourceType = {
+  PACKAGE_DEFINITION: 'commerce.catalog.package-definition',
+  PRODUCT: 'commerce.catalog.product',
+  VARIANT: 'commerce.catalog.variant',
 } as const;
 
 const encodeSourceRevision = (source: CatalogResolvedCurrentSourceRevision) =>
@@ -66,10 +49,10 @@ export const catalogResolvedCurrentEventPorts = <Services>(
   >,
   createMessage: (payload: typeof OutboxPayloadSchema.Type) => OutboxMessage,
 ): CatalogResolvedCurrentEventPorts<Schema.Json> => ({
-  emitResolvedCurrentChanged: (input) =>
+  emitResolvedCurrentChanged: ({ cause: sourceChangeCause, ...input }) =>
     Schema.decodeEffect(OutboxPayloadSchema)({
       changeId: context.actionInvocationId,
-      changeKind: changeKind[input.cause],
+      changeKind: changeKind[sourceChangeCause],
       factKey: input.scope.factKey,
       source: encodeSourceRevision(input.sourceRevision),
       sourceKind: 'CATALOG_FACT',
@@ -93,12 +76,7 @@ export const catalogResolvedCurrentEventPorts = <Services>(
             producerModuleKey: 'commerce.catalog',
             subjectModuleKey: 'commerce.catalog',
             subjectResourceId: input.scope.targetId,
-            subjectResourceType:
-              input.scope.targetKind === 'PRODUCT'
-                ? 'commerce.catalog.product'
-                : input.scope.targetKind === 'VARIANT'
-                  ? 'commerce.catalog.variant'
-                  : 'commerce.catalog.package-definition',
+            subjectResourceType: subjectResourceType[input.scope.targetKind],
           })
           .pipe(Effect.flatMap((event) => context.addOutboxMessage(event, createMessage(payload)))),
       ),

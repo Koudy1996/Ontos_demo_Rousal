@@ -9,19 +9,20 @@ import {
   CatalogLocalOverrideResultSchema as ReleaseLocalOverrideResultSchema,
   ReleaseLocalOverridePayloadSchema,
 } from '../../shared/actions/catalog-source-resolution.ts';
-import type { ReleaseLocalOverridePayload } from '../../shared/actions/catalog-source-resolution.ts';
-import type { CatalogLocalOverrideResult } from '../../shared/actions/catalog-source-resolution.ts';
+import type {
+  CatalogLocalOverrideResult,
+  ReleaseLocalOverridePayload,
+} from '../../shared/actions/catalog-source-resolution.ts';
 import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
-import { makeCatalogLocalOverrideService } from '../persistence/catalog-local-override-service.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { CatalogSourceActionPersistenceFactory } from '../persistence/catalog-source-action-capability.ts';
+import type { CatalogLocalOverrideActionPersistence } from '../persistence/catalog-source-action-capability.ts';
 import { createReleaseLocalOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './release-local-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
 import {
   CatalogSourceActionErrorSchema,
   CatalogSourceAuditEvidenceSchema,
   CatalogSourceRequestInvalid,
   catalogResolvedCurrentEventPorts,
-  catalogSourceValuesEqual,
-  makeCatalogSourceActionServices,
 } from './catalog-source-action-support.ts';
 
 export { ReleaseLocalOverridePayloadSchema } from '../../shared/actions/catalog-source-resolution.ts';
@@ -30,7 +31,7 @@ export type { ReleaseLocalOverridePayload } from '../../shared/actions/catalog-s
 
 const domainEvents = { 'commerce.catalog.selection-source-changed.v1': SelectionSourceChangedEventSchema } as const;
 const ACTION_KEY = 'commerce.catalog.release-local-override' as const;
-type Services = ReturnType<typeof makeCatalogSourceActionServices> & {
+type Services = CatalogLocalOverrideActionPersistence & {
   readonly captureResult: (
     actionInvocationId: string,
     result: CatalogLocalOverrideResult,
@@ -48,19 +49,17 @@ const handleReleaseLocalOverride = Effect.fn('ReleaseLocalOverrideAction.handle'
     });
   }
   const at = yield* DateTime.nowAsDate;
-  const result = yield* makeCatalogLocalOverrideService<Schema.Json>({
-    admission: context.services.admission,
-    events: catalogResolvedCurrentEventPorts(
-      context,
-      createReleaseLocalOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage,
-    ),
-    store: context.services.storeAt({
+  const result = yield* context.services
+    .localOverrideAt({
       actionInvocationId: context.actionInvocationId,
       at,
+      events: catalogResolvedCurrentEventPorts(
+        context,
+        createReleaseLocalOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage,
+      ),
       principalId: context.scope.principalId,
-    }),
-    valuesEqual: catalogSourceValuesEqual,
-  }).release({ ...payload, at, principalId: context.scope.principalId });
+    })
+    .release({ ...payload, at, principalId: context.scope.principalId });
   yield* context.recordAuditEvidence({ evidenceRefs: [payload.evidenceRef], reason: payload.reason });
   return result.status === 'APPLIED'
     ? {
@@ -103,9 +102,10 @@ export const releaseLocalOverrideAction = defineAction(
     schemaVersion: '1',
   },
   handleReleaseLocalOverride,
-  (transaction, scope) =>
-    Effect.succeed({
-      ...makeCatalogSourceActionServices(transaction, scope, 'RELEASE'),
+  Effect.fn('ReleaseLocalOverrideAction.makeServices')(function* makeReleaseLocalOverrideServices(transaction, scope) {
+    const persistenceFactory = yield* CatalogSourceActionPersistenceFactory;
+    return {
+      ...persistenceFactory.makeLocalOverride(transaction, { allowedOverrideOperation: 'RELEASE', scope }),
       captureResult: (actionInvocationId: string, result: CatalogLocalOverrideResult) =>
         captureCatalogActionResult(
           transaction,
@@ -127,7 +127,8 @@ export const releaseLocalOverrideAction = defineAction(
             ),
           ),
         ),
-    }),
+    } satisfies Services;
+  }),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

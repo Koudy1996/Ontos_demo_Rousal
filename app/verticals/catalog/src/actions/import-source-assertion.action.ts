@@ -14,16 +14,15 @@ import type {
   ImportSourceAssertionResult,
 } from '../../shared/actions/catalog-source-resolution.ts';
 import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
-import { makeCatalogImportAcceptanceService } from '../persistence/catalog-import-acceptance-service.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { CatalogSourceActionPersistenceFactory } from '../persistence/catalog-source-action-capability.ts';
+import type { CatalogImportSourceActionPersistence } from '../persistence/catalog-source-action-capability.ts';
 import { createImportSourceAssertionCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './import-source-assertion-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
 import {
   CatalogSourceActionErrorSchema,
   CatalogSourceAuditEvidenceSchema,
   CatalogSourceRequestInvalid,
   catalogResolvedCurrentEventPorts,
-  catalogSourceValuesEqual,
-  makeCatalogSourceActionServices,
 } from './catalog-source-action-support.ts';
 
 export {
@@ -34,7 +33,7 @@ export type { ImportSourceAssertionPayload } from '../../shared/actions/catalog-
 
 const domainEvents = { 'commerce.catalog.selection-source-changed.v1': SelectionSourceChangedEventSchema } as const;
 const ACTION_KEY = 'commerce.catalog.import-source-assertion' as const;
-type Services = ReturnType<typeof makeCatalogSourceActionServices> & {
+type Services = CatalogImportSourceActionPersistence & {
   readonly captureResult: (
     actionInvocationId: string,
     result: ImportSourceAssertionResult,
@@ -58,37 +57,34 @@ const handleImportSourceAssertion = Effect.fn('ImportSourceAssertionAction.handl
       });
     }
     const at = yield* DateTime.nowAsDate;
-    const result = yield* makeCatalogImportAcceptanceService<Schema.Json>({
-      admission: context.services.admission,
-      authority: context.services.authority,
-      events: catalogResolvedCurrentEventPorts(
-        context,
-        createImportSourceAssertionCommerceCatalogSelectionSourceChangedV1OutboxMessage,
-      ),
-      resolveTarget: context.services.resolveTarget,
-      store: context.services.storeAt({
+    const result = yield* context.services
+      .importAcceptanceAt({
         actionInvocationId: context.actionInvocationId,
         at,
+        events: catalogResolvedCurrentEventPorts(
+          context,
+          createImportSourceAssertionCommerceCatalogSelectionSourceChangedV1OutboxMessage,
+        ),
         principalId: context.scope.principalId,
-      }),
-      valuesEqual: catalogSourceValuesEqual,
-    }).acceptBatch({ at, items: payload.items });
+      })
+      .acceptBatch({ at, items: payload.items });
     yield* context.recordAuditEvidence({
       evidenceRefs: payload.items.map(({ assertion }) => assertion.assertionId),
       reason: 'Import source assertions',
     });
     return {
-      items: result.items.map((item) =>
-        item.status === 'ACCEPTED_BASE'
-          ? {
-              assertionId: item.base.assertionId,
-              ...(item.classification === undefined ? {} : { classification: item.classification }),
-              resolvedCurrentChanged: item.resolvedCurrentChanged,
-              sourceRevision: item.base.sourceRevision,
-              status: item.status,
-            }
-          : item,
-      ),
+      items: result.items.map((item) => {
+        if (item.status !== 'ACCEPTED_BASE') {
+          return item;
+        }
+        const accepted = {
+          assertionId: item.base.assertionId,
+          resolvedCurrentChanged: item.resolvedCurrentChanged,
+          sourceRevision: item.base.sourceRevision,
+          status: item.status,
+        };
+        return item.classification === undefined ? accepted : { ...accepted, classification: item.classification };
+      }),
       summary: result.summary,
     } satisfies ImportSourceAssertionResult;
   },
@@ -121,31 +117,35 @@ export const importSourceAssertionAction = defineAction(
     schemaVersion: '1',
   },
   handleImportSourceAssertion,
-  (transaction, scope) =>
-    Effect.succeed({
-      ...makeCatalogSourceActionServices(transaction, scope, null),
-      captureResult: (actionInvocationId: string, result: ImportSourceAssertionResult) =>
-        captureCatalogActionResult(
-          transaction,
-          scope,
-          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
-          {
-            decode: Schema.decodeUnknownEffect(ImportSourceAssertionResultSchema),
-            encode: Schema.encodeEffect(ImportSourceAssertionResultSchema),
-          },
-          result,
-        ).pipe(
-          Effect.mapError((cause) =>
-            Object.assign(
-              new ActionTransactionError({
-                code: 'action_transaction_failed',
-                reason: 'Catalog result capture failed',
-              }),
-              { cause },
+  Effect.fn('ImportSourceAssertionAction.makeServices')(
+    function* makeImportSourceAssertionServices(transaction, scope) {
+      const persistenceFactory = yield* CatalogSourceActionPersistenceFactory;
+      return {
+        ...persistenceFactory.makeImport(transaction, scope),
+        captureResult: (actionInvocationId: string, result: ImportSourceAssertionResult) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ImportSourceAssertionResultSchema),
+              encode: Schema.encodeEffect(ImportSourceAssertionResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((cause) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause },
+              ),
             ),
           ),
-        ),
-    }),
+      } satisfies Services;
+    },
+  ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

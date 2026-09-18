@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from 'effect';
+import { Context, Effect, Layer, Option, Schema } from 'effect';
 
 import type { CatalogExternalSourceRecordRef } from '../../shared/domain/external-identifier-boundary.ts';
 import type {
@@ -382,3 +382,19 @@ export const makeCatalogImportAcceptanceService = <Value>(wiring: CatalogImportA
 
   return { acceptBatch };
 };
+
+export type CatalogImportAcceptanceOperations<Value> = ReturnType<typeof makeCatalogImportAcceptanceService<Value>>;
+
+export interface CatalogImportAcceptanceServiceFactoryService {
+  readonly make: <Value>(wiring: CatalogImportAcceptanceWiring<Value>) => CatalogImportAcceptanceOperations<Value>;
+}
+
+export class CatalogImportAcceptanceServiceFactory extends Context.Service<
+  CatalogImportAcceptanceServiceFactory,
+  CatalogImportAcceptanceServiceFactoryService
+>()('@app/catalog/persistence/catalog-import-acceptance-service/CatalogImportAcceptanceServiceFactory') {}
+
+export const catalogImportAcceptanceServiceFactoryLive = Layer.succeed(
+  CatalogImportAcceptanceServiceFactory,
+  Object.freeze({ make: makeCatalogImportAcceptanceService }),
+);

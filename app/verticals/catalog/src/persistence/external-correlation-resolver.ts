@@ -1,4 +1,4 @@
-import { Effect, Predicate } from 'effect';
+import { Context, Effect, Layer, Predicate } from 'effect';
 
 import type { CatalogExternalSourceRecordRef } from '../../shared/domain/external-identifier-boundary.ts';
 import { resolveCatalogExternalTarget } from '../../shared/domain/external-target-resolution.ts';
@@ -107,3 +107,17 @@ export const makeExternalCorrelationResolver = (
       ),
   };
 };
+
+export type ExternalCorrelationResolver = ReturnType<typeof makeExternalCorrelationResolver>;
+
+export class CatalogExternalCorrelationResolver extends Context.Service<
+  CatalogExternalCorrelationResolver,
+  ExternalCorrelationResolver
+>()('@app/catalog/persistence/external-correlation-resolver/CatalogExternalCorrelationResolver') {}
+
+export const catalogExternalCorrelationResolverLayer = (
+  configuredPorts?: ExternalCorrelationRegistryPorts,
+  rules?: ExternalCorrelationResolverRules,
+) => Layer.succeed(CatalogExternalCorrelationResolver, makeExternalCorrelationResolver(configuredPorts, rules));
+
+export const catalogExternalCorrelationResolverLive = catalogExternalCorrelationResolverLayer();

@@ -9,19 +9,20 @@ import {
   ActivateLocalOverridePayloadSchema,
   CatalogLocalOverrideResultSchema as ActivateLocalOverrideResultSchema,
 } from '../../shared/actions/catalog-source-resolution.ts';
-import type { ActivateLocalOverridePayload } from '../../shared/actions/catalog-source-resolution.ts';
-import type { CatalogLocalOverrideResult } from '../../shared/actions/catalog-source-resolution.ts';
+import type {
+  ActivateLocalOverridePayload,
+  CatalogLocalOverrideResult,
+} from '../../shared/actions/catalog-source-resolution.ts';
 import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
-import { makeCatalogLocalOverrideService } from '../persistence/catalog-local-override-service.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import { CatalogSourceActionPersistenceFactory } from '../persistence/catalog-source-action-capability.ts';
+import type { CatalogLocalOverrideActionPersistence } from '../persistence/catalog-source-action-capability.ts';
 import { createActivateLocalOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './activate-local-override-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
 import {
   CatalogSourceActionErrorSchema,
   CatalogSourceAuditEvidenceSchema,
   CatalogSourceRequestInvalid,
   catalogResolvedCurrentEventPorts,
-  catalogSourceValuesEqual,
-  makeCatalogSourceActionServices,
 } from './catalog-source-action-support.ts';
 
 export { ActivateLocalOverridePayloadSchema } from '../../shared/actions/catalog-source-resolution.ts';
@@ -30,7 +31,7 @@ export type { ActivateLocalOverridePayload } from '../../shared/actions/catalog-
 
 const domainEvents = { 'commerce.catalog.selection-source-changed.v1': SelectionSourceChangedEventSchema } as const;
 const ACTION_KEY = 'commerce.catalog.activate-local-override' as const;
-type Services = ReturnType<typeof makeCatalogSourceActionServices> & {
+type Services = CatalogLocalOverrideActionPersistence & {
   readonly captureResult: (
     actionInvocationId: string,
     result: CatalogLocalOverrideResult,
@@ -49,33 +50,32 @@ const handleActivateLocalOverride = Effect.fn('ActivateLocalOverrideAction.handl
       });
     }
     const at = yield* DateTime.nowAsDate;
-    const result = yield* makeCatalogLocalOverrideService<Schema.Json>({
-      admission: context.services.admission,
-      events: catalogResolvedCurrentEventPorts(
-        context,
-        createActivateLocalOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage,
-      ),
-      store: context.services.storeAt({
+    const result = yield* context.services
+      .localOverrideAt({
         actionInvocationId: context.actionInvocationId,
         at,
+        events: catalogResolvedCurrentEventPorts(
+          context,
+          createActivateLocalOverrideCommerceCatalogSelectionSourceChangedV1OutboxMessage,
+        ),
         principalId: context.scope.principalId,
-      }),
-      valuesEqual: catalogSourceValuesEqual,
-    }).activate({ ...payload, at, principalId: context.scope.principalId });
+      })
+      .activate({ ...payload, at, principalId: context.scope.principalId });
     yield* context.recordAuditEvidence({ evidenceRefs: [payload.evidenceRef], reason: payload.reason });
-    return result.status === 'APPLIED'
-      ? {
-          ...(result.classification === undefined ? {} : { classification: result.classification }),
-          lifecycle: result.override.lifecycle,
-          resolved:
-            result.resolved.status === 'CURRENT'
-              ? { source: result.resolved.source, status: result.resolved.status }
-              : result.resolved,
-          resolvedCurrentChanged: result.resolvedCurrentChanged,
-          revision: result.override.revision,
-          status: result.status,
-        }
-      : result;
+    if (result.status !== 'APPLIED') {
+      return result;
+    }
+    const applied = {
+      lifecycle: result.override.lifecycle,
+      resolved:
+        result.resolved.status === 'CURRENT'
+          ? { source: result.resolved.source, status: result.resolved.status }
+          : result.resolved,
+      resolvedCurrentChanged: result.resolvedCurrentChanged,
+      revision: result.override.revision,
+      status: result.status,
+    };
+    return result.classification === undefined ? applied : { ...applied, classification: result.classification };
   },
 );
 
@@ -106,31 +106,35 @@ export const activateLocalOverrideAction = defineAction(
     schemaVersion: '1',
   },
   handleActivateLocalOverride,
-  (transaction, scope) =>
-    Effect.succeed({
-      ...makeCatalogSourceActionServices(transaction, scope, 'ACTIVATE'),
-      captureResult: (actionInvocationId: string, result: CatalogLocalOverrideResult) =>
-        captureCatalogActionResult(
-          transaction,
-          scope,
-          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
-          {
-            decode: Schema.decodeUnknownEffect(ActivateLocalOverrideResultSchema),
-            encode: Schema.encodeEffect(ActivateLocalOverrideResultSchema),
-          },
-          result,
-        ).pipe(
-          Effect.mapError((cause) =>
-            Object.assign(
-              new ActionTransactionError({
-                code: 'action_transaction_failed',
-                reason: 'Catalog result capture failed',
-              }),
-              { cause },
+  Effect.fn('ActivateLocalOverrideAction.makeServices')(
+    function* makeActivateLocalOverrideServices(transaction, scope) {
+      const persistenceFactory = yield* CatalogSourceActionPersistenceFactory;
+      return {
+        ...persistenceFactory.makeLocalOverride(transaction, { allowedOverrideOperation: 'ACTIVATE', scope }),
+        captureResult: (actionInvocationId: string, result: CatalogLocalOverrideResult) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ActivateLocalOverrideResultSchema),
+              encode: Schema.encodeEffect(ActivateLocalOverrideResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((cause) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause },
+              ),
             ),
           ),
-        ),
-    }),
+      } satisfies Services;
+    },
+  ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

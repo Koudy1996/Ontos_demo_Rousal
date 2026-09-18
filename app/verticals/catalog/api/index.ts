@@ -20,6 +20,10 @@ import { Effect, HttpApiBuilder, HttpRouter, Layer } from '@modern-js/bff-effect
 import type { EffectBffDefinition, EffectBffRuntime } from '@modern-js/bff-effect/effect-edge';
 import { Layer as GovernedReadLayer, Logger, References, Schema, Tracer } from 'effect';
 import { microVerticalOperationAttributes } from '@app/shared-contracts';
+import { catalogImportAcceptanceServiceFactoryLive } from '../src/persistence/catalog-import-acceptance-service.ts';
+import { catalogLocalOverrideServiceFactoryLive } from '../src/persistence/catalog-local-override-service.ts';
+import { catalogSourceActionPersistenceFactoryLive } from '../src/persistence/catalog-source-action-persistence.ts';
+import { catalogExternalCorrelationResolverLive } from '../src/persistence/external-correlation-resolver.ts';
 // <generated-governed-http-handler-support-imports>
 import { ActionPrincipalVerifierLive as GovernedActionPrincipalVerifierLive } from './auth/action-principal.ts';
 import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLive } from './auth/gateway-assertion-redemption.ts';
@@ -278,7 +282,17 @@ const operationalScopeResolverLive = Layer.provide(
   Layer.mergeAll(CorePersistenceLive, ContextAccessLive),
 );
 const moduleEntrypointGatewayLive = ModuleEntrypointGatewayLive.pipe(Layer.provide(moduleStateGateLive));
+const catalogSourceActionPersistenceLive = catalogSourceActionPersistenceFactoryLive.pipe(
+  Layer.provide(
+    Layer.mergeAll(
+      catalogExternalCorrelationResolverLive,
+      catalogImportAcceptanceServiceFactoryLive,
+      catalogLocalOverrideServiceFactoryLive,
+    ),
+  ),
+);
 const catalogActionRuntime = ActionRuntimeLive.pipe(
+  Layer.provide(catalogSourceActionPersistenceLive),
   Layer.provide(
     Layer.mergeAll(
       CorePersistenceLive,
@@ -293,6 +307,7 @@ const catalogActionRuntime = ActionRuntimeLive.pipe(
   Layer.provide(DatabaseConfigLive),
 );
 const catalogReadRuntime = ReadRuntimeLive.pipe(
+  Layer.provide(catalogExternalCorrelationResolverLive),
   Layer.provide(
     Layer.mergeAll(CorePersistenceLive, ContextAccessLive, moduleEntrypointGatewayLive, operationalScopeResolverLive),
   ),
