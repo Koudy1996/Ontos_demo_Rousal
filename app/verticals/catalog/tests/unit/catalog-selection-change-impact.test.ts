@@ -124,16 +124,29 @@ const assessValid = () => Effect.succeed(validResult());
 const assessInvalid = (): Effect.Effect<CatalogSelectionEvidenceServiceResult> =>
   Effect.succeed({ evidence: { kind: 'NOT_FOUND', requested: selection }, missingRoles: [] });
 
+const populationEvidence = (
+  selections: readonly CartOpenSelectionReference[],
+  revisionToken = 'cart-population-1',
+  observedAt = assessedAt,
+) => ({ complete: true as const, observedAt, revisionToken, selections, tenantId });
 const population = (selections: readonly CartOpenSelectionReference[]): CartOpenSelectionPopulationPort => ({
-  read: () =>
-    Effect.succeed({
-      complete: true,
-      observedAt: assessedAt,
-      revisionToken: 'cart-population-1',
-      selections,
-      tenantId,
-    }),
+  read: () => Effect.succeed(populationEvidence(selections)),
 });
+const changingPopulation = <Response>(first: Response, ...later: readonly Response[]) => {
+  const snapshots = [first, ...later];
+  let reads = 0;
+  return {
+    port: {
+      read: () =>
+        Effect.sync(() => {
+          const snapshot = snapshots[reads] ?? snapshots.at(-1);
+          reads += 1;
+          return snapshot;
+        }),
+    },
+    readCount: () => reads,
+  } satisfies { readonly port: CartOpenSelectionPopulationPort; readonly readCount: () => number };
+};
 const reference = (selectionId: string, value: CatalogSelection = selection): CartOpenSelectionReference =>
   Schema.decodeUnknownSync(CartOpenSelectionReferenceSchema)({ selection: value, selectionId });
 const untouchedTransaction = {
@@ -416,12 +429,17 @@ describe('Catalog open-selection population impact (#479 wiring)', () => {
 });
 
 describe('Catalog configuration change impact (#479 wiring)', () => {
+  const currentPopulation = {
+    observedAt: reassessmentAt.toISOString(),
+    revisionToken: 'cart-population-1',
+  };
+
   it.effect('invalidates an open selection when the proposed revision removes its chosen option', () =>
     Effect.gen(function* materialConfigurationRevision() {
       expect(
         yield* reassessOpenConfiguration(
           configurationPersistence(committedConfiguration),
-          'cart-population-1',
+          currentPopulation,
           materialConfigurationChange,
           configurationReference,
         ),
@@ -434,11 +452,24 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
       expect(
         yield* reassessOpenConfiguration(
           configurationPersistence(committedConfiguration),
-          'cart-population-1',
+          currentPopulation,
           displayOnlyConfigurationChange,
           configurationReference,
         ),
       ).toBe(true);
+    }),
+  );
+
+  it.effect('fails closed when the Cart population was observed at a different assessment instant', () =>
+    Effect.gen(function* stalePopulationObservation() {
+      expect(
+        yield* reassessOpenConfiguration(
+          configurationPersistence(committedConfiguration),
+          { ...currentPopulation, observedAt: '2026-09-17T23:59:59.999Z' },
+          displayOnlyConfigurationChange,
+          configurationReference,
+        ),
+      ).toBe(false);
     }),
   );
 
@@ -447,7 +478,7 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
       expect(
         yield* reassessOpenConfiguration(
           configurationPersistence(committedConfiguration),
-          'cart-population-1',
+          currentPopulation,
           meaningChangingConfigurationChange,
           configurationReference,
         ),
@@ -460,7 +491,7 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
       expect(
         yield* reassessOpenConfiguration(
           absentConfiguration,
-          'cart-population-1',
+          currentPopulation,
           displayOnlyConfigurationChange,
           configurationReference,
         ),
@@ -468,7 +499,7 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
       expect(
         yield* reassessOpenConfiguration(
           configurationPersistence({ ...committedConfiguration, revision: 2 }),
-          'cart-population-1',
+          currentPopulation,
           displayOnlyConfigurationChange,
           configurationReference,
         ),
@@ -485,6 +516,38 @@ describe('Catalog configuration change impact (#479 wiring)', () => {
         assessInvalid,
       );
       expect(yield* impact.verify(displayOnlyConfigurationChange)).toBe(false);
+    }),
+  );
+
+  it.effect('re-reads the complete Cart population and rejects a changed revision token', () =>
+    Effect.gen(function* changingPopulationRevision() {
+      const initial = populationEvidence([], 'cart-population-before');
+      const changed = populationEvidence([], 'cart-population-after');
+      const owner = changingPopulation(initial, changed);
+      const impact = productConfigurationSelectionImpactForScope(transaction, scope, owner.port, assessInvalid);
+      expect(yield* impact.verify(definitionImpactInput)).toBe(false);
+      expect(owner.readCount()).toBe(2);
+    }),
+  );
+
+  it.effect('accepts only the same twice-decoded complete Cart population scope', () =>
+    Effect.gen(function* stablePopulationRevision() {
+      const stable = populationEvidence([], 'cart-population-stable');
+      const owner = changingPopulation(stable, stable);
+      const impact = productConfigurationSelectionImpactForScope(transaction, scope, owner.port, assessInvalid);
+      expect(yield* impact.verify(definitionImpactInput)).toBe(true);
+      expect(owner.readCount()).toBe(2);
+
+      const incomplete = changingPopulation(stable, { ...stable, complete: false });
+      const invalidImpact = productConfigurationSelectionImpactForScope(
+        transaction,
+        scope,
+        incomplete.port,
+        assessInvalid,
+      );
+      const failure = yield* Effect.flip(invalidImpact.verify(definitionImpactInput));
+      expect(failure).toBeInstanceOf(ProductConfigurationPersistenceUnavailable);
+      expect(incomplete.readCount()).toBe(2);
     }),
   );
 });

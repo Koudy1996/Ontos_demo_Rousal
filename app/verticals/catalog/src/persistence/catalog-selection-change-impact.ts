@@ -1,7 +1,8 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { Effect, Option, Result, Schema } from 'effect';
+import { DateTime, Effect, Option, Result, Schema } from 'effect';
 
 import type {
+  CartOpenSelectionPopulationEvidence,
   CartOpenSelectionPopulationPort,
   CartOpenSelectionReference,
   CatalogSelectionEvidenceReader,
@@ -228,12 +229,12 @@ const revisionReader = (
  */
 export const reassessOpenConfiguration: (
   persistence: ProductConfigurationPersistence,
-  revisionToken: string,
+  population: Pick<CartOpenSelectionPopulationEvidence, 'observedAt' | 'revisionToken'>,
   input: ConfigurationSelectionChange,
   reference: CartOpenSelectionReference,
 ) => Effect.Effect<boolean, ProductConfigurationPersistenceUnavailable> = Effect.fn(
   'CatalogSelectionChangeImpact.reassessOpenConfiguration',
-)(function* reassessOpenConfigurationStep(persistence, revisionToken, input, reference): Effect.fn.Return<
+)(function* reassessOpenConfigurationStep(persistence, population, input, reference): Effect.fn.Return<
   boolean,
   ProductConfigurationPersistenceUnavailable
 > {
@@ -242,6 +243,10 @@ export const reassessOpenConfiguration: (
   const target = configurationTarget(selection);
   const proposedReference = proposedDefinitionReference(selection, input.proposedRevision);
   if (configuration === undefined || target === undefined || proposedReference === undefined) {
+    return false;
+  }
+  const populationObservedAt = DateTime.make(population.observedAt);
+  if (Option.isNone(populationObservedAt)) {
     return false;
   }
   const at = input.effectiveFrom;
@@ -279,7 +284,7 @@ export const reassessOpenConfiguration: (
       input.definitionId,
       String(input.previousRevision),
       String(input.proposedRevision),
-      revisionToken,
+      population.revisionToken,
       reference.selectionId,
     ].join(':'),
     left: { ...earlier, selection: configuration },
@@ -288,14 +293,24 @@ export const reassessOpenConfiguration: (
   const result = reassessProductConfigurationChange(
     attestation === undefined
       ? {
-          authority: { complete: true, observedAt: at, revisionToken, selectionId: reference.selectionId },
+          authority: {
+            complete: true,
+            observedAt: DateTime.toDateUtc(populationObservedAt.value),
+            revisionToken: population.revisionToken,
+            selectionId: reference.selectionId,
+          },
           current,
           earlier,
           selection: configuration,
         }
       : {
           attestation,
-          authority: { complete: true, observedAt: at, revisionToken, selectionId: reference.selectionId },
+          authority: {
+            complete: true,
+            observedAt: DateTime.toDateUtc(populationObservedAt.value),
+            revisionToken: population.revisionToken,
+            selectionId: reference.selectionId,
+          },
           current,
           earlier,
           selection: configuration,
@@ -340,10 +355,18 @@ export const productConfigurationSelectionImpactForScope = (
     const persistence = productConfigurationPersistenceForScope(transaction, scope);
     const reassessments = yield* Effect.forEach(
       affected,
-      (reference) => reassessOpenConfiguration(persistence, snapshot.revisionToken, input, reference),
+      (reference) => reassessOpenConfiguration(persistence, snapshot, input, reference),
       { concurrency: 1 },
     );
-    return reassessments.every(Boolean);
+    if (!reassessments.every(Boolean)) {
+      return false;
+    }
+    const confirmed = yield* readCartOpenSelectionPopulation(population, scope.tenantId).pipe(
+      Effect.mapError((failure) => configurationUnavailable(failure.reason)),
+    );
+    // This narrows the race window but is not a Cart lease through the Catalog commit. The external
+    // owner still needs to provide that commit-spanning guarantee before this can claim atomicity.
+    return confirmed.tenantId === snapshot.tenantId && confirmed.revisionToken === snapshot.revisionToken;
   }),
 });
 
