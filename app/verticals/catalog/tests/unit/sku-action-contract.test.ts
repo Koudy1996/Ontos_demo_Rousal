@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Schema } from 'effect';
+import { Effect, Schema } from 'effect';
+import { ActionTransactionError, TrustedPrincipalContextSchema } from '@app/core-runtime';
+import {
+  getActionDecodedSuccessHook,
+  getActionServiceFactory,
+} from '../../../../packages/core-runtime/src/actions/definition.ts';
 
 import { catalogAuthorityBundles, catalogPublicOperationContracts } from '../../shared/api.ts';
 import { AssignSkuPayloadSchema } from '../../shared/actions/assign-sku.ts';
@@ -12,9 +17,12 @@ import { SkuActionConflict, SkuActionErrorSchema, SkuActionStale } from '../../s
 import { SkuActionInvalid } from '../../src/actions/sku-action-invalid.ts';
 import { SkuActionNotFound } from '../../src/actions/sku-action-not-found.ts';
 import { SkuPersistenceUnavailable } from '../../src/persistence/sku-persistence.ts';
+import { catalogResultSnapshots } from '../../src/database/schema.ts';
 import { mapAssignSkuActionProblem } from '../../api/assign-sku-action-problems.ts';
 import { mapCorrectSkuActionProblem } from '../../api/correct-sku-action-problems.ts';
 import { mapRenameSkuActionProblem } from '../../api/rename-sku-action-problems.ts';
+
+/* oxlint-disable sonarjs/no-nested-functions -- The typed transaction mock mirrors the snapshot persistence chain for the Action hook. owner: Catalog #478; remove with shared transaction fixture. expires: 2027-03-31. */
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const variantId = '22222222-2222-4222-8222-222222222222';
@@ -74,6 +82,90 @@ describe('governed SKU Action contracts', () => {
     expect(grantsWithoutCorrection.has('commerce.catalog.rename-sku')).toBe(true);
     expect(grantsWithoutCorrection.has('commerce.catalog.correct-sku')).toBe(false);
   });
+
+  it.effect('captures each decoded SKU success under its exact Action identity', () =>
+    Effect.gen(function* capturesSkuResults() {
+      const scope = {
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:sku-snapshot-test:run:1',
+          authMethod: 'system',
+          principalId: '00000000-0000-4000-8000-000000000002',
+          tenantId,
+        }),
+        correlationId: 'sku-snapshot-test',
+      };
+      const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
+      const transaction = {
+        insert: (table: typeof catalogResultSnapshots) => {
+          expect(table).toBe(catalogResultSnapshots);
+          return {
+            values: (row: typeof catalogResultSnapshots.$inferInsert) => ({
+              onConflictDoNothing: () => ({
+                returning: () => {
+                  rows.push(row);
+                  return Effect.succeed([row]);
+                },
+              }),
+            }),
+          };
+        },
+      };
+      const invocationId = '00000000-0000-4000-8000-000000000003';
+      for (const action of [assignSkuAction, renameSkuAction, correctSkuAction] as const) {
+        // @ts-expect-error A union of distinct payload schemas cannot satisfy one registration generic.
+        const services = yield* getActionServiceFactory(action)(transaction, scope);
+        // @ts-expect-error A union of distinct payload schemas cannot satisfy one registration generic.
+        const hook = getActionDecodedSuccessHook(action);
+        expect(hook).toBeDefined();
+        if (hook !== undefined) {
+          yield* hook({ actionInvocationId: invocationId, result: { revision: 2 }, scope, services });
+        }
+      }
+      expect(
+        rows.map(({ actionKey, encodedResult, schemaVersion }) => ({ actionKey, encodedResult, schemaVersion })),
+      ).toEqual([
+        { actionKey: 'commerce.catalog.assign-sku', encodedResult: { revision: 2 }, schemaVersion: 1 },
+        { actionKey: 'commerce.catalog.rename-sku', encodedResult: { revision: 2 }, schemaVersion: 1 },
+        { actionKey: 'commerce.catalog.correct-sku', encodedResult: { revision: 2 }, schemaVersion: 1 },
+      ]);
+    }),
+  );
+
+  it.effect('fails the decoded-success hook when snapshot persistence fails', () =>
+    Effect.gen(function* rejectsFailedCapture() {
+      const scope = {
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:sku-snapshot-test:run:2',
+          authMethod: 'system',
+          principalId: '00000000-0000-4000-8000-000000000002',
+          tenantId,
+        }),
+        correlationId: 'sku-snapshot-failure',
+      };
+      const transaction = {
+        insert: () => ({
+          values: () => ({
+            onConflictDoNothing: () => ({ returning: () => Effect.fail(new Error('database unavailable')) }),
+          }),
+        }),
+      };
+      // @ts-expect-error The focused mock implements only the failing snapshot insert chain.
+      const services = yield* getActionServiceFactory(assignSkuAction)(transaction, scope);
+      const hook = getActionDecodedSuccessHook(assignSkuAction);
+      expect(hook).toBeDefined();
+      if (hook !== undefined) {
+        const error = yield* Effect.flip(
+          hook({
+            actionInvocationId: '00000000-0000-4000-8000-000000000004',
+            result: { revision: 1 },
+            scope,
+            services,
+          }),
+        );
+        expect(Schema.is(ActionTransactionError)(error)).toBe(true);
+      }
+    }),
+  );
 
   it('retains exact correction attribution and permits a same-target display-code intent', () => {
     const correctedTarget = {

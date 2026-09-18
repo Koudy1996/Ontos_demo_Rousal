@@ -2,10 +2,12 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug rename-sku
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { RenameSkuPayloadSchema, RenameSkuResultSchema } from '../../shared/actions/rename-sku.ts';
 import type { RenameSkuPayload } from '../../shared/actions/rename-sku.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import {
   completeSkuChange,
   ProductAuditEvidenceSchema,
@@ -17,9 +19,24 @@ import type { SkuServices } from './sku-action-support.ts';
 export { RenameSkuPayloadSchema, RenameSkuResultSchema } from '../../shared/actions/rename-sku.ts';
 export type { RenameSkuPayload, RenameSkuResult } from '../../shared/actions/rename-sku.ts';
 
+const ACTION_KEY = 'commerce.catalog.rename-sku' as const;
+
+const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
+  Object.assign(
+    new ActionTransactionError({ code: 'action_transaction_failed', reason: 'Catalog result capture failed' }),
+    { cause: error },
+  );
+
+type RenameSkuServices = SkuServices & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof RenameSkuResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
+
 const handleRenameSku = Effect.fn('RenameSkuAction.handle')(function* handleRenameSku(
   payload: RenameSkuPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, SkuServices>,
+  context: ActionHandlerContext<Readonly<Record<string, never>>, RenameSkuServices>,
 ) {
   const outcome = yield* context.services.rename({
     ...payload,
@@ -35,7 +52,7 @@ export const renameSkuAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.rename-sku.access.v1',
     },
-    actionKey: 'commerce.catalog.rename-sku',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: SkuActionErrorSchema,
@@ -43,7 +60,7 @@ export const renameSkuAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.rename-sku',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -56,7 +73,24 @@ export const renameSkuAction = defineAction(
     schemaVersion: '1',
   },
   handleRenameSku,
-  skuServicesForScope,
+  (transaction, scope) =>
+    skuServicesForScope(transaction, scope).pipe(
+      Effect.map((services): RenameSkuServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RenameSkuResultSchema),
+              encode: Schema.encodeEffect(RenameSkuResultSchema),
+            },
+            result,
+          ).pipe(Effect.mapError(mapCaptureError)),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

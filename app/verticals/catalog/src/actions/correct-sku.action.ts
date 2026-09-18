@@ -2,10 +2,12 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug correct-sku
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { CorrectSkuPayloadSchema, CorrectSkuResultSchema } from '../../shared/actions/correct-sku.ts';
 import type { CorrectSkuPayload } from '../../shared/actions/correct-sku.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import {
   completeSkuChange,
   ProductAuditEvidenceSchema,
@@ -17,9 +19,24 @@ import type { SkuServices } from './sku-action-support.ts';
 export { CorrectSkuPayloadSchema, CorrectSkuResultSchema } from '../../shared/actions/correct-sku.ts';
 export type { CorrectSkuPayload, CorrectSkuResult } from '../../shared/actions/correct-sku.ts';
 
+const ACTION_KEY = 'commerce.catalog.correct-sku' as const;
+
+const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
+  Object.assign(
+    new ActionTransactionError({ code: 'action_transaction_failed', reason: 'Catalog result capture failed' }),
+    { cause: error },
+  );
+
+type CorrectSkuServices = SkuServices & {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof CorrectSkuResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+};
+
 const handleCorrectSku = Effect.fn('CorrectSkuAction.handle')(function* handleCorrectSku(
   payload: CorrectSkuPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, SkuServices>,
+  context: ActionHandlerContext<Readonly<Record<string, never>>, CorrectSkuServices>,
 ) {
   const outcome = yield* context.services.correct({
     ...payload,
@@ -35,7 +52,7 @@ export const correctSkuAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.correct-sku.access.v1',
     },
-    actionKey: 'commerce.catalog.correct-sku',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: SkuActionErrorSchema,
@@ -43,7 +60,7 @@ export const correctSkuAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.correct-sku',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -56,7 +73,24 @@ export const correctSkuAction = defineAction(
     schemaVersion: '1',
   },
   handleCorrectSku,
-  skuServicesForScope,
+  (transaction, scope) =>
+    skuServicesForScope(transaction, scope).pipe(
+      Effect.map((services): CorrectSkuServices => ({
+        ...services,
+        captureResult: (actionInvocationId, result) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(CorrectSkuResultSchema),
+              encode: Schema.encodeEffect(CorrectSkuResultSchema),
+            },
+            result,
+          ).pipe(Effect.mapError(mapCaptureError)),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
