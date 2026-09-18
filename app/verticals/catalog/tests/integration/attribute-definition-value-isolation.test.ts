@@ -248,8 +248,8 @@ it.live('keeps two Products using one material definition independent in Current
       expect(yield* withTenant(tenantB, (transaction) => transaction.select().from(attributeValueRevisions))).toEqual(
         [],
       );
-      const foreign = yield* Effect.either(setMaterial(tenantB, p2, 'intrusion', null));
-      expect(foreign).toMatchObject({ _tag: 'Left', left: { conflict: 'INVALID_INPUT' } });
+      const foreignError = yield* Effect.flip(setMaterial(tenantB, p2, 'intrusion', null));
+      expect(foreignError).toMatchObject({ conflict: 'INVALID_INPUT' });
       expect(
         yield* admin
           .select()
