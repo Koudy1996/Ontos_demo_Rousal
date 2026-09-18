@@ -2,10 +2,37 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+import { AttributeValueSchema } from '../domain/attribute-values.ts';
+import { AttributeDefinitionRefSchema } from '../resources/attribute-definition.ts';
+import { ProductRefSchema } from '../resources/product.ts';
+import { VariantRefSchema } from '../resources/variant.ts';
 
-export const EffectiveAttributeValuesCurrentRequestSchema = Schema.Struct({});
+export const EffectiveAttributeValuesCurrentRequestSchema = Schema.Struct({
+  attributeDefinitionRef: AttributeDefinitionRefSchema,
+  productRef: ProductRefSchema,
+  variantRef: VariantRefSchema,
+});
 export type EffectiveAttributeValuesCurrentRequest = typeof EffectiveAttributeValuesCurrentRequestSchema.Type;
-export const EffectiveAttributeValuesCurrentResponseSchema = Schema.Struct({ ok: Schema.Literal(true) });
+export const EffectiveAttributeValuesCurrentResponseSchema = Schema.Union([
+  Schema.Struct({
+    productRevision: Schema.optionalKey(Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0))),
+    source: Schema.optionalKey(
+      Schema.Struct({
+        level: Schema.Literals(['PRODUCT', 'VARIANT']),
+        productRef: ProductRefSchema,
+        revision: Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0)),
+        variantRef: Schema.optionalKey(VariantRefSchema),
+      }),
+    ),
+    status: Schema.Literal('CURRENT'),
+    values: Schema.Array(AttributeValueSchema),
+    variantRevision: Schema.optionalKey(Schema.Number.check(Schema.isInt(), Schema.isGreaterThan(0))),
+  }),
+  Schema.Struct({
+    reasons: Schema.Array(Schema.String),
+    status: Schema.Literals(['INVALID_AUTHORITY', 'INVALID_VALUE', 'STALE_BASIS']),
+  }),
+]);
 export type EffectiveAttributeValuesCurrentResponse = typeof EffectiveAttributeValuesCurrentResponseSchema.Type;
 
 export const EffectiveAttributeValuesCurrentAuthenticationProblemSchema = makeProblemDetailsSchema(
