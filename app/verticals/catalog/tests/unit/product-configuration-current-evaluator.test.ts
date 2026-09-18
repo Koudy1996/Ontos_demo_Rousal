@@ -243,6 +243,20 @@ describe('Current Product Configuration evaluator', () => {
     }),
   );
 
+  it.effect('treats incompatible layered step bases as corrupt Current evidence', () =>
+    Effect.gen(function* rejectsIncompatibleSteps() {
+      expect(
+        yield* evaluate({
+          ...revision,
+          measuredRules: [
+            { choiceKey: 'length', evidenceRefs: ['product step'], step: '2', stepBase: '0' },
+            { choiceKey: 'length', evidenceRefs: ['variant step'], step: '2', stepBase: '1', variantId: 'black' },
+          ],
+        }),
+      ).toMatchObject({ code: 'CURRENT_RULES_UNVERIFIED', status: 'INDETERMINATE' });
+    }),
+  );
+
   it.effect('rejects stale or retired Configuration Unit evidence without substituting a later revision', () =>
     Effect.gen(function* checksUnitRevision() {
       const [unit] = revision.units;

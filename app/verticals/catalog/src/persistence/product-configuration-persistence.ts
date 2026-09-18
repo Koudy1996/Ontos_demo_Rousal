@@ -211,6 +211,77 @@ const conflictingBounds = (rules: readonly ConfigurationMeasuredRuleInput[]): bo
   }
   return false;
 };
+const modulo = (value: bigint, modulus: bigint): bigint => ((value % modulus) + modulus) % modulus;
+const gcd = (left: bigint, right: bigint): bigint => {
+  let a = left;
+  let b = right;
+  while (b !== 0n) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+};
+const inverse = (value: bigint, modulus: bigint): bigint => {
+  let [remainder, next] = [modulus, modulo(value, modulus)];
+  let [coefficient, nextCoefficient] = [0n, 1n];
+  while (next !== 0n) {
+    const quotient = remainder / next;
+    [remainder, next] = [next, remainder - quotient * next];
+    [coefficient, nextCoefficient] = [nextCoefficient, coefficient - quotient * nextCoefficient];
+  }
+  return modulo(coefficient, modulus);
+};
+const scaledDecimal = (value: string, scale: number): bigint => {
+  const parts = decimalParts(value);
+  return parts.amount * 10n ** BigInt(scale - parts.scale);
+};
+const satisfiableMeasuredSet = (rules: readonly ConfigurationMeasuredRuleInput[]): boolean => {
+  const decimals = rules.flatMap((rule) => [rule.minimum, rule.maximum, rule.step, rule.stepBase]);
+  const scale = Math.max(0, ...decimals.flatMap((value) => (value === undefined ? [] : [decimalParts(value).scale])));
+  let minimum: bigint | undefined;
+  let maximum: bigint | undefined;
+  let residue = 0n;
+  let period = 1n;
+  for (const rule of rules) {
+    if (rule.minimum !== undefined) {
+      const bound = scaledDecimal(rule.minimum, scale) + (rule.minimumInclusive === true ? 0n : 1n);
+      minimum = minimum === undefined || bound > minimum ? bound : minimum;
+    }
+    if (rule.maximum !== undefined) {
+      const bound = scaledDecimal(rule.maximum, scale) - (rule.maximumInclusive === true ? 0n : 1n);
+      maximum = maximum === undefined || bound < maximum ? bound : maximum;
+    }
+    if (rule.step !== undefined && rule.stepBase !== undefined) {
+      const step = scaledDecimal(rule.step, scale);
+      const base = scaledDecimal(rule.stepBase, scale);
+      const divisor = gcd(period, step);
+      const difference = base - residue;
+      if (difference % divisor !== 0n) {
+        return false;
+      }
+      const reduced = step / divisor;
+      const offset = modulo((difference / divisor) * inverse(period / divisor, reduced), reduced);
+      residue = modulo(residue + period * offset, period * reduced);
+      period *= reduced;
+    }
+  }
+  if (minimum === undefined || maximum === undefined) {
+    return true;
+  }
+  return minimum + modulo(residue - minimum, period) <= maximum;
+};
+const conflictingLayeredConstraints = (rules: readonly ConfigurationMeasuredRuleInput[]): boolean => {
+  const targets: readonly ConfigurationTargetInput[] = [{}, ...rules];
+  return targets.some(
+    (target) =>
+      !satisfiableMeasuredSet(
+        rules.filter(
+          (rule) =>
+            (rule.variantId === undefined || rule.variantId === target.variantId) &&
+            (rule.packageDefinitionId === undefined || rule.packageDefinitionId === target.packageDefinitionId),
+        ),
+      ),
+  );
+};
 const invalidMeasuredBounds = (rule: ConfigurationMeasuredRuleInput): boolean =>
   !decimal(rule.minimum) ||
   !decimal(rule.maximum) ||
@@ -309,7 +380,8 @@ const inspectMeasured = (
   for (const choice of input.choices) {
     if (
       choice.kind === 'MEASURED_VALUE' &&
-      conflictingBounds(input.measuredRules.filter((rule) => rule.choiceKey === choice.choiceKey))
+      (conflictingBounds(input.measuredRules.filter((rule) => rule.choiceKey === choice.choiceKey)) ||
+        conflictingLayeredConstraints(input.measuredRules.filter((rule) => rule.choiceKey === choice.choiceKey)))
     ) {
       return 'Combined measured rule bounds are contradictory';
     }

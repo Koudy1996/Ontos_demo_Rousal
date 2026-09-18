@@ -237,6 +237,41 @@ describe('Product Configuration publication input', () => {
     ).toContain('operands');
   });
 
+  it('rejects incompatible layered step lattices and bounded lattices with no member', () => {
+    const product = { choiceKey: 'length', evidenceRefs: ['product'], step: '2', stepBase: '0' };
+    const variant = { choiceKey: 'length', evidenceRefs: ['variant'], step: '2', stepBase: '1', variantId: 'black' };
+    expect(inspectProductConfigurationPublishInput({ ...input, measuredRules: [product, variant] })).toContain(
+      'contradictory',
+    );
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [
+          { ...product, maximum: '3.5', maximumInclusive: true, minimum: '3', minimumInclusive: true },
+          { ...variant, step: '4', stepBase: '0' },
+        ],
+      }),
+    ).toContain('contradictory');
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [
+          { ...product, maximum: '5', maximumInclusive: true, minimum: '3', minimumInclusive: true },
+          { ...variant, step: '4', stepBase: '0' },
+        ],
+      }),
+    ).toBeNull();
+    expect(
+      inspectProductConfigurationPublishInput({
+        ...input,
+        measuredRules: [
+          { ...product, maximum: '0.5', maximumInclusive: false, minimum: '0.3', minimumInclusive: false, step: '0.2' },
+          { ...variant, step: '0.3', stepBase: '0.1' },
+        ],
+      }),
+    ).toBeNull();
+  });
+
   it('rejects unsupported compatibility operands and missing evidence', () => {
     expect(
       inspectProductConfigurationPublishInput({
