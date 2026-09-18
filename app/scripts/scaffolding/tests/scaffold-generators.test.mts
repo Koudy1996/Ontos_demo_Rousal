@@ -1507,6 +1507,15 @@ it.live(
         expect(reportClient).not.toMatch(/\.provider\.ts|import\(/u);
         assertGovernedReadProviders([searchProvider, reportProvider]);
         expect(searchProvider).toMatch(/result\.map\(\(\{ ref \}\) => ref\)/u);
+        for (const [source, entrypoint, read] of [
+          [moduleApiRead, 'resourceDetail', 'resourceDetail'],
+          [searchProvider, 'inventoryItems', 'inventoryItems'],
+          [reportProvider, 'stockLevels', 'stockLevels'],
+        ]) {
+          expect(source).toMatch(new RegExp(`const ${entrypoint}Entrypoint = defineTenantModuleEntrypoint\\(\\{`, 'u'));
+          expect(source).not.toMatch(new RegExp(`export const ${entrypoint}Entrypoint`, 'u'));
+          expect(source).toMatch(new RegExp(`export const ${read}Read = defineRead\\(`, 'u'));
+        }
         expect(moduleApiRead).toMatch(/defineRead\(/u);
         expect(moduleApiRead).toMatch(/legalEntityScope: 'required'/u);
         assertGovernedReadServers([moduleApiServer, searchServer, reportServer]);

@@ -430,7 +430,7 @@ import { defineRead, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect } from 'effect';
 import { ${type}RequestSchema, ${type}ResponseSchema } from '../../shared/apis/${name}.ts';
 
-export const ${toCamelCase(name)}Entrypoint = defineTenantModuleEntrypoint({
+const ${toCamelCase(name)}Entrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: ${renderReadAuthorization(config)},
   entrypointKey: '${vertical.moduleId}.api.${name}',
@@ -558,7 +558,7 @@ import { defineRead, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { ${inputSchema}, ${resultSchema} } from '../../shared/apis/${contract}.ts';
 import type { ${inputType}, ${resultType} } from '../../shared/apis/${contract}.ts';
 
-export const ${toCamelCase(name)}Entrypoint = defineTenantModuleEntrypoint({
+const ${toCamelCase(name)}Entrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: ${renderReadAuthorization(config)},
   entrypointKey: '${vertical.moduleId}.${role}.${name}',
