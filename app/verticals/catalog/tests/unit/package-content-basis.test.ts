@@ -47,10 +47,12 @@ const content = Schema.decodeUnknownSync(PackageDefinitionContentInputSchema)({
 const lowerRow = {
   amount: '10',
   configurationKey: null,
+  effectiveAt: new Date('1900-01-01T00:00:00.000Z'),
   lowerCount: null,
   lowerPackageDefinitionId: null,
   lowerRevision: null,
   productId,
+  revision: 1,
   setCompositionResourceId: null,
   setCompositionRevision: null,
   unitResourceId: unitId,
@@ -68,6 +70,7 @@ interface Overrides {
     readonly setCompositionResourceId: string | null;
     readonly setCompositionRevision: number | null;
   };
+  readonly lowerRevisions?: readonly (typeof lowerRow)[];
   readonly unit?: { readonly lifecycleState: string } | null;
 }
 type Table =
@@ -106,11 +109,14 @@ const rowsForTable = (table: Table, overrides: Overrides) => {
           },
         ];
   }
-  return [overrides.lower ?? lowerRow];
+  return overrides.lowerRevisions ?? [overrides.lower ?? lowerRow];
 };
 const query = (table: Table, overrides: Overrides) => ({
   where: () => ({
-    for: () => ({ limit: () => Effect.succeed(rowsForTable(table, overrides)) }),
+    for: () => ({
+      limit: () => Effect.succeed(rowsForTable(table, overrides)),
+      pipe: () => Effect.succeed(rowsForTable(table, overrides)),
+    }),
     limit: () => Effect.succeed(rowsForTable(table, overrides)),
     pipe: () => Effect.succeed(rowsForTable(table, overrides)),
   }),
@@ -129,6 +135,40 @@ describe('Package Content Current basis', () => {
       // @ts-expect-error Mock implements only the exercised Drizzle read chain.
       const basis = packageContentBasisForTransaction(transaction(), scope);
       expect(yield* basis.verify({ content, definitionId: packageId, tenantId })).toBe(true);
+    }),
+  );
+
+  it.effect('uses the pinned owner-effective lower revision without leaking a pending successor', () =>
+    Effect.gen(function* resolvesEffectiveLower() {
+      const pending = { ...lowerRow, amount: '8', effectiveAt: new Date('2100-01-01T00:00:00.000Z'), revision: 2 };
+      const basis = packageContentBasisForTransaction(
+        // @ts-expect-error Mock implements only the exercised Drizzle read chain.
+        transaction({ lowerRevisions: [lowerRow, pending] }),
+        scope,
+      );
+      expect(yield* basis.verify({ content, definitionId: packageId, tenantId })).toBe(true);
+      const futurePinned = Schema.decodeUnknownSync(PackageDefinitionContentInputSchema)({
+        ...content,
+        lower: { count: '2', revision: { resourceRef: ref('package-definition', lowerId), revision: 2 } },
+      });
+      expect(yield* basis.verify({ content: futurePinned, definitionId: packageId, tenantId })).toBe(false);
+    }),
+  );
+
+  it.effect('rejects gaps and non-monotonic effective times in the lower owner chain', () =>
+    Effect.gen(function* rejectsInvalidLowerChain() {
+      const invalidChains = [
+        [lowerRow, { ...lowerRow, effectiveAt: new Date('2100-01-01T00:00:00.000Z'), revision: 3 }],
+        [lowerRow, { ...lowerRow, effectiveAt: new Date('1800-01-01T00:00:00.000Z'), revision: 2 }],
+      ];
+      for (const lowerRevisions of invalidChains) {
+        const basis = packageContentBasisForTransaction(
+          // @ts-expect-error Mock implements only the exercised Drizzle read chain.
+          transaction({ lowerRevisions }),
+          scope,
+        );
+        expect(yield* basis.verify({ content, definitionId: packageId, tenantId })).toBe(false);
+      }
     }),
   );
 

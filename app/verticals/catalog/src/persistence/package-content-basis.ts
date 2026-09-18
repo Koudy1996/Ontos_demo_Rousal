@@ -1,6 +1,6 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
-import { DateTime, Effect, Option, Schema } from 'effect';
+import { DateTime, Effect, Match, Option, Schema } from 'effect';
 
 import { resolvePackageContent } from '../../shared/domain/package-content.ts';
 import type { PackageContentRevision } from '../../shared/domain/package-content.ts';
@@ -17,7 +17,7 @@ import {
   setCompositionRevisions,
   setCompositions,
 } from '../database/schema.ts';
-import { PackagePersistenceUnavailable } from './package-persistence.ts';
+import { PackagePersistenceUnavailable, resolveEffectiveRevision } from './package-persistence.ts';
 import { setCompositionPersistenceForScope } from './set-composition-persistence.ts';
 import { setCompositionComponentCurrentBasisForScope } from './set-composition-component-current-basis.ts';
 
@@ -205,12 +205,39 @@ const currentSubject = Effect.fn('PackageContentBasis.currentSubject')(function*
   return rule !== undefined && rule.lifecycleState === 'ACTIVE';
 });
 
+const effectiveLowerRow = Effect.fn('PackageContentBasis.effectiveLowerRow')(function* readEffectiveLowerRow(
+  transaction: ScopedTransaction,
+  tenantId: string,
+  lower: CatalogSelectionRevision,
+  at: Date,
+) {
+  const rows = yield* transaction
+    .select()
+    .from(packageContentRevisions)
+    .where(
+      and(
+        eq(packageContentRevisions.tenantId, tenantId),
+        eq(packageContentRevisions.packageDefinitionId, lower.resourceRef.resourceId),
+      ),
+    )
+    .for('update')
+    .pipe(Effect.mapError(unavailable));
+  return Match.value(resolveEffectiveRevision(rows, at)).pipe(
+    Match.tag('resolved', ({ revision }) =>
+      revision === lower.revision ? Option.fromNullishOr(rows.find((row) => row.revision === revision)) : Option.none(),
+    ),
+    Match.tag('invalid', () => Option.none()),
+    Match.exhaustive,
+  );
+}, Effect.mapError(unavailable));
+
 const loadLower: (
   transaction: ScopedTransaction,
   content: Content,
   scope: OperationalScope,
   lower: CatalogSelectionRevision,
   seen: ReadonlySet<string>,
+  at: Date,
 ) => Effect.Effect<Option.Option<readonly PackageContentRevision[]>, PackagePersistenceUnavailable> = Effect.fn(
   'PackageContentBasis.loadLower',
 )(function* loadLowerRows(
@@ -219,6 +246,7 @@ const loadLower: (
   scope: OperationalScope,
   lower: CatalogSelectionRevision,
   seen: ReadonlySet<string>,
+  at: Date,
 ) {
   const { tenantId } = scope;
   const lowerId = lower.resourceRef.resourceId;
@@ -238,18 +266,7 @@ const loadLower: (
   ) {
     return Option.none();
   }
-  const [row] = yield* transaction
-    .select()
-    .from(packageContentRevisions)
-    .where(
-      and(
-        eq(packageContentRevisions.tenantId, tenantId),
-        eq(packageContentRevisions.packageDefinitionId, lowerId),
-        eq(packageContentRevisions.revision, lower.revision),
-      ),
-    )
-    .for('update')
-    .limit(1);
+  const row = Option.getOrUndefined(yield* effectiveLowerRow(transaction, tenantId, lower, at));
   if (
     row === undefined ||
     row.productId !== definition.productId ||
@@ -284,7 +301,7 @@ const loadLower: (
   if (next === undefined) {
     return Option.some([revision]);
   }
-  const tail = yield* loadLower(transaction, content, scope, next.revision, new Set([...seen, lowerId]));
+  const tail = yield* loadLower(transaction, content, scope, next.revision, new Set([...seen, lowerId]), at);
   return Option.isNone(tail) ? Option.none() : Option.some([revision, ...tail.value]);
 }, Effect.mapError(unavailable));
 
@@ -317,7 +334,15 @@ export const packageContentBasisForTransaction = (transaction: ScopedTransaction
     if (content.lower === undefined) {
       return true;
     }
-    const revisions = yield* loadLower(transaction, content, scope, content.lower.revision, new Set([definitionId]));
+    const at = DateTime.toDateUtc(yield* DateTime.now);
+    const revisions = yield* loadLower(
+      transaction,
+      content,
+      scope,
+      content.lower.revision,
+      new Set([definitionId]),
+      at,
+    );
     if (Option.isNone(revisions)) {
       return false;
     }
