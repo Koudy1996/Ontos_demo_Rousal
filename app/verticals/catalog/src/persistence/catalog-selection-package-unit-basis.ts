@@ -559,6 +559,7 @@ export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTran
         assessment.target.variantId !== variant.variantId ||
         assessment.target.packageDefinitionId !== option?.optionRef.resourceId ||
         assessment.assessedAt.getTime() !== now.getTime() ||
+        assessment.choiceRevisions.length !== configuration.choices.length ||
         configuration.choices.some((choice) => {
           const proven = assessment.choiceRevisions.find((item) => item.choiceKey === choice.choiceKey);
           return (
