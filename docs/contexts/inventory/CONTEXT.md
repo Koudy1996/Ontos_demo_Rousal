@@ -29,8 +29,8 @@ _Avoid_: Product-level stock bucket, warehouse name alone as reservation scope.
 
 **Stock Issue** — Authoritative physical decrease of one exact Stock Position for an explicit business reason in a scope whose physical-stock authority permits that transition.
 
-**Stock Correction** — High-risk Inventory Action establishing corrected absolute ON_HAND for one exact Stock Position only where the applicable authority contract permits Inventory to own that correction.
-_Avoid_: generic inventory update, local override of an external physical-stock System of Record.
+**Stock Correction** — High-risk Inventory public Action establishing corrected absolute ON_HAND for one exact Stock Position only through the selected Inventory Backend's applicable authority contract. The public Inventory boundary does not turn an unselected or non-authoritative system into the physical-stock owner.
+_Avoid_: generic inventory update, local override of the selected physical-stock System of Record, backend switching as correction.
 
 ## Stock demand and allocation
 
