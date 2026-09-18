@@ -78,6 +78,12 @@ const requestProblem = (
   if (!validRequest(selection, purpose, tenantId)) {
     return { reason: 'Selection scope or purpose cannot be verified', status: 'INDETERMINATE' };
   }
+  if (
+    selection.packageOption?.contentRevision.revisionId !== undefined ||
+    selection.configuration?.choices.some((choice) => choice.attributeDefinition?.revisionId !== undefined) === true
+  ) {
+    return { reason: 'Selected dependent revision ID is not owner-verifiable', status: 'INDETERMINATE' };
+  }
   return selection.configuration?.choices.some(
     (choice) => choice.unit !== undefined && !validDependentRef(choice.unit.resourceRef, tenantId, catalogUnitType),
   ) === true
@@ -374,7 +380,10 @@ const appendPackageUnitBasis = (
     ) {
       return 'Package basis does not match the selected Current content';
     }
-    basis.push({ role: 'PACKAGE_CONTENT', source: option.contentRevision });
+    basis.push({
+      role: 'PACKAGE_CONTENT',
+      source: { resourceRef: option.contentRevision.resourceRef, revision: option.contentRevision.revision },
+    });
   }
   const unitRevision = Schema.decodeOption(CatalogRevisionNumberSchema)(packageBasis.unit.ruleRevision);
   const divisibilityRevision = Schema.decodeOption(CatalogRevisionNumberSchema)(
@@ -462,7 +471,7 @@ const verifyProductTypeReadiness = Effect.fn('CatalogSelectionCurrentBasis.verif
     const revision = Schema.decodeOption(CatalogRevisionNumberSchema)(readiness.assignmentRevision);
     return Option.isNone(revision)
       ? { reason: 'Current Product Type assignment revision is unavailable', status: 'INDETERMINATE' as const }
-      : { reason: null, revision: revision.value };
+      : { reason: null };
   },
 );
 
@@ -528,7 +537,10 @@ const readOneConfigurationChoice = Effect.fn('CatalogSelectionCurrentBasis.readO
       if (definition.revision !== choice.attributeDefinition.revision) {
         return { basis, reason: 'Selected Attribute Definition revision is not Current', status: 'INVALID' as const };
       }
-      basis.push({ role: 'ATTRIBUTE_DEFINITION', source: choice.attributeDefinition });
+      basis.push({
+        role: 'ATTRIBUTE_DEFINITION',
+        source: { resourceRef: choice.attributeDefinition.resourceRef, revision: choice.attributeDefinition.revision },
+      });
     }
     return { basis, reason: null };
   },
@@ -843,10 +855,8 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
     if (readiness.reason !== null) {
       return { basis, reason: readiness.reason, status: readiness.status };
     }
-    basis.push({
-      role: 'OTHER_CATALOG_FACT',
-      source: { resourceRef: selection.productRef, revision: readiness.revision },
-    });
+    // Assignment revision is a row counter, not the Product Resource revision.
+    // Do not publish it as a ResourceRef basis until Catalog defines that identity.
     return {
       basis: basis.filter(
         (fact, index) => !basis.slice(0, index).some((prior) => sameCatalogSelectionBasis(prior, fact)),

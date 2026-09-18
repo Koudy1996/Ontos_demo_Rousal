@@ -99,6 +99,85 @@ const packageEffectiveDate = (index: number, selectedAt: Date): Date => {
 };
 
 describe('Catalog Selection Current basis', () => {
+  it.effect('does not launder caller revision IDs into Current Attribute or Package evidence', () =>
+    Effect.gen(function* forgedDependentIds() {
+      const revisionId = '99999999-9999-4999-8999-999999999999';
+      const packageId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      const definitionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+      const transaction = {
+        select: () => {
+          throw new Error('unverified revision ID must be rejected before owner reads');
+        },
+      };
+      // @ts-expect-error The forbidden read path needs no Drizzle implementation.
+      const reader = catalogSelectionCurrentBasisForScope(transaction, scope);
+      const candidates = [
+        {
+          ...selection,
+          packageOption: {
+            contentRevision: {
+              resourceRef: {
+                moduleId: 'commerce.catalog',
+                resourceId: packageId,
+                resourceType: 'commerce.catalog.package-definition',
+                tenantId,
+              },
+              revision: 4,
+              revisionId,
+            },
+            optionRef: {
+              moduleId: 'commerce.catalog',
+              resourceId: packageId,
+              resourceType: 'commerce.catalog.package-definition',
+              tenantId,
+            },
+          },
+        },
+        {
+          ...selection,
+          configuration: {
+            choices: [
+              {
+                attributeDefinition: {
+                  resourceRef: {
+                    moduleId: 'commerce.catalog',
+                    resourceId: definitionId,
+                    resourceType: 'commerce.catalog.attribute-definition',
+                    tenantId,
+                  },
+                  revision: 2,
+                  revisionId,
+                },
+                choiceKey: 'material',
+                value: 'cotton',
+              },
+            ],
+            definition: {
+              resourceRef: {
+                moduleId: 'commerce.catalog',
+                resourceId: definitionId,
+                resourceType: 'commerce.catalog.configuration-definition',
+                tenantId,
+              },
+              revision: 1,
+            },
+            productRef: selection.productRef,
+            variantRef: selection.variantRef,
+          },
+        },
+      ];
+      for (const candidate of candidates) {
+        const result = yield* reader.read({
+          purpose: 'PURCHASE_ACCEPTANCE',
+          selection: Schema.decodeUnknownSync(CatalogSelectionSchema)(candidate),
+        });
+        expect(result.status).toBe('INDETERMINATE');
+        expect(result.basis).toEqual([]);
+        expect(result.basis.some(({ source }) => source.revisionId === revisionId)).toBe(false);
+      }
+    }),
+  );
+
   it.effect('rejects a selected non-Unit reference before projecting its matching ID', () =>
     Effect.gen(function* wrongUnitRef() {
       const unitId = '55555555-5555-4555-8555-555555555555';
