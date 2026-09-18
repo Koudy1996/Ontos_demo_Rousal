@@ -79,7 +79,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns sixty-nine tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns seventy-one tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -106,6 +106,8 @@ it('owns sixty-nine tenant-scoped Catalog tables with RLS and immutable history'
     'commercial_gtin_assignments',
     'commercial_sku_assignment_revisions',
     'commercial_sku_reservations',
+    'configuration_unit_revisions',
+    'configuration_units',
     'controlled_attribute_value_revisions',
     'controlled_attribute_values',
     'manufacturer_relation_revisions',
@@ -630,6 +632,8 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_gtin_assignment_revisions_append_only');
   expect(combined).toContain('catalog_configuration_definition_revisions_append_only');
   expect(combined).toContain('catalog_configuration_choices_append_only');
+  expect(combined).toContain('catalog_configuration_unit_revisions_append_only');
+  expect(combined).toContain('catalog_configuration_units_identity_immutable');
   expect(combined).toContain('catalog_configuration_option_allowances_append_only');
   expect(combined).toContain('catalog_configuration_revision_activations_append_only');
   expect(combined).toContain('catalog_configuration_definitions_identity_immutable');

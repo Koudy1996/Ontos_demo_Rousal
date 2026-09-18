@@ -37,6 +37,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'commercial_gtin_assignments',
   'commercial_sku_assignment_revisions',
   'commercial_sku_reservations',
+  'configuration_unit_revisions',
+  'configuration_units',
   'controlled_attribute_value_revisions',
   'controlled_attribute_values',
   'manufacturer_relation_revisions',
@@ -213,6 +215,77 @@ export const productUnits = catalogSchema.table.withRLS(
     ),
     check('catalog_product_units_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
     ...tenantRlsPolicies('catalog_product_units_tenant', table.tenantId),
+  ],
+);
+
+/** Configuration measurement has its own meaning; purchase Quantity Units are not aliases. */
+export const configurationUnits = catalogSchema.table.withRLS(
+  'configuration_units',
+  {
+    unitId: uuid('unit_id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    code: text('code').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('catalog_configuration_units_scope_id_uk').on(table.tenantId, table.unitId),
+    unique('catalog_configuration_units_code_uk').on(table.tenantId, table.code),
+    check(
+      'catalog_configuration_units_code_ck',
+      sql`${table.code} = btrim(${table.code}) and length(${table.code}) between 1 and 80`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_units_tenant', table.tenantId),
+  ],
+);
+
+/** Append-only owner evidence; Current is proved from effective windows, never from latest. */
+export const configurationUnitRevisions = catalogSchema.table.withRLS(
+  'configuration_unit_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    unitId: uuid('unit_id').notNull(),
+    revision: integer('revision').notNull(),
+    meaning: text('meaning').notNull(),
+    dimension: text('dimension').notNull(),
+    lifecycleState: text('lifecycle_state').notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.unitId, table.revision],
+      name: 'catalog_configuration_unit_revisions_pk',
+    }),
+    unique('catalog_configuration_unit_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    foreignKey({
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [configurationUnits.tenantId, configurationUnits.unitId],
+      name: 'catalog_configuration_unit_revisions_unit_fk',
+    }).onDelete('restrict'),
+    check('catalog_configuration_unit_revisions_number_ck', sql`${table.revision} > 0`),
+    check(
+      'catalog_configuration_unit_revisions_meaning_ck',
+      sql`${table.meaning} = btrim(${table.meaning}) and length(${table.meaning}) between 1 and 1000`,
+    ),
+    check(
+      'catalog_configuration_unit_revisions_dimension_ck',
+      sql`${table.dimension} = btrim(${table.dimension}) and length(${table.dimension}) between 1 and 160`,
+    ),
+    check('catalog_configuration_unit_revisions_lifecycle_ck', sql`${table.lifecycleState} in ('ACTIVE', 'RETIRED')`),
+    check(
+      'catalog_configuration_unit_revisions_window_ck',
+      sql`${table.effectiveTo} is null or ${table.effectiveTo} > ${table.effectiveFrom}`,
+    ),
+    check(
+      'catalog_configuration_unit_revisions_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_configuration_unit_revisions_tenant', table.tenantId),
   ],
 );
 
@@ -3038,6 +3111,7 @@ export const productConfigurationChoices = catalogSchema.table.withRLS(
     valueKind: text('value_kind').notNull(),
     required: boolean('required').notNull(),
     unitId: uuid('unit_id'),
+    unitRevision: integer('unit_revision'),
   },
   (table) => [
     primaryKey({
@@ -3054,8 +3128,12 @@ export const productConfigurationChoices = catalogSchema.table.withRLS(
       name: 'catalog_configuration_choices_revision_fk',
     }).onDelete('restrict'),
     foreignKey({
-      columns: [table.tenantId, table.unitId],
-      foreignColumns: [productUnits.tenantId, productUnits.unitId],
+      columns: [table.tenantId, table.unitId, table.unitRevision],
+      foreignColumns: [
+        configurationUnitRevisions.tenantId,
+        configurationUnitRevisions.unitId,
+        configurationUnitRevisions.revision,
+      ],
       name: 'catalog_configuration_choices_unit_fk',
     }).onDelete('restrict'),
     check(
@@ -3072,7 +3150,7 @@ export const productConfigurationChoices = catalogSchema.table.withRLS(
     ),
     check(
       'catalog_configuration_choices_kind_ck',
-      sql`(${table.valueKind} = 'SINGLE_CHOICE' and ${table.unitId} is null) or (${table.valueKind} = 'MEASURED_VALUE' and ${table.unitId} is not null)`,
+      sql`(${table.valueKind} = 'SINGLE_CHOICE' and ${table.unitId} is null and ${table.unitRevision} is null) or (${table.valueKind} = 'MEASURED_VALUE' and ${table.unitId} is not null and ${table.unitRevision} > 0)`,
     ),
     ...tenantRlsPolicies('catalog_configuration_choices_tenant', table.tenantId),
   ],
@@ -3430,6 +3508,8 @@ const catalogDatabaseSchema = {
   productVariants,
   products,
   productUnits,
+  configurationUnits,
+  configurationUnitRevisions,
   sizeEquivalenceAssertions,
   productUnitRuleRevisions,
   variantUnitDivisibility,
@@ -3502,6 +3582,8 @@ export const CATALOG_TABLES = [
   productVariants,
   products,
   productUnits,
+  configurationUnits,
+  configurationUnitRevisions,
   sizeEquivalenceAssertions,
   productUnitRuleRevisions,
   variantUnitDivisibility,
