@@ -3,8 +3,8 @@ import { Effect, Match, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { SetCompositionRevisionSchema } from '../../shared/domain/set-composition.ts';
-import { setCompositionRevisions, setCompositions } from '../../src/database/schema.ts';
-import type { productVariants, products, setCompositionComponents } from '../../src/database/schema.ts';
+import { setCompositionComponents, setCompositionRevisions, setCompositions } from '../../src/database/schema.ts';
+import type { productVariants, products } from '../../src/database/schema.ts';
 import {
   setCompositionPersistenceForScope,
   SetCompositionPersistenceUnavailable,
@@ -203,6 +203,90 @@ describe('Set composition persistence', () => {
           Match.orElse(() => 0),
         ),
       ).toBe(2);
+    }),
+  );
+
+  it.effect('recognizes a corrected old quantity but fails closed before advancing Current', () =>
+    Effect.gen(function* correctedQuantity() {
+      const priorRow = {
+        changeKind: 'INITIAL',
+        compositionId,
+        effectiveFrom: input.effectiveFrom,
+        effectiveTo: null,
+        evidenceRefs: ['catalog:verified'],
+        lifecycleState: 'ACTIVE',
+        predecessorRevision: null,
+        productId,
+        reason: 'Initial fixed composition',
+        revision: 1,
+        variantId,
+      };
+      const componentRows = revision.components.map((component) => ({
+        componentId: component.componentId,
+        componentProductId: component.selection.productRef.resourceId,
+        componentVariantId: component.selection.variantRef.resourceId,
+        configuration: null,
+        packageContentRevision: null,
+        packageDefinitionId: null,
+        quantityAmount: component.quantity.amount,
+        quantityUnitId: component.quantity.unitRef.resourceId,
+      }));
+      let revisionReads = 0;
+      const transaction = {
+        insert: () => {
+          throw new Error('Correction must not write before impact authority');
+        },
+        select: () => ({
+          from: (table: PublishSelectTable | typeof setCompositionComponents) => {
+            if (table === setCompositionRevisions) {
+              revisionReads += 1;
+              return revisionReads === 1 ? selectedRows([]) : selectedRows([priorRow]);
+            }
+            if (table === setCompositionComponents) {
+              return queriedRows(componentRows);
+            }
+            if (table === setCompositions) {
+              return selectedRows([{ compositionId, currentRevision: 1, productId, variantId }]);
+            }
+            return selectedRows([{ lifecycleState: 'ACTIVE', productId, variantId }]);
+          },
+        }),
+        update: () => {
+          throw new Error('Correction must not advance Current');
+        },
+      };
+      const corrected = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+        ...revision,
+        components: [
+          revision.components[0],
+          {
+            ...revision.components[1],
+            quantity: { amount: '3', unitRef: revision.components[1].quantity.unitRef },
+          },
+        ],
+        predecessor: revision.reference,
+        provenance: {
+          changeKind: 'EVIDENCE_CORRECTION',
+          evidenceRefs: ['original-data-error:source-record-42'],
+          reason: 'Old source recorded two, actual set held three',
+        },
+        reference: { ...revision.reference, revision: 2 },
+      });
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = setCompositionPersistenceForScope(transaction, scope, { verify: () => Effect.succeed(true) });
+      const outcome = yield* service.publish({
+        ...input,
+        actionInvocationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        effectiveFrom: new Date('2026-09-18T00:00:00.000Z'),
+        expectedRevision: 1,
+        revision: corrected,
+      });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('invalid', ({ reason }) => reason),
+          Match.orElse(() => ''),
+        ),
+      ).toBe('Original-data-error correction requires open-selection impact authority');
     }),
   );
 

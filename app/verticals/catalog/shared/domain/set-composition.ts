@@ -99,7 +99,7 @@ const format = ({ coefficient, scale }: Decimal): string => {
 export const classifySetCompositionChange = (
   previous: SetCompositionRevision,
   next: SetCompositionRevision,
-): 'SAME_CONTENT' | 'MATERIAL_CHANGE' => {
+): 'SAME_CONTENT' | 'MATERIAL_CHANGE' | 'EVIDENCE_CORRECTION' => {
   if (previous.components.length !== next.components.length) {
     return 'MATERIAL_CHANGE';
   }
@@ -107,7 +107,7 @@ export const classifySetCompositionChange = (
   // Match as a multiset so re-keying a need is not mistaken for changed content,
   // while repeated identical needs still have to match one-for-one.
   const unmatched = [...previous.components];
-  return next.components.every((component) => {
+  const sameContent = next.components.every((component) => {
     const index = unmatched.findIndex(
       (prior) =>
         sameSelection(prior.selection, component.selection) &&
@@ -119,8 +119,34 @@ export const classifySetCompositionChange = (
     }
     unmatched.splice(index, 1);
     return true;
-  })
-    ? 'SAME_CONTENT'
+  });
+  if (sameContent) {
+    return 'SAME_CONTENT';
+  }
+  // A correction of a recorded amount is not a change to the actual assortment.
+  // Require an explicit original-data-error evidence reference and exact R1 -> R2
+  // lineage; prose reason or the requested change kind alone cannot assert this.
+  const isExactSuccessor =
+    next.predecessor !== undefined &&
+    sameCatalogRevisionReference(next.predecessor, previous.reference) &&
+    next.reference.revision === previous.reference.revision + 1 &&
+    next.reference.resourceRef.resourceId === previous.reference.resourceRef.resourceId;
+  const hasOriginalDataErrorEvidence = next.provenance.evidenceRefs.some((ref) =>
+    ref.startsWith('original-data-error:'),
+  );
+  const quantityOnly = next.components.every((component) => {
+    const prior = previous.components.find((item) => item.componentId === component.componentId);
+    return (
+      prior !== undefined &&
+      sameSelection(prior.selection, component.selection) &&
+      sameUnit(prior.quantity.unitRef, component.quantity.unitRef)
+    );
+  });
+  return next.provenance.changeKind === 'EVIDENCE_CORRECTION' &&
+    isExactSuccessor &&
+    hasOriginalDataErrorEvidence &&
+    quantityOnly
+    ? 'EVIDENCE_CORRECTION'
     : 'MATERIAL_CHANGE';
 };
 

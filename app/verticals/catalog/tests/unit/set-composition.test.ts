@@ -162,6 +162,43 @@ describe('Set composition', () => {
     expect(original.components[1]?.quantity.amount).toBe('4');
   });
 
+  it('classifies only evidenced, exact-lineage quantity mistakes as original-data corrections', () => {
+    const original = Schema.decodeUnknownSync(SetCompositionRevisionSchema)(revision);
+    const corrected = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+      ...revision,
+      components: [components[0], { ...components[1], quantity: { amount: '3', unitRef } }],
+      predecessor: revision.reference,
+      provenance: {
+        changeKind: 'EVIDENCE_CORRECTION',
+        evidenceRefs: ['original-data-error:source-record-42'],
+        reason: 'Original source incorrectly recorded four brackets; actual set held three',
+      },
+      reference: { ...revision.reference, revision: 2 },
+    });
+    expect(classifySetCompositionChange(original, corrected)).toBe('EVIDENCE_CORRECTION');
+    expect(original.components[1]?.quantity.amount).toBe('4');
+    expect(
+      classifySetCompositionChange(original, {
+        ...corrected,
+        provenance: { ...corrected.provenance, evidenceRefs: ['source-record-42'] },
+      }),
+    ).toBe('MATERIAL_CHANGE');
+    expect(
+      classifySetCompositionChange(original, {
+        ...corrected,
+      predecessor: corrected.reference,
+      }),
+    ).toBe('MATERIAL_CHANGE');
+    expect(
+      classifySetCompositionChange(original, {
+        ...corrected,
+        components: corrected.components.map((component, index) =>
+          index === 1 ? { ...component, selection: { ...selection, variantRef } } : component,
+        ),
+      }),
+    ).toBe('MATERIAL_CHANGE');
+  });
+
   it('treats reordered and re-keyed needs as the same exact content without losing multiplicity', () => {
     const original = Schema.decodeUnknownSync(SetCompositionRevisionSchema)(revision);
     const rekeyed = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({

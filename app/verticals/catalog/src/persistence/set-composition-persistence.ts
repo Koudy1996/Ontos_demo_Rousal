@@ -117,6 +117,20 @@ const sameInstant = (left: Date | undefined, right: Date | undefined) =>
       DateTime.toEpochMillis(DateTime.makeUnsafe(left)) === DateTime.toEpochMillis(DateTime.makeUnsafe(right));
 const validEvidence = (values: readonly string[]) =>
   values.length > 0 && values.every((value) => value.length > 0 && value.length <= 300 && value.trim() === value);
+const classificationFailure = (previous: SetCompositionRevision, next: SetCompositionRevision): string | undefined => {
+  const changed = classifySetCompositionChange(previous, next);
+  if (
+    (changed === 'MATERIAL_CHANGE' && next.provenance.changeKind !== 'MATERIAL_CHANGE') ||
+    (changed === 'SAME_CONTENT' && next.provenance.changeKind !== 'EVIDENCE_CORRECTION')
+  ) {
+    return 'Change kind does not match exact component content';
+  }
+  // #479 must authoritatively assess already-open selections before the
+  // corrected Current basis can be published. Never silently move them.
+  return changed === 'EVIDENCE_CORRECTION'
+    ? 'Original-data-error correction requires open-selection impact authority'
+    : undefined;
+};
 const validPublishLineage = (input: PublishSetCompositionInput): boolean => {
   const { revision } = input;
   return (
@@ -328,12 +342,12 @@ export const setCompositionPersistenceForScope = (
       if (Option.isNone(previous)) {
         return yield* unavailable();
       }
-      const changed = classifySetCompositionChange(previous.value.revision, revision);
-      if ((changed === 'MATERIAL_CHANGE') !== (revision.provenance.changeKind === 'MATERIAL_CHANGE')) {
+      const failure = classificationFailure(previous.value.revision, revision);
+      if (failure !== undefined) {
         return {
           outcome: {
             _tag: 'invalid',
-            reason: 'Change kind does not match exact component content',
+            reason: failure,
           } satisfies PublishSetCompositionOutcome,
         };
       }
