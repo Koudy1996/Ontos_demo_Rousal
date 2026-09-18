@@ -116,6 +116,15 @@ it('keeps read, ordinary edit, shared-definition, and high-impact lifecycle auth
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.activate-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-product-unit');
+  expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.revise-attribute-definition');
+  expect(bundles.PRODUCT_EDITOR).not.toContain('commerce.catalog.revise-attribute-definition');
+  expect(catalogPublicOperationContracts['commerce.catalog.revise-attribute-definition']).toMatchObject({
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: 'attribute-definition',
+    permission: 'commerce.catalog.revise-attribute-definition',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+  });
   for (const operation of [
     'commerce.catalog.create-configuration-unit',
     'commerce.catalog.revise-configuration-unit',

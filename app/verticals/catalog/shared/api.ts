@@ -867,6 +867,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.revise-attribute-definition': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: attributeDefinitionBusinessTarget,
+    permission: 'commerce.catalog.revise-attribute-definition',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.revise-configuration-unit': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: configurationUnitBusinessTarget,
@@ -1008,6 +1016,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.retire-package-option',
     'commerce.catalog.retire-product-category',
     'commerce.catalog.retire-product-unit',
+    'commerce.catalog.revise-attribute-definition',
     'commerce.catalog.revise-configuration-unit',
     'commerce.catalog.revise-package-definition',
     'commerce.catalog.revise-product-type',
