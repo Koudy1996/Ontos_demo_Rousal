@@ -39,6 +39,7 @@ import { CreateProductTypeActionApi } from './apis/create-product-type-action.ts
 import { CreateProductUnitActionApi } from './apis/create-product-unit-action.ts';
 import { CreateSetCompositionActionApi } from './apis/create-set-composition-action.ts';
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
+import { CreateVariantRecoveryApi } from './apis/create-variant-recovery.ts';
 import { DecideProductTypeUnnecessaryActionApi } from './apis/decide-product-type-unnecessary-action.ts';
 import { EffectiveAttributeValuesCurrentApi } from './apis/effective-attribute-values-current.ts';
 import { GovernProductAttributeApplicabilityActionApi } from './apis/govern-product-attribute-applicability-action.ts';
@@ -110,6 +111,7 @@ import { SetVariantAttributeOverrideActionApi } from './apis/set-variant-attribu
 import { SetVariantLocalizedFactsActionApi } from './apis/set-variant-localized-facts-action.ts';
 import { SkuLookupApi } from './apis/sku-lookup.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
+import { UpdateProductRecoveryApi } from './apis/update-product-recovery.ts';
 import { VariantHistoryApi } from './apis/variant-history.ts';
 // </generated-governed-http-api-imports>
 import { ProductActionInvocationIdSchema } from './domain/product.ts';
@@ -166,6 +168,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateProductUnitActionApi)
   .addHttpApi(CreateSetCompositionActionApi)
   .addHttpApi(CreateVariantActionApi)
+  .addHttpApi(CreateVariantRecoveryApi)
   .addHttpApi(DecideProductTypeUnnecessaryActionApi)
   .addHttpApi(EffectiveAttributeValuesCurrentApi)
   .addHttpApi(GovernProductAttributeApplicabilityActionApi)
@@ -237,6 +240,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(SetVariantLocalizedFactsActionApi)
   .addHttpApi(SkuLookupApi)
   .addHttpApi(UpdateProductActionApi)
+  .addHttpApi(UpdateProductRecoveryApi)
   .addHttpApi(VariantHistoryApi)
   // </generated-governed-http-api-additions>
   .pipe(identity);
@@ -358,6 +362,22 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
     permission: 'commerce.catalog.read.create-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.create-variant-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.create-variant-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.update-product-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.update-product-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -1189,6 +1209,8 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.manufacturer-relation-current',
     'commerce.catalog.read.manufacturer-relation-history',
     'commerce.catalog.read.create-product-recovery',
+    'commerce.catalog.read.create-variant-recovery',
+    'commerce.catalog.read.update-product-recovery',
     'commerce.catalog.read.product-category-classification',
     'commerce.catalog.read.product-category-history',
     'commerce.catalog.read.product-brand-current',

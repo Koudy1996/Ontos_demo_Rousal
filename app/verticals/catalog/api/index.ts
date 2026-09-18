@@ -57,6 +57,7 @@ import { createProductTypeActionApiLive } from './create-product-type-action-ser
 import { createProductUnitActionApiLive } from './create-product-unit-action-server.ts';
 import { createSetCompositionActionApiLive } from './create-set-composition-action-server.ts';
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
+import { createVariantRecoveryReadApiLive } from './create-variant-recovery-read-server.ts';
 import { decideProductTypeUnnecessaryActionApiLive } from './decide-product-type-unnecessary-action-server.ts';
 import { effectiveAttributeValuesCurrentReadApiLive } from './effective-attribute-values-current-read-server.ts';
 import { governProductAttributeApplicabilityActionApiLive } from './govern-product-attribute-applicability-action-server.ts';
@@ -128,6 +129,7 @@ import { setVariantAttributeOverrideActionApiLive } from './set-variant-attribut
 import { setVariantLocalizedFactsActionApiLive } from './set-variant-localized-facts-action-server.ts';
 import { skuLookupReadApiLive } from './sku-lookup-read-server.ts';
 import { updateProductActionApiLive } from './update-product-action-server.ts';
+import { updateProductRecoveryReadApiLive } from './update-product-recovery-read-server.ts';
 import { variantHistoryReadApiLive } from './variant-history-read-server.ts';
 // </generated-governed-http-handler-imports>
 
@@ -260,6 +262,7 @@ export const makeCatalogApiRuntime = (
     createProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    createVariantRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     decideProductTypeUnnecessaryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     effectiveAttributeValuesCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     governProductAttributeApplicabilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -331,6 +334,7 @@ export const makeCatalogApiRuntime = (
     setVariantLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     skuLookupReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     updateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    updateProductRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     variantHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     // </generated-governed-http-handler-layers>
   ).pipe(Layer.provide(Layer.mergeAll(actionPrincipalVerifierLive, gatewayAssertionRedemption)));

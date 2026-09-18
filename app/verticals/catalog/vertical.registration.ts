@@ -172,6 +172,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'color-current': () => import('./src/api/color-current-client.ts'),
       'color-history': () => import('./src/api/color-history-client.ts'),
       'create-product-recovery': () => import('./src/api/create-product-recovery-client.ts'),
+      'create-variant-recovery': () => import('./src/api/create-variant-recovery-client.ts'),
       'effective-attribute-values-current': () => import('./src/api/effective-attribute-values-current-client.ts'),
       'gtin-current': () => import('./src/api/gtin-current-client.ts'),
       'gtin-history': () => import('./src/api/gtin-history-client.ts'),
@@ -192,6 +193,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'set-composition-current': () => import('./src/api/set-composition-current-client.ts'),
       'set-composition-history': () => import('./src/api/set-composition-history-client.ts'),
       'sku-lookup': () => import('./src/api/sku-lookup-client.ts'),
+      'update-product-recovery': () => import('./src/api/update-product-recovery-client.ts'),
       'variant-history': () => import('./src/api/variant-history-client.ts'),
       // </generated-module-registration-apis>
     },

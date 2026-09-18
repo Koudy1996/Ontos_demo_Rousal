@@ -49,6 +49,7 @@ import { createProductTypeAction } from './src/actions/create-product-type.actio
 import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
 import { createSetCompositionAction } from './src/actions/create-set-composition.action.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
+import { CreateVariantRecoveryApi } from './shared/apis/create-variant-recovery.ts';
 import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product-type-unnecessary.action.ts';
 import { EffectiveAttributeValuesCurrentApi } from './shared/apis/effective-attribute-values-current.ts';
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
@@ -125,6 +126,7 @@ import { setVariantAttributeOverrideAction } from './src/actions/set-variant-att
 import { setVariantLocalizedFactsAction } from './src/actions/set-variant-localized-facts.action.ts';
 import { SkuLookupApi } from './shared/apis/sku-lookup.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
+import { UpdateProductRecoveryApi } from './shared/apis/update-product-recovery.ts';
 import { VariantHistoryApi } from './shared/apis/variant-history.ts';
 import { variantResourceDescriptor } from './shared/resources/variant.ts';
 // </generated-module-manifest-imports>
@@ -249,6 +251,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'color-current': ColorCurrentApi,
       'color-history': ColorHistoryApi,
       'create-product-recovery': CreateProductRecoveryApi,
+      'create-variant-recovery': CreateVariantRecoveryApi,
       'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
       'gtin-current': GtinCurrentApi,
       'gtin-history': GtinHistoryApi,
@@ -269,6 +272,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'set-composition-current': SetCompositionCurrentApi,
       'set-composition-history': SetCompositionHistoryApi,
       'sku-lookup': SkuLookupApi,
+      'update-product-recovery': UpdateProductRecoveryApi,
       'variant-history': VariantHistoryApi,
       // </generated-module-manifest-apis>
     },
