@@ -38,6 +38,7 @@ import { CreateSetCompositionActionApi } from './apis/create-set-composition-act
 import { CreateVariantActionApi } from './apis/create-variant-action.ts';
 import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
+import { MarkGtinUnresolvedActionApi } from './apis/mark-gtin-unresolved-action.ts';
 import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
 import { ProductBrandCurrentApi } from './apis/product-brand-current.ts';
 import { ProductBrandHistoryApi } from './apis/product-brand-history.ts';
@@ -69,6 +70,7 @@ import { ReorderCatalogMediaActionApi } from './apis/reorder-catalog-media-actio
 import { ReplaceProductSizesActionApi } from './apis/replace-product-sizes-action.ts';
 import { RetireBrandActionApi } from './apis/retire-brand-action.ts';
 import { RetireControlledAttributeValueActionApi } from './apis/retire-controlled-attribute-value-action.ts';
+import { RetireGtinActionApi } from './apis/retire-gtin-action.ts';
 import { RetirePackageDefinitionActionApi } from './apis/retire-package-definition-action.ts';
 import { RetirePackageOptionActionApi } from './apis/retire-package-option-action.ts';
 import { RetireProductActionApi } from './apis/retire-product-action.ts';
@@ -87,6 +89,7 @@ import { SetProductTypeActionApi } from './apis/set-product-type-action.ts';
 import { SetProductUnitTargetDivisibilityActionApi } from './apis/set-product-unit-target-divisibility-action.ts';
 import { SetVariantAttributeOverrideActionApi } from './apis/set-variant-attribute-override-action.ts';
 import { SetVariantLocalizedFactsActionApi } from './apis/set-variant-localized-facts-action.ts';
+import { SkuLookupApi } from './apis/sku-lookup.ts';
 import { UpdateProductActionApi } from './apis/update-product-action.ts';
 // </generated-governed-http-api-imports>
 import { ProductActionInvocationIdSchema } from './domain/product.ts';
@@ -142,6 +145,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CreateVariantActionApi)
   .addHttpApi(ManufacturerRelationCurrentApi)
   .addHttpApi(ManufacturerRelationHistoryApi)
+  .addHttpApi(MarkGtinUnresolvedActionApi)
   .addHttpApi(MoveProductCategoryActionApi)
   .addHttpApi(ProductBrandCurrentApi)
   .addHttpApi(ProductBrandHistoryApi)
@@ -173,6 +177,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReplaceProductSizesActionApi)
   .addHttpApi(RetireBrandActionApi)
   .addHttpApi(RetireControlledAttributeValueActionApi)
+  .addHttpApi(RetireGtinActionApi)
   .addHttpApi(RetirePackageDefinitionActionApi)
   .addHttpApi(RetirePackageOptionActionApi)
   .addHttpApi(RetireProductActionApi)
@@ -191,6 +196,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(SetProductUnitTargetDivisibilityActionApi)
   .addHttpApi(SetVariantAttributeOverrideActionApi)
   .addHttpApi(SetVariantLocalizedFactsActionApi)
+  .addHttpApi(SkuLookupApi)
   .addHttpApi(UpdateProductActionApi)
   // </generated-governed-http-api-additions>
   .pipe(identity);
@@ -386,6 +392,16 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.sku-lookup': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.sku-lookup',
+    permissionKind: 'context_permission',
+    permissionTarget: 'module',
+    resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.assert-size-equivalence': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: 'size-equivalence',
@@ -550,6 +566,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'variant',
     permission: 'commerce.catalog.create-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.mark-gtin-unresolved': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.mark-gtin-unresolved',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -734,6 +758,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: controlledAttributeValueBusinessTarget,
     permission: 'commerce.catalog.retire-controlled-attribute-value',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.retire-gtin': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.retire-gtin',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -943,6 +975,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.product-history',
     'commerce.catalog.read.product-relationship',
     'commerce.catalog.read.product-relationship-history',
+    'commerce.catalog.read.sku-lookup',
   ],
   PRODUCT_EDITOR: [
     'commerce.catalog.add-product-category-assignment',
@@ -959,6 +992,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.correct-sku',
     'commerce.catalog.create-set-composition',
     'commerce.catalog.create-variant',
+    'commerce.catalog.mark-gtin-unresolved',
     'commerce.catalog.remove-product-attribute-values',
     'commerce.catalog.remove-catalog-media',
     'commerce.catalog.remove-product-category-assignment',
@@ -972,6 +1006,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.rename-sku',
     'commerce.catalog.reorder-catalog-media',
     'commerce.catalog.revise-set-composition',
+    'commerce.catalog.retire-gtin',
     'commerce.catalog.set-product-attribute-values',
     'commerce.catalog.set-product-brand',
     'commerce.catalog.set-product-localized-facts',

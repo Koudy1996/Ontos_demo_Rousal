@@ -56,6 +56,7 @@ import { createSetCompositionActionApiLive } from './create-set-composition-acti
 import { createVariantActionApiLive } from './create-variant-action-server.ts';
 import { manufacturerRelationCurrentReadApiLive } from './manufacturer-relation-current-read-server.ts';
 import { manufacturerRelationHistoryReadApiLive } from './manufacturer-relation-history-read-server.ts';
+import { markGtinUnresolvedActionApiLive } from './mark-gtin-unresolved-action-server.ts';
 import { moveProductCategoryActionApiLive } from './move-product-category-action-server.ts';
 import { productBrandCurrentReadApiLive } from './product-brand-current-read-server.ts';
 import { productBrandHistoryReadApiLive } from './product-brand-history-read-server.ts';
@@ -87,6 +88,7 @@ import { reorderCatalogMediaActionApiLive } from './reorder-catalog-media-action
 import { replaceProductSizesActionApiLive } from './replace-product-sizes-action-server.ts';
 import { retireBrandActionApiLive } from './retire-brand-action-server.ts';
 import { retireControlledAttributeValueActionApiLive } from './retire-controlled-attribute-value-action-server.ts';
+import { retireGtinActionApiLive } from './retire-gtin-action-server.ts';
 import { retirePackageDefinitionActionApiLive } from './retire-package-definition-action-server.ts';
 import { retirePackageOptionActionApiLive } from './retire-package-option-action-server.ts';
 import { retireProductActionApiLive } from './retire-product-action-server.ts';
@@ -105,6 +107,7 @@ import { setProductTypeActionApiLive } from './set-product-type-action-server.ts
 import { setProductUnitTargetDivisibilityActionApiLive } from './set-product-unit-target-divisibility-action-server.ts';
 import { setVariantAttributeOverrideActionApiLive } from './set-variant-attribute-override-action-server.ts';
 import { setVariantLocalizedFactsActionApiLive } from './set-variant-localized-facts-action-server.ts';
+import { skuLookupReadApiLive } from './sku-lookup-read-server.ts';
 import { updateProductActionApiLive } from './update-product-action-server.ts';
 // </generated-governed-http-handler-imports>
 
@@ -236,6 +239,7 @@ export const makeCatalogApiRuntime = (
     createVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     manufacturerRelationCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    markGtinUnresolvedActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     moveProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     productBrandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     productBrandHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
@@ -267,6 +271,7 @@ export const makeCatalogApiRuntime = (
     replaceProductSizesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireBrandActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireControlledAttributeValueActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    retireGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retirePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retirePackageOptionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -285,6 +290,7 @@ export const makeCatalogApiRuntime = (
     setProductUnitTargetDivisibilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setVariantAttributeOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     setVariantLocalizedFactsActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    skuLookupReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     updateProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     // </generated-governed-http-handler-layers>
   ).pipe(Layer.provide(Layer.mergeAll(actionPrincipalVerifierLive, gatewayAssertionRedemption)));

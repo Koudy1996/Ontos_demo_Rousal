@@ -16,6 +16,7 @@ import { productBrandCurrentRead } from '../../src/api/product-brand-current.rea
 import { productBrandHistoryRead } from '../../src/api/product-brand-history.read.ts';
 import { productRelationshipCurrentRead } from '../../src/api/product-relationship-current.read.ts';
 import { productRelationshipHistoryRead } from '../../src/api/product-relationship-history.read.ts';
+import { skuLookupRead } from '../../src/api/sku-lookup.read.ts';
 
 const reads = [
   brandCurrentRead,
@@ -32,6 +33,7 @@ const reads = [
   productBrandHistoryRead,
   productRelationshipCurrentRead,
   productRelationshipHistoryRead,
+  skuLookupRead,
 ] as const;
 
 it('maps every published Action and governed read to one explicit atomic permission and bundle', () => {
@@ -69,7 +71,7 @@ it('maps every published Action and governed read to one explicit atomic permiss
     let expectedTarget = 'tenant';
     if (readKey === 'commerce.catalog.api.catalog-media-current') {
       expectedTarget = 'resource';
-    } else if (relationshipOrIdentity) {
+    } else if (relationshipOrIdentity || readKey === 'commerce.catalog.api.sku-lookup') {
       expectedTarget = 'module';
     }
     expect(read.descriptor.permissionTarget).toBe(expectedTarget);

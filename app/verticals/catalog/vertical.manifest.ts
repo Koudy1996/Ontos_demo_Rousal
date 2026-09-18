@@ -47,6 +47,7 @@ import { createSetCompositionAction } from './src/actions/create-set-composition
 import { createVariantAction } from './src/actions/create-variant.action.ts';
 import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
+import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
 import { packageDefinitionResourceDescriptor } from './shared/resources/package-definition.ts';
 import { ProductBrandCurrentApi } from './shared/apis/product-brand-current.ts';
@@ -83,6 +84,7 @@ import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.a
 import { replaceProductSizesAction } from './src/actions/replace-product-sizes.action.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
+import { retireGtinAction } from './src/actions/retire-gtin.action.ts';
 import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
 import { retirePackageOptionAction } from './src/actions/retire-package-option.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
@@ -101,6 +103,7 @@ import { setProductTypeAction } from './src/actions/set-product-type.action.ts';
 import { setProductUnitTargetDivisibilityAction } from './src/actions/set-product-unit-target-divisibility.action.ts';
 import { setVariantAttributeOverrideAction } from './src/actions/set-variant-attribute-override.action.ts';
 import { setVariantLocalizedFactsAction } from './src/actions/set-variant-localized-facts.action.ts';
+import { SkuLookupApi } from './shared/apis/sku-lookup.ts';
 import { updateProductAction } from './src/actions/update-product.action.ts';
 import { variantResourceDescriptor } from './shared/resources/variant.ts';
 // </generated-module-manifest-imports>
@@ -163,6 +166,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       createProductUnitAction,
       createSetCompositionAction,
       createVariantAction,
+      markGtinUnresolvedAction,
       moveProductCategoryAction,
       publishProductConfigurationAction,
       reactivateBrandAction,
@@ -186,6 +190,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       replaceProductSizesAction,
       retireBrandAction,
       retireControlledAttributeValueAction,
+      retireGtinAction,
       retirePackageDefinitionAction,
       retirePackageOptionAction,
       retireProductAction,
@@ -223,6 +228,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'product-history': ProductHistoryApi,
       'product-relationship-current': ProductRelationshipCurrentApi,
       'product-relationship-history': ProductRelationshipHistoryApi,
+      'sku-lookup': SkuLookupApi,
       // </generated-module-manifest-apis>
     },
     businessPermissions: [

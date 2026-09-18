@@ -28,6 +28,7 @@ import { createProductTypeAction } from './src/actions/create-product-type.actio
 import { createProductUnitAction } from './src/actions/create-product-unit.action.ts';
 import { createSetCompositionAction } from './src/actions/create-set-composition.action.ts';
 import { createVariantAction } from './src/actions/create-variant.action.ts';
+import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
 import { publishProductConfigurationAction } from './src/actions/publish-product-configuration.action.ts';
 import { reactivateBrandAction } from './src/actions/reactivate-brand.action.ts';
@@ -51,6 +52,7 @@ import { reorderCatalogMediaAction } from './src/actions/reorder-catalog-media.a
 import { replaceProductSizesAction } from './src/actions/replace-product-sizes.action.ts';
 import { retireBrandAction } from './src/actions/retire-brand.action.ts';
 import { retireControlledAttributeValueAction } from './src/actions/retire-controlled-attribute-value.action.ts';
+import { retireGtinAction } from './src/actions/retire-gtin.action.ts';
 import { retirePackageDefinitionAction } from './src/actions/retire-package-definition.action.ts';
 import { retirePackageOptionAction } from './src/actions/retire-package-option.action.ts';
 import { retireProductAction } from './src/actions/retire-product.action.ts';
@@ -99,6 +101,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     createProductUnitAction,
     createSetCompositionAction,
     createVariantAction,
+    markGtinUnresolvedAction,
     moveProductCategoryAction,
     publishProductConfigurationAction,
     reactivateBrandAction,
@@ -122,6 +125,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     replaceProductSizesAction,
     retireBrandAction,
     retireControlledAttributeValueAction,
+    retireGtinAction,
     retirePackageDefinitionAction,
     retirePackageOptionAction,
     retireProductAction,
@@ -160,6 +164,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'product-history': () => import('./src/api/product-history-client.ts'),
       'product-relationship-current': () => import('./src/api/product-relationship-current-client.ts'),
       'product-relationship-history': () => import('./src/api/product-relationship-history-client.ts'),
+      'sku-lookup': () => import('./src/api/sku-lookup-client.ts'),
       // </generated-module-registration-apis>
     },
     components: {
