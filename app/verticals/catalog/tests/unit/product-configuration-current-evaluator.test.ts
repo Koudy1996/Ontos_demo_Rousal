@@ -39,6 +39,7 @@ const revision: CurrentConfigurationRevision = {
       ruleId: 'a-max',
     },
   ],
+  definitionEvidenceRefs: ['owner:publication:2'],
   definitionId: 'definition',
   effectiveFrom: new Date('2026-09-17T09:00:00.000Z'),
   measuredRules: [
@@ -89,6 +90,8 @@ describe('Current Product Configuration evaluator', () => {
       expect(yield* evaluate()).toMatchObject({
         definitionRevision: 2,
         rules: expect.arrayContaining([
+          expect.objectContaining({ evidenceRefs: ['owner:publication:2'], revision: 2, ruleId: 'choice:mount' }),
+          expect.objectContaining({ evidenceRefs: ['owner:publication:2'], revision: 2, ruleId: 'option:mount:A' }),
           expect.objectContaining({ revision: 2, ruleId: 'a-max' }),
           expect.objectContaining({ evidenceRefs: ['variant narrow'], ruleId: 'measured:length:black:all-packages' }),
         ]),
@@ -172,6 +175,15 @@ describe('Current Product Configuration evaluator', () => {
       });
       expect(yield* evaluate({ ...revision, effectiveTo: at })).toMatchObject({
         code: 'CURRENT_DEFINITION_UNVERIFIED',
+        status: 'INDETERMINATE',
+      });
+    }),
+  );
+
+  it.effect('never calls a choice Current without owner publication evidence', () =>
+    Effect.gen(function* requiresChoiceRevision() {
+      expect(yield* evaluate({ ...revision, definitionEvidenceRefs: [] })).toMatchObject({
+        code: 'CHOICE_REVISION_UNVERIFIED',
         status: 'INDETERMINATE',
       });
     }),

@@ -115,6 +115,8 @@ type PublishProductConfigurationOutcome = typeof PublishProductConfigurationOutc
 export interface CurrentConfigurationRevision {
   readonly choices: readonly ConfigurationChoiceInput[];
   readonly compatibilityRules: readonly ConfigurationCompatibilityRuleInput[];
+  /** The owner-recorded publication evidence for the exact choice/option meanings. */
+  readonly definitionEvidenceRefs: readonly string[];
   readonly definitionId: string;
   readonly effectiveFrom: Date;
   readonly effectiveTo?: Date;
@@ -952,6 +954,7 @@ export const productConfigurationPersistenceForScope = (
     const current: CurrentConfigurationRevision = {
       choices,
       compatibilityRules,
+      definitionEvidenceRefs: revision.evidenceRefs,
       definitionId: input.definitionId,
       effectiveFrom: activation.effectiveAt,
       measuredRules,

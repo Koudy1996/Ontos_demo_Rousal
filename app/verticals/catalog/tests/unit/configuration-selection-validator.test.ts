@@ -71,6 +71,20 @@ const lengthRule: MeasuredConstraint = {
 const ruleRevisions = [
   {
     definitionRevision: definition.reference,
+    kind: 'CHOICE' as const,
+    ownerModuleId: 'commerce.catalog' as const,
+    revision: 1,
+    ruleId: 'mount',
+  },
+  {
+    definitionRevision: definition.reference,
+    kind: 'CHOICE' as const,
+    ownerModuleId: 'commerce.catalog' as const,
+    revision: 1,
+    ruleId: 'length',
+  },
+  {
+    definitionRevision: definition.reference,
     kind: 'MEASURED' as const,
     ownerModuleId: 'commerce.catalog' as const,
     revision: 1,
@@ -205,6 +219,12 @@ describe('configuration selection validator', () => {
         current: { ...current, ruleRevisions: ruleRevisions.slice(0, 1) },
       }).status,
     ).toBe('INDETERMINATE');
+    expect(
+      validateConfigurationSelection(selection, {
+        ...basis,
+        current: { ...current, ruleRevisions: ruleRevisions.filter((rule) => rule.kind !== 'CHOICE') },
+      }),
+    ).toMatchObject({ code: 'CURRENT_DEFINITION_UNVERIFIED', status: 'INDETERMINATE' });
     expect(
       validateConfigurationSelection(selection, {
         ...basis,

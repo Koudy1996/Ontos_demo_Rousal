@@ -102,6 +102,18 @@ const applicableRules = (revision: CurrentConfigurationRevision, target: Trusted
   const measured = revision.measuredRules.filter((rule) => applies(rule, target));
   const compatibility = revision.compatibilityRules.filter((rule) => applies(rule, target));
   const evidence: CurrentConfigurationRuleEvidence[] = [
+    ...revision.choices.flatMap((choice) => [
+      {
+        evidenceRefs: revision.definitionEvidenceRefs,
+        revision: revision.revision,
+        ruleId: `choice:${choice.choiceKey}`,
+      },
+      ...(choice.options ?? []).map((option) => ({
+        evidenceRefs: revision.definitionEvidenceRefs,
+        revision: revision.revision,
+        ruleId: `option:${choice.choiceKey}:${option.optionKey}`,
+      })),
+    ]),
     ...allowances.map((rule) => ({
       evidenceRefs: rule.evidenceRefs,
       revision: revision.revision,
@@ -306,6 +318,9 @@ export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurati
     }
     if (matching === undefined) {
       return unknown('CURRENT_RULES_UNAVAILABLE');
+    }
+    if (revision.definitionEvidenceRefs.length === 0) {
+      return unknown('CHOICE_REVISION_UNVERIFIED');
     }
     const decision = assess(revision, matching, input.values);
     if (decision?.status === 'INVALID') {

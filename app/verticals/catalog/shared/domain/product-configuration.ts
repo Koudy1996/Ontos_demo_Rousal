@@ -33,7 +33,7 @@ export interface ProductConfigurationDefinitionRevision {
 /** A rule's exact revision is qualified by its owning Definition revision. */
 export interface ConfigurationRuleRevisionEvidence {
   readonly definitionRevision: CatalogSelectionRevision;
-  readonly kind: 'COMPATIBILITY' | 'MEASURED';
+  readonly kind: 'CHOICE' | 'COMPATIBILITY' | 'MEASURED';
   readonly ownerModuleId: 'commerce.catalog';
   readonly revision: number;
   readonly ruleId: string;

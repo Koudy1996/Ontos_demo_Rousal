@@ -62,11 +62,20 @@ const sameRef = (left: CatalogResourceRef, right: CatalogResourceRef): boolean =
   left.tenantId === right.tenantId &&
   left.resourceId === right.resourceId;
 
+const catalogOwnerModuleId = 'commerce.catalog' as const;
+
 const ruleRevisions = (basis: ConfigurationValidationBasis): readonly ConfigurationRuleRevisionEvidence[] => {
   if (basis.definition === null) {
     return [];
   }
   const definitionRevision = basis.definition.reference;
+  const choices = basis.definition.choices.map((choice) => ({
+    definitionRevision,
+    kind: 'CHOICE' as const,
+    ownerModuleId: catalogOwnerModuleId,
+    revision: definitionRevision.revision,
+    ruleId: choice.choiceKey,
+  }));
   const measured = Object.values(basis.measuredRules).flatMap((rule) =>
     rule === null
       ? []
@@ -74,7 +83,7 @@ const ruleRevisions = (basis: ConfigurationValidationBasis): readonly Configurat
           {
             definitionRevision,
             kind: 'MEASURED' as const,
-            ownerModuleId: 'commerce.catalog' as const,
+            ownerModuleId: catalogOwnerModuleId,
             revision: rule.revision,
             ruleId: rule.ruleId,
           },
@@ -83,11 +92,11 @@ const ruleRevisions = (basis: ConfigurationValidationBasis): readonly Configurat
   const compatibility = basis.compatibilityRules.map((rule) => ({
     definitionRevision,
     kind: 'COMPATIBILITY' as const,
-    ownerModuleId: 'commerce.catalog' as const,
+    ownerModuleId: catalogOwnerModuleId,
     revision: rule.revision,
     ruleId: rule.ruleId,
   }));
-  return [...measured, ...compatibility];
+  return [...choices, ...measured, ...compatibility];
 };
 
 const sameRuleRevisions = (
