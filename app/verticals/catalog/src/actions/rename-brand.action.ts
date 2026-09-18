@@ -2,8 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug rename-brand
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
 
 import {
   BrandActionError,
@@ -14,6 +14,7 @@ import {
 } from '../../shared/actions/brand-mutations.ts';
 import type { RenameBrandPayload } from '../../shared/actions/brand-mutations.ts';
 import type { BrandPersistence } from '../persistence/brand-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   brandPersistenceServiceFactory,
   mapBrandPersistenceError,
@@ -21,6 +22,15 @@ import {
 } from './brand-action-support.ts';
 
 export type { RenameBrandPayload } from '../../shared/actions/brand-mutations.ts';
+
+const ACTION_KEY = 'commerce.catalog.rename-brand';
+
+interface CapturingBrandPersistence extends BrandPersistence {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof BrandMutationResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+}
 
 export const handleRenameBrand = Effect.fn('RenameBrandAction.handle')(function* handleRenameBrand(
   payload: RenameBrandPayload,
@@ -46,7 +56,7 @@ export const renameBrandAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.rename-brand.access.v1',
     },
-    actionKey: 'commerce.catalog.rename-brand',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: BrandAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: BrandActionErrorSchema,
@@ -54,7 +64,7 @@ export const renameBrandAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.rename-brand',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -67,7 +77,34 @@ export const renameBrandAction = defineAction(
     schemaVersion: '1',
   },
   handleRenameBrand,
-  brandPersistenceServiceFactory,
+  (transaction, scope) =>
+    brandPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services): CapturingBrandPersistence => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof BrandMutationResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: (encoded) => Schema.decodeUnknownEffect(BrandMutationResultSchema)(encoded),
+              encode: (value) => Schema.encodeEffect(BrandMutationResultSchema)(value),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((cause) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause },
+              ),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

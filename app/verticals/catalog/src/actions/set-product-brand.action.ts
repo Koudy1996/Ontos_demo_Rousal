@@ -2,8 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug set-product-brand
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
 
 import {
   BrandActionError,
@@ -14,6 +14,7 @@ import {
 } from '../../shared/actions/brand-mutations.ts';
 import type { SetProductBrandPayload } from '../../shared/actions/brand-mutations.ts';
 import type { BrandPersistence } from '../persistence/brand-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   brandPersistenceServiceFactory,
   mapBrandPersistenceError,
@@ -21,6 +22,15 @@ import {
 } from './brand-action-support.ts';
 
 export type { SetProductBrandPayload } from '../../shared/actions/brand-mutations.ts';
+
+const ACTION_KEY = 'commerce.catalog.set-product-brand';
+
+interface CapturingProductBrandPersistence extends BrandPersistence {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof ProductBrandMutationResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+}
 
 export const handleSetProductBrand = Effect.fn('SetProductBrandAction.handle')(function* handleSetProductBrand(
   payload: SetProductBrandPayload,
@@ -53,7 +63,7 @@ export const setProductBrandAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.set-product-brand.access.v1',
     },
-    actionKey: 'commerce.catalog.set-product-brand',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: BrandAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: BrandActionErrorSchema,
@@ -61,7 +71,7 @@ export const setProductBrandAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.set-product-brand',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -74,7 +84,34 @@ export const setProductBrandAction = defineAction(
     schemaVersion: '1',
   },
   handleSetProductBrand,
-  brandPersistenceServiceFactory,
+  (transaction, scope) =>
+    brandPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services): CapturingProductBrandPersistence => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof ProductBrandMutationResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: (encoded) => Schema.decodeUnknownEffect(ProductBrandMutationResultSchema)(encoded),
+              encode: (value) => Schema.encodeEffect(ProductBrandMutationResultSchema)(value),
+            },
+            result,
+          ).pipe(
+            Effect.mapError((cause) =>
+              Object.assign(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+                { cause },
+              ),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

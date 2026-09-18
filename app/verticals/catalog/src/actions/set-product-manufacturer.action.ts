@@ -3,7 +3,7 @@
 // @ontos-action-slug set-product-manufacturer
 import { Effect, Match, Schema } from 'effect';
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { ReadRuntime, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { ActionTransactionError, ReadRuntime, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   SetProductManufacturerPayloadSchema,
@@ -16,6 +16,7 @@ import {
   manufacturerPersistenceForScope,
 } from '../persistence/manufacturer-persistence.ts';
 import type { ManufacturerPersistence } from '../persistence/manufacturer-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { ManufacturerTargetForbidden } from '../persistence/manufacturer-target-forbidden.ts';
 import { manufacturerTargetResolverForCoreRead } from '../persistence/manufacturer-target-resolver.ts';
 
@@ -25,6 +26,15 @@ export type { SetProductManufacturerPayload } from '../../shared/actions/manufac
 export const SetProductManufacturerResultSchema = ProductManufacturerMutationResultSchema;
 export type SetProductManufacturerResult = Schema.Schema.Type<typeof SetProductManufacturerResultSchema>;
 const CATALOG_MODULE_KEY = 'commerce.catalog';
+
+const ACTION_KEY = 'commerce.catalog.set-product-manufacturer';
+
+interface CapturingManufacturerPersistence extends ManufacturerPersistence {
+  readonly captureResult: (
+    actionInvocationId: string,
+    result: typeof ProductManufacturerMutationResultSchema.Type,
+  ) => Effect.Effect<void, ActionTransactionError>;
+}
 
 export const handleSetProductManufacturer = Effect.fn('SetProductManufacturerAction.handle')(
   function* handleSetProductManufacturer(
@@ -78,7 +88,7 @@ export const setProductManufacturerAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.set-product-manufacturer.access.v1',
     },
-    actionKey: 'commerce.catalog.set-product-manufacturer',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([
@@ -90,7 +100,7 @@ export const setProductManufacturerAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.set-product-manufacturer',
+      entrypointKey: ACTION_KEY,
       moduleKey: CATALOG_MODULE_KEY,
       role: 'action',
     }),
@@ -105,10 +115,36 @@ export const setProductManufacturerAction = defineAction(
   handleSetProductManufacturer,
   Effect.fn('SetProductManufacturerAction.services')(function* manufacturerServices(transaction, scope) {
     const readRuntime = yield* ReadRuntime;
-    return manufacturerPersistenceForScope(transaction, scope, {
+    const services = manufacturerPersistenceForScope(transaction, scope, {
       targetResolver: manufacturerTargetResolverForCoreRead(readRuntime, scope),
     });
+    const capturingServices: CapturingManufacturerPersistence = {
+      ...services,
+      captureResult: (actionInvocationId: string, result: typeof ProductManufacturerMutationResultSchema.Type) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+          {
+            decode: (encoded) => Schema.decodeUnknownEffect(ProductManufacturerMutationResultSchema)(encoded),
+            encode: (value) => Schema.encodeEffect(ProductManufacturerMutationResultSchema)(value),
+          },
+          result,
+        ).pipe(
+          Effect.mapError((cause) =>
+            Object.assign(
+              new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              }),
+              { cause },
+            ),
+          ),
+        ),
+    };
+    return capturingServices;
   }),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
