@@ -43,29 +43,30 @@ _Avoid_: allocation as remapping, availability-driven substitution, Unit convers
 
 ## Reservations and commitment
 
-**Inventory Reservation** — Durable, authority-homogeneous Inventory Resource representing one exact stock obligation for one Order Commitment Attempt. One Reservation contains only Stock Allocations enforced by one actual Reservation Authority; one Attempt may therefore require multiple Inventory Reservations.
+**Inventory Backend** — Exactly one configured stock/reservation backend used by one Customer Configuration / Launch Inventory operating scope. It is either a customer-provided External Business System (for example an ERP such as ABRA) or the OntOS-provided WMS. The two modes are alternatives; they are not simultaneous authoritative backends for the same Launch scope.
+_Avoid_: external ERP plus OntOS WMS composed as dual stock authorities, automatic backend fallback during outage, Integration Route treated as backend ownership.
 
-**Reservation Authority** — Owner capable of enforcing one exact Reservation obligation in the applicable scope and therefore of issuing authoritative Reservation evidence. It may be Inventory, an External Business System, or absent.
-_Avoid_: Availability, Integration Route, or provider adapter treated as authority merely because it consumes or transports evidence.
+**Inventory Reservation** — Durable Inventory Resource representing the complete provisional stock obligation for one exact Order Commitment Attempt. Launch has exactly one normal-runtime Inventory Reservation per Attempt. It preserves all Stock Requirements and may contain 1..N Stock Allocations across supported Stock Positions/Locations, all enforced through the same selected Inventory Backend / Reservation Authority.
 
-**Attempt Reservation Coverage** — Complete set of one or more Inventory Reservations whose Allocations collectively cover all Stock Requirements of one exact Order Commitment Attempt. Each member Reservation remains bound to exactly one Reservation Authority.
+**Reservation Authority** — The selected Inventory Backend acting as the owner capable of enforcing the exact Reservation obligation and issuing authoritative Reservation evidence. For a Customer Configuration / Launch Inventory operating scope it is singular: either the configured External Business System or the OntOS-provided WMS.
+_Avoid_: Availability, Integration Route, provider adapter, or an unselected second backend treated as Reservation Authority.
 
-**Reservation Confirmation** — Attempt-bound proof issued by the actual Reservation Authority that one exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. An Attempt with multiple Reservations therefore has multiple authority-issued Confirmations. It is not part of the pre-attempt Order Acceptance Decision Bundle.
+**Reservation Confirmation** — Attempt-bound proof issued by the selected Reservation Authority that the exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. Renewal may issue a successor Confirmation for the same unchanged Reservation meaning. It is not part of the pre-attempt Order Acceptance Decision Bundle.
 
-**Reservation Release** — Explicit owner-governed end of one whole provisional Inventory Reservation after release safety is proven.
+**Reservation Release** — Explicit owner-governed end of the whole provisional Inventory Reservation after release safety is proven.
 _Avoid_: Confirmation expiry, `AT_RISK`, or `REVOKED` treated as Reservation Release.
 
-**Provisional Shortage Priority** — Launch FIFO rule within one Reservation Authority's affected provisional scope after a material shortage: older owner-issued unprotected Confirmation has priority over younger Confirmation. No cross-authority global FIFO is inferred.
+**Provisional Shortage Priority** — Launch FIFO rule for competing unprotected provisional Reservation Confirmations enforced by the selected Inventory Backend: older owner-issued valid Confirmation has priority over younger Confirmation within the affected constrained stock scope.
 _Avoid_: best-fit skipping, B2C-over-B2B priority, technical arrival order as FIFO.
 
-**Commitment Protection** — Attempt-bound owner guarantee established by the actual Reservation Authority for one exact Inventory Reservation immediately before Order commitment. An Attempt with multiple Reservations requires protection for every member Reservation before Inventory coverage is fully protected.
+**Commitment Protection** — Attempt-bound owner guarantee established by the selected Reservation Authority for the exact Inventory Reservation immediately before Order commitment. Once established, the protected Quantity remains fenced until authoritative Order truth proves commit or proves non-commit plus definitive Attempt closure.
 
-**COMMITTED_OBLIGATION** — Post-commit lifecycle meaning of one Inventory Reservation's stock obligation for an Accepted Order. If an Attempt used multiple Reservations, proven commit yields multiple corresponding committed obligations; each continues to constrain its exact Stock Positions until owner-governed transitions account for the remaining Quantity.
+**COMMITTED_OBLIGATION** — Post-commit lifecycle meaning of the successful Inventory Reservation's stock obligation for an Accepted Order. It continues to constrain its exact Stock Positions until owner-governed transitions account for the remaining Quantity.
 
 **AT_RISK** — Guarantee-health meaning stating that an obligation still exists but its promised guarantee cannot currently be owner-verifiably honored.
 _Avoid_: release, revocation, cancellation, free stock, or proof that an Order did not commit.
 
-**REVOKED** — Pre-protection Confirmation state in which the actual Reservation Authority explicitly terminates that exact Confirmation guarantee. It does not release the underlying Reservation.
+**REVOKED** — Pre-protection Confirmation state in which the selected Reservation Authority explicitly terminates that exact Confirmation guarantee. It does not release the underlying Reservation.
 
 **EXPIRED** — Confirmation state reached when its declared validity interval ends. Expiry does not release the Reservation or an established Commitment Protection.
 
@@ -75,7 +76,7 @@ _Avoid_: release, revocation, cancellation, free stock, or proof that an Order d
 
 ## External stock evidence
 
-**Inventory Source Assertion** — Provenance-backed claim from an External Business System about one Inventory fact, retaining issuer, exact correlated scope, fact meaning, Quantity/Unit, business time, and owner-defined ordering evidence. Technical arrival or parsing does not make it Current.
+**Inventory Source Assertion** — Provenance-backed claim from the selected External Business System when the Customer Configuration uses an external Inventory Backend, retaining issuer, exact correlated scope, fact meaning, Quantity/Unit, business time, and owner-defined ordering evidence. Technical arrival or parsing does not make it Current. The OntOS-provided WMS path does not create a second simultaneous external stock authority.
 
 **Source Coverage Evidence** — Owner-verifiable evidence establishing whether an absolute ON_HAND assertion includes a particular authoritative physical Stock Issue, or an owner revision boundary that makes that relation unambiguous.
 _Avoid_: message arrival order as effect coverage, double subtraction, delayed snapshot assumed to include an Issue.
