@@ -51,7 +51,7 @@ _Avoid_: external ERP plus OntOS WMS composed as dual stock authorities, automat
 **Reservation Authority** — The selected Inventory Backend acting as the owner capable of enforcing the exact Reservation obligation and issuing authoritative Reservation evidence. For a Customer Configuration / Launch Inventory operating scope it is singular: either the configured External Business System or the OntOS-provided WMS.
 _Avoid_: Availability, Integration Route, provider adapter, or an unselected second backend treated as Reservation Authority.
 
-**Reservation Confirmation** — Attempt-bound proof issued by the selected Reservation Authority that the exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. **Launch Inventory does not renew or reissue an expired Reservation Confirmation for the same Order Commitment Attempt.** If it expires before Commitment Protection is established, that Attempt can no longer become Inventory-ready for commit; after authoritative non-commit, definitive closure and safe Reservation release/reconciliation, any later purchase retry uses a new Attempt, new Reservation and new Confirmation. It is not part of the pre-attempt Order Acceptance Decision Bundle.
+**Reservation Confirmation** — Attempt-bound proof issued by the selected Reservation Authority that the exact provisional Inventory Reservation is currently guaranteed under its declared validity boundary. Renewal may issue a successor Confirmation for the same unchanged Reservation meaning. It is not part of the pre-attempt Order Acceptance Decision Bundle.
 
 **Reservation Release** — Explicit owner-governed end of the whole provisional Inventory Reservation after release safety is proven.
 _Avoid_: Confirmation expiry, `AT_RISK`, or `REVOKED` treated as Reservation Release.
@@ -68,7 +68,7 @@ _Avoid_: release, revocation, cancellation, free stock, or proof that an Order d
 
 **REVOKED** — Pre-protection Confirmation state in which the selected Reservation Authority explicitly terminates that exact Confirmation guarantee. It does not release the underlying Reservation.
 
-**EXPIRED** — Confirmation state reached when its declared validity interval ends. Expiry does not release the Reservation or an established Commitment Protection. Before Protection, expiry makes the Confirmation permanently unusable for that Attempt; Launch does not renew it in place or issue a successor Confirmation for the same Attempt.
+**EXPIRED** — Confirmation state reached when its declared validity interval ends. Expiry does not release the Reservation or an established Commitment Protection.
 
 **UNVERIFIABLE** — Proof-health state in which Current owner evidence is insufficient to establish the guarantee state. It is neither implicit revocation nor release.
 
