@@ -81,7 +81,7 @@ export const AssertSizeEquivalenceActionAlreadyCommittedProblemSchema = makeProb
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_ASSERT_SIZE_EQUIVALENCE'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -90,7 +90,7 @@ export const AssertSizeEquivalenceActionCommitIndeterminateProblemSchema = makeP
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_ASSERT_SIZE_EQUIVALENCE'),
     retryCommand: Schema.Literal(false),
   },
 );
