@@ -13,6 +13,8 @@ import type {
   ProductConfigurationPersistence,
 } from './product-configuration-persistence.ts';
 
+const MODULE_KEY = 'commerce.catalog' as const;
+
 /** The caller has already proven these exact tenant-local target relationships. */
 export interface TrustedConfigurationTarget {
   readonly definitionId: string;
@@ -33,7 +35,12 @@ export interface CurrentConfigurationAssessmentInput {
 }
 
 interface CurrentConfigurationRuleEvidence {
+  /** Exact owner Definition revision the rule was read from; absent evidence is never assumed. */
+  readonly definitionRevision?: number;
   readonly evidenceRefs: readonly string[];
+  /** Source kind recorded by the owner; it is not inferred from the rule ID's spelling. */
+  readonly kind?: 'CHOICE' | 'COMPATIBILITY' | 'MEASURED';
+  readonly ownerModuleId?: string;
   readonly revision: number;
   readonly ruleId: string;
 }
@@ -45,7 +52,7 @@ interface CurrentConfigurationChoiceEvidence {
   readonly kind: 'SINGLE_CHOICE' | 'MEASURED_VALUE';
   readonly meaning: string;
   readonly options: readonly { readonly meaning: string; readonly optionKey: string }[];
-  readonly ownerModuleId: 'commerce.catalog';
+  readonly ownerModuleId: typeof MODULE_KEY;
   readonly required: boolean;
   readonly revision: number;
   readonly unitId?: string;
@@ -120,32 +127,43 @@ const applicableRules = (revision: CurrentConfigurationRevision, target: Trusted
   const allowances = revision.optionAllowances.filter((rule) => applies(rule, target));
   const measured = revision.measuredRules.filter((rule) => applies(rule, target));
   const compatibility = revision.compatibilityRules.filter((rule) => applies(rule, target));
+  const definitionRevision = revision.revision;
+  const owner: Omit<CurrentConfigurationRuleEvidence, 'evidenceRefs' | 'kind' | 'ruleId'> = {
+    definitionRevision,
+    ownerModuleId: MODULE_KEY,
+    revision: revision.revision,
+  };
   const evidence: CurrentConfigurationRuleEvidence[] = [
     ...revision.choices.flatMap((choice) => [
       {
+        ...owner,
         evidenceRefs: revision.definitionEvidenceRefs,
-        revision: revision.revision,
+        kind: 'CHOICE' as const,
         ruleId: `choice:${choice.choiceKey}`,
       },
       ...(choice.options ?? []).map((option) => ({
+        ...owner,
         evidenceRefs: revision.definitionEvidenceRefs,
-        revision: revision.revision,
+        kind: 'CHOICE' as const,
         ruleId: `option:${choice.choiceKey}:${option.optionKey}`,
       })),
     ]),
     ...allowances.map((rule) => ({
+      ...owner,
       evidenceRefs: rule.evidenceRefs,
-      revision: revision.revision,
+      kind: 'CHOICE' as const,
       ruleId: allowanceId(rule.choiceKey, rule.optionKey, rule),
     })),
     ...measured.map((rule) => ({
+      ...owner,
       evidenceRefs: rule.evidenceRefs,
-      revision: revision.revision,
+      kind: 'MEASURED' as const,
       ruleId: measuredId(rule.choiceKey, rule),
     })),
     ...compatibility.map((rule) => ({
+      ...owner,
       evidenceRefs: rule.evidenceRefs,
-      revision: revision.revision,
+      kind: 'COMPATIBILITY' as const,
       ruleId: rule.ruleId,
     })),
   ];
@@ -302,7 +320,7 @@ const unitEvidenceCurrent = (revision: CurrentConfigurationRevision, at: Date): 
       choice.unitId !== undefined &&
       choice.unitRevision !== undefined &&
       unit !== undefined &&
-      unit.ref.moduleId === 'commerce.catalog' &&
+      unit.ref.moduleId === MODULE_KEY &&
       unit.ref.resourceType === 'commerce.catalog.unit' &&
       unit.revision === choice.unitRevision &&
       unit.lifecycleState === 'ACTIVE' &&
@@ -347,7 +365,7 @@ export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurati
             kind: choice.kind,
             meaning: choice.meaning,
             options: (choice.options ?? []).map((option) => ({ meaning: option.meaning, optionKey: option.optionKey })),
-            ownerModuleId: 'commerce.catalog',
+            ownerModuleId: MODULE_KEY,
             required: choice.required,
             revision: revision.revision,
           };
