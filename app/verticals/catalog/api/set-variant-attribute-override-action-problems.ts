@@ -156,9 +156,9 @@ const mapCoreProblem = (error: ActionCoreError): SetVariantAttributeOverrideActi
       ActionAlreadyCommitted: (failure) =>
         SetVariantAttributeOverrideActionAlreadyCommittedProblemSchema.make({
           code: failure.code,
-          detail: 'This Action is already committed. Refresh governed reads.',
+          detail: 'This Action is already committed. Recover its immutable result.',
           invocationId: failure.invocationId,
-          resolution: 'REFRESH_GOVERNED_READS',
+          resolution: 'RECOVER_SET_VARIANT_ATTRIBUTE_OVERRIDE',
           retryCommand: false,
           status: problemStatus.conflict,
           title: 'Action already committed',
@@ -167,9 +167,9 @@ const mapCoreProblem = (error: ActionCoreError): SetVariantAttributeOverrideActi
       ActionCollectorError: setVariantAttributeOverrideActionProblem.internal,
       ActionCommitIndeterminate: (failure) =>
         SetVariantAttributeOverrideActionCommitIndeterminateProblemSchema.make({
-          detail: 'The Action commit is uncertain. Resolve this invocation before another attempt.',
+          detail: 'The Action commit is uncertain. Recover its immutable result before another attempt.',
           invocationId: failure.invocationId,
-          resolution: 'RESOLVE_COMMIT',
+          resolution: 'RECOVER_SET_VARIANT_ATTRIBUTE_OVERRIDE',
           retryCommand: false,
           status: problemStatus.unavailable,
           title: 'Action commit uncertain',
