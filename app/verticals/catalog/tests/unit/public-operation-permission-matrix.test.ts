@@ -116,6 +116,22 @@ it('keeps read, ordinary edit, shared-definition, and high-impact lifecycle auth
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.activate-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-package-definition');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.create-product-unit');
+  for (const operation of [
+    'commerce.catalog.create-configuration-unit',
+    'commerce.catalog.revise-configuration-unit',
+    'commerce.catalog.retire-configuration-unit',
+  ] as const) {
+    expect(bundles.CATALOG_DEFINITION_MANAGER).toContain(operation);
+    expect(bundles.PRODUCT_EDITOR).not.toContain(operation);
+    expect(bundles.CATALOG_LIFECYCLE_MANAGER).not.toContain(operation);
+    expect(catalogPublicOperationContracts[operation]).toMatchObject({
+      authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+      businessTarget: 'configuration-unit',
+      permission: operation,
+      permissionKind: 'action_execution',
+      scope: 'tenant',
+    });
+  }
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.activate-package-option');
   expect(bundles.CATALOG_DEFINITION_MANAGER).toContain('commerce.catalog.retire-package-option');
   for (const productAction of [

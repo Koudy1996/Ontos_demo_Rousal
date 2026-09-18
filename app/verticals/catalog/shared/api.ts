@@ -247,6 +247,7 @@ const controlledAttributeValueBusinessTarget = 'controlled-attribute-value';
 const packageDefinitionBusinessTarget = 'package-definition';
 const productRelationshipBusinessTarget = 'product-relationship';
 const productUnitBusinessTarget = 'product-unit';
+const configurationUnitBusinessTarget = 'configuration-unit';
 const brandBusinessTarget = 'brand';
 const manufacturerRelationBusinessTarget = 'manufacturer-relation';
 
@@ -530,6 +531,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.create-configuration-unit': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: configurationUnitBusinessTarget,
+    permission: 'commerce.catalog.create-configuration-unit',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.create-controlled-attribute-value': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: controlledAttributeValueBusinessTarget,
@@ -786,6 +795,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.retire-configuration-unit': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: configurationUnitBusinessTarget,
+    permission: 'commerce.catalog.retire-configuration-unit',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.retire-controlled-attribute-value': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: controlledAttributeValueBusinessTarget,
@@ -846,6 +863,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_LIFECYCLE_MANAGER',
     businessTarget: 'variant',
     permission: 'commerce.catalog.retire-variant',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.revise-configuration-unit': {
+    authorityBundle: 'CATALOG_DEFINITION_MANAGER',
+    businessTarget: configurationUnitBusinessTarget,
+    permission: 'commerce.catalog.revise-configuration-unit',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -963,6 +988,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.assert-size-equivalence',
     'commerce.catalog.create-attribute-definition',
     'commerce.catalog.create-brand',
+    'commerce.catalog.create-configuration-unit',
     'commerce.catalog.create-controlled-attribute-value',
     'commerce.catalog.create-package-definition',
     'commerce.catalog.create-product-category',
@@ -976,11 +1002,13 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.rename-controlled-attribute-value',
     'commerce.catalog.rename-product-category',
     'commerce.catalog.retire-brand',
+    'commerce.catalog.retire-configuration-unit',
     'commerce.catalog.retire-controlled-attribute-value',
     'commerce.catalog.retire-package-definition',
     'commerce.catalog.retire-package-option',
     'commerce.catalog.retire-product-category',
     'commerce.catalog.retire-product-unit',
+    'commerce.catalog.revise-configuration-unit',
     'commerce.catalog.revise-package-definition',
     'commerce.catalog.revise-product-type',
     'commerce.catalog.revise-product-unit',
