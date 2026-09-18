@@ -164,9 +164,9 @@ const mapCoreProblem = (error: ActionCoreError): CreateConfigurationUnitActionPr
       ActionAlreadyCommitted: (failure) =>
         CreateConfigurationUnitActionAlreadyCommittedProblemSchema.make({
           code: failure.code,
-          detail: 'This Action is already committed. Refresh governed reads.',
+          detail: 'This Action is already committed. Recover the original create result.',
           invocationId: failure.invocationId,
-          resolution: 'REFRESH_GOVERNED_READS',
+          resolution: 'RECOVER_CREATE_CONFIGURATION_UNIT',
           retryCommand: false,
           status: problemStatus.conflict,
           title: 'Action already committed',
@@ -177,7 +177,7 @@ const mapCoreProblem = (error: ActionCoreError): CreateConfigurationUnitActionPr
         CreateConfigurationUnitActionCommitIndeterminateProblemSchema.make({
           detail: 'The Action commit is uncertain. Resolve this invocation before another attempt.',
           invocationId: failure.invocationId,
-          resolution: 'RESOLVE_COMMIT',
+          resolution: 'RECOVER_CREATE_CONFIGURATION_UNIT',
           retryCommand: false,
           status: problemStatus.unavailable,
           title: 'Action commit uncertain',
