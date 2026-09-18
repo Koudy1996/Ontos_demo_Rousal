@@ -120,7 +120,7 @@ describe('Product Type allowed and required rules', () => {
       variants: [],
     } as const;
     expect(evaluateProductTypeRules(base).violations[0]?.kind).toBe('DISALLOWED');
-    expect(evaluateProductTypeRules({ ...base, productValues: [] }).minimumSatisfied).toBe(true);
+    expect(evaluateProductTypeRules({ ...base, productValues: [] }).minimumSatisfied).toBe(false);
     expect(
       evaluateProductTypeRules({ ...base, currentProductTypeRef: productTypeRef, productValues: [] }).minimumSatisfied,
     ).toBe(false);
@@ -235,9 +235,15 @@ describe('Product Type allowed and required rules', () => {
     const untyped = { productRef, productValues: [], variants: [] } as const;
     expect(evaluateProductTypeRules(untyped)).toEqual({
       basisStatus: 'UNTYPED',
-      minimumSatisfied: true,
+      minimumSatisfied: false,
       violations: [],
     });
+    expect(
+      evaluateProductTypeRules({
+        ...untyped,
+        variants: [{ effectiveValues: [], productRef, variantRef }],
+      }),
+    ).toEqual({ basisStatus: 'UNTYPED', minimumSatisfied: false, violations: [] });
     expect(evaluateProductTypeRules({ ...untyped, currentProductTypeRef: productTypeRef })).toEqual({
       basisStatus: 'MISSING',
       minimumSatisfied: false,
@@ -251,6 +257,24 @@ describe('Product Type allowed and required rules', () => {
       kind: 'MISSING_REQUIRED',
       level: 'PRODUCT',
     });
+  });
+
+  it('reports an invalid required value as both invalid and unsatisfied', () => {
+    const result = evaluateProductTypeRules(
+      {
+        currentProductTypeRef: productTypeRef,
+        productRef,
+        productValues: [{ attributeDefinitionRef: material, valid: false }],
+        variants: [{ effectiveValues: [{ attributeDefinitionRef: length, valid: true }], productRef, variantRef }],
+      },
+      revision,
+      basis,
+    );
+    expect(result.minimumSatisfied).toBe(false);
+    expect(result.violations).toEqual([
+      { attributeDefinitionId: material.resourceId, kind: 'INVALID', level: 'PRODUCT' },
+      { attributeDefinitionId: material.resourceId, kind: 'MISSING_REQUIRED', level: 'PRODUCT' },
+    ]);
   });
 
   it('requires exact Current revision identity and an effective canonical time basis', () => {

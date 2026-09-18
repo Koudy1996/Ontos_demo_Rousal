@@ -276,7 +276,9 @@ export const evaluateProductTypeRules = (
   }
   const result: ProductTypeRulesResult = {
     basisStatus,
-    minimumSatisfied: violations.length === 0 && (basisStatus === 'CURRENT' || basisStatus === 'UNTYPED'),
+    // Empty Current facts do not establish that an untyped Product needs no
+    // structured attributes or Variant Axes. That decision needs its own basis.
+    minimumSatisfied: violations.length === 0 && basisStatus === 'CURRENT',
     violations,
   };
   if (activeRevision !== undefined && decodedBasis !== undefined) {
