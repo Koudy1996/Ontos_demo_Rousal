@@ -55,6 +55,176 @@ describe('Attribute value persistence error boundary', () => {
 });
 
 describe('Controlled value persistence lifecycle', () => {
+  it.effect('corrects one Product material without changing another Product value or history', () =>
+    Effect.gen(function* independentProductValues() {
+      const tenantId = '11111111-1111-4111-8111-111111111111';
+      const principalId = '22222222-2222-4222-8222-222222222222';
+      const definitionId = '33333333-3333-4333-8333-333333333333';
+      const p1 = '55555555-5555-4555-8555-555555555555';
+      const p2 = '66666666-6666-4666-8666-666666666666';
+      const typeId = '88888888-8888-4888-8888-888888888888';
+      const scope = {
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:independent-materials:run:1',
+          authMethod: 'system',
+          principalId,
+          tenantId,
+        }),
+        correlationId: 'independent-materials-test',
+      };
+      const definitionRef = {
+        moduleId: 'commerce.catalog' as const,
+        resourceId: definitionId,
+        resourceType: 'commerce.catalog.attribute-definition' as const,
+        tenantId,
+      };
+      const sets = new Map<string, typeof attributeValueSets.$inferInsert>();
+      const items = new Map<string, readonly (typeof attributeValueItems.$inferInsert)[]>();
+      const history: (typeof attributeValueRevisions.$inferInsert)[] = [];
+      type FixtureTable =
+        | typeof products
+        | typeof attributeDefinitions
+        | typeof productTypeAssignments
+        | typeof productTypes
+        | typeof productTypeRevisionAttributes
+        | typeof productVariantAxes
+        | typeof attributeValueSets
+        | typeof attributeValueItems
+        | typeof attributeValueRevisions;
+      let selectedProductId = p1;
+      let updatedSetId = '';
+      const rowsFor = (table: FixtureTable): readonly object[] => {
+        if (table === products) {
+          return [{ lifecycleState: 'ACTIVE', productId: selectedProductId }];
+        }
+        if (table === attributeDefinitions) {
+          return [
+            {
+              allowsNone: 0,
+              allowsNotApplicable: 0,
+              allowsUnknown: 0,
+              applicableLevels: ['PRODUCT'],
+              currentRevision: 1,
+              meaning: 'Constituent material of the product',
+              multiplicity: 'SINGLE',
+              name: 'Material',
+              valueKind: 'TEXT',
+            },
+          ];
+        }
+        if (table === productTypeAssignments) {
+          return [{ productTypeId: typeId }];
+        }
+        if (table === productTypes) {
+          return [{ currentRevision: 1 }];
+        }
+        if (table === productTypeRevisionAttributes) {
+          return [{ requirement: 'OPTIONAL' }];
+        }
+        if (table === productVariantAxes) {
+          return [];
+        }
+        if (table === attributeValueSets) {
+          const set = sets.get(selectedProductId);
+          return set === undefined ? [] : [set];
+        }
+        throw new Error('Unexpected persistence read');
+      };
+      const transaction = {
+        delete: (table: FixtureTable) => ({
+          where: () => {
+            expect(table).toBe(attributeValueItems);
+            expect(updatedSetId).toBe(sets.get(selectedProductId)?.attributeValueSetId);
+            items.delete(selectedProductId);
+            return Effect.void;
+          },
+        }),
+        insert: (table: FixtureTable) => ({
+          values: (
+            row:
+              | typeof attributeValueSets.$inferInsert
+              | readonly (typeof attributeValueItems.$inferInsert)[]
+              | typeof attributeValueRevisions.$inferInsert,
+          ) => {
+            if (table === attributeValueSets && 'productId' in row) {
+              sets.set(selectedProductId, row);
+            } else if (table === attributeValueItems && Array.isArray(row)) {
+              items.set(selectedProductId, row);
+            } else if (table === attributeValueRevisions && 'actionInvocationId' in row) {
+              history.push(row);
+            }
+            return Effect.void;
+          },
+        }),
+        select: () => ({
+          from: (table: FixtureTable) => {
+            const query = {
+              for: () => query,
+              limit: () => Effect.succeed(rowsFor(table).slice(0, 1)),
+              where: () => query,
+            };
+            return query;
+          },
+        }),
+        update: (table: FixtureTable) => ({
+          set: (fields: Partial<typeof attributeValueSets.$inferInsert>) => ({
+            where: () => {
+              expect(table).toBe(attributeValueSets);
+              const current = sets.get(selectedProductId);
+              if (current?.attributeValueSetId === undefined) {
+                throw new Error('Missing current Product value');
+              }
+              updatedSetId = current.attributeValueSetId;
+              sets.set(selectedProductId, { ...current, ...fields });
+              return Effect.void;
+            },
+          }),
+        }),
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const persistence = yield* attributeValuesPersistenceForScope(transaction, scope);
+      const setMaterial = (productId: string, material: string, revision: number | null, invocation: string) => {
+        selectedProductId = productId;
+        return persistence.setProductValues({
+          actionInvocationId: invocation,
+          attributeDefinitionRef: definitionRef,
+          expectedRevision: revision,
+          principalId,
+          productRef: {
+            moduleId: 'commerce.catalog',
+            resourceId: productId,
+            resourceType: 'commerce.catalog.product',
+            tenantId,
+          },
+          reason: 'Verified material correction',
+          values: [{ kind: 'TEXT', text: material }],
+        });
+      };
+      yield* setMaterial(p1, 'steel', null, 'p1-steel');
+      yield* setMaterial(p2, 'wood', null, 'p2-wood');
+      const p2Before = {
+        history: history.filter((row) => row.attributeValueSetId === sets.get(p2)?.attributeValueSetId),
+        items: items.get(p2),
+        set: { ...sets.get(p2) },
+      };
+      yield* setMaterial(p1, 'stainless steel', 1, 'p1-corrected');
+      expect(sets.get(p1)).toMatchObject({ currentRevision: 2, currentState: 'SET' });
+      expect(items.get(p1)).toEqual([expect.objectContaining({ textValue: 'stainless steel' })]);
+      expect(sets.get(p2)).toEqual(p2Before.set);
+      expect(items.get(p2)).toEqual(p2Before.items);
+      expect(p2Before.items).toEqual([expect.objectContaining({ textValue: 'wood' })]);
+      expect(history.filter((row) => row.attributeValueSetId === sets.get(p2)?.attributeValueSetId)).toEqual(
+        p2Before.history,
+      );
+      expect(history.filter((row) => row.attributeValueSetId === sets.get(p1)?.attributeValueSetId)).toMatchObject([
+        { revision: 1, valueSnapshot: { values: [{ kind: 'TEXT', text: 'steel' }] } },
+        { revision: 2, valueSnapshot: { values: [{ kind: 'TEXT', text: 'stainless steel' }] } },
+      ]);
+      expect(sets.get(p1)?.attributeDefinitionId).toBe(definitionId);
+      expect(sets.get(p2)?.attributeDefinitionId).toBe(definitionId);
+    }),
+  );
+
   it.effect('preserves P1 and V1 history while retirement gates only new Product and Variant assignments', () =>
     Effect.gen(function* lifecycle() {
       const tenantId = '11111111-1111-4111-8111-111111111111';

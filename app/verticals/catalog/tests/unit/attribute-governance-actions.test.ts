@@ -1,7 +1,8 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { ActionPermissionDenied, TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
+import { makeActionTestHarness } from '@app/core-runtime/testing/actions';
 
 import {
   CreateAttributeDefinitionPayloadSchema,
@@ -41,6 +42,41 @@ const controlledValueRef = {
 const unexpected = () => Effect.die('Unexpected persistence method');
 
 describe('Catalog attribute governance Actions', () => {
+  it.effect('denies a Product Editor without the definition Action executor before the definition handler runs', () =>
+    Effect.gen(function* deniedDefinitionWrite() {
+      const harness = yield* makeActionTestHarness({ actionPermission: 'denied' });
+      const failure = yield* harness.runtime
+        .runAction({
+          payload: {
+            label: 'Material',
+            levels: ['PRODUCT'],
+            meaning: 'Constituent material of the product',
+            multiplicity: 'SINGLE',
+            reason: 'Define shared product fact',
+            specialStates: [],
+            valueKind: 'TEXT',
+          },
+          principal: {
+            authBindingId: '77777777-7777-4777-8777-777777777777',
+            authContextRef: 'better-auth-session:product-editor-definition-denial',
+            authMethod: 'session' as const,
+            principalId: '44444444-4444-4444-8444-444444444444',
+            tenantId,
+          },
+          registration: createAttributeDefinitionAction,
+          transport: { correlationId: 'definition-denial', idempotencyKey: 'definition-denial-once' },
+        })
+        .pipe(Effect.flip);
+      const snapshot = harness.snapshot();
+      expect(Schema.is(ActionPermissionDenied)(failure)).toBe(true);
+      expect(snapshot.permissionDenials).toHaveLength(1);
+      expect(snapshot.invocations[0]).toMatchObject({ status: 'rejected' });
+      expect(snapshot.transactionCount).toBe(0);
+      expect(snapshot.stages).not.toContain('handler_executed');
+      expect(snapshot.committed).toHaveLength(0);
+    }),
+  );
+
   it('requires an explicit stable meaning and valid shape for a new definition', () => {
     const base = {
       controlledValueKind: 'GENERAL',
