@@ -298,6 +298,14 @@ describe('private effective attribute value reads', () => {
     }),
   );
 
+  it.effect('rejects inheritance when Current Definition drifts from its immutable revision', () =>
+    Effect.gen(function* driftedInheritedDefinition() {
+      const reads = yield* serviceWith([productSet], { [productSetId]: 'steel' }, { malformedDefinitionRevision: true })
+        .service;
+      expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
+    }),
+  );
+
   it.effect('prefers a persisted Variant override and reports both revisions', () =>
     Effect.gen(function* variantOverride() {
       const reads = yield* serviceWith([productSet, variantSet], {
@@ -312,6 +320,17 @@ describe('private effective attribute value reads', () => {
         values: [{ kind: 'TEXT', text: 'aluminium' }],
         variantRevision: 2,
       });
+    }),
+  );
+
+  it.effect('rejects an override when Current Definition drifts from its immutable revision', () =>
+    Effect.gen(function* driftedOverrideDefinition() {
+      const reads = yield* serviceWith(
+        [productSet, variantSet],
+        { [productSetId]: 'steel', [variantSetId]: 'aluminium' },
+        { malformedDefinitionRevision: true },
+      ).service;
+      expect((yield* reads.resolveVariant(input)).status).toBe('INVALID_AUTHORITY');
     }),
   );
 

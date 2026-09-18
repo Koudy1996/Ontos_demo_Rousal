@@ -532,7 +532,7 @@ export const effectiveAttributeValueReadsForScope = (
       const variantId = input.variantRef.resourceId;
       const definitionId = input.attributeDefinitionRef.resourceId;
       const query = <A, E>(effect: Effect.Effect<A, E>) => effect.pipe(Effect.mapError(unavailable));
-      const [[product], [variant], [definition]] = yield* Effect.all(
+      const [[product], [variant], currentDefinition] = yield* Effect.all(
         [
           query(
             transaction
@@ -554,30 +554,20 @@ export const effectiveAttributeValueReadsForScope = (
               )
               .limit(1),
           ),
-          query(
-            transaction
-              .select()
-              .from(attributeDefinitions)
-              .where(
-                and(
-                  eq(attributeDefinitions.tenantId, tenantId),
-                  eq(attributeDefinitions.attributeDefinitionId, definitionId),
-                ),
-              )
-              .limit(1),
-          ),
+          readCurrentDefinition(transaction, tenantId, definitionId),
         ],
         { concurrency: 3 },
       );
       if (
         product === undefined ||
         variant === undefined ||
-        definition === undefined ||
+        Option.isNone(currentDefinition) ||
         product.lifecycleState === 'RETIRED' ||
         variant.lifecycleState === 'RETIRED'
       ) {
         return invalid('Product, Variant, or definition is missing or retired');
       }
+      const definition = currentDefinition.value;
       const [assignment] = yield* query(
         transaction
           .select()
