@@ -34,6 +34,34 @@ describe('Attribute Definition and per-subject values', () => {
     expect(Schema.is(AttributeDefinitionSchema)({ ...definition, levels: [] })).toBe(false);
   });
 
+  it('does not merge distinct questions with the same label or change identity on rename', () => {
+    const packageWidth = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
+      ...definition,
+      meaning: 'Width of the shipping package',
+      ref: { ...ref, resourceId: '55555555-5555-4555-8555-555555555555' },
+    });
+    expect(packageWidth.label).toBe(definition.label);
+    expect(packageWidth.ref.resourceId).not.toBe(definition.ref.resourceId);
+    expect(assessDefinitionRuleChange(definition, packageWidth).kind).toBe('NEW_DEFINITION_REQUIRED');
+    expect(assessDefinitionRuleChange(definition, { ...definition, label: 'Product width' }).kind).toBe('UNCHANGED');
+  });
+
+  it('validates independent subject answers against one shared definition without mutating either', () => {
+    const steel = [{ kind: 'TEXT', text: 'steel' }] as const;
+    const wood = [{ kind: 'TEXT', text: 'wood' }] as const;
+    const { measurement: _measurement, ...withoutMeasurement } = definition;
+    const material = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
+      ...withoutMeasurement,
+      label: 'Material',
+      meaning: 'Material of the product',
+      valueKind: 'TEXT',
+    });
+    expect(validateAttributeValues(material, steel)).toEqual({ normalized: steel, reasons: [], valid: true });
+    expect(validateAttributeValues(material, wood)).toEqual({ normalized: wood, reasons: [], valid: true });
+    expect(material.label).toBe('Material');
+    expect(steel[0].text).toBe('steel');
+  });
+
   it('distinguishes presentation, rule revisions, and genuinely different meaning', () => {
     expect(assessDefinitionRuleChange(definition, { ...definition, label: 'Product width' }).kind).toBe('UNCHANGED');
     expect(assessDefinitionRuleChange(definition, { ...definition, multiplicity: 'MULTIPLE' })).toEqual({

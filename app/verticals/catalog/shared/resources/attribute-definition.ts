@@ -27,7 +27,7 @@ export const attributeDefinitionResourceDescriptor = {
     searchable: false,
     timelineVisible: false,
   },
-  description: 'Attribute Definition resource.',
+  description: 'Shared meaning and rules for a Product or Variant fact; subject values are stored separately.',
   key: 'commerce.catalog.attribute-definition',
   label: 'Attribute Definition',
   owningModuleId: 'commerce.catalog',
