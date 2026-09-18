@@ -31,26 +31,35 @@ const removeCatalogMediaSnapshotServiceFactory = (
   scope: Parameters<typeof catalogMediaActionServiceFactory>[1],
 ) =>
   catalogMediaActionServiceFactory(transaction, scope).pipe(
-    Effect.map((services) => ({
-      ...services,
-      captureResult: (actionInvocationId: string, result: typeof CatalogMediaChangeResultSchema.Type) =>
-        captureCatalogActionResult(
-          transaction,
-          scope,
-          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
-          removeCatalogMediaResultCodec,
-          result,
-        ).pipe(
-          Effect.mapError((cause) => {
-            const error = new ActionTransactionError({
-              code: 'action_transaction_failed',
-              reason: 'Catalog Action result could not be captured',
-            });
-            Object.defineProperty(error, 'cause', { value: cause });
-            return error;
-          }),
-        ),
-    })),
+    Effect.map(
+      (
+        services,
+      ): ReturnType<typeof catalogMediaPersistenceForScope> & {
+        readonly captureResult: (
+          actionInvocationId: string,
+          result: typeof CatalogMediaChangeResultSchema.Type,
+        ) => Effect.Effect<void, ActionTransactionError>;
+      } => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof CatalogMediaChangeResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            removeCatalogMediaResultCodec,
+            result,
+          ).pipe(
+            Effect.mapError((cause) => {
+              const error = new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog Action result could not be captured',
+              });
+              Object.defineProperty(error, 'cause', { value: cause });
+              return error;
+            }),
+          ),
+      }),
+    ),
   );
 
 const captureRemoveCatalogMediaResult = ({

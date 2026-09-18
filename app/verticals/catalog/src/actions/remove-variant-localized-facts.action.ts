@@ -34,26 +34,35 @@ const removeVariantLocalizedFactsSnapshotServiceFactory = (
   scope: Parameters<typeof localizedFactsActionServiceFactory>[1],
 ) =>
   localizedFactsActionServiceFactory(transaction, scope).pipe(
-    Effect.map((services) => ({
-      ...services,
-      captureResult: (actionInvocationId: string, result: typeof LocalizedFactsChangeResultSchema.Type) =>
-        captureCatalogActionResult(
-          transaction,
-          scope,
-          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
-          removeVariantLocalizedFactsResultCodec,
-          result,
-        ).pipe(
-          Effect.mapError((cause) => {
-            const error = new ActionTransactionError({
-              code: 'action_transaction_failed',
-              reason: 'Catalog Action result could not be captured',
-            });
-            Object.defineProperty(error, 'cause', { value: cause });
-            return error;
-          }),
-        ),
-    })),
+    Effect.map(
+      (
+        services,
+      ): ReturnType<typeof localizedProductFactsPersistenceForScope> & {
+        readonly captureResult: (
+          actionInvocationId: string,
+          result: typeof LocalizedFactsChangeResultSchema.Type,
+        ) => Effect.Effect<void, ActionTransactionError>;
+      } => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof LocalizedFactsChangeResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            removeVariantLocalizedFactsResultCodec,
+            result,
+          ).pipe(
+            Effect.mapError((cause) => {
+              const error = new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog Action result could not be captured',
+              });
+              Object.defineProperty(error, 'cause', { value: cause });
+              return error;
+            }),
+          ),
+      }),
+    ),
   );
 
 const captureRemoveVariantLocalizedFactsResult = ({
