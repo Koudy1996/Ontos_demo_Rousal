@@ -4,11 +4,24 @@ import { describe, expect, it } from 'effect-rstest';
 
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
+  packageContentRevisions,
+  packageDefinitions,
+  packageOptionRoleRevisions,
+  packageUnitDivisibility,
   productVariants,
+  productUnitRuleRevisions,
+  productUnits,
   products,
+  productTypeAssignments,
+  productTypeRevisionAttributes,
+  productTypeRevisions,
+  productTypes,
+  productVariantAxes,
+  productVariantAxisEvents,
   setCompositionComponents,
   setCompositionRevisions,
   setCompositions,
+  variantUnitDivisibility,
 } from '../../src/database/schema.ts';
 import { catalogSelectionCurrentBasisForScope } from '../../src/persistence/catalog-selection-current-basis.ts';
 
@@ -39,7 +52,19 @@ const selection = {
   },
 } as const;
 const selected = (rows: readonly object[]) => ({
-  where: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
+  where: () =>
+    Object.assign(Effect.succeed(rows), {
+      for: () => ({ limit: () => Effect.succeed(rows) }),
+      limit: () => Effect.succeed(rows),
+    }),
+});
+const selectedWithOrder = (rows: readonly object[]) => ({
+  where: () =>
+    Object.assign(Effect.succeed(rows), {
+      for: () => ({ limit: () => Effect.succeed(rows) }),
+      limit: () => Effect.succeed(rows),
+      orderBy: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
+    }),
 });
 
 describe('Catalog Selection Current basis', () => {
@@ -85,6 +110,159 @@ describe('Catalog Selection Current basis', () => {
         ['VARIANT', 7],
       ]);
       expect(result.source).toBe('CATALOG_OWNER_CURRENT_READ');
+      expect(result.purpose).toBe('PURCHASE_ACCEPTANCE');
+      expect(Number.isNaN(Date.parse(result.assessedAt))).toBe(false);
+      if (result.status !== 'OBSERVED') {
+        expect(result.reason).toBe('Current Product Type assignment and rules are not owner-attested');
+      }
+    }),
+  );
+
+  it.effect('observes an indirect Product Type revision change without a Variant edit', () =>
+    Effect.gen(function* indirectTypeChange() {
+      const typeId = '77777777-7777-4777-8777-777777777777';
+      const revisionId = '88888888-8888-4888-8888-888888888888';
+      const packageId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      const unitId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const packageSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        packageOption: {
+          contentRevision: {
+            resourceRef: {
+              moduleId: 'commerce.catalog',
+              resourceId: packageId,
+              resourceType: 'commerce.catalog.package-definition',
+              tenantId,
+            },
+            revision: 4,
+          },
+          optionRef: {
+            moduleId: 'commerce.catalog',
+            resourceId: packageId,
+            resourceType: 'commerce.catalog.package-definition',
+            tenantId,
+          },
+        },
+      });
+      const readAt = (
+        currentRevision: number,
+        packageCurrentRevision?: number,
+        packageEffectiveAt = new Date('1960-01-01T00:00:00.000Z'),
+      ) => {
+        const rows = new Map<unknown, readonly object[]>([
+          [products, [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId, revision: 4 }]],
+          [productVariants, [{ currentRevision: 7, lifecycleState: 'ACTIVE', productId, revision: 7, variantId }]],
+          [productTypeAssignments, [{ assignmentRevision: 1, productId, productTypeId: typeId, tenantId }]],
+          [productTypes, [{ currentRevision, productTypeId: typeId, tenantId }]],
+          [
+            productTypeRevisions,
+            [
+              {
+                effectiveAt: new Date('1960-01-01T00:00:00.000Z'),
+                productTypeId: typeId,
+                productTypeRevisionId: revisionId,
+                revision: currentRevision,
+                tenantId,
+              },
+            ],
+          ],
+          [productTypeRevisionAttributes, []],
+          [productVariantAxes, []],
+          [productVariantAxisEvents, [{ attributeDefinitionIds: [], axisRevision: 3, productId, tenantId }]],
+          [variantUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
+          [packageUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
+          [productUnits, [{ currentRuleRevision: 2, lifecycleState: 'ACTIVE', unitId }]],
+          [productUnitRuleRevisions, [{ lifecycleState: 'ACTIVE', revision: 2, rounding: 'UP', step: '1' }]],
+          [
+            packageDefinitions,
+            [
+              {
+                currentOptionRevision: 2,
+                currentRevision: packageCurrentRevision,
+                lifecycleState: 'ACTIVE',
+                optionState: 'ACTIVE',
+                packageDefinitionId: packageId,
+                productId,
+                variantId,
+              },
+            ],
+          ],
+          [
+            packageContentRevisions,
+            [
+              {
+                amount: '10',
+                configurationKey: null,
+                effectiveAt: packageEffectiveAt,
+                lifecycleState: 'ACTIVE',
+                lowerCount: null,
+                lowerPackageDefinitionId: null,
+                lowerRevision: null,
+                packageDefinitionId: packageId,
+                productId,
+                setCompositionResourceId: null,
+                setCompositionRevision: null,
+                unitResourceId: unitId,
+                unitResourceType: 'commerce.catalog.product-unit',
+                variantId,
+              },
+            ],
+          ],
+          [
+            packageOptionRoleRevisions,
+            [
+              {
+                contentRevision: 4,
+                effectiveAt: new Date('1960-01-01T00:00:00.000Z'),
+                independentlyRequested: true,
+                looseUnitsSubstitutable: false,
+                productId,
+                revision: 2,
+                state: 'ACTIVE',
+                variantId,
+              },
+            ],
+          ],
+        ]);
+        const transaction = {
+          select: () => ({
+            from: (table: typeof products) => selectedWithOrder(rows.get(table) ?? []),
+          }),
+        };
+        // @ts-expect-error The mock provides the exercised owner read chains only.
+        return catalogSelectionCurrentBasisForScope(transaction, scope).read({
+          purpose: 'PURCHASE_ACCEPTANCE',
+          selection: packageCurrentRevision === undefined ? selection : packageSelection,
+        });
+      };
+      const before = yield* readAt(2);
+      const after = yield* readAt(3);
+      expect(before.status).toBe('INDETERMINATE');
+      expect(after.status).toBe('INDETERMINATE');
+      expect(before.basis.map(({ role, source }) => [role, source.revision])).toEqual([
+        ['PRODUCT', 4],
+        ['VARIANT', 7],
+        ['PRODUCT_TYPE', 2],
+        ['VARIANT_AXIS', 3],
+        ['UNIT', 2],
+      ]);
+      expect(after.basis.map(({ role, source }) => [role, source.revision])).toEqual([
+        ['PRODUCT', 4],
+        ['VARIANT', 7],
+        ['PRODUCT_TYPE', 3],
+        ['VARIANT_AXIS', 3],
+        ['UNIT', 2],
+      ]);
+      const pinnedTen = yield* readAt(3, 4);
+      expect(pinnedTen.status).toBe('INDETERMINATE');
+      expect(pinnedTen.basis.map(({ role, source }) => [role, source.revision])).toContainEqual(['PACKAGE_CONTENT', 4]);
+      const nowEight = yield* readAt(3, 5);
+      expect(nowEight.status).toBe('INVALID');
+      expect(nowEight.selection.packageOption?.contentRevision.revision).toBe(4);
+      expect(nowEight.basis.some(({ role }) => role === 'PACKAGE_CONTENT')).toBe(false);
+      const futureContent = yield* readAt(3, 4, new Date('2999-01-01T00:00:00.000Z'));
+      expect(futureContent.status).toBe('INVALID');
+      expect(futureContent.basis.some(({ role }) => role === 'PACKAGE_CONTENT')).toBe(false);
     }),
   );
 

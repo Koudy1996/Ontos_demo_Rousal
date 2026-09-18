@@ -10,8 +10,11 @@ import type { CatalogSelection } from '../../shared/domain/catalog-selection-evi
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
 import { productVariants, products } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
+import { catalogSelectionPackageUnitBasisForScope } from './catalog-selection-package-unit-basis.ts';
 import { productConfigurationPersistenceForScope } from './product-configuration-persistence.ts';
+import { productTypeReadinessSourceForScope } from './product-type-readiness-source.ts';
 import { setCompositionPersistenceForScope } from './set-composition-persistence.ts';
+import { variantAxisPersistenceForScope } from './variant-axis-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 const catalogModuleId = 'commerce.catalog';
@@ -147,6 +150,93 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
   },
 );
 
+const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readIndirectDependencies')(
+  function* readIndirectDependencies(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    selection: CatalogSelection,
+    now: DateTime.Utc,
+    productRevision: number,
+    variantRevision: number,
+  ) {
+    const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+    const unknown = (reason: string) => ({ basis, reason, status: 'INDETERMINATE' as const });
+    const typeSource = yield* productTypeReadinessSourceForScope(transaction, scope)
+      .load(selection.productRef, now)
+      .pipe(Effect.orElseSucceed(() => null));
+    if (typeSource === null || typeSource.status !== 'VERIFIED') {
+      return unknown('Current Product Type assignment and rules are not owner-attested');
+    }
+    const typeRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(typeSource.basis.revision).pipe(
+      Effect.mapError(unavailable),
+    );
+    basis.push({
+      role: 'PRODUCT_TYPE',
+      source: {
+        resourceRef: typeSource.basis.productTypeRef,
+        revision: typeRevision,
+        revisionId: typeSource.basis.revisionId,
+      },
+    });
+    const axes = yield* variantAxisPersistenceForScope(transaction, scope)
+      .readCurrent(selection.productRef)
+      .pipe(Effect.orElseSucceed(() => null));
+    if (
+      axes === null ||
+      axes.productId !== selection.productRef.resourceId ||
+      axes.productTypeRevision !== typeSource.basis.revision
+    ) {
+      return unknown('Current Variant axes are unavailable or stale against Product Type');
+    }
+    if (!Number.isSafeInteger(axes.axisRevision) || axes.axisRevision < 1) {
+      return unknown('Current Variant axis revision is not owner-attested');
+    }
+    const axisRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(axes.axisRevision).pipe(
+      Effect.mapError(unavailable),
+    );
+    basis.push({ role: 'VARIANT_AXIS', source: { resourceRef: selection.productRef, revision: axisRevision } });
+
+    const packageBasis = yield* catalogSelectionPackageUnitBasisForScope(transaction, scope)
+      .read(selection, DateTime.toDateUtc(now))
+      .pipe(Effect.orElseSucceed(() => null));
+    if (packageBasis === null) {
+      return unknown('Current Package and Unit basis is unavailable');
+    }
+    if (packageBasis.status !== 'CURRENT') {
+      return { basis, reason: packageBasis.reason, status: packageBasis.status };
+    }
+    if (packageBasis.productRevision !== productRevision || packageBasis.variantRevision !== variantRevision) {
+      return unknown('Package or Unit basis does not match the Current target');
+    }
+    if (selection.packageOption !== undefined) {
+      const option = selection.packageOption;
+      if (
+        packageBasis.contentPath[0]?.revision !== option.contentRevision.revision ||
+        packageBasis.contentPath[0].packageDefinitionId !== option.optionRef.resourceId
+      ) {
+        return unknown('Package basis does not match the selected Current content');
+      }
+      basis.push({ role: 'PACKAGE_CONTENT', source: option.contentRevision });
+    }
+    const unitRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(packageBasis.unit.ruleRevision).pipe(
+      Effect.mapError(unavailable),
+    );
+    basis.push({
+      role: 'UNIT',
+      source: {
+        resourceRef: {
+          moduleId: catalogModuleId,
+          resourceId: packageBasis.unit.id,
+          resourceType: 'commerce.catalog.product-unit',
+          tenantId: scope.tenantId,
+        },
+        revision: unitRevision,
+      },
+    });
+    return unknown('Indirect Catalog facts and exact dependent revisions are not yet attested');
+  },
+);
+
 /**
  * Core supplies one tenant-scoped transaction. The reader deliberately does not promote
  * Product/Variant rows to owner-issued membership or complete dependent-fact proof.
@@ -245,6 +335,15 @@ export const catalogSelectionCurrentBasisForScope = (transaction: ScopedTransact
     if (dependent.reason !== null) {
       return result(dependent.status, dependent.reason);
     }
-    return result('INDETERMINATE', 'Indirect Catalog facts and exact dependent revisions are not yet attested');
+    const indirect = yield* readIndirectDependencies(
+      transaction,
+      scope,
+      selection,
+      now,
+      product.revision,
+      variant.revision,
+    );
+    basis.push(...indirect.basis);
+    return result(indirect.status, indirect.reason);
   }),
 });
