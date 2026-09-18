@@ -201,10 +201,15 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'decide-product-type-unnecessary-recovery': () =>
         import('./src/api/decide-product-type-unnecessary-recovery-client.ts'),
       'effective-attribute-values-current': () => import('./src/api/effective-attribute-values-current-client.ts'),
+      'govern-product-attribute-applicability-recovery': () =>
+        import('./src/api/govern-product-attribute-applicability-recovery-client.ts'),
+      'govern-variant-axes-recovery': () => import('./src/api/govern-variant-axes-recovery-client.ts'),
       'gtin-current': () => import('./src/api/gtin-current-client.ts'),
       'gtin-history': () => import('./src/api/gtin-history-client.ts'),
       'manufacturer-relation-current': () => import('./src/api/manufacturer-relation-current-client.ts'),
       'manufacturer-relation-history': () => import('./src/api/manufacturer-relation-history-client.ts'),
+      'mark-gtin-unresolved-recovery': () => import('./src/api/mark-gtin-unresolved-recovery-client.ts'),
+      'move-product-category-recovery': () => import('./src/api/move-product-category-recovery-client.ts'),
       'package-definition-history': () => import('./src/api/package-definition-history-client.ts'),
       'package-option-history': () => import('./src/api/package-option-history-client.ts'),
       'product-brand-current': () => import('./src/api/product-brand-current-client.ts'),
@@ -216,7 +221,22 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'product-relationship-current': () => import('./src/api/product-relationship-current-client.ts'),
       'product-relationship-history': () => import('./src/api/product-relationship-history-client.ts'),
       'product-size-current': () => import('./src/api/product-size-current-client.ts'),
+      'promote-package-definition-recovery': () => import('./src/api/promote-package-definition-recovery-client.ts'),
+      'publish-product-configuration-recovery': () =>
+        import('./src/api/publish-product-configuration-recovery-client.ts'),
       'quantity-preparation': () => import('./src/api/quantity-preparation-client.ts'),
+      'reactivate-brand-recovery': () => import('./src/api/reactivate-brand-recovery-client.ts'),
+      'reactivate-controlled-attribute-value-recovery': () =>
+        import('./src/api/reactivate-controlled-attribute-value-recovery-client.ts'),
+      'reactivate-product-recovery': () => import('./src/api/reactivate-product-recovery-client.ts'),
+      'reactivate-variant-recovery': () => import('./src/api/reactivate-variant-recovery-client.ts'),
+      'remove-catalog-media-recovery': () => import('./src/api/remove-catalog-media-recovery-client.ts'),
+      'remove-product-attribute-values-recovery': () =>
+        import('./src/api/remove-product-attribute-values-recovery-client.ts'),
+      'remove-product-category-assignment-recovery': () =>
+        import('./src/api/remove-product-category-assignment-recovery-client.ts'),
+      'remove-product-localized-facts-recovery': () =>
+        import('./src/api/remove-product-localized-facts-recovery-client.ts'),
       'retire-brand-recovery': () => import('./src/api/retire-brand-recovery-client.ts'),
       'retire-configuration-unit-recovery': () => import('./src/api/retire-configuration-unit-recovery-client.ts'),
       'retire-controlled-attribute-value-recovery': () =>

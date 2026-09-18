@@ -67,13 +67,17 @@ import { DecideProductTypeUnnecessaryActionApi } from './apis/decide-product-typ
 import { DecideProductTypeUnnecessaryRecoveryApi } from './apis/decide-product-type-unnecessary-recovery.ts';
 import { EffectiveAttributeValuesCurrentApi } from './apis/effective-attribute-values-current.ts';
 import { GovernProductAttributeApplicabilityActionApi } from './apis/govern-product-attribute-applicability-action.ts';
+import { GovernProductAttributeApplicabilityRecoveryApi } from './apis/govern-product-attribute-applicability-recovery.ts';
 import { GovernVariantAxesActionApi } from './apis/govern-variant-axes-action.ts';
+import { GovernVariantAxesRecoveryApi } from './apis/govern-variant-axes-recovery.ts';
 import { GtinCurrentApi } from './apis/gtin-current.ts';
 import { GtinHistoryApi } from './apis/gtin-history.ts';
 import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
 import { MarkGtinUnresolvedActionApi } from './apis/mark-gtin-unresolved-action.ts';
+import { MarkGtinUnresolvedRecoveryApi } from './apis/mark-gtin-unresolved-recovery.ts';
 import { MoveProductCategoryActionApi } from './apis/move-product-category-action.ts';
+import { MoveProductCategoryRecoveryApi } from './apis/move-product-category-recovery.ts';
 import { PackageDefinitionHistoryApi } from './apis/package-definition-history.ts';
 import { PackageOptionHistoryApi } from './apis/package-option-history.ts';
 import { ProductBrandCurrentApi } from './apis/product-brand-current.ts';
@@ -86,16 +90,26 @@ import { ProductRelationshipCurrentApi } from './apis/product-relationship-curre
 import { ProductRelationshipHistoryApi } from './apis/product-relationship-history.ts';
 import { ProductSizeCurrentApi } from './apis/product-size-current.ts';
 import { PromotePackageDefinitionActionApi } from './apis/promote-package-definition-action.ts';
+import { PromotePackageDefinitionRecoveryApi } from './apis/promote-package-definition-recovery.ts';
 import { PublishProductConfigurationActionApi } from './apis/publish-product-configuration-action.ts';
+import { PublishProductConfigurationRecoveryApi } from './apis/publish-product-configuration-recovery.ts';
 import { QuantityPreparationApi } from './apis/quantity-preparation.ts';
 import { ReactivateBrandActionApi } from './apis/reactivate-brand-action.ts';
+import { ReactivateBrandRecoveryApi } from './apis/reactivate-brand-recovery.ts';
 import { ReactivateControlledAttributeValueActionApi } from './apis/reactivate-controlled-attribute-value-action.ts';
+import { ReactivateControlledAttributeValueRecoveryApi } from './apis/reactivate-controlled-attribute-value-recovery.ts';
 import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts';
+import { ReactivateProductRecoveryApi } from './apis/reactivate-product-recovery.ts';
 import { ReactivateVariantActionApi } from './apis/reactivate-variant-action.ts';
+import { ReactivateVariantRecoveryApi } from './apis/reactivate-variant-recovery.ts';
 import { RemoveCatalogMediaActionApi } from './apis/remove-catalog-media-action.ts';
+import { RemoveCatalogMediaRecoveryApi } from './apis/remove-catalog-media-recovery.ts';
 import { RemoveProductAttributeValuesActionApi } from './apis/remove-product-attribute-values-action.ts';
+import { RemoveProductAttributeValuesRecoveryApi } from './apis/remove-product-attribute-values-recovery.ts';
 import { RemoveProductCategoryAssignmentActionApi } from './apis/remove-product-category-assignment-action.ts';
+import { RemoveProductCategoryAssignmentRecoveryApi } from './apis/remove-product-category-assignment-recovery.ts';
 import { RemoveProductLocalizedFactsActionApi } from './apis/remove-product-localized-facts-action.ts';
+import { RemoveProductLocalizedFactsRecoveryApi } from './apis/remove-product-localized-facts-recovery.ts';
 import { RemoveProductManufacturerActionApi } from './apis/remove-product-manufacturer-action.ts';
 import { RemoveProductRelationshipActionApi } from './apis/remove-product-relationship-action.ts';
 import { RemoveVariantAttributeOverrideActionApi } from './apis/remove-variant-attribute-override-action.ts';
@@ -236,13 +250,17 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(DecideProductTypeUnnecessaryRecoveryApi)
   .addHttpApi(EffectiveAttributeValuesCurrentApi)
   .addHttpApi(GovernProductAttributeApplicabilityActionApi)
+  .addHttpApi(GovernProductAttributeApplicabilityRecoveryApi)
   .addHttpApi(GovernVariantAxesActionApi)
+  .addHttpApi(GovernVariantAxesRecoveryApi)
   .addHttpApi(GtinCurrentApi)
   .addHttpApi(GtinHistoryApi)
   .addHttpApi(ManufacturerRelationCurrentApi)
   .addHttpApi(ManufacturerRelationHistoryApi)
   .addHttpApi(MarkGtinUnresolvedActionApi)
+  .addHttpApi(MarkGtinUnresolvedRecoveryApi)
   .addHttpApi(MoveProductCategoryActionApi)
+  .addHttpApi(MoveProductCategoryRecoveryApi)
   .addHttpApi(PackageDefinitionHistoryApi)
   .addHttpApi(PackageOptionHistoryApi)
   .addHttpApi(ProductBrandCurrentApi)
@@ -255,16 +273,26 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ProductRelationshipHistoryApi)
   .addHttpApi(ProductSizeCurrentApi)
   .addHttpApi(PromotePackageDefinitionActionApi)
+  .addHttpApi(PromotePackageDefinitionRecoveryApi)
   .addHttpApi(PublishProductConfigurationActionApi)
+  .addHttpApi(PublishProductConfigurationRecoveryApi)
   .addHttpApi(QuantityPreparationApi)
   .addHttpApi(ReactivateBrandActionApi)
+  .addHttpApi(ReactivateBrandRecoveryApi)
   .addHttpApi(ReactivateControlledAttributeValueActionApi)
+  .addHttpApi(ReactivateControlledAttributeValueRecoveryApi)
   .addHttpApi(ReactivateProductActionApi)
+  .addHttpApi(ReactivateProductRecoveryApi)
   .addHttpApi(ReactivateVariantActionApi)
+  .addHttpApi(ReactivateVariantRecoveryApi)
   .addHttpApi(RemoveCatalogMediaActionApi)
+  .addHttpApi(RemoveCatalogMediaRecoveryApi)
   .addHttpApi(RemoveProductAttributeValuesActionApi)
+  .addHttpApi(RemoveProductAttributeValuesRecoveryApi)
   .addHttpApi(RemoveProductCategoryAssignmentActionApi)
+  .addHttpApi(RemoveProductCategoryAssignmentRecoveryApi)
   .addHttpApi(RemoveProductLocalizedFactsActionApi)
+  .addHttpApi(RemoveProductLocalizedFactsRecoveryApi)
   .addHttpApi(RemoveProductManufacturerActionApi)
   .addHttpApi(RemoveProductRelationshipActionApi)
   .addHttpApi(RemoveVariantAttributeOverrideActionApi)
@@ -656,6 +684,22 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.govern-product-attribute-applicability-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.govern-product-attribute-applicability-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.govern-variant-axes-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.govern-variant-axes-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.gtin-current': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
@@ -693,6 +737,22 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.mark-gtin-unresolved-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.mark-gtin-unresolved-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.move-product-category-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: productCategoryBusinessTarget,
+    permission: 'commerce.catalog.read.move-product-category-recovery',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -793,6 +853,22 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.promote-package-definition-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: packageDefinitionBusinessTarget,
+    permission: 'commerce.catalog.read.promote-package-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.publish-product-configuration-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.publish-product-configuration-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.quantity-preparation': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
@@ -800,6 +876,70 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'resource',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.reactivate-brand-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: brandBusinessTarget,
+    permission: 'commerce.catalog.read.reactivate-brand-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.reactivate-controlled-attribute-value-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: controlledAttributeValueBusinessTarget,
+    permission: 'commerce.catalog.read.reactivate-controlled-attribute-value-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.reactivate-product-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.reactivate-product-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.reactivate-variant-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.reactivate-variant-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.remove-catalog-media-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.remove-catalog-media-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.remove-product-attribute-values-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.remove-product-attribute-values-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.remove-product-category-assignment-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.remove-product-category-assignment-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.remove-product-localized-facts-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.remove-product-localized-facts-recovery',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -1631,6 +1771,20 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.revise-product-type-recovery',
     'commerce.catalog.read.revise-product-unit-recovery',
     'commerce.catalog.read.revise-set-composition-recovery',
+    'commerce.catalog.read.govern-product-attribute-applicability-recovery',
+    'commerce.catalog.read.govern-variant-axes-recovery',
+    'commerce.catalog.read.mark-gtin-unresolved-recovery',
+    'commerce.catalog.read.move-product-category-recovery',
+    'commerce.catalog.read.promote-package-definition-recovery',
+    'commerce.catalog.read.publish-product-configuration-recovery',
+    'commerce.catalog.read.reactivate-brand-recovery',
+    'commerce.catalog.read.reactivate-controlled-attribute-value-recovery',
+    'commerce.catalog.read.reactivate-product-recovery',
+    'commerce.catalog.read.reactivate-variant-recovery',
+    'commerce.catalog.read.remove-catalog-media-recovery',
+    'commerce.catalog.read.remove-product-attribute-values-recovery',
+    'commerce.catalog.read.remove-product-category-assignment-recovery',
+    'commerce.catalog.read.remove-product-localized-facts-recovery',
     'commerce.catalog.read.retire-brand-recovery',
     'commerce.catalog.read.retire-configuration-unit-recovery',
     'commerce.catalog.read.retire-controlled-attribute-value-recovery',

@@ -77,13 +77,17 @@ import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product
 import { DecideProductTypeUnnecessaryRecoveryApi } from './shared/apis/decide-product-type-unnecessary-recovery.ts';
 import { EffectiveAttributeValuesCurrentApi } from './shared/apis/effective-attribute-values-current.ts';
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
+import { GovernProductAttributeApplicabilityRecoveryApi } from './shared/apis/govern-product-attribute-applicability-recovery.ts';
 import { governVariantAxesAction } from './src/actions/govern-variant-axes.action.ts';
+import { GovernVariantAxesRecoveryApi } from './shared/apis/govern-variant-axes-recovery.ts';
 import { GtinCurrentApi } from './shared/apis/gtin-current.ts';
 import { GtinHistoryApi } from './shared/apis/gtin-history.ts';
 import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
 import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
+import { MarkGtinUnresolvedRecoveryApi } from './shared/apis/mark-gtin-unresolved-recovery.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
+import { MoveProductCategoryRecoveryApi } from './shared/apis/move-product-category-recovery.ts';
 import { PackageDefinitionHistoryApi } from './shared/apis/package-definition-history.ts';
 import { packageDefinitionResourceDescriptor } from './shared/resources/package-definition.ts';
 import { PackageOptionHistoryApi } from './shared/apis/package-option-history.ts';
@@ -101,16 +105,26 @@ import { ProductSizeCurrentApi } from './shared/apis/product-size-current.ts';
 import { productTypeResourceDescriptor } from './shared/resources/product-type.ts';
 import { productUnitResourceDescriptor } from './shared/resources/product-unit.ts';
 import { promotePackageDefinitionAction } from './src/actions/promote-package-definition.action.ts';
+import { PromotePackageDefinitionRecoveryApi } from './shared/apis/promote-package-definition-recovery.ts';
 import { publishProductConfigurationAction } from './src/actions/publish-product-configuration.action.ts';
+import { PublishProductConfigurationRecoveryApi } from './shared/apis/publish-product-configuration-recovery.ts';
 import { QuantityPreparationApi } from './shared/apis/quantity-preparation.ts';
 import { reactivateBrandAction } from './src/actions/reactivate-brand.action.ts';
+import { ReactivateBrandRecoveryApi } from './shared/apis/reactivate-brand-recovery.ts';
 import { reactivateControlledAttributeValueAction } from './src/actions/reactivate-controlled-attribute-value.action.ts';
+import { ReactivateControlledAttributeValueRecoveryApi } from './shared/apis/reactivate-controlled-attribute-value-recovery.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
+import { ReactivateProductRecoveryApi } from './shared/apis/reactivate-product-recovery.ts';
 import { reactivateVariantAction } from './src/actions/reactivate-variant.action.ts';
+import { ReactivateVariantRecoveryApi } from './shared/apis/reactivate-variant-recovery.ts';
 import { removeCatalogMediaAction } from './src/actions/remove-catalog-media.action.ts';
+import { RemoveCatalogMediaRecoveryApi } from './shared/apis/remove-catalog-media-recovery.ts';
 import { removeProductAttributeValuesAction } from './src/actions/remove-product-attribute-values.action.ts';
+import { RemoveProductAttributeValuesRecoveryApi } from './shared/apis/remove-product-attribute-values-recovery.ts';
 import { removeProductCategoryAssignmentAction } from './src/actions/remove-product-category-assignment.action.ts';
+import { RemoveProductCategoryAssignmentRecoveryApi } from './shared/apis/remove-product-category-assignment-recovery.ts';
 import { removeProductLocalizedFactsAction } from './src/actions/remove-product-localized-facts.action.ts';
+import { RemoveProductLocalizedFactsRecoveryApi } from './shared/apis/remove-product-localized-facts-recovery.ts';
 import { removeProductManufacturerAction } from './src/actions/remove-product-manufacturer.action.ts';
 import { removeProductRelationshipAction } from './src/actions/remove-product-relationship.action.ts';
 import { removeVariantAttributeOverrideAction } from './src/actions/remove-variant-attribute-override.action.ts';
@@ -317,10 +331,14 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'create-variant-recovery': CreateVariantRecoveryApi,
       'decide-product-type-unnecessary-recovery': DecideProductTypeUnnecessaryRecoveryApi,
       'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
+      'govern-product-attribute-applicability-recovery': GovernProductAttributeApplicabilityRecoveryApi,
+      'govern-variant-axes-recovery': GovernVariantAxesRecoveryApi,
       'gtin-current': GtinCurrentApi,
       'gtin-history': GtinHistoryApi,
       'manufacturer-relation-current': ManufacturerRelationCurrentApi,
       'manufacturer-relation-history': ManufacturerRelationHistoryApi,
+      'mark-gtin-unresolved-recovery': MarkGtinUnresolvedRecoveryApi,
+      'move-product-category-recovery': MoveProductCategoryRecoveryApi,
       'package-definition-history': PackageDefinitionHistoryApi,
       'package-option-history': PackageOptionHistoryApi,
       'product-brand-current': ProductBrandCurrentApi,
@@ -332,7 +350,17 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'product-relationship-current': ProductRelationshipCurrentApi,
       'product-relationship-history': ProductRelationshipHistoryApi,
       'product-size-current': ProductSizeCurrentApi,
+      'promote-package-definition-recovery': PromotePackageDefinitionRecoveryApi,
+      'publish-product-configuration-recovery': PublishProductConfigurationRecoveryApi,
       'quantity-preparation': QuantityPreparationApi,
+      'reactivate-brand-recovery': ReactivateBrandRecoveryApi,
+      'reactivate-controlled-attribute-value-recovery': ReactivateControlledAttributeValueRecoveryApi,
+      'reactivate-product-recovery': ReactivateProductRecoveryApi,
+      'reactivate-variant-recovery': ReactivateVariantRecoveryApi,
+      'remove-catalog-media-recovery': RemoveCatalogMediaRecoveryApi,
+      'remove-product-attribute-values-recovery': RemoveProductAttributeValuesRecoveryApi,
+      'remove-product-category-assignment-recovery': RemoveProductCategoryAssignmentRecoveryApi,
+      'remove-product-localized-facts-recovery': RemoveProductLocalizedFactsRecoveryApi,
       'retire-brand-recovery': RetireBrandRecoveryApi,
       'retire-configuration-unit-recovery': RetireConfigurationUnitRecoveryApi,
       'retire-controlled-attribute-value-recovery': RetireControlledAttributeValueRecoveryApi,

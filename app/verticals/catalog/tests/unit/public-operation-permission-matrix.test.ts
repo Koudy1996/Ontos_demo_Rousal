@@ -35,6 +35,20 @@ import { reviseProductTypeRecoveryRead } from '../../src/api/revise-product-type
 import { reviseProductUnitRecoveryRead } from '../../src/api/revise-product-unit-recovery.read.ts';
 import { reviseSetCompositionRecoveryRead } from '../../src/api/revise-set-composition-recovery.read.ts';
 import { retireBrandRecoveryRead } from '../../src/api/retire-brand-recovery.read.ts';
+import { governProductAttributeApplicabilityRecoveryRead } from '../../src/api/govern-product-attribute-applicability-recovery.read.ts';
+import { governVariantAxesRecoveryRead } from '../../src/api/govern-variant-axes-recovery.read.ts';
+import { markGtinUnresolvedRecoveryRead } from '../../src/api/mark-gtin-unresolved-recovery.read.ts';
+import { moveProductCategoryRecoveryRead } from '../../src/api/move-product-category-recovery.read.ts';
+import { promotePackageDefinitionRecoveryRead } from '../../src/api/promote-package-definition-recovery.read.ts';
+import { publishProductConfigurationRecoveryRead } from '../../src/api/publish-product-configuration-recovery.read.ts';
+import { reactivateBrandRecoveryRead } from '../../src/api/reactivate-brand-recovery.read.ts';
+import { reactivateControlledAttributeValueRecoveryRead } from '../../src/api/reactivate-controlled-attribute-value-recovery.read.ts';
+import { reactivateProductRecoveryRead } from '../../src/api/reactivate-product-recovery.read.ts';
+import { reactivateVariantRecoveryRead } from '../../src/api/reactivate-variant-recovery.read.ts';
+import { removeCatalogMediaRecoveryRead } from '../../src/api/remove-catalog-media-recovery.read.ts';
+import { removeProductAttributeValuesRecoveryRead } from '../../src/api/remove-product-attribute-values-recovery.read.ts';
+import { removeProductCategoryAssignmentRecoveryRead } from '../../src/api/remove-product-category-assignment-recovery.read.ts';
+import { removeProductLocalizedFactsRecoveryRead } from '../../src/api/remove-product-localized-facts-recovery.read.ts';
 import { retireConfigurationUnitRecoveryRead } from '../../src/api/retire-configuration-unit-recovery.read.ts';
 import { retireControlledAttributeValueRecoveryRead } from '../../src/api/retire-controlled-attribute-value-recovery.read.ts';
 import { retireGtinRecoveryRead } from '../../src/api/retire-gtin-recovery.read.ts';
@@ -106,6 +120,20 @@ const reads = [
   reviseProductUnitRecoveryRead,
   reviseSetCompositionRecoveryRead,
   retireBrandRecoveryRead,
+  governProductAttributeApplicabilityRecoveryRead,
+  governVariantAxesRecoveryRead,
+  markGtinUnresolvedRecoveryRead,
+  moveProductCategoryRecoveryRead,
+  promotePackageDefinitionRecoveryRead,
+  publishProductConfigurationRecoveryRead,
+  reactivateBrandRecoveryRead,
+  reactivateControlledAttributeValueRecoveryRead,
+  reactivateProductRecoveryRead,
+  reactivateVariantRecoveryRead,
+  removeCatalogMediaRecoveryRead,
+  removeProductAttributeValuesRecoveryRead,
+  removeProductCategoryAssignmentRecoveryRead,
+  removeProductLocalizedFactsRecoveryRead,
   retireConfigurationUnitRecoveryRead,
   retireControlledAttributeValueRecoveryRead,
   retireGtinRecoveryRead,
