@@ -11,7 +11,7 @@ import { Effect, Option } from 'effect';
 import { ProductDetailRequestSchema, ProductDetailResponseSchema } from '../../shared/apis/product-detail.ts';
 import type { ProductDetailRequest, ProductDetailResponse } from '../../shared/apis/product-detail.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
-import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
+import { catalogPersistenceWithCurrentSelectionEvidenceForScope } from '../persistence/catalog-persistence.ts';
 import type { LocalizedFactsReads } from '../persistence/localized-facts-reads.ts';
 import { localizedFactsReadsForScope } from '../persistence/localized-facts-reads.ts';
 
@@ -98,7 +98,7 @@ export const productDetailRead = defineRead(
       })),
     ),
   (transaction, scope) =>
-    catalogPersistenceForScope(transaction, scope).pipe(
+    catalogPersistenceWithCurrentSelectionEvidenceForScope(transaction, scope).pipe(
       Effect.map((catalog) => ({
         ...catalog,
         currentProduct: localizedFactsReadsForScope(transaction, scope).currentProduct,

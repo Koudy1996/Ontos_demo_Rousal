@@ -16,7 +16,7 @@ import type { ProductSizeCurrentRequest } from '../../shared/apis/product-size-c
 import type { SizeUsagePersistence } from '../persistence/size-usage-persistence.ts';
 import { sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
-import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
+import { catalogPersistenceWithCurrentSelectionEvidenceForScope } from '../persistence/catalog-persistence.ts';
 import type { ProductMeasurementsRead } from '../persistence/product-measurements-read.ts';
 import { productMeasurementsReadForScope } from '../persistence/product-measurements-read.ts';
 
@@ -90,7 +90,7 @@ export const productSizeCurrentRead = defineRead(
     return { evidence: { resultCount: result.sizes.length }, result };
   }),
   (transaction, scope) =>
-    catalogPersistenceForScope(transaction, scope).pipe(
+    catalogPersistenceWithCurrentSelectionEvidenceForScope(transaction, scope).pipe(
       Effect.map((catalog) => ({
         getCurrent: catalog.getCurrent,
         read: sizeUsagePersistenceForScope(transaction, scope).read,

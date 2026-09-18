@@ -13,6 +13,8 @@ import type { ProductRef } from '../../shared/resources/product.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 
+export { catalogPersistenceWithCurrentSelectionEvidenceForScope as catalogPersistenceServiceFactory } from '../persistence/catalog-persistence.ts';
+
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 const PRODUCT_RESOURCE_TYPE = 'commerce.catalog.product' as const;
 
@@ -31,8 +33,6 @@ export type ProductEventContext<Events extends DomainEventContractMap> = ActionH
   Events,
   CatalogPersistence
 >;
-
-export { catalogPersistenceForScope as catalogPersistenceServiceFactory } from '../persistence/catalog-persistence.ts';
 
 export const invalidCrossTenantProduct = (productRef: ProductRef) =>
   new ProductNotFound({

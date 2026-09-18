@@ -9,6 +9,7 @@ import { CatalogSelectionEvidenceSchema } from '../../shared/domain/catalog-sele
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
   ProductLifecycleConflict,
+  ProductNotCatalogReady,
   ProductNotFound,
   ProductRevisionConflict,
 } from '../../shared/domain/product-errors.ts';
@@ -22,7 +23,10 @@ import {
   productVariantRevisions,
   products,
 } from '../../src/database/schema.ts';
-import { catalogPersistenceForScope } from '../../src/persistence/catalog-persistence.ts';
+import {
+  catalogPersistenceForScope,
+  catalogPersistenceWithCurrentSelectionEvidenceForScope,
+} from '../../src/persistence/catalog-persistence.ts';
 import { catalogSelectionCurrentBasisForScope } from '../../src/persistence/catalog-selection-current-basis.ts';
 import type { CatalogPersistence } from '../../src/persistence/catalog-persistence.ts';
 
@@ -81,6 +85,11 @@ const currentValidEvidence = (selection: CatalogSelection) =>
 
 const currentValidEvidenceReader: CatalogSelectionEvidenceReader = {
   assess: ({ selection }) => Effect.succeed({ evidence: currentValidEvidence(selection) }),
+};
+
+const unavailableEvidenceReader: CatalogSelectionEvidenceReader = {
+  assess: () =>
+    Effect.succeed({ evidence: { kind: 'UNAVAILABLE', reason: 'Catalog Current basis is temporarily unavailable' } }),
 };
 
 const productAggregate = (
@@ -249,12 +258,29 @@ const persistenceFor = (
   selectionEvidence?: CatalogSelectionEvidenceReader,
 ) => {
   const harness = makeTransaction(input);
-  return Effect.map(
+  if (selectionEvidence === undefined) {
     // @ts-expect-error Only the exercised Drizzle query chains are mocked.
-    catalogPersistenceForScope(harness.transaction, scope, selectionEvidence),
-    (persistence) => ({ persistence, state: harness.state }),
+    return catalogPersistenceForScope(harness.transaction, scope).pipe(
+      Effect.map((services) => ({ persistence: services, state: harness.state })),
+    );
+  }
+  // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+  return catalogPersistenceWithCurrentSelectionEvidenceForScope(harness.transaction, scope, selectionEvidence).pipe(
+    Effect.map((services) => ({ persistence: services, state: harness.state })),
   );
 };
+
+const executableContextFor = (
+  services: CatalogPersistence,
+): ActionHandlerContext<typeof reactivateProductAction.descriptor.domainEvents, CatalogPersistence> => ({
+  actionInvocationId: invocationId,
+  addDomainEvent: () => Effect.succeed(Object.create(null)),
+  addOutboxMessage: () => Effect.void,
+  recordAuditEvidence: () => Effect.void,
+  recordDataAccess: () => Effect.void,
+  scope,
+  services,
+});
 
 const contextFor = <Events extends DomainEventContractMap>(
   _domainEvents: Events,
@@ -575,6 +601,49 @@ describe('Product lifecycle acceptance (#414)', () => {
     }),
   );
 
+  it.effect('the Reactivate Product Action succeeds through transaction-bound exact-selection evidence', () =>
+    Effect.gen(function* actionReactivation() {
+      const { persistence, state } = yield* persistenceFor(
+        {
+          localizedNames: [{ name: 'Kladivo', state: 'SET' }],
+          product: retiredProduct(3),
+          variants: [variant('ACTIVE')],
+        },
+        currentValidEvidenceReader,
+      );
+      const result = yield* handleReactivateProduct(
+        { expectedRevision: 3, productRef, reason: 'Product verified through Current evidence' },
+        executableContextFor(persistence),
+      );
+      expect(result.product).toMatchObject({ catalogReady: true, lifecycle: 'ACTIVE', productRef, revision: 4 });
+      expect(state.product.lifecycleState).toBe('ACTIVE');
+      expect(state.revisions).toHaveLength(1);
+      expect(state.lifecycleEvents).toHaveLength(1);
+    }),
+  );
+
+  it.effect('the Reactivate Product Action reports unavailable Current evidence without lifecycle history', () =>
+    Effect.gen(function* unavailableActionReactivation() {
+      const { persistence, state } = yield* persistenceFor(
+        {
+          localizedNames: [{ name: 'Kladivo', state: 'SET' }],
+          product: retiredProduct(3),
+          variants: [variant('ACTIVE')],
+        },
+        unavailableEvidenceReader,
+      );
+      const error = yield* handleReactivateProduct(
+        { expectedRevision: 3, productRef, reason: 'Product cannot be verified' },
+        executableContextFor(persistence),
+      ).pipe(Effect.flip);
+      expect(Schema.is(ProductNotCatalogReady)(error)).toBe(true);
+      expect(state.product.lifecycleState).toBe('RETIRED');
+      expect(state.product.currentRevision).toBe(3);
+      expect(state.revisions).toHaveLength(0);
+      expect(state.lifecycleEvents).toHaveLength(0);
+    }),
+  );
+
   it.effect('reactivation refuses a Product whose Variant was retired instead of resurrecting it', () =>
     Effect.gen(function* refuseRetiredVariant() {
       const { persistence, state } = yield* persistenceFor({
@@ -594,10 +663,7 @@ describe('Product lifecycle acceptance (#414)', () => {
         Match.tag('not_catalog_ready', (value) => value),
         Match.orElse(() => null),
       );
-      expect(refused?.reasons).toEqual([
-        'Product needs at least one ACTIVE Variant',
-        'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
-      ]);
+      expect(refused?.reasons).toEqual(['Product needs at least one ACTIVE Variant']);
       expect(state.product.lifecycleState).toBe('RETIRED');
       expect(state.revisions).toHaveLength(0);
     }),

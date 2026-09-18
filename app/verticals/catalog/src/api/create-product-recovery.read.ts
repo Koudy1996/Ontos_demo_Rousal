@@ -13,7 +13,7 @@ import {
 } from '../../shared/apis/create-product-recovery.ts';
 import type { CreateProductRecoveryRequest } from '../../shared/apis/create-product-recovery.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
-import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
+import { catalogPersistenceWithCurrentSelectionEvidenceForScope } from '../persistence/catalog-persistence.ts';
 
 const notFound = () =>
   new ReadHandlerNotFound({
@@ -74,6 +74,6 @@ export const createProductRecoveryRead = defineRead(
   },
   (input, context: ReadHandlerContext<CatalogPersistence>) =>
     recoverCreateProduct(input, context).pipe(Effect.map((result) => ({ evidence: { resultCount: 1 }, result }))),
-  (transaction, scope) => catalogPersistenceForScope(transaction, scope),
+  (transaction, scope) => catalogPersistenceWithCurrentSelectionEvidenceForScope(transaction, scope),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

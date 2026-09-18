@@ -12,7 +12,7 @@ import { CatalogRevisionLookupResultSchema } from '../../shared/domain/catalog-r
 import { ProductHistoryRequestSchema, ProductHistoryResponseSchema } from '../../shared/apis/product-history.ts';
 import type { ProductHistoryRequest, ProductHistoryResponse } from '../../shared/apis/product-history.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
-import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
+import { catalogPersistenceWithCurrentSelectionEvidenceForScope } from '../persistence/catalog-persistence.ts';
 import type { LocalizedFactsReads } from '../persistence/localized-facts-reads.ts';
 import { localizedFactsReadsForScope } from '../persistence/localized-facts-reads.ts';
 
@@ -154,7 +154,7 @@ export const productHistoryRead = defineRead(
       })),
     ),
   (transaction, scope) =>
-    catalogPersistenceForScope(transaction, scope).pipe(
+    catalogPersistenceWithCurrentSelectionEvidenceForScope(transaction, scope).pipe(
       Effect.map((catalog) => ({
         ...catalog,
         productHistory: localizedFactsReadsForScope(transaction, scope).productHistory,

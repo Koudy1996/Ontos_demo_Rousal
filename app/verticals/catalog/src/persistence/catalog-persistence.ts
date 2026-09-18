@@ -31,6 +31,7 @@ import {
 } from '../api/catalog-action-result-recovery.ts';
 import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
 import { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from './errors.ts';
+import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
 import {
   productLifecycleEvents,
   productLocalizedFacts,
@@ -787,10 +788,13 @@ export const catalogPersistenceForScope = (
       }
       const localizedNames = yield* getLocalizedNames(transaction, tenantId, input.productId);
       const candidate = { lifecycle: 'ACTIVE' as const, variants: existing.variants };
-      const currentEvidence = yield* readProductSelectionEvidence(candidate, selectionEvidence);
-      const readiness = catalogReadiness(candidate, localizedNames, currentEvidence);
-      if (!readiness.catalogReady) {
-        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
+      const localBlockers = productActivationBlockers(candidate, localizedNames);
+      if (localBlockers.length > 0) {
+        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: localBlockers };
+      }
+      const [retiredRow] = yield* getProductRow(transaction, tenantId, input.productId);
+      if (retiredRow === undefined) {
+        return { _tag: 'not_found' as const };
       }
       const revision = existing.revision + 1;
       const now = DateTime.toDateUtc(yield* DateTime.now);
@@ -818,6 +822,32 @@ export const catalogPersistenceForScope = (
           _tag: 'revision_conflict' as const,
           actualRevision: latest?.currentRevision ?? input.expectedRevision,
         };
+      }
+      const currentEvidence = yield* readProductSelectionEvidence(candidate, selectionEvidence);
+      const readiness = catalogReadiness(candidate, localizedNames, currentEvidence);
+      if (!readiness.catalogReady) {
+        const [restored] = yield* transaction
+          .update(products)
+          .set({
+            currentRevision: input.expectedRevision,
+            lifecycleState: retiredRow.lifecycleState,
+            retiredEffectiveAt: retiredRow.retiredEffectiveAt,
+            retiredReason: retiredRow.retiredReason,
+            updatedAt: retiredRow.updatedAt,
+          })
+          .where(
+            and(
+              eq(products.productId, input.productId),
+              eq(products.tenantId, tenantId),
+              eq(products.currentRevision, revision),
+            ),
+          )
+          .returning()
+          .pipe(Effect.mapError(unavailable));
+        if (restored === undefined) {
+          return yield* unavailable();
+        }
+        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
       }
       yield* insertRevision(transaction, {
         actionInvocationId: input.actionInvocationId,
@@ -1000,3 +1030,10 @@ export const catalogPersistenceForScope = (
     }),
   );
 };
+
+/** Production composition: Catalog Current evidence stays bound to the same owner transaction. */
+export const catalogPersistenceWithCurrentSelectionEvidenceForScope = (
+  transaction: ScopedTransaction,
+  scope: OperationalScope,
+  selectionEvidence: CatalogSelectionEvidenceReader = catalogSelectionEvidenceForScope(transaction, scope),
+): Effect.Effect<CatalogPersistence> => catalogPersistenceForScope(transaction, scope, selectionEvidence);
