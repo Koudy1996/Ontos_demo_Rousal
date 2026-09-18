@@ -39,14 +39,14 @@ const recoverResult = (
     decode: Schema.decodeUnknownEffect(GovernVariantAxesResultSchema),
     encode: Schema.encodeEffect(GovernVariantAxesResultSchema),
   };
-  return recoverCatalogActionResultVersions([1], (schemaVersion) =>
+  return recoverCatalogActionResultVersions([1], () =>
     recoverCatalogActionResult(
       transaction,
       scope,
       {
         actionInvocationId: invocationId,
         actionKey: 'commerce.catalog.govern-variant-axes',
-        schemaVersion,
+        schemaVersion: 1,
       },
       codec,
     ),

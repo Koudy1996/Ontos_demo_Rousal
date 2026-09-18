@@ -38,7 +38,6 @@ type ChangeVariantServices = ChangeVariantHandlerServices & {
   ) => Effect.Effect<void, ActionTransactionError>;
 };
 const ACTION_KEY = 'commerce.catalog.change-variant' as const;
-const ACTION_SCHEMA_VERSION = 2 as const;
 
 const operationForPayload = (
   payload: ChangeVariantPayload,
@@ -187,7 +186,7 @@ export const changeVariantAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: ACTION_SCHEMA_VERSION },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 2 },
             {
               decode: Schema.decodeUnknownEffect(ChangeVariantResultSchema),
               encode: Schema.encodeEffect(ChangeVariantResultSchema),

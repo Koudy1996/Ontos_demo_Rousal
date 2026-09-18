@@ -26,7 +26,6 @@ export type { GovernVariantAxesPayload } from '../../shared/actions/govern-varia
 
 const moduleKey = 'commerce.catalog' as const;
 const actionKey = 'commerce.catalog.govern-variant-axes' as const;
-const actionSchemaVersion = 1 as const;
 const domainEvents = { 'commerce.catalog.variant-axes-changed.v1': OutboxPayloadSchema } as const;
 type GovernVariantAxesServices = VariantAxisPersistence & {
   readonly assessOpenSelectionImpact: (
@@ -174,7 +173,7 @@ export const governVariantAxesAction = defineAction(
         captureCatalogActionResult(
           transaction,
           scope,
-          { actionInvocationId, actionKey, schemaVersion: actionSchemaVersion },
+          { actionInvocationId, actionKey, schemaVersion: 1 },
           {
             decode: Schema.decodeUnknownEffect(GovernVariantAxesResultSchema),
             encode: Schema.encodeEffect(GovernVariantAxesResultSchema),

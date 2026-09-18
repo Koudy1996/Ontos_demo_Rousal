@@ -40,12 +40,19 @@ export const recoverChangeVariantResult = (
     encode: Schema.encodeEffect(ChangeVariantResultSchema),
   };
   return recoverCatalogActionResultVersions([2, 1], (schemaVersion) =>
-    recoverCatalogActionResult(
-      transaction,
-      scope,
-      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.change-variant', schemaVersion },
-      codec,
-    ),
+    schemaVersion === 2
+      ? recoverCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId: invocationId, actionKey: 'commerce.catalog.change-variant', schemaVersion: 2 },
+          codec,
+        )
+      : recoverCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId: invocationId, actionKey: 'commerce.catalog.change-variant', schemaVersion: 1 },
+          codec,
+        ),
   );
 };
 
