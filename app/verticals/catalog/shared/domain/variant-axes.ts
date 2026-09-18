@@ -41,6 +41,7 @@ const VariantAxisIssueKindSchema = Schema.Literals([
   'UNRECORDED_COMBINATION',
   'UNVERIFIABLE_COMBINATION',
   'DUPLICATE_COMBINATION',
+  'DUPLICATE_VARIANT_RECORD',
   'WRONG_PRODUCT',
 ]);
 type VariantAxisIssueKind = typeof VariantAxisIssueKindSchema.Type;
@@ -57,14 +58,33 @@ export interface VariantAxesResult {
   readonly valid: boolean;
 }
 
-const sameRef = (left: DefinitionRef, right: DefinitionRef): boolean =>
-  left.tenantId === right.tenantId && left.resourceId === right.resourceId;
+export const sameRef = (left: DefinitionRef, right: DefinitionRef): boolean =>
+  left.moduleId === right.moduleId &&
+  left.resourceType === right.resourceType &&
+  left.tenantId === right.tenantId &&
+  left.resourceId === right.resourceId;
 
-const stableParts = (parts: readonly string[]): string => parts.map((part) => `${part.length}:${part}`).join('');
+export const stableParts = (parts: readonly string[]): string => parts.map((part) => `${part.length}:${part}`).join('');
 
-const valueKey = (value: AttributeValue): string => {
+/**
+ * Canonical, injection-free encoding of an ordered Variant axis combination vector. Each
+ * entry is length-prefixed through {@link stableParts}; the entries are then joined and
+ * wrapped in `[...]`, so the empty vector encodes exactly as `[]`. This is the content
+ * hashed into a stored Variant `combinationKey`; `confirm-variant-combination` must build
+ * the same value with this helper so both sides agree.
+ */
+export const stableCombinationKeyContent = (entries: readonly (readonly string[])[]): string =>
+  `[${entries.map((entry) => stableParts(entry)).join(',')}]`;
+
+export const valueKey = (value: AttributeValue): string => {
   if (value.kind === 'CONTROLLED') {
-    return stableParts(['controlled', value.valueRef.tenantId, value.valueRef.resourceId]);
+    return stableParts([
+      'controlled',
+      value.valueRef.moduleId,
+      value.valueRef.resourceType,
+      value.valueRef.tenantId,
+      value.valueRef.resourceId,
+    ]);
   }
   if (value.kind === 'MEASUREMENT') {
     return stableParts(['measurement', String(value.amount), value.unit]);
@@ -159,6 +179,68 @@ const inspectAxisDefinition = (
   return undefined;
 };
 
+interface CandidateVariantInspectionInput {
+  readonly axes: readonly VariantAxis[];
+  readonly conversions?: readonly UnitConversion[];
+  readonly definitions: readonly VariantAxisDefinitionSnapshot[];
+  readonly isAllowedValue?: (definition: AttributeDefinition, value: AttributeValue) => boolean | undefined;
+  readonly isRecordedCombination?: (
+    variant: ProductVariant,
+    selections: readonly VariantAxisValue[],
+  ) => boolean | undefined;
+  readonly productRef: ProductVariant['productRef'];
+}
+
+interface CandidateVariantInspection {
+  readonly issues: readonly VariantAxisIssue[];
+  readonly signature?: string;
+}
+
+const inspectCandidateVariant = (
+  candidate: VariantAxisCandidate,
+  input: CandidateVariantInspectionInput,
+  axisIds: ReadonlySet<string>,
+): CandidateVariantInspection => {
+  const { variant } = candidate;
+  const variantId = variant.variantRef.resourceId;
+  if (
+    variant.productRef.resourceId !== input.productRef.resourceId ||
+    variant.productRef.tenantId !== input.productRef.tenantId ||
+    variant.variantRef.tenantId !== input.productRef.tenantId ||
+    variant.variantId !== variantId
+  ) {
+    return { issues: [{ kind: 'WRONG_PRODUCT', variantId }] };
+  }
+  const axisResults = input.axes.map((axis) =>
+    inspectAxisValue(axis, candidate, input.definitions, input.conversions, input.isAllowedValue),
+  );
+  const issues: VariantAxisIssue[] = axisResults.flatMap((result) =>
+    result.issue === undefined ? [] : [result.issue],
+  );
+  const extraValue = candidate.effectiveAxisValues.some(
+    (item) => !axisIds.has(stableParts([item.attributeDefinitionRef.tenantId, item.attributeDefinitionRef.resourceId])),
+  );
+  if (extraValue) {
+    issues.push({ kind: 'INVALID_VALUE', variantId });
+  }
+  if (!axisResults.every((result) => result.key !== undefined) || extraValue) {
+    return { issues };
+  }
+  const selections = axisResults.flatMap((result) => (result.selection === undefined ? [] : [result.selection]));
+  const recorded = input.isRecordedCombination?.(variant, selections);
+  if (recorded !== true) {
+    issues.push({
+      kind: recorded === false ? 'UNRECORDED_COMBINATION' : 'UNVERIFIABLE_COMBINATION',
+      variantId,
+    });
+    return { issues };
+  }
+  return {
+    issues,
+    signature: stableParts(axisResults.flatMap((result) => (result.key === undefined ? [] : [result.key])).toSorted()),
+  };
+};
+
 /**
  * Pure snapshot check. The caller must supply the Current Product Type rules,
  * definitions, allowed-value and recorded-Variant evidence, and a concurrency-safe write boundary.
@@ -201,45 +283,21 @@ export const evaluateVariantAxes = (input: {
   }
 
   const signatures = new Map<string, string>();
+  const seenVariantIds = new Set<string>();
   for (const candidate of input.candidates.filter((item) => item.variant.lifecycle === 'ACTIVE')) {
-    const { variant } = candidate;
-    const variantId = variant.variantRef.resourceId;
-    if (
-      variant.productRef.resourceId !== input.productRef.resourceId ||
-      variant.productRef.tenantId !== input.productRef.tenantId ||
-      variant.variantRef.tenantId !== input.productRef.tenantId
-    ) {
-      issues.push({ kind: 'WRONG_PRODUCT', variantId });
+    const variantId = candidate.variant.variantRef.resourceId;
+    if (seenVariantIds.has(variantId)) {
+      issues.push({ kind: 'DUPLICATE_VARIANT_RECORD', variantId });
     } else {
-      const axisResults = input.axes.map((axis) =>
-        inspectAxisValue(axis, candidate, input.definitions, input.conversions, input.isAllowedValue),
-      );
-      issues.push(...axisResults.flatMap((result) => (result.issue === undefined ? [] : [result.issue])));
-      const extraValue = candidate.effectiveAxisValues.some(
-        (item) =>
-          !axisIds.has(stableParts([item.attributeDefinitionRef.tenantId, item.attributeDefinitionRef.resourceId])),
-      );
-      if (extraValue) {
-        issues.push({ kind: 'INVALID_VALUE', variantId });
-      }
-      if (axisResults.every((result) => result.key !== undefined) && !extraValue) {
-        const selections = axisResults.flatMap((result) => (result.selection === undefined ? [] : [result.selection]));
-        const recorded = input.isRecordedCombination?.(variant, selections);
-        if (recorded !== true) {
-          issues.push({
-            kind: recorded === false ? 'UNRECORDED_COMBINATION' : 'UNVERIFIABLE_COMBINATION',
-            variantId,
-          });
-          continue;
-        }
-        const key = stableParts(
-          axisResults.flatMap((result) => (result.key === undefined ? [] : [result.key])).toSorted(),
-        );
-        const conflictingVariantId = signatures.get(key);
+      seenVariantIds.add(variantId);
+      const inspection = inspectCandidateVariant(candidate, input, axisIds);
+      issues.push(...inspection.issues);
+      if (inspection.signature !== undefined) {
+        const conflictingVariantId = signatures.get(inspection.signature);
         if (conflictingVariantId !== undefined && conflictingVariantId !== variantId) {
           issues.push({ conflictingVariantId, kind: 'DUPLICATE_COMBINATION', variantId });
         } else {
-          signatures.set(key, variantId);
+          signatures.set(inspection.signature, variantId);
         }
       }
     }

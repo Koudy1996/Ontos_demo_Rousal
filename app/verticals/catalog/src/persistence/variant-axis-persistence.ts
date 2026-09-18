@@ -1,9 +1,11 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
+import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
+import { stableCombinationKeyContent, stableParts } from '../../shared/domain/variant-axes.ts';
 import {
   attributeDefinitions,
   attributeDefinitionRevisions,
@@ -85,12 +87,25 @@ export interface VariantAxisPersistence {
     readonly RecordedVariantCombination[],
     CatalogPersistenceUnavailable | VariantAxisBasisUnavailable
   >;
+  /**
+   * Recorded ACTIVE forms with the effective values that still hash to their stored
+   * combination identity. Never a Cartesian expansion or purchase proof; fails closed
+   * when Current values no longer reproduce the recorded combination.
+   */
+  readonly readRecordedVariants: (
+    productRef: ProductRef,
+    axes: CurrentVariantAxes,
+  ) => Effect.Effect<readonly RecordedVariantWithValues[], CatalogPersistenceUnavailable | VariantAxisBasisUnavailable>;
 }
 
 export interface RecordedVariantCombination {
   readonly axisRevision: number;
   readonly combinationKey: string;
   readonly variantId: string;
+}
+
+export interface RecordedVariantWithValues extends RecordedVariantCombination {
+  readonly values: readonly CurrentVariantAxisValue[];
 }
 
 export interface CurrentVariantAxisValue {
@@ -101,6 +116,53 @@ export interface CurrentVariantAxisValue {
   readonly sourceRevision: number | null;
   readonly sourceValueSetRef: { readonly attributeValueSetId: string; readonly tenantId: string } | null;
 }
+
+const controlledValueResourceType = 'commerce.catalog.controlled-attribute-value';
+
+const itemValueKey = (item: typeof attributeValueItems.$inferSelect): string => {
+  if (item.valueKind === 'CONTROLLED') {
+    return stableParts([
+      'controlled',
+      catalogModuleId,
+      controlledValueResourceType,
+      item.tenantId,
+      item.controlledAttributeValueId ?? '',
+    ]);
+  }
+  if (item.valueKind === 'MEASUREMENT') {
+    return stableParts(['measurement', String(Number(item.numericValue)), item.unit ?? '']);
+  }
+  if (item.valueKind === 'SPECIAL') {
+    return stableParts(['special', item.specialState ?? '']);
+  }
+  return stableParts(['text', item.textValue ?? '']);
+};
+
+/**
+ * Canonical identity of an effective axis selection vector. This is the value the
+ * stored `combinationKey` must equal for Current value rows to be presented as the
+ * recorded form. The vector is encoded through `stableCombinationKeyContent`, whose
+ * empty vector encodes as `[]`, matching the existing `axisFreeCombinationKey`
+ * (sha256 of `[]`), so a no-axis Variant stays verifiable. `confirm-variant-combination`
+ * must produce the stored key with the same canonical encoding.
+ */
+export const recordedVariantCombinationKey = (
+  selections: readonly CurrentVariantAxisValue[],
+  tenantId: string,
+): string =>
+  createHash('sha256')
+    .update(
+      stableCombinationKeyContent(
+        selections
+          .map((selection) => [
+            tenantId,
+            selection.attributeDefinitionId,
+            ...selection.items.map((item) => itemValueKey(item)).toSorted(),
+          ])
+          .toSorted((left, right) => (stableParts(left) < stableParts(right) ? -1 : 1)),
+      ),
+    )
+    .digest('hex');
 
 const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   const error = new CatalogPersistenceUnavailable({
@@ -573,6 +635,35 @@ export const variantAxisPersistenceForScope = (
     }));
   });
 
+  const readRecordedVariants: VariantAxisPersistence['readRecordedVariants'] = Effect.fn(
+    'VariantAxisPersistence.readRecordedVariants',
+  )(function* readRecordedVariants(productRef, axes) {
+    const recorded = yield* readRecordedCombinations(productRef, axes);
+    return yield* Effect.forEach(
+      recorded,
+      Effect.fn('VariantAxisPersistence.readRecordedVariant')(function* readRecordedVariant(item) {
+        const variantRef: VariantRef = {
+          moduleId: catalogModuleId,
+          resourceId: item.variantId,
+          resourceType: 'commerce.catalog.variant',
+          tenantId,
+        };
+        const values = yield* readEffectiveValues(productRef, variantRef, axes);
+        if (values.some((value) => value.source === 'MISSING')) {
+          return yield* basisUnavailable();
+        }
+        // The stored combination key is the recorded authority. Current value rows are
+        // the recorded form only while they still reproduce it; otherwise a value-set
+        // change must fail closed instead of relabelling Current values as recorded.
+        if (recordedVariantCombinationKey(values, tenantId) !== item.combinationKey) {
+          return yield* basisUnavailable();
+        }
+        return { ...item, values } satisfies RecordedVariantWithValues;
+      }),
+      { concurrency: 1 },
+    );
+  });
+
   const govern: VariantAxisPersistence['govern'] = Effect.fn('VariantAxisPersistence.govern')(function* govern(input) {
     const conflict = writeConflict;
     if (invalidGovernInput(input, tenantId)) {
@@ -798,5 +889,5 @@ export const variantAxisPersistenceForScope = (
     return { axisRevision, changed: true };
   });
 
-  return { govern, readCurrent, readEffectiveValues, readRecordedCombinations };
+  return { govern, readCurrent, readEffectiveValues, readRecordedCombinations, readRecordedVariants };
 };

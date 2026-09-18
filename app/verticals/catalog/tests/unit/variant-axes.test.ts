@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Schema } from 'effect';
 
-import { AttributeDefinitionSchema } from '../../shared/domain/attribute-values.ts';
+import { AttributeDefinitionSchema, AttributeValueSchema } from '../../shared/domain/attribute-values.ts';
 import { ProductVariantSchema } from '../../shared/domain/product.ts';
 import type { VariantAxisValue } from '../../shared/domain/variant-axes.ts';
-import { evaluateVariantAxes } from '../../shared/domain/variant-axes.ts';
+import { evaluateVariantAxes, sameRef, valueKey } from '../../shared/domain/variant-axes.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const productRef = {
@@ -289,5 +289,56 @@ describe('Variant axes and exact combinations', () => {
       attributeDefinitionId: definition.ref.resourceId,
       kind: 'MISSING_DEFINITION',
     });
+  });
+
+  it('compares a Definition reference by full ResourceRef identity, not Tenant and identifier alone', () => {
+    expect(sameRef(definition.ref, { ...definition.ref })).toBe(true);
+    expect(sameRef(definition.ref, { ...definition.ref, resourceType: 'commerce.catalog.product' })).toBe(false);
+    expect(sameRef(definition.ref, { ...definition.ref, resourceId: '77777777-7777-4777-8777-777777777777' })).toBe(
+      false,
+    );
+    // @ts-expect-error A foreign module identity can still share Tenant and identifier.
+    expect(sameRef(definition.ref, { ...definition.ref, moduleId: 'commerce.pricing' })).toBe(false);
+  });
+
+  it('keys controlled values by full ResourceRef identity, not Tenant and identifier alone', () => {
+    expect(valueKey(white)).not.toBe(
+      valueKey({ ...white, valueRef: { ...white.valueRef, resourceType: 'commerce.catalog.product' } }),
+    );
+    expect(valueKey(white)).not.toBe(
+      valueKey({ ...white, valueRef: { ...white.valueRef, resourceId: '99999999-9999-4999-8999-999999999999' } }),
+    );
+    expect(Schema.is(AttributeValueSchema)(white)).toBe(true);
+    expect(
+      Schema.is(AttributeValueSchema)({ ...white, valueRef: { ...white.valueRef, moduleId: 'commerce.pricing' } }),
+    ).toBe(false);
+  });
+
+  it('flags a repeated Variant record before treating it as a second combination', () => {
+    const repeatedId = '33333333-3333-4333-8333-333333333333';
+    const first = { effectiveAxisValues: values(white), variant: variant(repeatedId) };
+    const repeated = { effectiveAxisValues: values(black), variant: variant(repeatedId) };
+    expect(evaluateVariantAxes({ ...base, candidates: [first, repeated] }).issues).toContainEqual({
+      kind: 'DUPLICATE_VARIANT_RECORD',
+      variantId: repeatedId,
+    });
+  });
+
+  it('rejects a Variant whose explicit identity disagrees with its Variant reference', () => {
+    const mismatched = Schema.decodeUnknownSync(ProductVariantSchema)({
+      lifecycle: 'ACTIVE',
+      productRef: base.productRef,
+      variantId: '11111111-1111-4111-8111-111111111111',
+      variantRef: {
+        moduleId: 'commerce.catalog',
+        resourceId: '22222222-2222-4222-8222-222222222222',
+        resourceType: 'commerce.catalog.variant',
+        tenantId,
+      },
+    });
+    expect(
+      evaluateVariantAxes({ ...base, candidates: [{ effectiveAxisValues: values(white), variant: mismatched }] })
+        .issues,
+    ).toContainEqual({ kind: 'WRONG_PRODUCT', variantId: '22222222-2222-4222-8222-222222222222' });
   });
 });

@@ -85,6 +85,8 @@ export const CATALOG_TABLE_INVENTORY = [
   'product_unit_rule_revisions',
   'product_units',
   'product_variant_axes',
+  'product_variant_axis_allowance_events',
+  'product_variant_axis_allowed_values',
   'product_variant_axis_events',
   'product_variant_revisions',
   'product_variants',
@@ -2402,6 +2404,109 @@ export const productVariantAxes = catalogSchema.table.withRLS(
   ],
 );
 
+/** An explicit replacement snapshot, including an intentionally empty allowed set. */
+export const productVariantAxisAllowanceEvents = catalogSchema.table.withRLS(
+  'product_variant_axis_allowance_events',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    allowanceRevision: integer('allowance_revision').notNull(),
+    axisRevision: integer('axis_revision').notNull(),
+    definitionRevision: integer('definition_revision').notNull(),
+    valueCount: integer('value_count').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRefs: text('evidence_refs').array().notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.attributeDefinitionId, table.allowanceRevision],
+      name: 'catalog_product_variant_axis_allowance_events_pk',
+    }),
+    unique('catalog_product_variant_axis_allowance_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    // Carries axisRevision so child value rows can pin the exact allowance axis revision.
+    unique('catalog_product_variant_axis_allowance_axis_uk').on(
+      table.tenantId,
+      table.productId,
+      table.attributeDefinitionId,
+      table.allowanceRevision,
+      table.axisRevision,
+    ),
+    foreignKey({
+      columns: [table.tenantId, table.productId, table.axisRevision],
+      foreignColumns: [
+        productVariantAxisEvents.tenantId,
+        productVariantAxisEvents.productId,
+        productVariantAxisEvents.axisRevision,
+      ],
+      name: 'catalog_product_variant_axis_allowance_axis_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.attributeDefinitionId, table.definitionRevision],
+      foreignColumns: [
+        attributeDefinitionRevisions.tenantId,
+        attributeDefinitionRevisions.attributeDefinitionId,
+        attributeDefinitionRevisions.revision,
+      ],
+      name: 'catalog_product_variant_axis_allowance_definition_revision_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_product_variant_axis_allowance_revision_ck',
+      sql`${table.allowanceRevision} > 0 and ${table.axisRevision} > 0 and ${table.definitionRevision} > 0 and ${table.valueCount} >= 0`,
+    ),
+    check(
+      'catalog_product_variant_axis_allowance_reason_ck',
+      sql`${table.reason} = btrim(${table.reason}) and length(${table.reason}) between 1 and 1000`,
+    ),
+    ...tenantRlsPolicies('catalog_product_variant_axis_allowance_events_tenant', table.tenantId),
+  ],
+);
+
+/** Only rows explicitly recorded in an allowance event can be selected for its axis. */
+export const productVariantAxisAllowedValues = catalogSchema.table.withRLS(
+  'product_variant_axis_allowed_values',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    attributeDefinitionId: uuid('attribute_definition_id').notNull(),
+    allowanceRevision: integer('allowance_revision').notNull(),
+    axisRevision: integer('axis_revision').notNull(),
+    valueKey: text('value_key').notNull(),
+    valueSnapshot: jsonb('value_snapshot').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.productId, table.attributeDefinitionId, table.allowanceRevision, table.valueKey],
+      name: 'catalog_product_variant_axis_allowed_values_pk',
+    }),
+    foreignKey({
+      columns: [
+        table.tenantId,
+        table.productId,
+        table.attributeDefinitionId,
+        table.allowanceRevision,
+        table.axisRevision,
+      ],
+      foreignColumns: [
+        productVariantAxisAllowanceEvents.tenantId,
+        productVariantAxisAllowanceEvents.productId,
+        productVariantAxisAllowanceEvents.attributeDefinitionId,
+        productVariantAxisAllowanceEvents.allowanceRevision,
+        productVariantAxisAllowanceEvents.axisRevision,
+      ],
+      name: 'catalog_product_variant_axis_allowed_values_event_fk',
+    }).onDelete('restrict'),
+    check(
+      'catalog_product_variant_axis_allowed_values_key_ck',
+      sql`length(${table.valueKey}) = 64 and ${table.valueKey} ~ '^[0-9a-f]{64}$'`,
+    ),
+    ...tenantRlsPolicies('catalog_product_variant_axis_allowed_values_tenant', table.tenantId),
+  ],
+);
+
 // A missing Variant set means inheritance.  A present set (including SPECIAL)
 // is an explicit complete override; item rows never merge with Product items.
 export const attributeValueSets = catalogSchema.table.withRLS(
@@ -3728,6 +3833,8 @@ const catalogDatabaseSchema = {
   productTypeRevisions,
   productTypes,
   productVariantAxes,
+  productVariantAxisAllowanceEvents,
+  productVariantAxisAllowedValues,
   productVariantAxisEvents,
   productVariantRevisions,
   productVariants,
@@ -3806,6 +3913,8 @@ export const CATALOG_TABLES = [
   productTypeRevisions,
   productTypes,
   productVariantAxes,
+  productVariantAxisAllowanceEvents,
+  productVariantAxisAllowedValues,
   productVariantAxisEvents,
   productVariantRevisions,
   productVariants,

@@ -21,8 +21,10 @@ import {
 import {
   VariantAxisBasisUnavailable,
   VariantAxisWriteConflict,
+  recordedVariantCombinationKey,
   variantAxisPersistenceForScope,
 } from '../../src/persistence/variant-axis-persistence.ts';
+import { axisFreeCombinationKey } from '../../src/persistence/variant-current-basis.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const productId = '22222222-2222-4222-8222-222222222222';
@@ -493,6 +495,176 @@ describe('Variant Axis Current basis', () => {
       const persistence = variantAxisPersistenceForScope(transaction, scope);
       const axes = yield* persistence.readCurrent(productRef);
       const failure = yield* Effect.flip(persistence.readRecordedCombinations(productRef, axes));
+      expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+
+  it.effect('returns effective values only while they reproduce the stored combination identity', () =>
+    Effect.gen(function* readsRecordedValues() {
+      const item = {
+        attributeDefinitionId: definitionId,
+        attributeValueSetId: valueSetId,
+        controlledAttributeValueId: '88888888-8888-4888-8888-888888888888',
+        numericValue: null,
+        ordinal: 0,
+        specialState: null,
+        tenantId,
+        textValue: null,
+        unit: null,
+        valueKind: 'CONTROLLED',
+      };
+      const selection = {
+        attributeDefinitionId: definitionId,
+        definitionRevision: 3,
+        items: [item],
+        source: 'VARIANT' as const,
+        sourceRevision: 5,
+        sourceValueSetRef: { attributeValueSetId: valueSetId, tenantId },
+      };
+      const combinationKey = recordedVariantCombinationKey([selection], tenantId);
+      const transaction = transactionWith(
+        new Map<AxisTable, readonly object[]>([
+          [
+            productVariants,
+            [
+              {
+                axisRevision: 1,
+                combinationAxisRevision: 1,
+                combinationKey,
+                lifecycleState: 'ACTIVE',
+                productId,
+                tenantId,
+                variantId,
+              },
+            ],
+          ],
+          [
+            attributeValueSets,
+            [
+              {
+                attributeDefinitionId: definitionId,
+                attributeValueSetId: valueSetId,
+                currentRevision: 5,
+                currentState: 'SET',
+                productId,
+                tenantId,
+                variantId,
+              },
+            ],
+          ],
+          [attributeValueItems, [item]],
+        ]),
+      );
+      // @ts-expect-error Focused Drizzle read-chain mock.
+      const persistence = variantAxisPersistenceForScope(transaction, scope);
+      const axes = yield* persistence.readCurrent(productRef);
+      expect(yield* persistence.readRecordedVariants(productRef, axes)).toEqual([
+        { axisRevision: 1, combinationKey, values: [selection], variantId },
+      ]);
+    }),
+  );
+
+  it.effect('anchors an axis-free recorded combination to the canonical empty key', () =>
+    Effect.gen(function* readsAxisFreeRecordedValue() {
+      const combinationKey = axisFreeCombinationKey();
+      const transaction = transactionWith(
+        new Map<AxisTable, readonly object[]>([
+          [
+            productVariantAxisEvents,
+            [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 1, productId, tenantId }],
+          ],
+          [productVariantAxes, []],
+          [
+            productVariants,
+            [
+              {
+                axisRevision: 1,
+                combinationAxisRevision: 1,
+                combinationKey,
+                lifecycleState: 'ACTIVE',
+                productId,
+                tenantId,
+                variantId,
+              },
+            ],
+          ],
+        ]),
+      );
+      // @ts-expect-error Focused Drizzle read-chain mock.
+      const persistence = variantAxisPersistenceForScope(transaction, scope);
+      const axes = yield* persistence.readCurrent(productRef);
+      expect(axes.axes).toEqual([]);
+      expect(recordedVariantCombinationKey([], tenantId)).toBe(combinationKey);
+      expect(yield* persistence.readRecordedVariants(productRef, axes)).toEqual([
+        { axisRevision: 1, combinationKey, values: [], variantId },
+      ]);
+    }),
+  );
+
+  it.effect('fails closed when Current values no longer reproduce the stored combination identity', () =>
+    Effect.gen(function* rejectsDriftedRecordedValues() {
+      const item = {
+        attributeDefinitionId: definitionId,
+        attributeValueSetId: valueSetId,
+        controlledAttributeValueId: '88888888-8888-4888-8888-888888888888',
+        numericValue: null,
+        ordinal: 0,
+        specialState: null,
+        tenantId,
+        textValue: null,
+        unit: null,
+        valueKind: 'CONTROLLED',
+      };
+      const recordedKey = recordedVariantCombinationKey(
+        [
+          {
+            attributeDefinitionId: definitionId,
+            definitionRevision: 3,
+            items: [item],
+            source: 'VARIANT' as const,
+            sourceRevision: 5,
+            sourceValueSetRef: { attributeValueSetId: valueSetId, tenantId },
+          },
+        ],
+        tenantId,
+      );
+      const transaction = transactionWith(
+        new Map<AxisTable, readonly object[]>([
+          [
+            productVariants,
+            [
+              {
+                axisRevision: 1,
+                combinationAxisRevision: 1,
+                combinationKey: recordedKey,
+                lifecycleState: 'ACTIVE',
+                productId,
+                tenantId,
+                variantId,
+              },
+            ],
+          ],
+          [
+            attributeValueSets,
+            [
+              {
+                attributeDefinitionId: definitionId,
+                attributeValueSetId: valueSetId,
+                currentRevision: 5,
+                currentState: 'SET',
+                productId,
+                tenantId,
+                variantId,
+              },
+            ],
+          ],
+          [attributeValueItems, [{ ...item, controlledAttributeValueId: '99999999-9999-4999-8999-999999999999' }]],
+        ]),
+      );
+      // @ts-expect-error Focused Drizzle read-chain mock.
+      const persistence = variantAxisPersistenceForScope(transaction, scope);
+      const axes = yield* persistence.readCurrent(productRef);
+      const failure = yield* Effect.flip(persistence.readRecordedVariants(productRef, axes));
       expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
     }),
   );

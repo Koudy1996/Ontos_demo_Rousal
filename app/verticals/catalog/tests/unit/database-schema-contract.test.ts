@@ -72,6 +72,8 @@ import {
   variantUnitDivisibilityRevisions,
   productVariants,
   productVariantAxes,
+  productVariantAxisAllowanceEvents,
+  productVariantAxisAllowedValues,
   productVariantAxisEvents,
   productVariantRevisions,
   products,
@@ -82,7 +84,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns seventy-five tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns seventy-seven tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -156,6 +158,8 @@ it('owns seventy-five tenant-scoped Catalog tables with RLS and immutable histor
     'product_unit_rule_revisions',
     'product_units',
     'product_variant_axes',
+    'product_variant_axis_allowance_events',
+    'product_variant_axis_allowed_values',
     'product_variant_axis_events',
     'product_variant_revisions',
     'product_variants',
@@ -606,6 +610,51 @@ it('keeps Product identity, Variant ownership, and historical revision keys cons
   );
 });
 
+it('pins Variant axis allowance history to exact axis and Definition revisions', () => {
+  const allowance = getTableConfig(productVariantAxisAllowanceEvents);
+  const allowedValues = getTableConfig(productVariantAxisAllowedValues);
+  expect(allowance.primaryKeys.map((key) => key.getName())).toContain(
+    'catalog_product_variant_axis_allowance_events_pk',
+  );
+  expect(allowance.uniqueConstraints.map((key) => key.name)).toEqual(
+    expect.arrayContaining([
+      'catalog_product_variant_axis_allowance_invocation_uk',
+      'catalog_product_variant_axis_allowance_axis_uk',
+    ]),
+  );
+  expect(allowance.foreignKeys.map((key) => key.getName())).toEqual(
+    expect.arrayContaining([
+      'catalog_product_variant_axis_allowance_axis_fk',
+      'catalog_product_variant_axis_allowance_definition_revision_fk',
+    ]),
+  );
+  const definitionRevisionFk = allowance.foreignKeys.find(
+    (key) => key.getName() === 'catalog_product_variant_axis_allowance_definition_revision_fk',
+  );
+  expect(definitionRevisionFk?.reference().columns.map((column) => column.name)).toEqual([
+    'tenant_id',
+    'attribute_definition_id',
+    'definition_revision',
+  ]);
+  expect(definitionRevisionFk?.reference().foreignColumns.map((column) => column.name)).toEqual([
+    'tenant_id',
+    'attribute_definition_id',
+    'revision',
+  ]);
+  expect(allowedValues.columns.map((column) => column.name)).toContain('axis_revision');
+  const eventFk = allowedValues.foreignKeys.find(
+    (key) => key.getName() === 'catalog_product_variant_axis_allowed_values_event_fk',
+  );
+  expect(eventFk?.reference().columns.map((column) => column.name)).toEqual([
+    'tenant_id',
+    'product_id',
+    'attribute_definition_id',
+    'allowance_revision',
+    'axis_revision',
+  ]);
+  expect(allowedValues.checks.map((key) => key.name)).toContain('catalog_product_variant_axis_allowed_values_key_ck');
+});
+
 it('keeps exact-locale facts and opaque attachment references tenant-qualified', () => {
   expect(getTableConfig(productLocalizedFacts).primaryKeys.map((key) => key.getName())).toContain(
     'catalog_product_localized_facts_pk',
@@ -693,6 +742,8 @@ it('checks migration hardening for force-RLS, append-only history, and stable id
   expect(combined).toContain('catalog_attribute_value_revisions_append_only');
   expect(combined).toContain('catalog_product_attribute_applicability_revisions_append_only');
   expect(combined).toContain('catalog_product_variant_axis_events_append_only');
+  expect(combined).toContain('catalog_product_variant_axis_allowance_events_append_only');
+  expect(combined).toContain('catalog_product_variant_axis_allowed_values_append_only');
   expect(combined).toContain('catalog_product_variant_revisions_append_only');
   expect(combined).toContain('catalog_product_type_assignment_current_pointer');
   expect(combined).toContain('catalog_product_type_assignment_event_pointer');

@@ -36,6 +36,7 @@ const context = (govern: VariantAxisPersistence['govern']) => {
     readCurrent: unexpected,
     readEffectiveValues: unexpected,
     readRecordedCombinations: unexpected,
+    readRecordedVariants: unexpected,
   };
   const value: ActionHandlerContext<typeof governVariantAxesAction.descriptor.domainEvents, VariantAxisPersistence> = {
     actionInvocationId: '44444444-4444-4444-8444-444444444444',
