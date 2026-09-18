@@ -71,6 +71,31 @@ const selectedWithOrder = (rows: readonly object[]) => ({
       orderBy: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
     }),
 });
+type BareSetTable = typeof products | typeof productVariants | typeof setCompositions;
+const unavailableSetRows = { where: () => ({ limit: () => Effect.fail(new Error('Set owner unavailable')) }) };
+const readBareSet = (setRows: readonly object[] | null) => {
+  const transaction = {
+    select: () => ({
+      from: (table: BareSetTable) => {
+        if (table === products) {
+          return selected([{ lifecycleState: 'ACTIVE', revision: 4 }]);
+        }
+        if (table === productVariants) {
+          return selected([{ lifecycleState: 'ACTIVE', productId, revision: 7 }]);
+        }
+        return setRows === null ? unavailableSetRows : selected(setRows);
+      },
+    }),
+  };
+  // @ts-expect-error The mock implements only the exercised owner read chains.
+  return catalogSelectionCurrentBasisForScope(transaction, scope).read({ purpose: 'PURCHASE_ACCEPTANCE', selection });
+};
+const packageEffectiveDate = (index: number, selectedAt: Date): Date => {
+  if (index < 3) {
+    return new Date(`195${index}-01-01T00:00:00.000Z`);
+  }
+  return index === 3 ? selectedAt : new Date('1961-01-01T00:00:00.000Z');
+};
 
 describe('Catalog Selection Current basis', () => {
   it.effect('never queries a foreign tenant selection', () =>
@@ -98,12 +123,14 @@ describe('Catalog Selection Current basis', () => {
     Effect.gen(function* partialBasis() {
       const transaction = {
         select: () => ({
-          from: (table: typeof products | typeof productVariants) =>
-            selected(
-              table === products
-                ? [{ lifecycleState: 'ACTIVE', revision: 4 }]
-                : [{ lifecycleState: 'ACTIVE', productId, revision: 7 }],
-            ),
+          from: (table: BareSetTable) => {
+            if (table === products) {
+              return selected([{ lifecycleState: 'ACTIVE', revision: 4 }]);
+            }
+            return table === productVariants
+              ? selected([{ lifecycleState: 'ACTIVE', productId, revision: 7 }])
+              : selected([]);
+          },
         }),
       };
       // @ts-expect-error Only the two exercised Drizzle read chains are mocked.
@@ -119,6 +146,22 @@ describe('Catalog Selection Current basis', () => {
       expect(Number.isNaN(Date.parse(result.assessedAt))).toBe(false);
       if (result.status !== 'OBSERVED') {
         expect(result.reason).toBe('Current Product Type assignment and rules are not owner-attested');
+      }
+    }),
+  );
+
+  it.effect('rejects a bare Set selection and fails closed when Set ownership cannot be read', () =>
+    Effect.gen(function* bareSet() {
+      const knownSet = yield* readBareSet([{ compositionId: '88888888-8888-4888-8888-888888888888' }]);
+      expect(knownSet.status).toBe('INVALID');
+      if (knownSet.status !== 'OBSERVED') {
+        expect(knownSet.reason).toBe('Set Product requires an exact selected Composition revision');
+      }
+      expect(knownSet.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT']);
+      const unavailable = yield* readBareSet(null);
+      expect(unavailable.status).toBe('INDETERMINATE');
+      if (unavailable.status !== 'OBSERVED') {
+        expect(unavailable.reason).toBe('Set ownership source is unavailable');
       }
     }),
   );
@@ -197,24 +240,23 @@ describe('Catalog Selection Current basis', () => {
           ],
           [
             packageContentRevisions,
-            [
-              {
-                amount: '10',
-                configurationKey: null,
-                effectiveAt: packageEffectiveAt,
-                lifecycleState: 'ACTIVE',
-                lowerCount: null,
-                lowerPackageDefinitionId: null,
-                lowerRevision: null,
-                packageDefinitionId: packageId,
-                productId,
-                setCompositionResourceId: null,
-                setCompositionRevision: null,
-                unitResourceId: unitId,
-                unitResourceType: 'commerce.catalog.product-unit',
-                variantId,
-              },
-            ],
+            Array.from({ length: packageCurrentRevision ?? 4 }, (_, index) => ({
+              amount: index === 4 ? '8' : '10',
+              configurationKey: null,
+              effectiveAt: packageEffectiveDate(index, packageEffectiveAt),
+              lifecycleState: 'ACTIVE',
+              lowerCount: null,
+              lowerPackageDefinitionId: null,
+              lowerRevision: null,
+              packageDefinitionId: packageId,
+              productId,
+              revision: index + 1,
+              setCompositionResourceId: null,
+              setCompositionRevision: null,
+              unitResourceId: unitId,
+              unitResourceType: 'commerce.catalog.product-unit',
+              variantId,
+            })),
           ],
           [
             packageOptionRoleRevisions,
@@ -450,12 +492,15 @@ describe('Catalog Selection Current basis', () => {
     Effect.gen(function* forgedRevisionId() {
       const transaction = {
         select: () => ({
-          from: (table: typeof products | typeof productVariants) => {
+          from: (table: typeof products | typeof productVariants | typeof setCompositions) => {
             if (table === products) {
               return selected([{ lifecycleState: 'ACTIVE', revision: 4 }]);
             }
             if (table === productVariants) {
               return selected([{ lifecycleState: 'ACTIVE', productId, revision: 7 }]);
+            }
+            if (table === setCompositions) {
+              return selected([]);
             }
             throw new Error('forged revision ID must not reach dependent read');
           },

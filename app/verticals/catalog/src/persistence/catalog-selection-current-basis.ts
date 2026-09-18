@@ -6,10 +6,11 @@ import {
   CatalogRevisionNumberSchema,
   sameCatalogRevisionReference,
 } from '../../shared/domain/catalog-revision-reference.ts';
+import { CatalogSelectionBasisSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
 import type { SetCompositionRevision } from '../../shared/domain/set-composition.ts';
-import { productVariants, products } from '../database/schema.ts';
+import { productVariants, products, setCompositions } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 import { catalogSelectionPackageUnitBasisForScope } from './catalog-selection-package-unit-basis.ts';
 import { effectiveAttributeValueReadsForScope } from './effective-attribute-value-reads.ts';
@@ -21,6 +22,7 @@ import type {
 } from './product-configuration-current-evaluator.ts';
 import { productTypeReadinessSourceForScope } from './product-type-readiness-source.ts';
 import { setCompositionComponentCurrentBasisForScope } from './set-composition-component-current-basis.ts';
+import type { SetComponentDependencyRevision } from './set-composition-component-current-basis.ts';
 import { setCompositionPersistenceForScope } from './set-composition-persistence.ts';
 import { variantAxisPersistenceForScope } from './variant-axis-persistence.ts';
 import type { CurrentVariantAxisValue } from './variant-axis-persistence.ts';
@@ -28,6 +30,11 @@ import type { CurrentVariantAxisValue } from './variant-axis-persistence.ts';
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 const catalogModuleId = 'commerce.catalog';
 const attributeDefinitionType = 'commerce.catalog.attribute-definition';
+const packageDefinitionType = 'commerce.catalog.package-definition';
+const productUnitType = 'commerce.catalog.product-unit';
+const variantType = 'commerce.catalog.variant';
+const configurationDefinitionType = 'commerce.catalog.configuration-definition';
+const catalogUnitType = 'commerce.catalog.unit';
 
 /** A snapshot of facts, never an owner guarantee that a purchase remains Current. */
 export type CatalogSelectionCurrentBasis = Extract<
@@ -50,7 +57,7 @@ const validRequest = (selection: CatalogSelection, purpose: string, tenantId: st
   selection.productRef.moduleId === catalogModuleId &&
   selection.variantRef.moduleId === catalogModuleId &&
   selection.productRef.resourceType === 'commerce.catalog.product' &&
-  selection.variantRef.resourceType === 'commerce.catalog.variant' &&
+  selection.variantRef.resourceType === variantType &&
   purpose.length > 0 &&
   purpose === purpose.trim();
 
@@ -59,6 +66,126 @@ const validDependentRef = (
   tenantId: string,
   resourceType: string,
 ): boolean => ref.moduleId === catalogModuleId && ref.resourceType === resourceType && ref.tenantId === tenantId;
+
+const matchesConfigurationComponentDependency = (
+  dependency: SetComponentDependencyRevision,
+  component: SetCompositionRevision['components'][number],
+): boolean => {
+  const { resourceId, resourceType, role } = dependency;
+  if (role === 'CONFIGURATION_DEFINITION') {
+    return (
+      resourceType === configurationDefinitionType &&
+      resourceId === component.selection.configuration?.definition.resourceRef.resourceId &&
+      dependency.revision === component.selection.configuration.definition.revision
+    );
+  }
+  return (
+    resourceType === catalogUnitType &&
+    component.selection.configuration?.choices.some(
+      (choice) => choice.unit?.resourceRef.resourceId === resourceId && choice.unit.revision === dependency.revision,
+    ) === true
+  );
+};
+
+const matchesComponentDependency = (
+  dependency: SetComponentDependencyRevision,
+  component: SetCompositionRevision['components'][number],
+): boolean => {
+  const { resourceId, resourceType, role } = dependency;
+  if (role === 'PRODUCT') {
+    return resourceType === 'commerce.catalog.product' && resourceId === component.selection.productRef.resourceId;
+  }
+  if (role === 'VARIANT') {
+    return resourceType === variantType && resourceId === component.selection.variantRef.resourceId;
+  }
+  if (role === 'UNIT_RULE') {
+    return resourceType === productUnitType && resourceId === component.quantity.unitRef.resourceId;
+  }
+  if (role === 'UNIT_TARGET_DIVISIBILITY') {
+    return component.selection.packageOption === undefined
+      ? resourceType === variantType && resourceId === component.selection.variantRef.resourceId
+      : resourceType === packageDefinitionType && resourceId === component.selection.packageOption.optionRef.resourceId;
+  }
+  if (role === 'PACKAGE_CONTENT') {
+    return resourceType === packageDefinitionType && component.selection.packageOption !== undefined;
+  }
+  if (role === 'CONFIGURATION_DEFINITION' || role === 'UNIT') {
+    return matchesConfigurationComponentDependency(dependency, component);
+  }
+  return (
+    resourceType === packageDefinitionType && resourceId === component.selection.packageOption?.optionRef.resourceId
+  );
+};
+
+const completeComponentDependencies = (
+  dependencies: readonly SetComponentDependencyRevision[],
+  revision: SetCompositionRevision,
+): boolean =>
+  revision.components.every((component) => {
+    const forComponent = dependencies.filter((dependency) => dependency.componentId === component.componentId);
+    const count = (role: SetComponentDependencyRevision['role']) =>
+      forComponent.filter((dependency) => dependency.role === role).length;
+    const hasPackage = component.selection.packageOption !== undefined;
+    const { configuration } = component.selection;
+    const measuredChoices = configuration?.choices.filter((choice) => choice.unit !== undefined).length ?? 0;
+    return (
+      count('PRODUCT') === 1 &&
+      count('VARIANT') === 1 &&
+      count('UNIT_RULE') === 1 &&
+      count('UNIT_TARGET_DIVISIBILITY') === 1 &&
+      count('PACKAGE_OPTION_ROLE') === Number(hasPackage) &&
+      count('CONFIGURATION_DEFINITION') === Number(configuration !== undefined) &&
+      count('UNIT') === measuredChoices &&
+      (hasPackage ? count('PACKAGE_CONTENT') > 0 : count('PACKAGE_CONTENT') === 0)
+    );
+  });
+
+const componentDependencyBasis = (
+  dependencies: readonly SetComponentDependencyRevision[],
+  revision: SetCompositionRevision,
+  tenantId: string,
+) => {
+  const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+  if (!completeComponentDependencies(dependencies, revision)) {
+    return { basis: [], reason: 'Set component dependency inventory is incomplete' };
+  }
+  const components = new Map<string, SetCompositionRevision['components'][number]>(
+    revision.components.map((component) => [component.componentId, component]),
+  );
+  const seen = new Set<string>();
+  for (const dependency of dependencies) {
+    const component = components.get(dependency.componentId);
+    if (component === undefined) {
+      return { basis: [], reason: 'Set component dependency is not part of the selected revision' };
+    }
+    if (!matchesComponentDependency(dependency, component)) {
+      return { basis: [], reason: 'Set component dependency does not match its owner target' };
+    }
+    const fact = Schema.decodeOption(CatalogSelectionBasisSchema)({
+      role: dependency.role,
+      source: {
+        resourceRef: {
+          moduleId: catalogModuleId,
+          resourceId: dependency.resourceId,
+          resourceType: dependency.resourceType,
+          tenantId,
+        },
+        revision: dependency.revision,
+      },
+      subject: { componentId: dependency.componentId, composition: revision.reference, kind: 'SET_COMPONENT' },
+    });
+    if (Option.isNone(fact)) {
+      return { basis: [], reason: 'Set component dependency revision or identity is unavailable' };
+    }
+    const key = `${dependency.componentId}:${dependency.role}:${dependency.resourceType}:${dependency.resourceId}:${dependency.revision}`;
+    if (seen.has(key)) {
+      return { basis: [], reason: 'Set component dependency is duplicated' };
+    }
+    seen.add(key);
+    basis.push(fact.value);
+  }
+  return { basis, reason: null };
+};
 
 const verifySetComponents = Effect.fn('CatalogSelectionCurrentBasis.verifySetComponents')(function* verifySetComponents(
   transaction: ScopedTransaction,
@@ -70,14 +197,22 @@ const verifySetComponents = Effect.fn('CatalogSelectionCurrentBasis.verifySetCom
     .read(revision, at)
     .pipe(Effect.orElseSucceed(() => null));
   if (components === null) {
-    return { reason: 'Set component Current source is unavailable', status: 'INDETERMINATE' as const };
+    return { basis: [], reason: 'Set component Current source is unavailable', status: 'INDETERMINATE' as const };
   }
   if (components.status !== 'VALID') {
-    return { reason: `Set component Current proof: ${components.code}`, status: components.status };
+    return { basis: [], reason: `Set component Current proof: ${components.code}`, status: components.status };
   }
-  return components.assessedAt === DateTime.formatIso(DateTime.makeUnsafe(at))
-    ? null
-    : { reason: 'Set component proof time differs from this assessment', status: 'INDETERMINATE' as const };
+  if (components.assessedAt !== DateTime.formatIso(DateTime.makeUnsafe(at))) {
+    return {
+      basis: [],
+      reason: 'Set component proof time differs from this assessment',
+      status: 'INDETERMINATE' as const,
+    };
+  }
+  const componentBasis = componentDependencyBasis(components.dependencies, revision, scope.tenantId);
+  return componentBasis.reason === null
+    ? { basis: componentBasis.basis, reason: null }
+    : { basis: [], reason: componentBasis.reason, status: 'INDETERMINATE' as const };
 });
 
 const appendAxisValueBasis = (
@@ -307,7 +442,7 @@ const readSelectedConfiguration = Effect.fn('CatalogSelectionCurrentBasis.readSe
     const selected = selection.configuration.definition;
     if (
       selected.revisionId !== undefined ||
-      !validDependentRef(selected.resourceRef, scope.tenantId, 'commerce.catalog.configuration-definition')
+      !validDependentRef(selected.resourceRef, scope.tenantId, configurationDefinitionType)
     ) {
       return {
         basis,
@@ -341,7 +476,7 @@ const readSelectedConfiguration = Effect.fn('CatalogSelectionCurrentBasis.readSe
         resourceRef: {
           moduleId: catalogModuleId,
           resourceId: current.value.definitionId,
-          resourceType: 'commerce.catalog.configuration-definition',
+          resourceType: configurationDefinitionType,
           tenantId: scope.tenantId,
         },
         revision,
@@ -355,6 +490,30 @@ const readSelectedConfiguration = Effect.fn('CatalogSelectionCurrentBasis.readSe
   },
 );
 
+const checkUnselectedSet = Effect.fn('CatalogSelectionCurrentBasis.checkUnselectedSet')(function* checkUnselectedSet(
+  transaction: ScopedTransaction,
+  scope: OperationalScope,
+  selection: CatalogSelection,
+) {
+  if (selection.setComposition !== undefined) {
+    return null;
+  }
+  const current = yield* transaction
+    .select({ compositionId: setCompositions.compositionId })
+    .from(setCompositions)
+    .where(
+      and(eq(setCompositions.tenantId, scope.tenantId), eq(setCompositions.productId, selection.productRef.resourceId)),
+    )
+    .limit(1)
+    .pipe(Effect.orElseSucceed(() => null));
+  if (current === null) {
+    return { reason: 'Set ownership source is unavailable', status: 'INDETERMINATE' as const };
+  }
+  return current.length === 0
+    ? null
+    : { reason: 'Set Product requires an exact selected Composition revision', status: 'INVALID' as const };
+});
+
 /** Only exact effective revisions may enter the basis; component and choice validity is still separate. */
 const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSelectedDependencies')(
   function* readSelectedDependencies(
@@ -364,6 +523,10 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
     at: Date,
   ) {
     const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+    const missingSet = yield* checkUnselectedSet(transaction, scope, selection);
+    if (missingSet !== null) {
+      return { basis, ...missingSet };
+    }
     const configuration = yield* readSelectedConfiguration(transaction, scope, selection, at);
     basis.push(...configuration.basis);
     if (configuration.reason !== null) {
@@ -405,11 +568,11 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
           status: 'INVALID' as const,
         };
       }
-      const componentFailure = yield* verifySetComponents(transaction, scope, revision, at);
-      if (componentFailure !== null) {
-        return { basis, ...componentFailure };
+      const componentProof = yield* verifySetComponents(transaction, scope, revision, at);
+      if (componentProof.reason !== null) {
+        return { basis, reason: componentProof.reason, status: componentProof.status };
       }
-      basis.push({ role: 'SET_COMPOSITION', source: revision.reference });
+      basis.push(...componentProof.basis, { role: 'SET_COMPOSITION', source: revision.reference });
     }
     return { basis, reason: null, status: 'INDETERMINATE' as const };
   },
