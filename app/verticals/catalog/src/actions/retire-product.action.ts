@@ -32,6 +32,7 @@ export { RetireProductPayloadSchema } from '../../shared/actions/retire-product.
 export type { RetireProductPayload } from '../../shared/actions/retire-product.ts';
 
 const MODULE_KEY = 'commerce.catalog' as const;
+const ACTION_KEY = 'commerce.catalog.retire-product' as const;
 const domainEvents = {
   'commerce.catalog.product-retired.v1': RetireProductResultSchema,
 } as const;
@@ -84,7 +85,7 @@ export const retireProductAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.retire-product.access.v1',
     },
-    actionKey: 'commerce.catalog.retire-product',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductActionErrorSchema,
@@ -92,7 +93,7 @@ export const retireProductAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.retire-product',
+      entrypointKey: ACTION_KEY,
       moduleKey: MODULE_KEY,
       role: 'action',
     }),
@@ -113,7 +114,7 @@ export const retireProductAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.retire-product', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(RetireProductResultSchema),
               encode: Schema.encodeEffect(RetireProductResultSchema),

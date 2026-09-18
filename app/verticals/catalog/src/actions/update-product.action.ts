@@ -33,6 +33,7 @@ export { UpdateProductPayloadSchema } from '../../shared/actions/update-product.
 export type { UpdateProductPayload } from '../../shared/actions/update-product.ts';
 
 const MODULE_KEY = 'commerce.catalog' as const;
+const ACTION_KEY = 'commerce.catalog.update-product' as const;
 const domainEvents = {
   'commerce.catalog.product-updated.v1': UpdateProductResultSchema,
 } as const;
@@ -95,7 +96,7 @@ export const updateProductAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.update-product.access.v1',
     },
-    actionKey: 'commerce.catalog.update-product',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductActionErrorSchema,
@@ -103,7 +104,7 @@ export const updateProductAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.update-product',
+      entrypointKey: ACTION_KEY,
       moduleKey: MODULE_KEY,
       role: 'action',
     }),
@@ -124,7 +125,7 @@ export const updateProductAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.update-product', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(UpdateProductResultSchema),
               encode: Schema.encodeEffect(UpdateProductResultSchema),

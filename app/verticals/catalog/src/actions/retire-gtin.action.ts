@@ -8,6 +8,7 @@ import { RetireGtinPayloadSchema, RetireGtinResultSchema } from '../../shared/ac
 import type { RetireGtinPayload } from '../../shared/actions/retire-gtin.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import {
   completeGtinChange,
   GtinActionErrorSchema,
@@ -17,6 +18,11 @@ import {
 import type { GtinServices } from './gtin-action-support.ts';
 
 const ACTION_KEY = 'commerce.catalog.retire-gtin' as const;
+const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
+  Object.assign(
+    new ActionTransactionError({ code: 'action_transaction_failed', reason: 'Catalog result capture failed' }),
+    { cause: error },
+  );
 
 type RetireGtinServices = GtinServices & {
   readonly captureResult: (
@@ -86,17 +92,7 @@ export const retireGtinAction: ActionRegistration<
               encode: Schema.encodeEffect(RetireGtinResultSchema),
             },
             result,
-          ).pipe(
-            Effect.mapError((error) =>
-              Object.assign(
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
-                { cause: error },
-              ),
-            ),
-          ),
+          ).pipe(Effect.mapError(mapCaptureError)),
       })),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),

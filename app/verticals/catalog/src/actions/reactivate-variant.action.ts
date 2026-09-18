@@ -12,6 +12,7 @@ import {
 import type { ReactivateVariantPayload, ReactivateVariantResult } from '../../shared/actions/reactivate-variant.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import {
   checkVariantTenant,
   conflictForOutcome,
@@ -26,6 +27,13 @@ export {
   ReactivateVariantResultSchema,
 } from '../../shared/actions/reactivate-variant.ts';
 export type { ReactivateVariantPayload, ReactivateVariantResult } from '../../shared/actions/reactivate-variant.ts';
+
+const ACTION_KEY = 'commerce.catalog.reactivate-variant' as const;
+const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
+  Object.assign(
+    new ActionTransactionError({ code: 'action_transaction_failed', reason: 'Catalog result capture failed' }),
+    { cause: error },
+  );
 
 type ReactivateVariantServices = VariantPersistence & {
   readonly captureResult: (
@@ -63,7 +71,7 @@ export const reactivateVariantAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.reactivate-variant.access.v1',
     },
-    actionKey: 'commerce.catalog.reactivate-variant',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: VariantActionErrorSchema,
@@ -71,7 +79,7 @@ export const reactivateVariantAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.reactivate-variant',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -92,21 +100,13 @@ export const reactivateVariantAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.reactivate-variant', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(ReactivateVariantResultSchema),
               encode: Schema.encodeEffect(ReactivateVariantResultSchema),
             },
             result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
-            ),
-          ),
+          ).pipe(Effect.mapError(mapCaptureError)),
       })),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),

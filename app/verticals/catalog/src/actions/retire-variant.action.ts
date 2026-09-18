@@ -9,6 +9,7 @@ import { RetireVariantPayloadSchema, RetireVariantResultSchema } from '../../sha
 import type { RetireVariantPayload, RetireVariantResult } from '../../shared/actions/retire-variant.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import {
   checkVariantTenant,
   conflictForOutcome,
@@ -21,6 +22,13 @@ import {
 
 export { RetireVariantPayloadSchema, RetireVariantResultSchema } from '../../shared/actions/retire-variant.ts';
 export type { RetireVariantPayload, RetireVariantResult } from '../../shared/actions/retire-variant.ts';
+
+const ACTION_KEY = 'commerce.catalog.retire-variant' as const;
+const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
+  Object.assign(
+    new ActionTransactionError({ code: 'action_transaction_failed', reason: 'Catalog result capture failed' }),
+    { cause: error },
+  );
 
 type RetireVariantServices = VariantPersistence & {
   readonly captureResult: (
@@ -62,7 +70,7 @@ export const retireVariantAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.retire-variant.access.v1',
     },
-    actionKey: 'commerce.catalog.retire-variant',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: VariantActionErrorSchema,
@@ -70,7 +78,7 @@ export const retireVariantAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.retire-variant',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -91,21 +99,13 @@ export const retireVariantAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.retire-variant', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(RetireVariantResultSchema),
               encode: Schema.encodeEffect(RetireVariantResultSchema),
             },
             result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
-            ),
-          ),
+          ).pipe(Effect.mapError(mapCaptureError)),
       })),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),

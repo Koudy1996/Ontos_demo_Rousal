@@ -36,6 +36,7 @@ export { ReactivateProductPayloadSchema } from '../../shared/actions/reactivate-
 export type { ReactivateProductPayload } from '../../shared/actions/reactivate-product.ts';
 
 const MODULE_KEY = 'commerce.catalog' as const;
+const ACTION_KEY = 'commerce.catalog.reactivate-product' as const;
 const domainEvents = {
   'commerce.catalog.product-reactivated.v1': ReactivateProductResultSchema,
 } as const;
@@ -86,7 +87,7 @@ export const reactivateProductAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.reactivate-product.access.v1',
     },
-    actionKey: 'commerce.catalog.reactivate-product',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: ProductActionErrorSchema,
@@ -94,7 +95,7 @@ export const reactivateProductAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.reactivate-product',
+      entrypointKey: ACTION_KEY,
       moduleKey: MODULE_KEY,
       role: 'action',
     }),
@@ -115,7 +116,7 @@ export const reactivateProductAction = defineAction(
           captureCatalogActionResult(
             transaction,
             scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.reactivate-product', schemaVersion: 1 },
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
             {
               decode: Schema.decodeUnknownEffect(ReactivateProductResultSchema),
               encode: Schema.encodeEffect(ReactivateProductResultSchema),

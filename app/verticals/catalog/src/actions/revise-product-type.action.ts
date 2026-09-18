@@ -8,12 +8,20 @@ import {
   ReviseProductTypeResultSchema,
 } from '../../shared/actions/revise-product-type.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 
 export {
   ReviseProductTypePayloadSchema,
   ReviseProductTypeResultSchema,
 } from '../../shared/actions/revise-product-type.ts';
 export type { ReviseProductTypePayload, ReviseProductTypeResult } from '../../shared/actions/revise-product-type.ts';
+
+const ACTION_KEY = 'commerce.catalog.revise-product-type' as const;
+const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
+  Object.assign(
+    new ActionTransactionError({ code: 'action_transaction_failed', reason: 'Catalog result capture failed' }),
+    { cause: error },
+  );
 
 /** Concurrent rule, population, or value change invalidates a prior impact review. */
 export const ReviseProductTypeStaleBasisSchema = Schema.TaggedStruct('ReviseProductTypeStaleBasis', {
@@ -44,14 +52,14 @@ export const reviseProductTypeAction = defineAction(
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.revise-product-type.access.v1',
     },
-    actionKey: 'commerce.catalog.revise-product-type',
+    actionKey: ACTION_KEY,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([ReviseProductTypeNotImplemented, ReviseProductTypeStaleBasisSchema]),
     domainEvents: {},
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.revise-product-type',
+      entrypointKey: ACTION_KEY,
       moduleKey: 'commerce.catalog',
       role: 'action',
     }),
@@ -70,21 +78,13 @@ export const reviseProductTypeAction = defineAction(
         captureCatalogActionResult(
           transaction,
           scope,
-          { actionInvocationId, actionKey: 'commerce.catalog.revise-product-type', schemaVersion: 1 },
+          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
           {
             decode: Schema.decodeUnknownEffect(ReviseProductTypeResultSchema),
             encode: Schema.encodeEffect(ReviseProductTypeResultSchema),
           },
           result,
-        ).pipe(
-          Effect.mapError(
-            () =>
-              new ActionTransactionError({
-                code: 'action_transaction_failed',
-                reason: 'Catalog result capture failed',
-              }),
-          ),
-        ),
+        ).pipe(Effect.mapError(mapCaptureError)),
     }),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
