@@ -46,7 +46,11 @@ const forbiddenTransaction = new Proxy(
   },
 );
 
-const readTransaction = (revisionRecorded: boolean, positions: readonly number[]) => ({
+const readTransaction = (
+  revisionRecorded: boolean,
+  positions: readonly number[],
+  sizeIds: readonly string[] = [sizeRef.resourceId, '00000000-0000-4000-8000-000000000005'],
+) => ({
   select: () => {
     let table: typeof productSizeUsageSets | typeof productSizeUsageRevisions | typeof productSizeUsageItems;
     const query = {
@@ -59,7 +63,7 @@ const readTransaction = (revisionRecorded: boolean, positions: readonly number[]
         Effect.succeed(
           table === productSizeUsageItems
             ? positions.map((position, index) => ({
-                id: index === 0 ? sizeRef.resourceId : '00000000-0000-4000-8000-000000000005',
+                id: sizeIds[index],
                 position,
               }))
             : [],
@@ -177,6 +181,27 @@ describe('Size usage persistence preflight', () => {
           revision: 1,
         });
       }
+    }),
+  );
+
+  it.effect('reads the same Size identity in two independently ordered Product lists', () =>
+    Effect.gen(function* test() {
+      const sizeL = '00000000-0000-4000-8000-000000000005';
+      const sizeXs = '00000000-0000-4000-8000-000000000008';
+      // @ts-expect-error The focused test supplies only the read query shape.
+      const firstProduct = sizeUsagePersistenceForScope(
+        readTransaction(true, [0, 1], [sizeRef.resourceId, sizeL]),
+        scope,
+      );
+      // @ts-expect-error The focused test supplies only the read query shape.
+      const secondProduct = sizeUsagePersistenceForScope(
+        readTransaction(true, [0, 1, 2], [sizeXs, sizeRef.resourceId, sizeL]),
+        scope,
+      );
+      const first = yield* firstProduct.read(productRef.resourceId);
+      const second = yield* secondProduct.read('00000000-0000-4000-8000-000000000009');
+      expect(Option.getOrThrow(first).orderedSizeIds).toEqual([sizeRef.resourceId, sizeL]);
+      expect(Option.getOrThrow(second).orderedSizeIds).toEqual([sizeXs, sizeRef.resourceId, sizeL]);
     }),
   );
 });
