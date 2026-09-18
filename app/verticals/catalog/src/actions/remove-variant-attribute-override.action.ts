@@ -60,13 +60,22 @@ export const handleRemoveVariantAttributeOverride = Effect.fn('RemoveVariantAttr
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.remove-variant-attribute-override' as const;
+const toSnapshotFailure = (cause: unknown): ActionTransactionError => {
+  const failure = new ActionTransactionError({
+    code: 'action_transaction_failed',
+    reason: 'Catalog result capture failed',
+  });
+  Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  return failure;
+};
 export const removeVariantAttributeOverrideAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.remove-variant-attribute-override.access.v1',
     },
-    actionKey: 'commerce.catalog.remove-variant-attribute-override',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([AttributeValuesConflict, CatalogPersistenceUnavailable]),
@@ -74,7 +83,7 @@ export const removeVariantAttributeOverrideAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.remove-variant-attribute-override',
+      entrypointKey: ACTION_KEY,
       moduleKey: CATALOG_MODULE_KEY,
       role: 'action',
     }),
@@ -89,28 +98,29 @@ export const removeVariantAttributeOverrideAction = defineAction(
   handleRemoveVariantAttributeOverride,
   (transaction, scope) =>
     attributeValuesPersistenceForScope(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof RemoveVariantAttributeOverrideResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.remove-variant-attribute-override', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(RemoveVariantAttributeOverrideResultSchema),
-              encode: Schema.encodeEffect(RemoveVariantAttributeOverrideResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
-            ),
-          ),
-      })),
+      Effect.map(
+        (
+          services,
+        ): AttributeValuesPersistence & {
+          captureResult: (
+            actionInvocationId: string,
+            result: typeof RemoveVariantAttributeOverrideResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (actionInvocationId: string, result: typeof RemoveVariantAttributeOverrideResultSchema.Type) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+              {
+                decode: Schema.decodeUnknownEffect(RemoveVariantAttributeOverrideResultSchema),
+                encode: Schema.encodeEffect(RemoveVariantAttributeOverrideResultSchema),
+              },
+              result,
+            ).pipe(Effect.mapError(toSnapshotFailure)),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );

@@ -78,13 +78,22 @@ const handleRenameControlledAttributeValue = Effect.fn('RenameControlledAttribut
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.rename-controlled-attribute-value' as const;
+const toSnapshotFailure = (cause: unknown): ActionTransactionError => {
+  const failure = new ActionTransactionError({
+    code: 'action_transaction_failed',
+    reason: 'Catalog result capture failed',
+  });
+  Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  return failure;
+};
 export const renameControlledAttributeValueAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.rename-controlled-attribute-value.access.v1',
     },
-    actionKey: 'commerce.catalog.rename-controlled-attribute-value',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([
@@ -96,7 +105,7 @@ export const renameControlledAttributeValueAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.rename-controlled-attribute-value',
+      entrypointKey: ACTION_KEY,
       moduleKey: CATALOG_MODULE_KEY,
       role: 'action',
     }),
@@ -111,28 +120,29 @@ export const renameControlledAttributeValueAction = defineAction(
   handleRenameControlledAttributeValue,
   (transaction, scope) =>
     attributePersistenceForScope(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof RenameControlledAttributeValueResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.rename-controlled-attribute-value', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(RenameControlledAttributeValueResultSchema),
-              encode: Schema.encodeEffect(RenameControlledAttributeValueResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
-            ),
-          ),
-      })),
+      Effect.map(
+        (
+          services,
+        ): AttributePersistence & {
+          captureResult: (
+            actionInvocationId: string,
+            result: typeof RenameControlledAttributeValueResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (actionInvocationId: string, result: typeof RenameControlledAttributeValueResultSchema.Type) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+              {
+                decode: Schema.decodeUnknownEffect(RenameControlledAttributeValueResultSchema),
+                encode: Schema.encodeEffect(RenameControlledAttributeValueResultSchema),
+              },
+              result,
+            ).pipe(Effect.mapError(toSnapshotFailure)),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );

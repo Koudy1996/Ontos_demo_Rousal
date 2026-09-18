@@ -89,13 +89,22 @@ export const handleCreateControlledAttributeValue = Effect.fn('CreateControlledA
   },
 );
 
+const ACTION_KEY = 'commerce.catalog.create-controlled-attribute-value' as const;
+const toSnapshotFailure = (cause: unknown): ActionTransactionError => {
+  const failure = new ActionTransactionError({
+    code: 'action_transaction_failed',
+    reason: 'Catalog result capture failed',
+  });
+  Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  return failure;
+};
 export const createControlledAttributeValueAction = defineAction(
   {
     accessEvidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.catalog.create-controlled-attribute-value.access.v1',
     },
-    actionKey: 'commerce.catalog.create-controlled-attribute-value',
+    actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
     domainErrorSchema: Schema.Union([
@@ -107,7 +116,7 @@ export const createControlledAttributeValueAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: 'commerce.catalog.create-controlled-attribute-value',
+      entrypointKey: ACTION_KEY,
       moduleKey: CATALOG_MODULE_KEY,
       role: 'action',
     }),
@@ -122,28 +131,29 @@ export const createControlledAttributeValueAction = defineAction(
   handleCreateControlledAttributeValue,
   (transaction, scope) =>
     attributePersistenceForScope(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof CreateControlledAttributeValueResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.create-controlled-attribute-value', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(CreateControlledAttributeValueResultSchema),
-              encode: Schema.encodeEffect(CreateControlledAttributeValueResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
-            ),
-          ),
-      })),
+      Effect.map(
+        (
+          services,
+        ): AttributePersistence & {
+          captureResult: (
+            actionInvocationId: string,
+            result: typeof CreateControlledAttributeValueResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (actionInvocationId: string, result: typeof CreateControlledAttributeValueResultSchema.Type) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+              {
+                decode: Schema.decodeUnknownEffect(CreateControlledAttributeValueResultSchema),
+                encode: Schema.encodeEffect(CreateControlledAttributeValueResultSchema),
+              },
+              result,
+            ).pipe(Effect.mapError(toSnapshotFailure)),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
