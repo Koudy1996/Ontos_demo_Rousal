@@ -11,6 +11,8 @@ import {
   productUnits,
   productVariants,
   products,
+  productConfigurationDefinitions,
+  variantUnitDivisibility,
 } from '../../src/database/schema.ts';
 import { catalogSelectionPackageUnitBasisForScope } from '../../src/persistence/catalog-selection-package-unit-basis.ts';
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
@@ -98,7 +100,9 @@ type ReadTable =
   | typeof packageOptionRoleRevisions
   | typeof packageUnitDivisibility
   | typeof productUnits
-  | typeof productUnitRuleRevisions;
+  | typeof productUnitRuleRevisions
+  | typeof productConfigurationDefinitions
+  | typeof variantUnitDivisibility;
 const queryResult = (table: ReadTable, overrides: Map<unknown, unknown>) => {
   const candidate = overrides.has(table) ? overrides.get(table) : rows.get(table);
   const row = Array.isArray(candidate) ? candidate.shift() : candidate;
@@ -147,6 +151,38 @@ describe('Catalog Selection package and Unit owner basis', () => {
       expect((yield* read(new Map([[packageContentRevisions, { ...content, configurationKey: 'red' }]]))).status).toBe(
         'INDETERMINATE',
       );
+    }),
+  );
+
+  it.effect('does not treat a predefined component configuration as open, but requires its exact Current proof', () =>
+    Effect.gen(function* configuredComponent() {
+      const configured = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        configuration: {
+          choices: [
+            {
+              choiceKey: 'length',
+              unit: { resourceRef: ref('commerce.catalog.unit', unitId), revision: 3 },
+              value: '83',
+            },
+          ],
+          definition: { resourceRef: ref('commerce.catalog.configuration-definition', packageId), revision: 2 },
+          productRef: ref('commerce.catalog.product', productId),
+          variantRef: ref('commerce.catalog.variant', variantId),
+        },
+        productRef: ref('commerce.catalog.product', productId),
+        variantRef: ref('commerce.catalog.variant', variantId),
+      });
+      // The fixed value is represented in the composition selection. A missing
+      // owner Configuration revision still cannot become a Current component.
+      const result = yield* catalogSelectionPackageUnitBasisForScope(
+        // @ts-expect-error The mock supplies only the read chains exercised here.
+        transactionFor(new Map([[variantUnitDivisibility, { currentRevision: 5, divisible: false, unitId }]])),
+        scope,
+      ).read(configured, now);
+      expect(result).toMatchObject({
+        reason: 'Configuration Current proof: CURRENT_DEFINITION_UNAVAILABLE',
+        status: 'INDETERMINATE',
+      });
     }),
   );
 

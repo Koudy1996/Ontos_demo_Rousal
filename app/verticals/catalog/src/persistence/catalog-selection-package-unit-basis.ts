@@ -18,6 +18,12 @@ import {
   variantUnitDivisibility,
 } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
+import { productConfigurationPersistenceForScope } from './product-configuration-persistence.ts';
+import { evaluateCurrentProductConfiguration } from './product-configuration-current-evaluator.ts';
+import type {
+  CurrentConfigurationAssessment,
+  TrustedConfigurationTarget,
+} from './product-configuration-current-evaluator.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 type Content = typeof packageContentRevisions.$inferSelect;
@@ -41,6 +47,7 @@ interface PackageContentStep {
 type CatalogSelectionPackageUnitBasis =
   | {
       readonly contentPath: readonly PackageContentStep[];
+      readonly configuration?: CurrentConfigurationAssessment;
       readonly optionRevision?: number;
       readonly productRevision: number;
       readonly setCompositionRevision?: number;
@@ -448,10 +455,7 @@ const assessBinding = (
   selection: CatalogSelection,
   packageBasis: PackageWalkState | undefined,
 ): Failure | undefined => {
-  if (
-    (packageBasis?.path.some((step) => step.configurationKey !== null) ?? false) ||
-    selection.configuration !== undefined
-  ) {
+  if (packageBasis?.path.some((step) => step.configurationKey !== null) ?? false) {
     return fail('INDETERMINATE', 'Configuration binding requires owner-issued complete-value proof');
   }
   const content = packageBasis?.firstContent;
@@ -517,6 +521,67 @@ export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTran
     if (bindingFailure !== undefined) {
       return bindingFailure;
     }
+    let configurationAssessment: CurrentConfigurationAssessment | undefined;
+    if (selection.configuration !== undefined) {
+      const { configuration } = selection;
+      const target: TrustedConfigurationTarget = {
+        definitionId: configuration.definition.resourceRef.resourceId,
+        productId: product.productId,
+        variantId: variant.variantId,
+        ...(option === undefined ? {} : { packageDefinitionId: option.optionRef.resourceId }),
+      };
+      const assessment = yield* evaluateCurrentProductConfiguration(
+        productConfigurationPersistenceForScope(transaction, scope),
+        {
+          at: now,
+          target,
+          values: configuration.choices.map((choice) =>
+            choice.unit === undefined
+              ? { choiceKey: choice.choiceKey, kind: 'SINGLE_CHOICE' as const, optionKey: choice.value }
+              : {
+                  amount: choice.value,
+                  choiceKey: choice.choiceKey,
+                  kind: 'MEASURED_VALUE' as const,
+                  unitId: choice.unit.resourceRef.resourceId,
+                },
+          ),
+        },
+      ).pipe(Effect.orElseSucceed(() => null));
+      if (assessment === null) {
+        return fail('INDETERMINATE', 'Configuration owner Current proof is unavailable');
+      }
+      if (assessment.status !== 'VALID') {
+        return fail(assessment.status, `Configuration Current proof: ${assessment.code}`);
+      }
+      if (
+        assessment.definitionRevision !== configuration.definition.revision ||
+        assessment.target.productId !== product.productId ||
+        assessment.target.variantId !== variant.variantId ||
+        assessment.target.packageDefinitionId !== option?.optionRef.resourceId ||
+        assessment.assessedAt.getTime() !== now.getTime() ||
+        configuration.choices.some((choice) => {
+          const proven = assessment.choiceRevisions.find((item) => item.choiceKey === choice.choiceKey);
+          return (
+            proven === undefined ||
+            (choice.unit === undefined
+              ? proven.kind !== 'SINGLE_CHOICE'
+              : proven.kind !== 'MEASURED_VALUE' ||
+                proven.unitId !== choice.unit.resourceRef.resourceId ||
+                proven.unitRevision !== choice.unit.revision)
+          );
+        }) ||
+        assessment.choiceRevisions.some(
+          (choice) =>
+            choice.kind === 'MEASURED_VALUE' &&
+            !assessment.unitRevisions.some(
+              (unit) => unit.ref.resourceId === choice.unitId && unit.revision === choice.unitRevision,
+            ),
+        )
+      ) {
+        return fail('INDETERMINATE', 'Configuration proof does not match exact target, choices, or Unit revisions');
+      }
+      configurationAssessment = assessment;
+    }
     const unitBasis = yield* readUnit(
       transaction,
       tenantId,
@@ -528,6 +593,7 @@ export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTran
     }
     const basis: CatalogSelectionPackageUnitBasis = {
       contentPath: packageBasis?.path ?? [],
+      ...(configurationAssessment === undefined ? {} : { configuration: configurationAssessment }),
       productRevision: product.currentRevision,
       status: 'CURRENT',
       unit: unitBasis.unit,
