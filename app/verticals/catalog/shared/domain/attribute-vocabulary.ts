@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 
 import { CatalogResourceRefSchema } from './catalog-revision-reference.ts';
+import { ColorDetailsSchema } from './color.ts';
 
 const meaningfulText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500), Schema.isTrimmed());
 const controlledValueResourceType = 'commerce.catalog.controlled-attribute-value';
@@ -8,21 +9,7 @@ const controlledValueResourceType = 'commerce.catalog.controlled-attribute-value
 /** Labels, previews, and list positions are never identity keys. */
 export const ControlledAttributeValueSchema = Schema.Struct({
   attributeDefinitionRef: CatalogResourceRefSchema,
-  color: Schema.optionalKey(
-    Schema.Struct({
-      distinguishingEvidence: meaningfulText,
-      groupLabel: Schema.optionalKey(meaningfulText),
-      previewHex: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^#[0-9a-fA-F]{6}$/u))),
-      swatchCode: Schema.optionalKey(meaningfulText),
-      swatchSystem: Schema.optionalKey(meaningfulText),
-    }).check(
-      Schema.makeFilter(({ swatchCode, swatchSystem }) =>
-        (swatchSystem === undefined) === (swatchCode === undefined)
-          ? undefined
-          : 'A swatch code requires its scoped system, and vice versa',
-      ),
-    ),
-  ),
+  color: Schema.optionalKey(ColorDetailsSchema),
   label: meaningfulText,
   lifecycle: Schema.Literals(['ACTIVE', 'RETIRED']),
   ref: CatalogResourceRefSchema,

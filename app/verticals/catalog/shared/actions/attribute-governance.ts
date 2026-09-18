@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 
 import { AttributeDefinitionSchema } from '../domain/attribute-values.ts';
 import { ControlledAttributeValueSchema } from '../domain/attribute-vocabulary.ts';
+import { ColorLocalizedNamesSchema } from '../domain/color.ts';
 import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
 import { ProductReasonSchema } from '../domain/product.ts';
 import { AttributeDefinitionRefSchema } from '../resources/attribute-definition.ts';
@@ -78,6 +79,7 @@ export const RenameControlledAttributeValuePayloadSchema = Schema.Struct({
   evidence: text,
   expectedRevision: CatalogRevisionNumberSchema,
   label: text,
+  localizedNames: Schema.optionalKey(ColorLocalizedNamesSchema),
   reason: ProductReasonSchema,
   sameMeaning: confirmed,
 });

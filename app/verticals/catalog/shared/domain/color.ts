@@ -34,22 +34,32 @@ export type ColorDistinctionEvidence = typeof ColorDistinctionEvidenceSchema.Typ
 
 export const ColorLocalizedNameSchema = Schema.Struct({ locale: CatalogLocaleSchema, name: text });
 export type ColorLocalizedName = typeof ColorLocalizedNameSchema.Type;
+export const ColorLocalizedNamesSchema = Schema.Array(ColorLocalizedNameSchema).check(
+  Schema.makeFilter((names) =>
+    new Set(names.map(({ locale }) => locale)).size === names.length
+      ? undefined
+      : 'A Color may have only one name per locale',
+  ),
+);
+
+/** Persisted Color facts; the controlled-value row supplies the stable ref and display name. */
+export const ColorDetailsSchema = Schema.Struct({
+  distinctionEvidence: ColorDistinctionEvidenceSchema,
+  groupName: Schema.optionalKey(text),
+  localizedNames: Schema.optionalKey(ColorLocalizedNamesSchema),
+  preview: Schema.optionalKey(ColorPreviewSchema),
+});
+export type ColorDetails = typeof ColorDetailsSchema.Type;
 
 /** The Tenant-qualified controlled-value reference, not the name/group/preview, is identity. */
 export const ColorSchema = Schema.Struct({
   displayName: text,
   distinctionEvidence: ColorDistinctionEvidenceSchema,
   groupName: Schema.optionalKey(text),
-  localizedNames: Schema.optionalKey(Schema.Array(ColorLocalizedNameSchema)),
+  localizedNames: Schema.optionalKey(ColorLocalizedNamesSchema),
   preview: Schema.optionalKey(ColorPreviewSchema),
   ref: colorRef,
-}).check(
-  Schema.makeFilter(({ localizedNames }) =>
-    localizedNames === undefined || new Set(localizedNames.map(({ locale }) => locale)).size === localizedNames.length
-      ? undefined
-      : 'A Color may have only one name per locale',
-  ),
-);
+});
 export type Color = typeof ColorSchema.Type;
 
 /** A missing translation remains missing; the display label is not relabeled as that locale. */

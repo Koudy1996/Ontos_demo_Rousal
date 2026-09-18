@@ -128,7 +128,15 @@ describe('Catalog attribute governance Actions', () => {
     expect(
       Schema.is(CreateControlledAttributeValuePayloadSchema)({
         ...base,
-        color: { distinguishingEvidence: 'Supplier sample A', previewHex: '#444444' },
+        color: {
+          distinctionEvidence: {
+            description: 'Supplier sample A',
+            kind: 'OTHER',
+            source: 'Supplier',
+            sourceScope: 'Shade A',
+          },
+          preview: { hex: '#444444', kind: 'HEX' },
+        },
       }),
     ).toBe(true);
     expect(
@@ -147,11 +155,16 @@ describe('Catalog attribute governance Actions', () => {
       const payload = Schema.decodeUnknownSync(CreateControlledAttributeValuePayloadSchema)({
         attributeDefinitionRef: definitionRef,
         color: {
-          distinguishingEvidence: 'Supplier sample A documents this physical shade',
-          groupLabel: 'Grey',
-          previewHex: '#444444',
-          swatchCode: 'A-42',
-          swatchSystem: 'Supplier sample collection',
+          distinctionEvidence: {
+            designation: 'A-42',
+            kind: 'SWATCH',
+            source: 'Supplier sample A documents this physical shade',
+            sourceScope: 'Supplier 2026 matte finish',
+            system: 'Supplier sample collection',
+          },
+          groupName: 'Grey',
+          localizedNames: [{ locale: 'cs', name: 'Antracit' }],
+          preview: { hex: '#444444', kind: 'HEX' },
         },
         label: 'Anthracite',
         meaning: 'Supplier shade A',
@@ -170,10 +183,13 @@ describe('Catalog attribute governance Actions', () => {
       const services: AttributePersistence = {
         createControlledValue: (input) =>
           Effect.sync(() => {
-            expect(input.colorGroup).toBe('Grey');
-            expect(input.previewHex).toBe('#444444');
-            expect(input.swatchCode).toBe('A-42');
-            expect(input.swatchSystem).toBe('Supplier sample collection');
+            expect(input.color?.groupName).toBe('Grey');
+            expect(input.color?.preview).toEqual({ hex: '#444444', kind: 'HEX' });
+            expect(input.color?.distinctionEvidence).toMatchObject({
+              designation: 'A-42',
+              sourceScope: 'Supplier 2026 matte finish',
+            });
+            expect(input.color?.localizedNames).toEqual([{ locale: 'cs', name: 'Antracit' }]);
             expect(input.evidenceRefs).toContain('Supplier sample A documents this physical shade');
             return { controlledValueRef, revision: 1 };
           }),
@@ -197,6 +213,28 @@ describe('Catalog attribute governance Actions', () => {
       expect(result.controlledValueRef.resourceId).toBe(controlledValueRef.resourceId);
     }),
   );
+
+  it('accepts reviewed localized Color rename without changing the controlled-value reference', () => {
+    const payload = {
+      controlledValueRef,
+      evidence: 'The physical finish is unchanged',
+      expectedRevision: 1,
+      label: 'Snow white',
+      localizedNames: [
+        { locale: 'en', name: 'Snow white' },
+        { locale: 'cs', name: 'Sněhově bílá' },
+      ],
+      reason: 'Correct display names',
+      sameMeaning: true,
+    };
+    expect(Schema.is(RenameControlledAttributeValuePayloadSchema)(payload)).toBe(true);
+    expect(
+      Schema.is(RenameControlledAttributeValuePayloadSchema)({
+        ...payload,
+        localizedNames: [...payload.localizedNames, { locale: 'cs', name: 'Bílá' }],
+      }),
+    ).toBe(false);
+  });
 
   it('keeps every governed mutation tenant-scoped, explicit-permission and idempotent', () => {
     for (const action of [

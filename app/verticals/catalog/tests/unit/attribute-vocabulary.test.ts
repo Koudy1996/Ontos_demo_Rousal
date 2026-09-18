@@ -68,28 +68,43 @@ describe('Catalog controlled attribute vocabulary', () => {
   it('does not merge Color identity from shared labels, group, or preview', () => {
     const color = {
       ...base,
-      color: { distinguishingEvidence: 'Physical shade A', groupLabel: 'Grey', previewHex: '#333333' },
+      color: {
+        distinctionEvidence: {
+          description: 'Physical shade A',
+          kind: 'OTHER',
+          source: 'Supplier sample',
+          sourceScope: '2026 matte range',
+        },
+        groupName: 'Grey',
+        preview: { hex: '#333333', kind: 'HEX' },
+      },
       label: 'Anthracite',
       specialization: 'COLOR' as const,
     };
     const first = Schema.decodeUnknownSync(ControlledAttributeValueSchema)(color);
     const second = Schema.decodeUnknownSync(ControlledAttributeValueSchema)({
       ...color,
-      color: { ...color.color, distinguishingEvidence: 'Physical shade B' },
+      color: {
+        ...color.color,
+        distinctionEvidence: { ...color.color.distinctionEvidence, description: 'Physical shade B' },
+      },
       ref: anotherValueRef,
     });
     expect(first.ref).not.toEqual(second.ref);
-    expect(first.color?.previewHex).toBe(second.color?.previewHex);
+    expect(first.color?.preview).toEqual(second.color?.preview);
     expect(() =>
       Schema.decodeUnknownSync(ControlledAttributeValueSchema)({
         ...color,
-        color: { ...color.color, distinguishingEvidence: ' ' },
+        color: { ...color.color, distinctionEvidence: { ...color.color.distinctionEvidence, sourceScope: ' ' } },
       }),
     ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(ControlledAttributeValueSchema)({
         ...color,
-        color: { ...color.color, swatchCode: 'A1' },
+        color: {
+          ...color.color,
+          distinctionEvidence: { designation: 'A1', kind: 'SWATCH', source: 'Supplier', sourceScope: 'Range' },
+        },
       }),
     ).toThrow();
   });

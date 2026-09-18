@@ -7,6 +7,8 @@ import { isDeepStrictEqual } from 'node:util';
 
 import type { AttributeDefinition } from '../../shared/domain/attribute-values.ts';
 import { AttributeDefinitionSchema } from '../../shared/domain/attribute-values.ts';
+import type { ColorDetails } from '../../shared/domain/color.ts';
+import { ColorDetailsSchema } from '../../shared/domain/color.ts';
 import type { AttributeDefinitionRef } from '../../shared/resources/attribute-definition.ts';
 import type { ControlledAttributeValueRef } from '../../shared/resources/controlled-attribute-value.ts';
 import {
@@ -145,13 +147,10 @@ const AttributeRuleProposalSchema = Schema.Struct({
 
 export interface CreateControlledAttributeValueInput extends ChangeMetadata {
   readonly attributeDefinitionRef: AttributeDefinitionRef;
-  readonly colorGroup?: string | undefined;
+  readonly color?: ColorDetails | undefined;
   readonly meaning: string;
   readonly name: string;
-  readonly previewHex?: string | undefined;
   readonly specialization: 'GENERAL' | 'COLOR' | 'SIZE';
-  readonly swatchCode?: string | undefined;
-  readonly swatchSystem?: string | undefined;
 }
 
 export interface ChangeControlledAttributeValueInput extends ChangeMetadata {
@@ -161,6 +160,7 @@ export interface ChangeControlledAttributeValueInput extends ChangeMetadata {
 }
 
 export interface RenameControlledAttributeValueInput extends ChangeControlledAttributeValueInput {
+  readonly localizedNames?: ColorDetails['localizedNames'] | undefined;
   readonly name: string;
   readonly sameMeaning: true;
 }
@@ -190,11 +190,22 @@ const validControlledInput = (input: CreateControlledAttributeValueInput, tenant
   validText(input.name, 240) &&
   validText(input.meaning, 1000) &&
   validText(input.reason, 1000);
-const hasColorMetadata = (input: CreateControlledAttributeValueInput) =>
-  input.colorGroup !== undefined ||
-  input.previewHex !== undefined ||
-  input.swatchSystem !== undefined ||
-  input.swatchCode !== undefined;
+const hasColorMetadata = (input: CreateControlledAttributeValueInput) => input.color !== undefined;
+
+const colorAfterLocalizedRename = (
+  current: ColorDetails | null,
+  specialization: string,
+  localizedNames: ColorDetails['localizedNames'] | undefined,
+): ColorDetails | undefined | null => {
+  if (localizedNames === undefined) {
+    return current ?? undefined;
+  }
+  if (specialization !== 'COLOR' || current === null) {
+    return null;
+  }
+  const next = { ...current, localizedNames };
+  return Schema.is(ColorDetailsSchema)(next) ? next : null;
+};
 
 export interface AttributeImpactSnapshot {
   readonly directProducts: readonly string[];
@@ -662,14 +673,11 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     if (!validControlledInput(input, tenantId)) {
       return yield* conflict('INVALID_INPUT', 'Invalid controlled value input');
     }
-    if (input.specialization !== 'COLOR' && hasColorMetadata(input)) {
+    if ((input.specialization === 'COLOR') !== hasColorMetadata(input)) {
       return yield* conflict('INVALID_INPUT', 'Color metadata does not match specialization');
     }
-    if ((input.swatchSystem === undefined) !== (input.swatchCode === undefined)) {
-      return yield* conflict('INVALID_INPUT', 'Color swatch system and code must be paired');
-    }
-    if (input.specialization === 'COLOR' && (input.evidenceRefs?.length ?? 0) === 0) {
-      return yield* conflict('INVALID_INPUT', 'Color distinction evidence is required');
+    if (input.color !== undefined && !Schema.is(ColorDetailsSchema)(input.color)) {
+      return yield* conflict('INVALID_INPUT', 'Color distinction evidence is invalid');
     }
     const [definition] = yield* transaction
       .select({
@@ -698,16 +706,18 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     const controlledAttributeValueId = randomUUID();
     const snapshot = {
       attributeDefinitionId: input.attributeDefinitionRef.resourceId,
-      colorGroup: input.colorGroup ?? null,
+      colorDetails: input.color ?? null,
+      colorGroup: input.color?.groupName ?? null,
       controlledAttributeValueId,
       lifecycleState: 'ACTIVE',
       meaning: input.meaning,
       name: input.name,
       previewEvidenceRef: null,
-      previewHex: input.previewHex ?? null,
+      previewHex: input.color?.preview?.kind === 'HEX' ? input.color.preview.hex : null,
       specialization: input.specialization,
-      swatchCode: input.swatchCode ?? null,
-      swatchSystem: input.swatchSystem ?? null,
+      swatchCode:
+        input.color?.distinctionEvidence.kind === 'SWATCH' ? input.color.distinctionEvidence.designation : null,
+      swatchSystem: input.color?.distinctionEvidence.kind === 'SWATCH' ? input.color.distinctionEvidence.system : null,
       tenantId,
     };
     yield* transaction
@@ -744,7 +754,7 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
 
   const changeValue = Effect.fn('AttributePersistence.changeValue')(function* changeValue(
     input: ChangeControlledAttributeValueInput,
-    change: { lifecycleState?: 'ACTIVE' | 'RETIRED'; name?: string },
+    change: { lifecycleState?: 'ACTIVE' | 'RETIRED'; localizedNames?: ColorDetails['localizedNames']; name?: string },
   ) {
     if (
       !validControlledValueRef(input.controlledValueRef, tenantId) ||
@@ -774,7 +784,12 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     }
     const name = change.name ?? current.name;
     const lifecycleState = change.lifecycleState ?? current.lifecycleState;
-    if (name === current.name && lifecycleState === current.lifecycleState) {
+    const previousColor = current.colorDetails ?? undefined;
+    const color = colorAfterLocalizedRename(current.colorDetails, current.specialization, change.localizedNames);
+    if (color === null) {
+      return yield* conflict('INVALID_INPUT', 'Localized Color rename requires valid existing Color details');
+    }
+    if (name === current.name && lifecycleState === current.lifecycleState && isDeepStrictEqual(color, previousColor)) {
       return {
         changed: false,
         controlledValueRef: input.controlledValueRef,
@@ -785,7 +800,7 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
     const revision = current.currentRevision + 1;
     yield* transaction
       .update(controlledAttributeValues)
-      .set({ currentRevision: revision, lifecycleState, name })
+      .set({ colorDetails: color ?? null, currentRevision: revision, lifecycleState, name })
       .where(
         and(
           eq(controlledAttributeValues.tenantId, tenantId),
@@ -799,6 +814,7 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
         actingPrincipalId: input.principalId,
         actionInvocationId: input.actionInvocationId,
         attributeDefinitionId: current.attributeDefinitionId,
+        colorDetails: color ?? null,
         colorGroup: current.colorGroup,
         controlledAttributeValueId: id,
         effectiveAt: input.effectiveAt,
@@ -828,7 +844,7 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
         : Effect.fail(conflict('INVALID_INPUT', 'Reactivation requires current meaning confirmation')),
     renameControlledValue: (input: RenameControlledAttributeValueInput) =>
       input.sameMeaning && validText(input.name, 240)
-        ? changeValue(input, { name: input.name })
+        ? changeValue(input, { localizedNames: input.localizedNames, name: input.name })
         : Effect.fail(conflict('INVALID_INPUT', 'Rename requires unchanged meaning and a valid name')),
     renameDefinition,
     retireControlledValue: (input: ChangeControlledAttributeValueInput) =>

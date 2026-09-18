@@ -50,6 +50,7 @@ const handleRenameControlledAttributeValue = Effect.fn('RenameControlledAttribut
       evidence: payload.evidence,
       evidenceRefs: [payload.evidence],
       expectedRevision: payload.expectedRevision,
+      localizedNames: payload.localizedNames,
       name: payload.label,
       principalId: context.scope.principalId,
       reason: payload.reason,

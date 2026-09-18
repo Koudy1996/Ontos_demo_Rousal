@@ -49,22 +49,15 @@ export const handleCreateControlledAttributeValue = Effect.fn('CreateControlledA
     const input: CreateControlledAttributeValueInput = {
       actionInvocationId: context.actionInvocationId,
       attributeDefinitionRef: payload.attributeDefinitionRef,
+      color: payload.color,
       effectiveAt: yield* DateTime.nowAsDate,
-      evidenceRefs: payload.color === undefined ? [] : [payload.color.distinguishingEvidence],
+      evidenceRefs: payload.color === undefined ? [] : [payload.color.distinctionEvidence.source],
       meaning: payload.meaning,
       name: payload.label,
       principalId: context.scope.principalId,
       reason: payload.reason,
       specialization: payload.specialization,
     };
-    if (payload.color !== undefined) {
-      Object.assign(input, {
-        colorGroup: payload.color.groupLabel,
-        previewHex: payload.color.previewHex,
-        swatchCode: payload.color.swatchCode,
-        swatchSystem: payload.color.swatchSystem,
-      });
-    }
     const result = yield* context.services.createControlledValue(input);
     yield* context.recordDataAccess({
       accessKind: 'read',

@@ -17,6 +17,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import type { ColorDetails } from '../../shared/domain/color.ts';
 
 export const CATALOG_SCHEMA_NAME = 'catalog';
 
@@ -1958,6 +1959,7 @@ export const controlledAttributeValues = catalogSchema.table.withRLS(
     specialization: text('specialization').notNull(),
     lifecycleState: text('lifecycle_state').default('ACTIVE').notNull(),
     colorGroup: text('color_group'),
+    colorDetails: jsonb('color_details').$type<ColorDetails>(),
     swatchSystem: text('swatch_system'),
     swatchCode: text('swatch_code'),
     previewHex: text('preview_hex'),
@@ -2216,6 +2218,7 @@ export const controlledAttributeValueRevisions = catalogSchema.table.withRLS(
     specialization: text('specialization').notNull(),
     lifecycleState: text('lifecycle_state').notNull(),
     colorGroup: text('color_group'),
+    colorDetails: jsonb('color_details').$type<ColorDetails>(),
     swatchSystem: text('swatch_system'),
     swatchCode: text('swatch_code'),
     previewHex: text('preview_hex'),
