@@ -24,6 +24,9 @@ const productRef = Schema.decodeUnknownSync(ProductRefSchema)(
 const variantRef = Schema.decodeUnknownSync(VariantRefSchema)(
   ref('commerce.catalog.variant', '33333333-3333-4333-8333-333333333333'),
 );
+const siblingVariantRef = Schema.decodeUnknownSync(VariantRefSchema)(
+  ref('commerce.catalog.variant', '33333333-3333-4333-8333-333333333334'),
+);
 const productTypeRef = Schema.decodeUnknownSync(ProductTypeRefSchema)(
   ref('commerce.catalog.product-type', '44444444-4444-4444-8444-444444444444'),
 );
@@ -35,6 +38,16 @@ const definition = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
   ref: ref('commerce.catalog.attribute-definition', '55555555-5555-4555-8555-555555555555'),
   specialStates: ['UNKNOWN', 'NOT_APPLICABLE'],
   valueKind: 'TEXT',
+});
+const measuredDefinition = Schema.decodeUnknownSync(AttributeDefinitionSchema)({
+  label: 'Length',
+  levels: ['PRODUCT', 'VARIANT'],
+  meaning: 'Length of the product',
+  measurement: { canonicalUnit: 'mm', decimalPlaces: 1, quantity: 'length' },
+  multiplicity: 'SINGLE',
+  ref: ref('commerce.catalog.attribute-definition', '55555555-5555-4555-8555-555555555555'),
+  specialStates: [],
+  valueKind: 'MEASUREMENT',
 });
 const effectiveFrom = '2026-09-01T00:00:00.000Z';
 const revisionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -116,6 +129,58 @@ describe('effective Product/Variant attribute values', () => {
     expect(before).toMatchObject({ productRevision: 3, values: variantSet.values });
   });
 
+  it('isolates an explicit Variant override from Product changes and sibling inheritance', () => {
+    const override = { revision: 6, state: 'SET' as const, values: [text('Aluminum')] };
+    const inheriting = input;
+    const overridden = { ...input, variantRef: siblingVariantRef, variantSet: override };
+    const stainless = { revision: 4, state: 'SET' as const, values: [text('Stainless')] };
+
+    expect(resolveEffectiveAttributeValues(inheriting)).toMatchObject({
+      source: { level: 'PRODUCT', revision: 3 },
+      status: 'CURRENT',
+      values: [text('Steel')],
+    });
+    expect(resolveEffectiveAttributeValues(overridden)).toMatchObject({
+      source: { level: 'VARIANT', revision: 6 },
+      status: 'CURRENT',
+      values: [text('Aluminum')],
+    });
+
+    expect(resolveEffectiveAttributeValues({ ...inheriting, productSet: stainless })).toMatchObject({
+      source: { level: 'PRODUCT', revision: 4 },
+      status: 'CURRENT',
+      values: [text('Stainless')],
+    });
+    expect(resolveEffectiveAttributeValues({ ...overridden, productSet: stainless })).toMatchObject({
+      source: { level: 'VARIANT', revision: 6 },
+      status: 'CURRENT',
+      values: [text('Aluminum')],
+    });
+
+    expect(resolveEffectiveAttributeValues({ ...inheriting, productSet: null })).toMatchObject({
+      status: 'CURRENT',
+      values: [],
+    });
+    expect(resolveEffectiveAttributeValues({ ...overridden, productSet: null })).toMatchObject({
+      source: { level: 'VARIANT', revision: 6 },
+      status: 'CURRENT',
+      values: [text('Aluminum')],
+    });
+
+    const removedOverride = { ...overridden, variantSet: { revision: 7, state: 'REMOVED' as const, values: [] } };
+    expect(resolveEffectiveAttributeValues({ ...removedOverride, productSet: stainless })).toMatchObject({
+      source: { level: 'PRODUCT', revision: 4 },
+      status: 'CURRENT',
+      values: [text('Stainless')],
+      variantRevision: 7,
+    });
+    expect(resolveEffectiveAttributeValues({ ...removedOverride, productSet: null })).toMatchObject({
+      status: 'CURRENT',
+      values: [],
+      variantRevision: 7,
+    });
+  });
+
   it('distinguishes explicit UNKNOWN and NOT_APPLICABLE from absent and removal', () => {
     for (const state of ['UNKNOWN', 'NOT_APPLICABLE'] as const) {
       expect(
@@ -162,6 +227,13 @@ describe('effective Product/Variant attribute values', () => {
         ...input,
         definition: { ...definition, multiplicity: 'SINGLE' },
         variantSet: { revision: 8, state: 'SET', values: [text('Wood'), text('Aluminum')] },
+      }),
+    ).toMatchObject({ status: 'INVALID_VALUE' });
+    expect(
+      resolveEffectiveAttributeValues({
+        ...input,
+        definition: measuredDefinition,
+        variantSet: { revision: 8, state: 'SET', values: [text('Wood')] },
       }),
     ).toMatchObject({ status: 'INVALID_VALUE' });
   });

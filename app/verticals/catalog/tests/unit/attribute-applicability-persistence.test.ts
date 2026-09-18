@@ -197,4 +197,133 @@ describe('Product-local Attribute applicability', () => {
       }
     }),
   );
+
+  it.effect('rejects a level the Attribute Definition does not permit', () =>
+    Effect.gen(function* rejectDefinitionLevel() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(
+        new Map([[attributeDefinitions, [{ applicableLevels: ['PRODUCT'] }]]]),
+        writes,
+      );
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      const error = yield* Effect.flip(persistence.change({ ...base, productLevel: false, variantLevel: true }));
+      expect(error).toMatchObject({ conflict: 'INAPPLICABLE' });
+      expect(writes).toHaveLength(0);
+    }),
+  );
+
+  it.effect('rejects a level the Current Product Type does not allow', () =>
+    Effect.gen(function* rejectTypeLevel() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(
+        new Map([[productTypeRevisionAttributes, [{ level: 'VARIANT', requirement: 'OPTIONAL' }]]]),
+        writes,
+      );
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      const error = yield* Effect.flip(persistence.change(base));
+      expect(error).toMatchObject({ conflict: 'INAPPLICABLE' });
+      expect(writes).toHaveLength(0);
+    }),
+  );
+
+  it.effect('requires an authoritative Current Product Type assignment', () =>
+    Effect.gen(function* requireTypeAssignment() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(new Map([[productTypeAssignments, []]]), writes);
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      const error = yield* Effect.flip(persistence.change(base));
+      expect(error).toMatchObject({ conflict: 'INAPPLICABLE' });
+      expect(writes).toHaveLength(0);
+    }),
+  );
+
+  it.effect('cannot remove a level the Current Product Type requires', () =>
+    Effect.gen(function* preserveRequiredMinimum() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(
+        new Map([
+          [
+            productTypeRevisionAttributes,
+            [
+              { level: 'PRODUCT', requirement: 'REQUIRED' },
+              { level: 'VARIANT', requirement: 'OPTIONAL' },
+            ],
+          ],
+        ]),
+        writes,
+      );
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      const error = yield* Effect.flip(persistence.change({ ...base, productLevel: false, variantLevel: true }));
+      expect(error).toMatchObject({ conflict: 'REQUIRED' });
+      expect(writes).toHaveLength(0);
+    }),
+  );
+
+  it.effect('moves a clean DRAFT declaration to Variant without manufacturing values or axes', () =>
+    Effect.gen(function* moveToVariant() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(
+        new Map([[productAttributeApplicability, [{ currentRevision: 1, productLevel: true, variantLevel: false }]]]),
+        writes,
+      );
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      const result = yield* persistence.change({
+        ...base,
+        evidenceRefs: ['type-rule-review-2'],
+        expectedRevision: 1,
+        productLevel: false,
+        variantLevel: true,
+      });
+      expect(result).toMatchObject({ productLevel: false, revision: 2, variantLevel: true });
+      expect(writes.map(({ table }) => table)).toEqual([
+        productAttributeApplicability,
+        productAttributeApplicabilityRevisions,
+      ]);
+      expect(writes[1]).toMatchObject({
+        value: { evidenceRefs: ['type-rule-review-2'], productLevel: false, revision: 2, variantLevel: true },
+      });
+      expect(
+        writes.every(
+          ({ table }) => table !== attributeValueSets && table !== productVariantAxes && table !== productVariants,
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('refuses to merge Variant-only values into a Product declaration', () =>
+    Effect.gen(function* refuseMerge() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(
+        new Map<ApplicabilityTable, readonly object[]>([
+          [productAttributeApplicability, [{ currentRevision: 1, productLevel: false, variantLevel: true }]],
+          [attributeValueSets, [{ attributeDefinitionId: 'other-definition' }]],
+        ]),
+        writes,
+      );
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      const error = yield* Effect.flip(
+        persistence.change({ ...base, expectedRevision: 1, productLevel: true, variantLevel: false }),
+      );
+      expect(error).toMatchObject({ conflict: 'VALUE_IMPACT' });
+      expect(writes).toHaveLength(0);
+    }),
+  );
+
+  it.effect('fails closed on non-DRAFT Products until a governed selection-impact basis exists', () =>
+    Effect.gen(function* requireImpactBasis() {
+      const writes: TestWrite[] = [];
+      const transaction = transactionWith(new Map([[products, [{ lifecycleState: 'ACTIVE' }]]]), writes);
+      // @ts-expect-error Focused transaction double models the query chain.
+      const persistence = yield* attributeApplicabilityPersistenceForScope(transaction, scope);
+      const error = yield* Effect.flip(persistence.change(base));
+      expect(error).toMatchObject({ conflict: 'SELECTION_IMPACT' });
+      expect(writes).toHaveLength(0);
+    }),
+  );
 });
