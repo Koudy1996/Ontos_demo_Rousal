@@ -7,13 +7,20 @@ import {
   packageDefinitions,
   packageOptionRoleRevisions,
   packageUnitDivisibility,
+  productConfigurationChoiceOptions,
+  productConfigurationChoices,
+  productConfigurationCompatibilityRules,
+  productConfigurationDefinitionRevisions,
+  productConfigurationDefinitions,
+  productConfigurationMeasuredRules,
+  productConfigurationOptionAllowances,
+  productConfigurationRevisionActivations,
   productUnitRuleRevisions,
   productUnits,
   productVariants,
   products,
   variantUnitDivisibility,
 } from '../../src/database/schema.ts';
-import type { productConfigurationDefinitions } from '../../src/database/schema.ts';
 import { catalogSelectionPackageUnitBasisForScope } from '../../src/persistence/catalog-selection-package-unit-basis.ts';
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 
@@ -108,6 +115,13 @@ type ReadTable =
   | typeof productUnits
   | typeof productUnitRuleRevisions
   | typeof productConfigurationDefinitions
+  | typeof productConfigurationDefinitionRevisions
+  | typeof productConfigurationRevisionActivations
+  | typeof productConfigurationChoices
+  | typeof productConfigurationChoiceOptions
+  | typeof productConfigurationOptionAllowances
+  | typeof productConfigurationMeasuredRules
+  | typeof productConfigurationCompatibilityRules
   | typeof variantUnitDivisibility;
 const queryResult = (table: ReadTable, overrides: Map<unknown, unknown>) => {
   const candidate = overrides.has(table) ? overrides.get(table) : rows.get(table);
@@ -125,10 +139,42 @@ const contentRows = (overrides: Map<unknown, unknown>) => {
   return Effect.succeed(Array.isArray(result) ? result : [result]);
 };
 const makeLimit = (table: ReadTable, overrides: Map<unknown, unknown>) => () => queryResult(table, overrides);
-const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>) => () =>
-  table === packageContentRevisions ? contentRows(overrides) : { limit: makeLimit(table, overrides) };
-const makeFrom = (overrides: Map<unknown, unknown>) => (table: ReadTable) => ({ where: makeWhere(table, overrides) });
-const transactionFor = (overrides = new Map<unknown, unknown>()) => ({ select: () => ({ from: makeFrom(overrides) }) });
+const makeWhere = (table: ReadTable, overrides: Map<unknown, unknown>, projected: boolean) => () => {
+  if (table === packageContentRevisions) {
+    return contentRows(overrides);
+  }
+  if (
+    (table === productConfigurationDefinitions && projected) ||
+    table === productConfigurationRevisionActivations ||
+    table === productConfigurationDefinitionRevisions ||
+    table === productConfigurationChoices ||
+    table === productConfigurationChoiceOptions ||
+    table === productConfigurationOptionAllowances ||
+    table === productConfigurationMeasuredRules ||
+    table === productConfigurationCompatibilityRules
+  ) {
+    const value = overrides.get(table);
+    let entries: readonly object[] = [];
+    if (Array.isArray(value)) {
+      entries = value;
+    } else if (value !== undefined && value !== null) {
+      entries = [value];
+    }
+    if (table === productConfigurationDefinitionRevisions) {
+      return Object.assign(Effect.succeed(entries), { limit: () => Effect.succeed(entries.slice(0, 1)) });
+    }
+    return Effect.succeed(entries);
+  }
+  return { limit: makeLimit(table, overrides) };
+};
+const makeFrom = (overrides: Map<unknown, unknown>, projected: boolean) => (table: ReadTable) => ({
+  where: makeWhere(table, overrides, projected),
+});
+const transactionFor = (overrides = new Map<unknown, unknown>()) => ({
+  select: (projection?: { readonly definitionId: typeof productConfigurationDefinitions.definitionId }) => ({
+    from: makeFrom(overrides, projection !== undefined),
+  }),
+});
 const read = (overrides = new Map<unknown, unknown>()) =>
   // @ts-expect-error The mock supplies only the read chains exercised here.
   catalogSelectionPackageUnitBasisForScope(transactionFor(overrides), scope).read(selection, now);
@@ -180,6 +226,112 @@ describe('Catalog Selection package and Unit owner basis', () => {
         unit: { divisible: false, id: unitId, ruleRevision: 6, targetDivisibilityRevision: 5 },
       });
       expect('quantity' in result).toBe(false);
+    }),
+  );
+
+  it.effect('fails closed when an omitted Configuration has an owner definition but no Current proof', () =>
+    Effect.gen(function* omittedConfiguration() {
+      const result = yield* read(new Map([[productConfigurationDefinitions, [{ definitionId: packageId }]]]));
+      expect(result).toMatchObject({
+        reason: 'Configuration applicability proof is unavailable',
+        status: 'INDETERMINATE',
+      });
+    }),
+  );
+
+  it.effect('rejects omitted required length and type from an applicable owner definition', () =>
+    Effect.gen(function* requiredConfiguration() {
+      const effectiveAt = new Date('2026-09-16T00:00:00.000Z');
+      const actionInvocationId = '88888888-8888-4888-8888-888888888888';
+      const actingPrincipalId = '99999999-9999-4999-8999-999999999999';
+      const reason = 'Required component configuration';
+      const evidenceRefs = ['owner:required-configuration'];
+      const ownerRows = new Map<unknown, unknown>([
+        [productConfigurationDefinitions, [{ currentRevision: 1, definitionId: packageId, productId }]],
+        [
+          productConfigurationRevisionActivations,
+          [
+            {
+              actingPrincipalId,
+              actionInvocationId,
+              effectiveAt,
+              evidenceRefs,
+              reason,
+              revision: 1,
+              supersededRevision: null,
+            },
+          ],
+        ],
+        [
+          productConfigurationDefinitionRevisions,
+          [
+            {
+              actingPrincipalId,
+              actionInvocationId,
+              definitionId: packageId,
+              effectiveFrom: effectiveAt,
+              evidenceRefs,
+              productId,
+              reason,
+              revision: 1,
+              state: 'ACTIVE',
+            },
+          ],
+        ],
+        [
+          productConfigurationChoices,
+          ['length', 'type'].map((choiceKey) => ({
+            choiceKey,
+            kind: 'SINGLE_CHOICE',
+            label: choiceKey,
+            meaning: choiceKey,
+            required: true,
+            unitId: null,
+            valueKind: 'SINGLE_CHOICE',
+          })),
+        ],
+        [
+          productConfigurationChoiceOptions,
+          ['length', 'type'].map((choiceKey) => ({
+            choiceKey,
+            label: 'A',
+            meaning: 'A',
+            optionKey: 'A',
+          })),
+        ],
+        [
+          productConfigurationOptionAllowances,
+          ['length', 'type'].map((choiceKey) => ({
+            allowed: true,
+            choiceKey,
+            evidenceRefs,
+            optionKey: 'A',
+            packageDefinitionId: null,
+            variantId: null,
+          })),
+        ],
+      ]);
+      const result = yield* read(ownerRows);
+      expect(result).toMatchObject({
+        reason: 'Configuration Current proof: REQUIRED_CHOICE_MISSING',
+        status: 'INVALID',
+      });
+      const complete = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        ...selection,
+        configuration: {
+          choices: ['length', 'type'].map((choiceKey) => ({ choiceKey, value: 'A' })),
+          definition: { resourceRef: ref('commerce.catalog.configuration-definition', packageId), revision: 1 },
+          productRef: selection.productRef,
+          variantRef: selection.variantRef,
+        },
+      });
+      ownerRows.set(productConfigurationDefinitions, [{ currentRevision: 1, definitionId: packageId, productId }]);
+      const completeResult = yield* catalogSelectionPackageUnitBasisForScope(
+        // @ts-expect-error The mock supplies only the read chains exercised here.
+        transactionFor(ownerRows),
+        scope,
+      ).read(complete, now);
+      expect(completeResult).toMatchObject({ status: 'CURRENT' });
     }),
   );
 

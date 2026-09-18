@@ -11,6 +11,7 @@ import {
   packageUnitDivisibility,
   productUnitRuleRevisions,
   productUnits,
+  productConfigurationDefinitions,
   productVariants,
   products,
   setCompositions,
@@ -47,8 +48,8 @@ interface PackageContentStep {
 /** Product facts only. This never represents purchase-line quantity or an acceptance guarantee. */
 type CatalogSelectionPackageUnitBasis =
   | {
-      readonly contentPath: readonly PackageContentStep[];
       readonly configuration?: CurrentConfigurationAssessment;
+      readonly contentPath: readonly PackageContentStep[];
       readonly optionRevision?: number;
       readonly productRevision: number;
       readonly setCompositionRevision?: number;
@@ -512,25 +513,185 @@ const assessBinding = (
   return undefined;
 };
 
+const assessOmittedConfiguration = Effect.fn('CatalogSelectionPackageUnitBasis.assessOmittedConfiguration')(
+  function* assessOmittedConfiguration(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    productId: string,
+    variantId: string,
+    packageDefinitionId: string | undefined,
+    now: Date,
+  ) {
+    const definitions = yield* transaction
+      .select({ definitionId: productConfigurationDefinitions.definitionId })
+      .from(productConfigurationDefinitions)
+      .where(
+        and(
+          eq(productConfigurationDefinitions.tenantId, scope.tenantId),
+          eq(productConfigurationDefinitions.productId, productId),
+        ),
+      );
+    const results = yield* Effect.forEach(
+      definitions,
+      (definition) => {
+        const target: TrustedConfigurationTarget = { definitionId: definition.definitionId, productId, variantId };
+        if (packageDefinitionId !== undefined) {
+          Object.assign(target, { packageDefinitionId });
+        }
+        return evaluateCurrentProductConfiguration(productConfigurationPersistenceForScope(transaction, scope), {
+          at: now,
+          target,
+          values: [],
+        }).pipe(Effect.orElseSucceed(() => null));
+      },
+      { concurrency: 1 },
+    );
+    if (results.some((assessment) => assessment === null || assessment.status === 'INDETERMINATE')) {
+      return fail('INDETERMINATE', 'Configuration applicability proof is unavailable');
+    }
+    const invalid = results.find((assessment) => assessment?.status === 'INVALID');
+    return invalid?.status === 'INVALID' ? fail('INVALID', `Configuration Current proof: ${invalid.code}`) : undefined;
+  },
+);
+
+const assessSelectedConfiguration = Effect.fn('CatalogSelectionPackageUnitBasis.assessSelectedConfiguration')(
+  function* assessSelectedConfiguration(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    configuration: NonNullable<CatalogSelection['configuration']>,
+    productId: string,
+    variantId: string,
+    packageDefinitionId: string | undefined,
+    now: Date,
+  ) {
+    const target: TrustedConfigurationTarget = {
+      definitionId: configuration.definition.resourceRef.resourceId,
+      productId,
+      variantId,
+    };
+    if (packageDefinitionId !== undefined) {
+      Object.assign(target, { packageDefinitionId });
+    }
+    const assessment = yield* evaluateCurrentProductConfiguration(
+      productConfigurationPersistenceForScope(transaction, scope),
+      {
+        at: now,
+        target,
+        values: configuration.choices.map((choice) =>
+          choice.unit === undefined
+            ? { choiceKey: choice.choiceKey, kind: 'SINGLE_CHOICE' as const, optionKey: choice.value }
+            : {
+                amount: choice.value,
+                choiceKey: choice.choiceKey,
+                kind: 'MEASURED_VALUE' as const,
+                unitId: choice.unit.resourceRef.resourceId,
+              },
+        ),
+      },
+    ).pipe(Effect.orElseSucceed(() => null));
+    if (assessment === null) {
+      return fail('INDETERMINATE', 'Configuration owner Current proof is unavailable');
+    }
+    if (assessment.status !== 'VALID') {
+      return fail(assessment.status, `Configuration Current proof: ${assessment.code}`);
+    }
+    if (
+      assessment.definitionRevision !== configuration.definition.revision ||
+      assessment.target.productId !== productId ||
+      assessment.target.variantId !== variantId ||
+      assessment.target.packageDefinitionId !== packageDefinitionId ||
+      DateTime.toEpochMillis(DateTime.makeUnsafe(assessment.assessedAt)) !==
+        DateTime.toEpochMillis(DateTime.makeUnsafe(now)) ||
+      assessment.choiceRevisions.length !== configuration.choices.length ||
+      configuration.choices.some((choice) => {
+        const proven = assessment.choiceRevisions.find((item) => item.choiceKey === choice.choiceKey);
+        return (
+          proven === undefined ||
+          (choice.unit === undefined
+            ? proven.kind !== 'SINGLE_CHOICE'
+            : proven.kind !== 'MEASURED_VALUE' ||
+              proven.unitId !== choice.unit.resourceRef.resourceId ||
+              proven.unitRevision !== choice.unit.revision)
+        );
+      }) ||
+      assessment.choiceRevisions.some(
+        (choice) =>
+          choice.kind === 'MEASURED_VALUE' &&
+          !assessment.unitRevisions.some(
+            (unit) =>
+              unit.ref.moduleId === 'commerce.catalog' &&
+              unit.ref.resourceType === 'commerce.catalog.unit' &&
+              unit.ref.tenantId === scope.tenantId &&
+              unit.ref.resourceId === choice.unitId &&
+              unit.revision === choice.unitRevision,
+          ),
+      )
+    ) {
+      return fail('INDETERMINATE', 'Configuration proof does not match exact target, choices, or Unit revisions');
+    }
+    return { assessment, status: 'PROVEN' as const };
+  },
+);
+
+const selectionInputFailure = (selection: CatalogSelection, tenantId: string, now: Date): Failure | undefined => {
+  if (
+    !Schema.is(CatalogSelectionSchema)(selection) ||
+    selection.productRef.tenantId !== tenantId ||
+    selection.configuration?.choices.some(
+      (choice) =>
+        choice.unit !== undefined &&
+        (choice.unit.resourceRef.moduleId !== 'commerce.catalog' ||
+          choice.unit.resourceRef.resourceType !== 'commerce.catalog.unit' ||
+          choice.unit.resourceRef.tenantId !== tenantId),
+    ) === true
+  ) {
+    return fail('INVALID', 'Selection is malformed or outside the trusted Tenant');
+  }
+  return Option.isNone(DateTime.make(now))
+    ? fail('INDETERMINATE', 'Trusted assessment time is unavailable')
+    : undefined;
+};
+
+const assessSelectionConfiguration = Effect.fn('CatalogSelectionPackageUnitBasis.assessSelectionConfiguration')(
+  function* assessSelectionConfiguration(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    selection: CatalogSelection,
+    productId: string,
+    variantId: string,
+    now: Date,
+  ) {
+    const packageDefinitionId = selection.packageOption?.optionRef.resourceId;
+    if (selection.configuration === undefined) {
+      const failure = yield* assessOmittedConfiguration(
+        transaction,
+        scope,
+        productId,
+        variantId,
+        packageDefinitionId,
+        now,
+      );
+      return failure ?? { status: 'PROVEN' as const };
+    }
+    return yield* assessSelectedConfiguration(
+      transaction,
+      scope,
+      selection.configuration,
+      productId,
+      variantId,
+      packageDefinitionId,
+      now,
+    );
+  },
+);
+
 /** Read inside Core's scoped transaction; lower content edges remain pinned to exact revisions. */
 export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTransaction, scope: OperationalScope) => ({
   read: Effect.fn('CatalogSelectionPackageUnitBasis.read')(function* read(selection: CatalogSelection, now: Date) {
     const { tenantId } = scope;
-    if (
-      !Schema.is(CatalogSelectionSchema)(selection) ||
-      selection.productRef.tenantId !== tenantId ||
-      selection.configuration?.choices.some(
-        (choice) =>
-          choice.unit !== undefined &&
-          (choice.unit.resourceRef.moduleId !== 'commerce.catalog' ||
-            choice.unit.resourceRef.resourceType !== 'commerce.catalog.unit' ||
-            choice.unit.resourceRef.tenantId !== tenantId),
-      ) === true
-    ) {
-      return fail('INVALID', 'Selection is malformed or outside the trusted Tenant');
-    }
-    if (Option.isNone(DateTime.make(now))) {
-      return fail('INDETERMINATE', 'Trusted assessment time is unavailable');
+    const inputFailure = selectionInputFailure(selection, tenantId, now);
+    if (inputFailure !== undefined) {
+      return inputFailure;
     }
     const parents = yield* readParents(transaction, tenantId, selection);
     if (parents.status !== 'CURRENT') {
@@ -567,72 +728,16 @@ export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTran
     if (bindingFailure !== undefined) {
       return bindingFailure;
     }
-    let configurationAssessment: CurrentConfigurationAssessment | undefined;
-    if (selection.configuration !== undefined) {
-      const { configuration } = selection;
-      const target: TrustedConfigurationTarget = {
-        definitionId: configuration.definition.resourceRef.resourceId,
-        productId: product.productId,
-        variantId: variant.variantId,
-        ...(option === undefined ? {} : { packageDefinitionId: option.optionRef.resourceId }),
-      };
-      const assessment = yield* evaluateCurrentProductConfiguration(
-        productConfigurationPersistenceForScope(transaction, scope),
-        {
-          at: now,
-          target,
-          values: configuration.choices.map((choice) =>
-            choice.unit === undefined
-              ? { choiceKey: choice.choiceKey, kind: 'SINGLE_CHOICE' as const, optionKey: choice.value }
-              : {
-                  amount: choice.value,
-                  choiceKey: choice.choiceKey,
-                  kind: 'MEASURED_VALUE' as const,
-                  unitId: choice.unit.resourceRef.resourceId,
-                },
-          ),
-        },
-      ).pipe(Effect.orElseSucceed(() => null));
-      if (assessment === null) {
-        return fail('INDETERMINATE', 'Configuration owner Current proof is unavailable');
-      }
-      if (assessment.status !== 'VALID') {
-        return fail(assessment.status, `Configuration Current proof: ${assessment.code}`);
-      }
-      if (
-        assessment.definitionRevision !== configuration.definition.revision ||
-        assessment.target.productId !== product.productId ||
-        assessment.target.variantId !== variant.variantId ||
-        assessment.target.packageDefinitionId !== option?.optionRef.resourceId ||
-        assessment.assessedAt.getTime() !== now.getTime() ||
-        assessment.choiceRevisions.length !== configuration.choices.length ||
-        configuration.choices.some((choice) => {
-          const proven = assessment.choiceRevisions.find((item) => item.choiceKey === choice.choiceKey);
-          return (
-            proven === undefined ||
-            (choice.unit === undefined
-              ? proven.kind !== 'SINGLE_CHOICE'
-              : proven.kind !== 'MEASURED_VALUE' ||
-                proven.unitId !== choice.unit.resourceRef.resourceId ||
-                proven.unitRevision !== choice.unit.revision)
-          );
-        }) ||
-        assessment.choiceRevisions.some(
-          (choice) =>
-            choice.kind === 'MEASURED_VALUE' &&
-            !assessment.unitRevisions.some(
-              (unit) =>
-                unit.ref.moduleId === 'commerce.catalog' &&
-                unit.ref.resourceType === 'commerce.catalog.unit' &&
-                unit.ref.tenantId === tenantId &&
-                unit.ref.resourceId === choice.unitId &&
-                unit.revision === choice.unitRevision,
-            ),
-        )
-      ) {
-        return fail('INDETERMINATE', 'Configuration proof does not match exact target, choices, or Unit revisions');
-      }
-      configurationAssessment = assessment;
+    const configuration = yield* assessSelectionConfiguration(
+      transaction,
+      scope,
+      selection,
+      product.productId,
+      variant.variantId,
+      now,
+    );
+    if (configuration.status !== 'PROVEN') {
+      return configuration;
     }
     const unitBasis = yield* readUnit(
       transaction,
@@ -645,12 +750,14 @@ export const catalogSelectionPackageUnitBasisForScope = (transaction: ScopedTran
     }
     const basis: CatalogSelectionPackageUnitBasis = {
       contentPath: packageBasis?.path ?? [],
-      ...(configurationAssessment === undefined ? {} : { configuration: configurationAssessment }),
       productRevision: product.currentRevision,
       status: 'CURRENT',
       unit: unitBasis.unit,
       variantRevision: variant.currentRevision,
     };
+    if ('assessment' in configuration) {
+      Object.assign(basis, { configuration: configuration.assessment });
+    }
     if (basis.status === 'CURRENT') {
       if (packageBasis?.optionRevision !== undefined) {
         Object.assign(basis, { optionRevision: packageBasis.optionRevision });
