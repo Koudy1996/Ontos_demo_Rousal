@@ -7,7 +7,6 @@ import { packagePersistenceForScope } from '../persistence/package-persistence.t
 import { packageContentBasisForTransaction } from '../persistence/package-content-basis.ts';
 
 export { packageContentBasisForTransaction } from '../persistence/package-content-basis.ts';
-export type { CurrentSetCompositionBasis } from '../persistence/package-content-basis.ts';
 
 type ScopedTransaction = Parameters<typeof packagePersistenceForScope>[0];
 const moduleId = 'commerce.catalog';
@@ -16,9 +15,7 @@ export const packageDefinitionPersistenceServiceFactory = (
   transaction: ScopedTransaction,
   scope: Parameters<typeof packagePersistenceForScope>[1],
 ) =>
-  Effect.succeed(
-    packagePersistenceForScope(transaction, scope, packageContentBasisForTransaction(transaction, scope.tenantId)),
-  );
+  Effect.succeed(packagePersistenceForScope(transaction, scope, packageContentBasisForTransaction(transaction, scope)));
 
 const packageDefinitionUnavailable = () =>
   new PackageDefinitionActionError({

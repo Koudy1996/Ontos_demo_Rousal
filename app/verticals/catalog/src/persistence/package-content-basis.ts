@@ -1,4 +1,4 @@
-import type { ReadServiceFactory } from '@app/core-runtime';
+import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { DateTime, Effect, Option, Schema } from 'effect';
 
@@ -18,6 +18,8 @@ import {
   setCompositions,
 } from '../database/schema.ts';
 import { PackagePersistenceUnavailable } from './package-persistence.ts';
+import { setCompositionPersistenceForScope } from './set-composition-persistence.ts';
+import { setCompositionComponentCurrentBasisForScope } from './set-composition-component-current-basis.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 const packageType = 'commerce.catalog.package-definition';
@@ -53,31 +55,31 @@ const setCompositionFromRow = Effect.fn('PackageContentBasis.setCompositionFromR
     }),
   );
 });
-/** Supplied by the Set owner only when component selections have authoritative Current proof in this transaction. */
-export interface CurrentSetCompositionBasis {
-  readonly verifyComponents: (input: {
-    readonly composition: CatalogSelectionRevision;
-    readonly productId: string;
-    readonly tenantId: string;
-    readonly transaction: ScopedTransaction;
-    readonly variantId: string;
-  }) => Effect.Effect<boolean, PackagePersistenceUnavailable>;
-}
-
 const currentSetComposition = Effect.fn('PackageContentBasis.currentSetComposition')(
   function* currentSetCompositionRows(
     transaction: ScopedTransaction,
     content: Pick<Content, 'form' | 'setComposition'>,
-    tenantId: string,
-    basis: CurrentSetCompositionBasis | undefined,
+    scope: OperationalScope,
   ) {
+    const { tenantId } = scope;
     const composition = content.setComposition;
     if (composition === undefined) {
-      return true;
+      const [setTarget] = yield* transaction
+        .select({ compositionId: setCompositions.compositionId })
+        .from(setCompositions)
+        .where(
+          and(
+            eq(setCompositions.tenantId, tenantId),
+            eq(setCompositions.productId, content.form.productRef.resourceId),
+            eq(setCompositions.variantId, content.form.variantRef.resourceId),
+          ),
+        )
+        .for('update')
+        .limit(1);
+      return setTarget === undefined;
     }
     const { resourceRef, revision } = composition;
     if (
-      basis === undefined ||
       resourceRef.moduleId !== moduleId ||
       resourceRef.resourceType !== setCompositionType ||
       resourceRef.tenantId !== tenantId ||
@@ -100,7 +102,7 @@ const currentSetComposition = Effect.fn('PackageContentBasis.currentSetCompositi
       )
       .for('update')
       .limit(1);
-    if (current === undefined || current.currentRevision !== revision) {
+    if (current === undefined || current.currentRevision < revision) {
       return false;
     }
     const [issued] = yield* transaction
@@ -126,7 +128,24 @@ const currentSetComposition = Effect.fn('PackageContentBasis.currentSetCompositi
     ) {
       return false;
     }
-    return yield* basis.verifyComponents({ composition, productId, tenantId, transaction, variantId });
+    const stored = yield* setCompositionPersistenceForScope(transaction, scope).readCurrent({
+      at: now,
+      compositionId: resourceRef.resourceId,
+    });
+    if (Option.isNone(stored) || stored.value.revision.reference.revision !== revision) {
+      return false;
+    }
+    const exact = stored.value.revision;
+    if (
+      exact.productRef.resourceId !== productId ||
+      exact.variantRef.resourceId !== variantId ||
+      exact.reference.revision !== revision ||
+      exact.components.length === 0
+    ) {
+      return false;
+    }
+    const proof = yield* setCompositionComponentCurrentBasisForScope(transaction, scope).read(exact, now);
+    return proof.status === 'VALID';
   },
   Effect.mapError(unavailable),
 );
@@ -189,20 +208,19 @@ const currentSubject = Effect.fn('PackageContentBasis.currentSubject')(function*
 const loadLower: (
   transaction: ScopedTransaction,
   content: Content,
-  tenantId: string,
+  scope: OperationalScope,
   lower: CatalogSelectionRevision,
   seen: ReadonlySet<string>,
-  setBasis: CurrentSetCompositionBasis | undefined,
 ) => Effect.Effect<Option.Option<readonly PackageContentRevision[]>, PackagePersistenceUnavailable> = Effect.fn(
   'PackageContentBasis.loadLower',
 )(function* loadLowerRows(
   transaction: ScopedTransaction,
   content: Content,
-  tenantId: string,
+  scope: OperationalScope,
   lower: CatalogSelectionRevision,
   seen: ReadonlySet<string>,
-  setBasis: CurrentSetCompositionBasis | undefined,
 ) {
+  const { tenantId } = scope;
   const lowerId = lower.resourceRef.resourceId;
   if (lower.resourceRef.tenantId !== tenantId || lower.resourceRef.resourceType !== packageType || seen.has(lowerId)) {
     return Option.none();
@@ -260,22 +278,18 @@ const loadLower: (
   const setComposition = yield* setCompositionFromRow(row, tenantId);
   const withSet = Option.isNone(setComposition) ? configured : { ...configured, setComposition: setComposition.value };
   const revision: PackageContentRevision = next === undefined ? withSet : { ...withSet, lower: next };
-  if (!(yield* currentSetComposition(transaction, revision, tenantId, setBasis))) {
+  if (!(yield* currentSetComposition(transaction, revision, scope))) {
     return Option.none();
   }
   if (next === undefined) {
     return Option.some([revision]);
   }
-  const tail = yield* loadLower(transaction, content, tenantId, next.revision, new Set([...seen, lowerId]), setBasis);
+  const tail = yield* loadLower(transaction, content, scope, next.revision, new Set([...seen, lowerId]));
   return Option.isNone(tail) ? Option.none() : Option.some([revision, ...tail.value]);
 }, Effect.mapError(unavailable));
 
 /** All reads share Core's transaction and carry the trusted Tenant predicate. */
-export const packageContentBasisForTransaction = (
-  transaction: ScopedTransaction,
-  trustedTenantId: string,
-  setBasis?: CurrentSetCompositionBasis,
-) => ({
+export const packageContentBasisForTransaction = (transaction: ScopedTransaction, scope: OperationalScope) => ({
   verify: Effect.fn('PackageContentBasis.verify')(function* verify({
     content,
     definitionId,
@@ -286,7 +300,7 @@ export const packageContentBasisForTransaction = (
     readonly tenantId: string;
   }) {
     if (
-      tenantId !== trustedTenantId ||
+      tenantId !== scope.tenantId ||
       content.form.productRef.tenantId !== tenantId ||
       content.form.variantRef.tenantId !== tenantId ||
       content.unitRef.tenantId !== tenantId ||
@@ -297,20 +311,13 @@ export const packageContentBasisForTransaction = (
     if (!(yield* currentSubject(transaction, content, tenantId))) {
       return false;
     }
-    if (!(yield* currentSetComposition(transaction, content, tenantId, setBasis))) {
+    if (!(yield* currentSetComposition(transaction, content, scope))) {
       return false;
     }
     if (content.lower === undefined) {
       return true;
     }
-    const revisions = yield* loadLower(
-      transaction,
-      content,
-      tenantId,
-      content.lower.revision,
-      new Set([definitionId]),
-      setBasis,
-    );
+    const revisions = yield* loadLower(transaction, content, scope, content.lower.revision, new Set([definitionId]));
     if (Option.isNone(revisions)) {
       return false;
     }

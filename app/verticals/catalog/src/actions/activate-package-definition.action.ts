@@ -117,7 +117,7 @@ export const activatePackageDefinitionPersistenceServiceFactory = (
     packageActivationPersistenceForScope(
       transaction,
       scope,
-      packageContentBasisForTransaction(transaction, scope.tenantId),
+      packageContentBasisForTransaction(transaction, scope),
       unprovenSelectionImpact,
     ),
   );
