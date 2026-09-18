@@ -1,8 +1,5 @@
-import {
-  PackageOptionTransitionPayloadSchema,
-  PackageOptionTransitionResultSchema,
-} from './package-option-contract.ts';
+import { PackageOptionTransitionPayloadSchema } from './package-option-contract.ts';
 
 export const ActivatePackageOptionPayloadSchema = PackageOptionTransitionPayloadSchema;
 export type ActivatePackageOptionPayload = typeof ActivatePackageOptionPayloadSchema.Type;
-export const ActivatePackageOptionResultSchema = PackageOptionTransitionResultSchema;
+export { PackageOptionTransitionResultSchema as ActivatePackageOptionResultSchema } from './package-option-contract.ts';

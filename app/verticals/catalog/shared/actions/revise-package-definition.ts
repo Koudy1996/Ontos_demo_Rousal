@@ -5,7 +5,6 @@ import {
   PackageDefinitionContentInputSchema,
   PackageDefinitionEvidenceRefsSchema,
   PackageDefinitionReasonSchema,
-  PackageDefinitionMutationResultSchema,
   PackageDefinitionChangeKindSchema,
 } from './package-definition-contract.ts';
 
@@ -18,4 +17,4 @@ export const RevisePackageDefinitionPayloadSchema = Schema.Struct({
   reason: PackageDefinitionReasonSchema,
 });
 export type RevisePackageDefinitionPayload = typeof RevisePackageDefinitionPayloadSchema.Type;
-export const RevisePackageDefinitionResultSchema = PackageDefinitionMutationResultSchema;
+export { PackageDefinitionMutationResultSchema as RevisePackageDefinitionResultSchema } from './package-definition-contract.ts';

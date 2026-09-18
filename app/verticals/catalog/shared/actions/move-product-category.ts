@@ -1,10 +1,6 @@
 import { Schema } from 'effect';
 
-import {
-  CategoryReasonSchema,
-  CategoryRevisionSchema,
-  CreateProductCategoryResultSchema,
-} from './create-product-category.ts';
+import { CategoryReasonSchema, CategoryRevisionSchema } from './create-product-category.ts';
 import { ProductCategoryRefSchema } from '../resources/product-category.ts';
 
 export const MoveProductCategoryPayloadSchema = Schema.Struct({
@@ -14,4 +10,4 @@ export const MoveProductCategoryPayloadSchema = Schema.Struct({
   reason: CategoryReasonSchema,
 });
 export type MoveProductCategoryPayload = typeof MoveProductCategoryPayloadSchema.Type;
-export const MoveProductCategoryResultSchema = CreateProductCategoryResultSchema;
+export { CreateProductCategoryResultSchema as MoveProductCategoryResultSchema } from './create-product-category.ts';

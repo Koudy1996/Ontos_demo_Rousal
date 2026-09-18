@@ -1,4 +1,3 @@
-import { AddProductCategoryAssignmentResultSchema } from './add-product-category-assignment.ts';
 import { Schema } from 'effect';
 
 import { CategoryReasonSchema } from './create-product-category.ts';
@@ -11,4 +10,4 @@ export const RemoveProductCategoryAssignmentPayloadSchema = Schema.Struct({
   reason: CategoryReasonSchema,
 });
 export type RemoveProductCategoryAssignmentPayload = typeof RemoveProductCategoryAssignmentPayloadSchema.Type;
-export const RemoveProductCategoryAssignmentResultSchema = AddProductCategoryAssignmentResultSchema;
+export { AddProductCategoryAssignmentResultSchema as RemoveProductCategoryAssignmentResultSchema } from './add-product-category-assignment.ts';

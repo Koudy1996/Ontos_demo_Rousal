@@ -1,5 +1,3 @@
-import { CatalogMediaChangeResultSchema } from './catalog-media.ts';
-
 export { AssignCatalogMediaPayloadSchema } from './catalog-media.ts';
-export const AssignCatalogMediaResultSchema = CatalogMediaChangeResultSchema;
 export type { AssignCatalogMediaPayload } from './catalog-media.ts';
+export { CatalogMediaChangeResultSchema as AssignCatalogMediaResultSchema } from './catalog-media.ts';

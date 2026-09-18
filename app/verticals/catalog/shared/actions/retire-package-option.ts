@@ -1,8 +1,5 @@
-import {
-  PackageOptionTransitionPayloadSchema,
-  PackageOptionTransitionResultSchema,
-} from './package-option-contract.ts';
+import { PackageOptionTransitionPayloadSchema } from './package-option-contract.ts';
 
 export const RetirePackageOptionPayloadSchema = PackageOptionTransitionPayloadSchema;
 export type RetirePackageOptionPayload = typeof RetirePackageOptionPayloadSchema.Type;
-export const RetirePackageOptionResultSchema = PackageOptionTransitionResultSchema;
+export { PackageOptionTransitionResultSchema as RetirePackageOptionResultSchema } from './package-option-contract.ts';

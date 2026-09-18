@@ -1,5 +1,3 @@
-import { ProductRelationshipMutationResultSchema } from './product-relationship-mutations.ts';
-
 export { ChangeProductRelationshipPayloadSchema } from './product-relationship-mutations.ts';
-export const ChangeProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
+export { ProductRelationshipMutationResultSchema as ChangeProductRelationshipResultSchema } from './product-relationship-mutations.ts';
 export type { ChangeProductRelationshipPayload } from './product-relationship-mutations.ts';
