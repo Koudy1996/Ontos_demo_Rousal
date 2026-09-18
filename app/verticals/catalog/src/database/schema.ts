@@ -1255,6 +1255,9 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
     lowerCount: numeric('lower_count'),
     setCompositionResourceId: uuid('set_composition_resource_id'),
     setCompositionRevision: integer('set_composition_revision'),
+    // Existing immutable rows predate intent capture; their classification cannot be inferred honestly.
+    changeKind: text('change_kind').default('legacy_unclassified').notNull(),
+    priorErrorExplanation: text('prior_error_explanation'),
     reason: text('reason').notNull(),
     evidenceRefs: text('evidence_refs').array().notNull(),
     actionInvocationId: uuid('action_invocation_id').notNull(),
@@ -1337,6 +1340,10 @@ export const packageContentRevisions = catalogSchema.table.withRLS(
     check(
       'catalog_package_content_revisions_set_ck',
       sql`(${table.setCompositionResourceId} is null and ${table.setCompositionRevision} is null) or (${table.setCompositionResourceId} is not null and ${table.setCompositionRevision} is not null and ${table.setCompositionRevision} > 0)`,
+    ),
+    check(
+      'catalog_package_content_revisions_correction_ck',
+      sql`(${table.changeKind} = 'legacy_unclassified' and ${table.priorErrorExplanation} is null) or (${table.changeKind} = 'physical_change' and ${table.priorErrorExplanation} is null) or (${table.changeKind} = 'correction' and ${table.revision} > 1 and ${table.priorErrorExplanation} is not null and ${table.priorErrorExplanation} = btrim(${table.priorErrorExplanation}) and length(${table.priorErrorExplanation}) between 1 and 1000)`,
     ),
     check(
       'catalog_package_content_revisions_reason_ck',

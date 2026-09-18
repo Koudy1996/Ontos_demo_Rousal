@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Match, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
@@ -114,6 +116,16 @@ describe('effective Package content revision', () => {
   });
 });
 
+it('migrates pre-intent content rows as unclassified without inventing a physical change', () => {
+  const migration = readFileSync(
+    new URL('../../drizzle/20260918054950_thick_agent_zero/migration.sql', import.meta.url),
+    'utf8',
+  );
+  expect(migration).toContain('ADD COLUMN "change_kind" text DEFAULT \'legacy_unclassified\' NOT NULL');
+  expect(migration).toContain('"change_kind" = \'correction\'');
+  expect(migration).toContain('"prior_error_explanation" is not null');
+});
+
 describe('Package persistence', () => {
   it.effect('appends an immutable draft revision only after trusted basis verification', () =>
     Effect.gen(function* createDraft() {
@@ -150,6 +162,8 @@ describe('Package persistence', () => {
           packageContentRevisions,
           expect.objectContaining({
             amount: '10',
+            changeKind: 'physical_change',
+            priorErrorExplanation: null,
             revision: 1,
             unitResourceId: payload.content.unitRef.resourceId,
             unitResourceType: 'commerce.catalog.product-unit',
@@ -269,7 +283,12 @@ describe('Package persistence', () => {
       // @ts-expect-error Only the exercised Drizzle query chains are mocked.
       const service = packagePersistenceForScope(transaction, scope);
       const outcome = yield* service.revise({ ...evidence, payload: revisionPayload });
-      expect(Match.value(outcome).pipe(Match.tag('invalid', () => true), Match.orElse(() => false))).toBe(true);
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('invalid', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
     }),
   );
 
@@ -309,7 +328,71 @@ describe('Package persistence', () => {
           Match.orElse(() => 0),
         ),
       ).toBe(2);
-      expect(writes).toEqual([[packageContentRevisions, expect.objectContaining({ revision: 2 })]]);
+      expect(writes).toEqual([
+        [
+          packageContentRevisions,
+          expect.objectContaining({ changeKind: 'physical_change', priorErrorExplanation: null, revision: 2 }),
+        ],
+      ]);
+    }),
+  );
+
+  it.effect('persists a correction explanation in a new row without changing the historical revision', () =>
+    Effect.gen(function* corrected() {
+      const prior = { effectiveAt: new Date('2026-01-01T00:00:00.000Z'), revision: 1, amount: '10' };
+      const writes: (typeof packageContentRevisions.$inferInsert)[] = [];
+      let contentReads = 0;
+      const transaction = {
+        insert: (table: typeof packageContentRevisions) => ({
+          values: (value: typeof packageContentRevisions.$inferInsert) => {
+            expect(table).toBe(packageContentRevisions);
+            writes.push(value);
+            return Effect.succeed([]);
+          },
+        }),
+        select: () => ({
+          from: (table: typeof packageDefinitions | typeof packageContentRevisions) =>
+            table === packageDefinitions
+              ? futureDefinitionSelection()
+              : {
+                  where: () => ({
+                    limit: () => {
+                      contentReads += 1;
+                      return Effect.succeed(contentReads === 1 ? [prior] : []);
+                    },
+                  }),
+                },
+        }),
+        update: () => {
+          throw new Error('A scheduled correction must not advance Current');
+        },
+      };
+      const revisionPayload = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        changeKind: 'correction',
+        content: { ...payload.content, amount: '8', effectiveAt: '2099-01-01T00:00:00.000Z' },
+        evidenceRefs: payload.evidenceRefs,
+        expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
+        priorErrorExplanation: 'The source carton count was transcribed incorrectly',
+        reason: 'Correct the recorded carton count',
+      });
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = packagePersistenceForScope(transaction, scope, { verify: () => Effect.succeed(true) });
+      const outcome = yield* service.revise({ ...evidence, payload: revisionPayload });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('revised', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+      expect(prior).toEqual({ effectiveAt: new Date('2026-01-01T00:00:00.000Z'), revision: 1, amount: '10' });
+      expect(writes).toEqual([
+        expect.objectContaining({
+          amount: '8',
+          changeKind: 'correction',
+          priorErrorExplanation: 'The source carton count was transcribed incorrectly',
+          revision: 2,
+        }),
+      ]);
     }),
   );
 

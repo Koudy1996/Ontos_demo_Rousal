@@ -127,7 +127,14 @@ describe('Package Definition activation persistence', () => {
         [packageDefinitions, expect.objectContaining({ currentRevision: 2, lifecycleState: 'ACTIVE' })],
         [
           packageContentRevisions,
-          expect.objectContaining({ amount: '10', lifecycleState: 'ACTIVE', lowerRevision: null, revision: 2 }),
+          expect.objectContaining({
+            amount: '10',
+            changeKind: 'physical_change',
+            lifecycleState: 'ACTIVE',
+            lowerRevision: null,
+            priorErrorExplanation: null,
+            revision: 2,
+          }),
         ],
       ]);
       expect(writes[0]).not.toEqual(expect.objectContaining({ optionState: 'ACTIVE' }));

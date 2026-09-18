@@ -200,6 +200,9 @@ export const packagePersistenceForScope = (
     content: Content,
     input: Evidence & { readonly payload: { readonly evidenceRefs: readonly string[]; readonly reason: string } },
     revision = row.currentRevision,
+    intent: { readonly changeKind: 'physical_change' | 'correction'; readonly priorErrorExplanation?: string } = {
+      changeKind: 'physical_change',
+    },
   ) =>
     transaction
       .insert(packageContentRevisions)
@@ -207,6 +210,7 @@ export const packagePersistenceForScope = (
         actingPrincipalId: input.principalId,
         actionInvocationId: input.actionInvocationId,
         amount: content.amount,
+        changeKind: intent.changeKind,
         configurationKey: content.configurationKey ?? null,
         effectiveAt: DateTime.toDateUtc(DateTime.makeUnsafe(content.effectiveAt)),
         evidenceRefs: [...input.payload.evidenceRefs],
@@ -216,6 +220,7 @@ export const packagePersistenceForScope = (
         lowerRevision: content.lower?.revision.revision ?? null,
         packageDefinitionId: row.packageDefinitionId,
         productId: row.productId,
+        priorErrorExplanation: intent.priorErrorExplanation ?? null,
         reason: input.payload.reason,
         revision,
         setCompositionResourceId: content.setComposition?.resourceRef.resourceId ?? null,
@@ -331,7 +336,7 @@ export const packagePersistenceForScope = (
     if (DateTime.toEpochMillis(DateTime.makeUnsafe(content.effectiveAt)) > DateTime.toEpochMillis(now)) {
       // Definition row is locked above. Keep its effective Current pointer stable; a second
       // schedule sees the immutable next revision and fails instead of overwriting it.
-      yield* append(row, content, input, row.currentRevision + 1);
+      yield* append(row, content, input, row.currentRevision + 1, input.payload);
       const ref = yield* Schema.decodeEffect(PackageDefinitionRefSchema)({
         moduleId,
         resourceId: id,
@@ -359,7 +364,7 @@ export const packagePersistenceForScope = (
     if (updated === undefined) {
       return { _tag: 'stale', actualRevision: row.currentRevision };
     }
-    yield* append(updated, content, input);
+    yield* append(updated, content, input, updated.currentRevision, input.payload);
     return yield* result('revised', updated);
   });
   const retire: PackagePersistence['retire'] = Effect.fn('PackagePersistence.retire')(function* retire(input) {
@@ -427,6 +432,7 @@ export const packagePersistenceForScope = (
         actingPrincipalId: input.principalId,
         actionInvocationId: input.actionInvocationId,
         amount: prior.amount,
+        changeKind: 'physical_change',
         configurationKey: prior.configurationKey,
         effectiveAt: retiredAt,
         evidenceRefs: [...input.payload.evidenceRefs],
@@ -436,6 +442,7 @@ export const packagePersistenceForScope = (
         lowerRevision: prior.lowerRevision,
         packageDefinitionId: row.packageDefinitionId,
         productId: row.productId,
+        priorErrorExplanation: null,
         reason: input.payload.reason,
         revision: updated.currentRevision,
         setCompositionResourceId: prior.setCompositionResourceId,
