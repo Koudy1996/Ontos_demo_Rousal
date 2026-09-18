@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Schema } from 'effect';
 
+import { CatalogRevisionInstantSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import {
+  CatalogSelectionBasisListSchema,
   CatalogSelectionEvidenceSchema,
   CatalogSelectionSchema,
 } from '../../shared/domain/catalog-selection-evidence.ts';
+import type { CatalogSelectionValidityRequest } from '../../shared/domain/catalog-selection-validity.ts';
 import {
   CatalogSelectionValidityAttestationSchema,
   catalogSelectionValidityAttestationFor,
@@ -53,7 +56,14 @@ const indeterminateEvidence = decodeEvidence({
   status: 'INDETERMINATE',
 });
 
-const request = { at: instant, purpose: 'PURCHASE_ACCEPTANCE' as const, selection };
+const decodeBasis = Schema.decodeUnknownSync(CatalogSelectionBasisListSchema);
+const decodeInstant = Schema.decodeUnknownSync(CatalogRevisionInstantSchema);
+const request: CatalogSelectionValidityRequest = {
+  at: validEvidence.assessedAt,
+  purpose: 'PURCHASE_ACCEPTANCE',
+  selection,
+  sourceToken: validEvidence.basis,
+};
 const requireDefined = <Value>(value: Value | undefined): Value => {
   if (value === undefined) {
     throw new Error('Expected a defined value');
@@ -63,30 +73,32 @@ const requireDefined = <Value>(value: Value | undefined): Value => {
 
 describe('Catalog Selection validity attestation', () => {
   it('mints a Catalog-issued, time-bounded guarantee only from fresh VALID evidence', () => {
-    const attestation = catalogSelectionValidityAttestationFor({
-      evidence: validEvidence,
-      purpose: 'PURCHASE_ACCEPTANCE',
-    });
-    expect(attestation).toBeDefined();
-    expect(Schema.decodeUnknownSync(CatalogSelectionValidityAttestationSchema)(attestation)).toMatchObject({
-      guarantee: 'EXACT_SELECTION_AND_CURRENT_BASIS_UNCHANGED',
-      onRetirement: 'INVALIDATE',
-      onSourceChange: 'REASSESS',
-      source: 'CATALOG_OWNER_CURRENT_READ',
-    });
-    expect(catalogSelectionValidityCovers(requireDefined(attestation), request)).toBe(true);
-
     const windowed = catalogSelectionValidityAttestationFor({
       evidence: validEvidence,
       purpose: 'PURCHASE_ACCEPTANCE',
       validUntil: '2026-09-18T13:00:00.000Z',
     });
     expect(windowed).toBeDefined();
+    expect(Schema.decodeUnknownSync(CatalogSelectionValidityAttestationSchema)(windowed)).toMatchObject({
+      basis,
+      guarantee: 'EXACT_SELECTION_AND_CURRENT_BASIS_UNCHANGED',
+      onRetirement: 'INVALIDATE',
+      onSourceChange: 'REASSESS',
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      validUntil: '2026-09-18T13:00:00.000Z',
+    });
+    expect(catalogSelectionValidityCovers(requireDefined(windowed), request)).toBe(true);
     expect(
-      catalogSelectionValidityCovers(requireDefined(windowed), { ...request, at: '2026-09-18T12:30:00.000Z' }),
+      catalogSelectionValidityCovers(requireDefined(windowed), {
+        ...request,
+        at: decodeInstant('2026-09-18T12:30:00.000Z'),
+      }),
     ).toBe(true);
     expect(
-      catalogSelectionValidityCovers(requireDefined(windowed), { ...request, at: '2026-09-18T13:00:00.000Z' }),
+      catalogSelectionValidityCovers(requireDefined(windowed), {
+        ...request,
+        at: decodeInstant('2026-09-18T13:00:00.000Z'),
+      }),
     ).toBe(false);
   });
 
@@ -95,6 +107,7 @@ describe('Catalog Selection validity attestation', () => {
       catalogSelectionValidityAttestationFor({
         evidence: validEvidence,
         purpose: 'PURCHASE_ACCEPTANCE',
+        validUntil: '2026-09-18T13:00:00.000Z',
       }),
     );
     const otherSelection = decodeSelection({
@@ -103,13 +116,44 @@ describe('Catalog Selection validity attestation', () => {
     });
     expect(catalogSelectionValidityCovers(attestation, { ...request, selection: otherSelection })).toBe(false);
     expect(catalogSelectionValidityCovers(attestation, { ...request, purpose: 'PRICING' })).toBe(false);
-    expect(catalogSelectionValidityCovers(attestation, { ...request, at: '2026-09-18T11:59:59.000Z' })).toBe(false);
+    expect(
+      catalogSelectionValidityCovers(attestation, {
+        ...request,
+        at: decodeInstant('2026-09-18T11:59:59.000Z'),
+      }),
+    ).toBe(false);
+    expect(
+      catalogSelectionValidityCovers(attestation, {
+        ...request,
+        sourceToken: decodeBasis(
+          basis.map((entry) =>
+            entry.role === 'PRODUCT' ? { ...entry, source: { ...entry.source, revision: 2 } } : entry,
+          ),
+        ),
+      }),
+    ).toBe(false);
   });
 
   it('never mints a Current guarantee from indeterminate, mismatched, or expired input', () => {
     expect(
       catalogSelectionValidityAttestationFor({ evidence: indeterminateEvidence, purpose: 'PURCHASE_ACCEPTANCE' }),
     ).toBeUndefined();
+    expect(
+      catalogSelectionValidityAttestationFor({ evidence: validEvidence, purpose: 'PURCHASE_ACCEPTANCE' }),
+    ).toBeUndefined();
+    expect(() =>
+      Schema.decodeUnknownSync(CatalogSelectionValidityAttestationSchema)({
+        assessedAt: instant,
+        basis,
+        guarantee: 'EXACT_SELECTION_AND_CURRENT_BASIS_UNCHANGED',
+        issuedAt: instant,
+        onRetirement: 'INVALIDATE',
+        onSourceChange: 'REASSESS',
+        purpose: 'PURCHASE_ACCEPTANCE',
+        selection,
+        source: 'CATALOG_OWNER_CURRENT_READ',
+      }),
+    ).toThrow();
     expect(catalogSelectionValidityAttestationFor({ evidence: validEvidence, purpose: 'PRICING' })).toBeUndefined();
     expect(
       catalogSelectionValidityAttestationFor({
@@ -129,6 +173,7 @@ describe('Catalog Selection validity attestation', () => {
         purpose: 'PURCHASE_ACCEPTANCE',
         selection,
         source: 'CATALOG_OWNER_CURRENT_READ',
+        validUntil: '2026-09-18T13:00:00.000Z',
       }),
     ).toThrow();
     for (const tamper of [
@@ -148,6 +193,7 @@ describe('Catalog Selection validity attestation', () => {
           purpose: 'PURCHASE_ACCEPTANCE',
           selection,
           source: 'CATALOG_OWNER_CURRENT_READ',
+          validUntil: '2026-09-18T13:00:00.000Z',
           ...tamper,
         }),
       ).toThrow();

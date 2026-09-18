@@ -43,12 +43,12 @@ const baseFacts = [
   fact('UNIT_RULE', unitRuleRef, 1),
   fact('UNIT_TARGET_DIVISIBILITY', variantRef, 5),
 ];
-const nonDecidingFacts = [fact('OTHER_CATALOG_FACT', valueSetRef, 6), fact('ATTRIBUTE_DEFINITION', attrDefRef, 7)];
+const valueValidityFacts = [fact('OTHER_CATALOG_FACT', valueSetRef, 6), fact('ATTRIBUTE_DEFINITION', attrDefRef, 7)];
 
 describe('Catalog Selection purpose minimalisation', () => {
-  it('returns the complete deciding basis and drops non-deciding facts for purchase acceptance', () => {
+  it('keeps the complete axis and value validity basis for purchase acceptance', () => {
     const result = selectSmallestCompleteCatalogSelectionBasis({
-      basis: [...baseFacts, ...nonDecidingFacts],
+      basis: [...baseFacts, ...valueValidityFacts],
       purpose: 'PURCHASE_ACCEPTANCE',
       selection,
     });
@@ -64,9 +64,21 @@ describe('Catalog Selection purpose minimalisation', () => {
       'INHERITED_VALUE',
       'UNIT_RULE',
       'UNIT_TARGET_DIVISIBILITY',
+      'OTHER_CATALOG_FACT',
+      'ATTRIBUTE_DEFINITION',
     ]);
-    expect(result.basis.some(({ role }) => role === 'OTHER_CATALOG_FACT')).toBe(false);
-    expect(result.basis.some(({ role }) => role === 'ATTRIBUTE_DEFINITION')).toBe(false);
+  });
+
+  it('does not require inherited-value evidence when the selection inherits no value', () => {
+    const result = selectSmallestCompleteCatalogSelectionBasis({
+      basis: baseFacts.filter(({ role }) => role !== 'INHERITED_VALUE'),
+      purpose: 'PURCHASE_ACCEPTANCE',
+      selection,
+    });
+    expect(result.status).toBe('COMPLETE');
+    if (result.status === 'COMPLETE') {
+      expect(result.basis.some(({ role }) => role === 'INHERITED_VALUE')).toBe(false);
+    }
   });
 
   it('reports every missing deciding role instead of estimating it', () => {
@@ -76,7 +88,7 @@ describe('Catalog Selection purpose minimalisation', () => {
       selection,
     });
     expect(result).toEqual({
-      missingRoles: ['PRODUCT_TYPE', 'VARIANT_AXIS', 'INHERITED_VALUE', 'UNIT_RULE', 'UNIT_TARGET_DIVISIBILITY'],
+      missingRoles: ['PRODUCT_TYPE', 'VARIANT_AXIS', 'UNIT_RULE', 'UNIT_TARGET_DIVISIBILITY'],
       status: 'INCOMPLETE',
     });
   });
@@ -149,7 +161,6 @@ describe('Catalog Selection purpose minimalisation', () => {
       'VARIANT',
       'PRODUCT_TYPE',
       'VARIANT_AXIS',
-      'INHERITED_VALUE',
       'UNIT_RULE',
       'UNIT_TARGET_DIVISIBILITY',
     ]);

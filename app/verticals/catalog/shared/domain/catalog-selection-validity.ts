@@ -15,6 +15,7 @@ export const CatalogSelectionValidityGuarantee = 'EXACT_SELECTION_AND_CURRENT_BA
  */
 export const CatalogSelectionValidityAttestationSchema = Schema.Struct({
   assessedAt: CatalogRevisionInstantSchema,
+  /** The exact deciding Current basis also serves as the source token. */
   basis: CatalogSelectionBasisListSchema,
   guarantee: Schema.Literal(CatalogSelectionValidityGuarantee),
   issuedAt: CatalogRevisionInstantSchema,
@@ -23,15 +24,13 @@ export const CatalogSelectionValidityAttestationSchema = Schema.Struct({
   purpose: CatalogSelectionPurposeSchema,
   selection: CatalogSelectionSchema,
   source: Schema.Literal('CATALOG_OWNER_CURRENT_READ'),
-  validUntil: Schema.optionalKey(CatalogRevisionInstantSchema),
+  validUntil: CatalogRevisionInstantSchema,
 }).check(
   Schema.makeFilter(({ assessedAt, issuedAt, validUntil }) => {
     if (issuedAt < assessedAt) {
       return 'A validity attestation cannot be issued before its assessment';
     }
-    return validUntil !== undefined && validUntil <= issuedAt
-      ? 'A validity window must end after the attestation is issued'
-      : undefined;
+    return validUntil <= issuedAt ? 'A validity window must end after the attestation is issued' : undefined;
   }),
 );
 export type CatalogSelectionValidityAttestation = typeof CatalogSelectionValidityAttestationSchema.Type;
@@ -40,9 +39,17 @@ export interface CatalogSelectionValidityRequest {
   readonly at: CatalogSelectionEvidence['assessedAt'];
   readonly purpose: CatalogSelectionPurpose;
   readonly selection: CatalogSelection;
+  readonly sourceToken: CatalogSelectionEvidence['basis'];
 }
 
 const sameSelection = Schema.toEquivalence(CatalogSelectionSchema);
+const sameSourceToken = Schema.toEquivalence(CatalogSelectionBasisListSchema);
+
+/** Exact comparison used both by attestation consumers and by preparation revalidation. */
+export const sameCatalogSelectionValiditySourceToken = (
+  left: CatalogSelectionEvidence['basis'],
+  right: CatalogSelectionEvidence['basis'],
+): boolean => sameSourceToken(left, right);
 
 /**
  * True only while the request matches the attested exact selection and purpose and falls inside
@@ -58,8 +65,9 @@ export const catalogSelectionValidityCovers = (
   attestation.onRetirement === 'INVALIDATE' &&
   attestation.purpose === request.purpose &&
   sameSelection(attestation.selection, request.selection) &&
+  sameSourceToken(attestation.basis, request.sourceToken) &&
   request.at >= attestation.issuedAt &&
-  (attestation.validUntil === undefined || request.at < attestation.validUntil);
+  request.at < attestation.validUntil;
 
 /**
  * Mint a validity attestation only from a fresh VALID owner assessment whose purpose matches.
@@ -72,10 +80,10 @@ export const catalogSelectionValidityAttestationFor = (input: {
   readonly validUntil?: CatalogSelectionEvidence['validUntil'];
 }): CatalogSelectionValidityAttestation | undefined => {
   const { evidence, purpose, validUntil } = input;
-  if (evidence.status !== 'VALID' || evidence.purpose !== purpose) {
+  if (evidence.status !== 'VALID' || evidence.purpose !== purpose || validUntil === undefined) {
     return undefined;
   }
-  if (validUntil !== undefined && validUntil <= evidence.assessedAt) {
+  if (validUntil <= evidence.assessedAt) {
     return undefined;
   }
   const base = {
@@ -88,9 +96,8 @@ export const catalogSelectionValidityAttestationFor = (input: {
     purpose,
     selection: evidence.selection,
     source: 'CATALOG_OWNER_CURRENT_READ' as const,
+    validUntil,
   };
-  const decoded = Schema.decodeOption(CatalogSelectionValidityAttestationSchema)(
-    validUntil === undefined ? base : { ...base, validUntil },
-  );
+  const decoded = Schema.decodeOption(CatalogSelectionValidityAttestationSchema)(base);
   return Option.isSome(decoded) ? decoded.value : undefined;
 };

@@ -290,6 +290,7 @@ it.live('re-assesses a changed deciding source for the same Selection identity w
           selection,
         }),
         purpose: 'PURCHASE_ACCEPTANCE',
+        validUntil: '2099-01-01T00:00:00.000Z',
       });
       expect(
         originalAttestation?.basis.some(({ role, source }) => role === 'PACKAGE_CONTENT' && source.revision === 4),

@@ -71,7 +71,7 @@ const purposeExtraRoles = (purpose: CatalogSelectionPurpose): readonly CatalogSe
     Match.whenOr('ASSORTMENT', 'PRICING', () => ['CATEGORY'] as const),
     Match.when(
       'PURCHASE_ACCEPTANCE',
-      () => ['PRODUCT_TYPE', 'VARIANT_AXIS', 'INHERITED_VALUE', 'UNIT_RULE', 'UNIT_TARGET_DIVISIBILITY'] as const,
+      () => ['PRODUCT_TYPE', 'VARIANT_AXIS', 'UNIT_RULE', 'UNIT_TARGET_DIVISIBILITY'] as const,
     ),
     Match.orElse(() => []),
   );
@@ -112,8 +112,9 @@ const subjectBelongsToSelection = (fact: CatalogSelectionBasis, selection: Catal
 /**
  * Pure minimalisation of an owner basis. `COMPLETE` returns only deciding facts; `INCOMPLETE`
  * names the missing deciding roles and never estimates them. Product/Variant identity and every
- * pinned selected revision is always kept. `UNIT_CONVERSION` is kept when present because it is
- * a deciding fact, but it is never demanded by a purpose on its own.
+ * pinned selected revision is always kept. Optional value facts are kept when present for a
+ * validity purpose because they participated in the owner decision, but absence of inheritance
+ * is valid and never creates a missing-role failure.
  */
 export const selectSmallestCompleteCatalogSelectionBasis = (input: {
   readonly basis: readonly CatalogSelectionBasis[];
@@ -123,7 +124,12 @@ export const selectSmallestCompleteCatalogSelectionBasis = (input: {
   const { basis, purpose, selection } = input;
   const pinned = pinnedRequirements(selection);
   const roleOnly = new Set<CatalogSelectionBasisRole>(['PRODUCT', 'VARIANT', ...purposeExtraRoles(purpose)]);
-  const optionalWhenPresent = new Set<CatalogSelectionBasisRole>(['UNIT_CONVERSION']);
+  const optionalWhenPresent = new Set<CatalogSelectionBasisRole>([
+    'UNIT_CONVERSION',
+    ...(purpose === 'PURCHASE_ACCEPTANCE' || purpose === 'CART_VALIDATION'
+      ? (['ATTRIBUTE_DEFINITION', 'INHERITED_VALUE', 'OTHER_CATALOG_FACT'] as const)
+      : []),
+  ]);
   const present = (role: CatalogSelectionBasisRole): boolean =>
     basis.some((fact) => fact.subject === undefined && fact.role === role);
 

@@ -20,8 +20,10 @@ import type { CatalogSelectionValidityAttestation } from '../../shared/domain/ca
 import {
   catalogSelectionValidityAttestationFor,
   catalogSelectionValidityCovers,
+  sameCatalogSelectionValiditySourceToken,
 } from '../../shared/domain/catalog-selection-validity.ts';
 import { catalogSelectionCurrentBasisForScope } from './catalog-selection-current-basis.ts';
+import type { CatalogPersistenceUnavailable } from './errors.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
@@ -73,6 +75,13 @@ interface CatalogSelectionEvidenceAssemblyDraft {
   validity?: CatalogSelectionValidityAttestation;
 }
 
+export interface CatalogSelectionCurrentBasisReader {
+  readonly read: (input: {
+    readonly purpose: string;
+    readonly selection: CatalogSelection;
+  }) => Effect.Effect<CatalogSelectionCurrentFacts, CatalogPersistenceUnavailable>;
+}
+
 /**
  * Pure composition over one owner Current read: assess, then narrow to the smallest complete basis
  * for the purpose. A VALID decision whose deciding roles are incomplete is downgraded to
@@ -113,7 +122,10 @@ export const assembleCatalogSelectionEvidence = (
     evidence.status === 'VALID' ? catalogSelectionValidityAttestationFor({ evidence, purpose, validUntil }) : undefined;
   const at = requestedAt ?? current.assessedAt;
   const validity =
-    minted !== undefined && catalogSelectionValidityCovers(minted, { at, purpose, selection }) ? minted : undefined;
+    minted !== undefined &&
+    catalogSelectionValidityCovers(minted, { at, purpose, selection, sourceToken: evidence.basis })
+      ? minted
+      : undefined;
 
   const assembly: CatalogSelectionEvidenceAssemblyDraft = {
     evidence,
@@ -128,6 +140,84 @@ export const assembleCatalogSelectionEvidence = (
   return assembly;
 };
 
+const samePreparedDecision = (
+  first: CatalogSelectionEvidenceAssembly,
+  revalidated: CatalogSelectionEvidenceAssembly,
+): boolean => {
+  const firstEvidence = first.evidence;
+  const revalidatedEvidence = revalidated.evidence;
+  if (
+    firstEvidence.status !== revalidatedEvidence.status ||
+    !sameCatalogSelectionValiditySourceToken(firstEvidence.basis, revalidatedEvidence.basis) ||
+    firstEvidence.validUntil !== revalidatedEvidence.validUntil
+  ) {
+    return false;
+  }
+  if (firstEvidence.status === 'VALID') {
+    return revalidatedEvidence.status === 'VALID';
+  }
+  return revalidatedEvidence.status !== 'VALID' && firstEvidence.reason === revalidatedEvidence.reason;
+};
+
+/**
+ * Prepare evidence from an owner reader and then re-read the exact source before release. The
+ * second assessment is released only when its decision and deciding token match the first read.
+ */
+export const catalogSelectionEvidenceFromCurrentReader = (
+  currentBasis: CatalogSelectionCurrentBasisReader,
+  injectedOwnerEvidence?: CatalogSelectionInjectedOwnerEvidence,
+) => ({
+  assess: Effect.fn('CatalogSelectionEvidence.assess')(function* assess(
+    input: CatalogSelectionEvidenceRequest,
+  ): Effect.fn.Return<CatalogSelectionEvidenceServiceResult> {
+    const { at, purpose, selection, validUntil } = input;
+    return yield* Effect.gen(function* prepareAndRevalidate() {
+      const request = { purpose, selection };
+      const firstCurrent = yield* currentBasis.read(request);
+      const first = assembleCatalogSelectionEvidence({
+        current: firstCurrent,
+        injectedOwnerEvidence,
+        purpose,
+        requestedAt: at,
+        selection,
+        validUntil,
+      });
+      const revalidatedCurrent = yield* currentBasis.read(request);
+      const revalidated = assembleCatalogSelectionEvidence({
+        current: revalidatedCurrent,
+        injectedOwnerEvidence,
+        purpose,
+        requestedAt: at,
+        selection,
+        validUntil,
+      });
+      if (samePreparedDecision(first, revalidated)) {
+        return revalidated;
+      }
+      const changed: CatalogSelectionEvidence = {
+        assessedAt: revalidated.evidence.assessedAt,
+        basis: revalidated.evidence.basis,
+        purpose,
+        reason: 'Catalog Current source changed during evidence preparation; re-assessment is required',
+        selection,
+        status: 'INDETERMINATE',
+      };
+      const changedAssembly: CatalogSelectionEvidenceAssemblyDraft = {
+        evidence: changed,
+        missingRoles: revalidated.missingRoles,
+      };
+      if (revalidated.ownerEvidence !== undefined) {
+        changedAssembly.ownerEvidence = revalidated.ownerEvidence;
+      }
+      return changedAssembly;
+    }).pipe(
+      Effect.catchTag('CatalogPersistenceUnavailable', () =>
+        Effect.succeed(unavailableAssembly('Catalog Current basis is temporarily unavailable')),
+      ),
+    );
+  }),
+});
+
 /**
  * The one Catalog entry point for issuing selection evidence. It composes the owner Current read,
  * the pure assessment, and the purpose minimalisation; it reads no foreign owner and treats no
@@ -138,27 +228,8 @@ export const catalogSelectionEvidenceForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   injectedOwnerEvidence?: CatalogSelectionInjectedOwnerEvidence,
-) => ({
-  assess: Effect.fn('CatalogSelectionEvidence.assess')(function* assess(
-    input: CatalogSelectionEvidenceRequest,
-  ): Effect.fn.Return<CatalogSelectionEvidenceServiceResult> {
-    const { at, purpose, selection, validUntil } = input;
-    return yield* catalogSelectionCurrentBasisForScope(transaction, scope)
-      .read({ purpose, selection })
-      .pipe(
-        Effect.map((current) =>
-          assembleCatalogSelectionEvidence({
-            current,
-            injectedOwnerEvidence,
-            purpose,
-            requestedAt: at,
-            selection,
-            validUntil,
-          }),
-        ),
-        Effect.catchTag('CatalogPersistenceUnavailable', () =>
-          Effect.succeed(unavailableAssembly('Catalog Current basis is temporarily unavailable')),
-        ),
-      );
-  }),
-});
+) =>
+  catalogSelectionEvidenceFromCurrentReader(
+    catalogSelectionCurrentBasisForScope(transaction, scope),
+    injectedOwnerEvidence,
+  );

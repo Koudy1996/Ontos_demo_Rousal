@@ -1,5 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Ref, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
@@ -12,6 +12,7 @@ import type { CatalogSelection } from '../../shared/domain/catalog-selection-evi
 import { CatalogSelectionInjectedOwnerEvidenceSchema } from '../../shared/domain/catalog-selection-owner-contract.ts';
 import {
   assembleCatalogSelectionEvidence,
+  catalogSelectionEvidenceFromCurrentReader,
   catalogSelectionEvidenceForScope,
 } from '../../src/persistence/catalog-selection-evidence-service.ts';
 
@@ -103,15 +104,21 @@ const untouchedTransaction = {
 };
 
 describe('Catalog Selection evidence assembly service', () => {
-  it('issues the smallest complete PURCHASE_ACCEPTANCE basis and drops non-deciding facts', () => {
+  it('issues the smallest complete PURCHASE_ACCEPTANCE basis with deciding value facts', () => {
     const result = assembleCatalogSelectionEvidence({
-      current: observedFacts({ basis: [...purchaseBasis, fact('OTHER_CATALOG_FACT', valueSetRef, 9)] }),
+      current: observedFacts({
+        basis: [
+          ...purchaseBasis,
+          fact('ATTRIBUTE_DEFINITION', attrDefRef, 8),
+          fact('OTHER_CATALOG_FACT', valueSetRef, 9),
+        ],
+      }),
       purpose: 'PURCHASE_ACCEPTANCE',
       selection,
     });
     expect(result.evidence).toMatchObject({ status: 'VALID' });
     expect(result.missingRoles).toEqual([]);
-    expect(result.validity).toBeDefined();
+    expect(result.validity).toBeUndefined();
     if (result.evidence.status !== 'VALID') {
       return;
     }
@@ -123,7 +130,19 @@ describe('Catalog Selection evidence assembly service', () => {
       'INHERITED_VALUE',
       'UNIT_RULE',
       'UNIT_TARGET_DIVISIBILITY',
+      'ATTRIBUTE_DEFINITION',
+      'OTHER_CATALOG_FACT',
     ]);
+  });
+
+  it('accepts a complete purchase basis without inherited values', () => {
+    const result = assembleCatalogSelectionEvidence({
+      current: observedFacts({ basis: purchaseBasis.filter(({ role }) => role !== 'INHERITED_VALUE') }),
+      purpose: 'PURCHASE_ACCEPTANCE',
+      selection,
+    });
+    expect(result.evidence).toMatchObject({ status: 'VALID' });
+    expect(result.missingRoles).toEqual([]);
   });
 
   it('downgrades an incomplete VALID decision to INDETERMINATE naming the missing deciding roles', () => {
@@ -251,6 +270,54 @@ describe('Catalog Selection evidence assembly service', () => {
     expect(atT1.validity).toBeUndefined();
     expect(atT1.evidence).toMatchObject({ assessedAt, status: 'VALID' });
   });
+
+  it.effect('revalidates the exact source token before releasing a bounded attestation', () =>
+    Effect.gen(function* stableSourceToken() {
+      const reads = yield* Ref.make(0);
+      const facts = observedFacts({ basis: purchaseBasis });
+      const currentBasis = {
+        read: () => Ref.updateAndGet(reads, (count) => count + 1).pipe(Effect.as(facts)),
+      };
+      const result = yield* catalogSelectionEvidenceFromCurrentReader(currentBasis).assess({
+        purpose: 'PURCHASE_ACCEPTANCE',
+        selection,
+        validUntil: '2026-09-18T13:00:00.000Z',
+      });
+      expect(result.evidence).toMatchObject({ status: 'VALID' });
+      if (!('basis' in result.evidence)) {
+        return;
+      }
+      expect(result.validity).toMatchObject({ basis: result.evidence.basis });
+      expect(yield* Ref.get(reads)).toBe(2);
+    }),
+  );
+
+  it.effect('fails closed when a deciding source changes between preparation and revalidation', () =>
+    Effect.gen(function* changedSourceToken() {
+      const reads = yield* Ref.make(0);
+      const first = observedFacts({
+        basis: [...purchaseBasis, fact('OTHER_CATALOG_FACT', valueSetRef, 9)],
+      });
+      const changed = observedFacts({
+        basis: [...purchaseBasis, fact('OTHER_CATALOG_FACT', valueSetRef, 10)],
+      });
+      const currentBasis = {
+        read: () =>
+          Ref.getAndUpdate(reads, (count) => count + 1).pipe(Effect.map((count) => (count === 0 ? first : changed))),
+      };
+      const result = yield* catalogSelectionEvidenceFromCurrentReader(currentBasis).assess({
+        purpose: 'PURCHASE_ACCEPTANCE',
+        selection,
+        validUntil: '2026-09-18T13:00:00.000Z',
+      });
+      expect(result.evidence).toMatchObject({
+        reason: expect.stringContaining('source changed during evidence preparation'),
+        status: 'INDETERMINATE',
+      });
+      expect(result.validity).toBeUndefined();
+      expect(yield* Ref.get(reads)).toBe(2);
+    }),
+  );
 
   it('fails closed to INDETERMINATE, with no validity, when the deciding basis is unavailable', () => {
     const unavailableFacts: CatalogSelectionCurrentFacts = {
