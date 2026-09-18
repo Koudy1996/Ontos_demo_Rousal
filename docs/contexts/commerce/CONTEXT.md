@@ -814,10 +814,10 @@ state and conflicts. A different Bundle cannot reuse the same Attempt identity.
 
 **Order Commitment Proof Set** — Exact set of owner-issued validations/confirmations used to prove one
 Order Commitment Attempt + its exact Bundle through the commitment boundary. It may include Approval
-Revalidation, Assortment Commitment Confirmation, every Reservation Confirmation and Commitment
-Protection required for the Attempt's complete Inventory Reservation Coverage, Payment Authorization
-or analogous attempt-bound proofs. Legitimate renewal may replace an expired proof for the same
-unchanged Attempt + Bundle under the owning contract; that renewal does not change the Bundle hash.
+Revalidation, Assortment Commitment Confirmation, the Reservation Confirmation and Commitment
+Protection for the Attempt's one Inventory Reservation, Payment Authorization or analogous
+attempt-bound proofs. Legitimate renewal may replace an expired proof for the same unchanged Attempt +
+Bundle under the owning contract; that renewal does not change the Bundle hash.
 _Avoid_: Proof Set as prospective purchase identity, proofs from different Attempts unioned together,
 proof renewal used to smuggle changed Bundle meaning into the same Attempt.
 
