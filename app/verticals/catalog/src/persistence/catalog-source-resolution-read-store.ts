@@ -19,10 +19,32 @@ const unavailable = (cause?: unknown) => {
     code: 'catalog_source_resolution_unavailable',
     reason: 'Catalog source resolution persistence is temporarily unavailable',
   });
-  if (cause !== undefined) Object.defineProperty(error, 'cause', { configurable: true, value: cause });
+  if (cause !== undefined) {
+    Object.defineProperty(error, 'cause', { configurable: true, value: cause });
+  }
   return error;
 };
-const decodeJson = Schema.decodeUnknownEffect(Schema.Json);
+const CatalogPersistedTextValueSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(1000),
+  Schema.isTrimmed(),
+);
+const CatalogPersistedDecimalSchema = Schema.String.check(
+  Schema.isPattern(/^(?:0|[1-9]\d*)(?:\.\d+)?$/u),
+  Schema.isMaxLength(100),
+);
+const CatalogPersistedSourceFactValueSchema = Schema.Union([
+  CatalogPersistedTextValueSchema,
+  Schema.Struct({
+    amount: CatalogPersistedDecimalSchema,
+    unitId: Schema.String.check(Schema.isUUID()).pipe(Schema.brand('CatalogSourceUnitId')),
+  }),
+]);
+const CatalogFactTargetKindSchema = Schema.Literals(['PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION']);
+const CatalogLocalOverrideLifecycleSchema = Schema.Literals(['ACTIVE', 'RELEASED']);
+const decodeSourceFactValue = Schema.decodeUnknownEffect(CatalogPersistedSourceFactValueSchema);
+const decodeTargetKind = Schema.decodeUnknownEffect(CatalogFactTargetKindSchema);
+const decodeOverrideLifecycle = Schema.decodeUnknownEffect(CatalogLocalOverrideLifecycleSchema);
 const scopeWhere = (scope: CatalogFactScope) =>
   and(
     eq(catalogLocalOverrideHeads.tenantId, scope.tenantId),
@@ -46,39 +68,48 @@ export const catalogSourceResolutionReadStoreForScope = (
   readAcceptedBases: Effect.fn('CatalogSourceResolutionReadStore.readAcceptedBases')(function* readAcceptedBases(
     scope: CatalogFactScope,
   ) {
-    if (scope.tenantId !== operationalScope.tenantId) return yield* unavailable();
+    if (scope.tenantId !== operationalScope.tenantId) {
+      return yield* unavailable();
+    }
     const rows = yield* transaction
       .select()
       .from(catalogAcceptedSourceAssertions)
       .where(acceptedScopeWhere(scope))
       .pipe(Effect.mapError(unavailable));
-    return yield* Effect.forEach(rows, (row) =>
-      decodeJson(row.value).pipe(
-        Effect.map((value): CatalogSourceAssertion<Schema.Json> => ({
+    return yield* Effect.forEach(
+      rows,
+      Effect.fn('CatalogSourceResolutionReadStore.decodeAcceptedBase')(function* decodeAcceptedBase(row) {
+        const [targetKind, value] = yield* Effect.all(
+          [decodeTargetKind(row.targetKind), decodeSourceFactValue(row.value)],
+          { concurrency: 2 },
+        );
+        const assertion: CatalogSourceAssertion<Schema.Json> = {
           assertionId: row.assertionId,
           effectiveFrom: row.effectiveFrom,
-          ...(row.effectiveTo === null ? {} : { effectiveTo: row.effectiveTo }),
           evidencedAt: row.evidencedAt,
           issuerSystemId: row.issuerSystemId,
           scope: {
             factKey: row.factKey,
             targetId: row.targetId,
-            targetKind: row.targetKind as CatalogFactScope['targetKind'],
+            targetKind,
             tenantId: row.tenantId,
           },
           sourceRecordId: row.sourceRecordId,
           sourceRevision: row.sourceRevision,
           value,
           valueFingerprint: row.valueFingerprint,
-        })),
-        Effect.mapError(unavailable),
-      ),
-    );
+        };
+        return row.effectiveTo === null ? assertion : { ...assertion, effectiveTo: row.effectiveTo };
+      }),
+      { concurrency: 1 },
+    ).pipe(Effect.mapError(unavailable));
   }),
   readOverrides: Effect.fn('CatalogSourceResolutionReadStore.readOverrides')(function* readOverrides(
     scope: CatalogFactScope,
   ) {
-    if (scope.tenantId !== operationalScope.tenantId) return yield* unavailable();
+    if (scope.tenantId !== operationalScope.tenantId) {
+      return yield* unavailable();
+    }
     const rows = yield* transaction
       .select({ revision: catalogLocalOverrideRevisions })
       .from(catalogLocalOverrideHeads)
@@ -94,25 +125,32 @@ export const catalogSourceResolutionReadStoreForScope = (
       )
       .where(scopeWhere(scope))
       .pipe(Effect.mapError(unavailable));
-    if (rows.length > 1) return yield* unavailable();
-    return yield* Effect.forEach(rows, ({ revision: row }) =>
-      decodeJson(row.value).pipe(
-        Effect.map((value): CatalogLocalOverride<Schema.Json> => ({
+    if (rows.length > 1) {
+      return yield* unavailable();
+    }
+    return yield* Effect.forEach(
+      rows,
+      Effect.fn('CatalogSourceResolutionReadStore.decodeOverride')(function* decodeOverride({ revision: row }) {
+        const [lifecycle, targetKind, value] = yield* Effect.all(
+          [decodeOverrideLifecycle(row.lifecycle), decodeTargetKind(row.targetKind), decodeSourceFactValue(row.value)],
+          { concurrency: 3 },
+        );
+        return {
           actorPrincipalId: row.actorPrincipalId,
           evidenceRef: row.evidenceRef,
-          lifecycle: row.lifecycle as CatalogLocalOverride<Schema.Json>['lifecycle'],
+          lifecycle,
           reason: row.reason,
           revision: row.revision,
           scope: {
             factKey: row.factKey,
             targetId: row.targetId,
-            targetKind: row.targetKind as CatalogFactScope['targetKind'],
+            targetKind,
             tenantId: row.tenantId,
           },
           value,
-        })),
-        Effect.mapError(unavailable),
-      ),
-    );
+        } satisfies CatalogLocalOverride<Schema.Json>;
+      }),
+      { concurrency: 1 },
+    ).pipe(Effect.mapError(unavailable));
   }),
 });

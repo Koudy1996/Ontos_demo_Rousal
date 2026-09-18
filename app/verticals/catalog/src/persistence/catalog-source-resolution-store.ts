@@ -42,7 +42,27 @@ const acceptedScopeWhere = (scope: CatalogFactScope) =>
     eq(catalogAcceptedSourceAssertions.factKey, scope.factKey),
   );
 
-const decodeJson = Schema.decodeUnknownEffect(Schema.Json);
+const CatalogPersistedTextValueSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(1000),
+  Schema.isTrimmed(),
+);
+const CatalogPersistedDecimalSchema = Schema.String.check(
+  Schema.isPattern(/^(?:0|[1-9]\d*)(?:\.\d+)?$/u),
+  Schema.isMaxLength(100),
+);
+const CatalogPersistedSourceFactValueSchema = Schema.Union([
+  CatalogPersistedTextValueSchema,
+  Schema.Struct({
+    amount: CatalogPersistedDecimalSchema,
+    unitId: Schema.String.check(Schema.isUUID()).pipe(Schema.brand('CatalogSourceUnitId')),
+  }),
+]);
+const CatalogFactTargetKindSchema = Schema.Literals(['PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION']);
+const CatalogLocalOverrideLifecycleSchema = Schema.Literals(['ACTIVE', 'RELEASED']);
+const decodeSourceFactValue = Schema.decodeUnknownEffect(CatalogPersistedSourceFactValueSchema);
+const decodeTargetKind = Schema.decodeUnknownEffect(CatalogFactTargetKindSchema);
+const decodeOverrideLifecycle = Schema.decodeUnknownEffect(CatalogLocalOverrideLifecycleSchema);
 
 export interface CatalogSourceResolutionStoreContext {
   readonly acceptedAt: Date;
@@ -67,29 +87,33 @@ export const catalogSourceResolutionStoreForScope = (
       .from(catalogAcceptedSourceAssertions)
       .where(acceptedScopeWhere(requested))
       .pipe(Effect.mapError(unavailable));
-    return yield* Effect.forEach(rows, (row) =>
-      decodeJson(row.value).pipe(
-        Effect.map((value): CatalogSourceAssertion<Schema.Json> => ({
+    return yield* Effect.forEach(
+      rows,
+      Effect.fn('CatalogSourceResolutionStore.decodeAcceptedBase')(function* decodeAcceptedBase(row) {
+        const [targetKind, value] = yield* Effect.all(
+          [decodeTargetKind(row.targetKind), decodeSourceFactValue(row.value)],
+          { concurrency: 2 },
+        );
+        const assertion: CatalogSourceAssertion<Schema.Json> = {
           assertionId: row.assertionId,
           effectiveFrom: row.effectiveFrom,
-          ...(row.effectiveTo === null ? {} : { effectiveTo: row.effectiveTo }),
           evidencedAt: row.evidencedAt,
           issuerSystemId: row.issuerSystemId,
           scope: {
             factKey: row.factKey,
             targetId: row.targetId,
-            targetKind:
-              row.targetKind === 'VARIANT' || row.targetKind === 'PACKAGE_DEFINITION' ? row.targetKind : 'PRODUCT',
+            targetKind,
             tenantId: row.tenantId,
           },
           sourceRecordId: row.sourceRecordId,
           sourceRevision: row.sourceRevision,
           value,
           valueFingerprint: row.valueFingerprint,
-        })),
-        Effect.mapError(unavailable),
-      ),
-    );
+        };
+        return row.effectiveTo === null ? assertion : { ...assertion, effectiveTo: row.effectiveTo };
+      }),
+      { concurrency: 1 },
+    ).pipe(Effect.mapError(unavailable));
   });
 
   const readOverrides: CatalogSourceResolutionPorts<Schema.Json>['readOverrides'] = Effect.fn(
@@ -116,110 +140,113 @@ export const catalogSourceResolutionStoreForScope = (
     if (rows.length > 1) {
       return yield* unavailable();
     }
-    return yield* Effect.forEach(rows, ({ revision: row }) =>
-      decodeJson(row.value).pipe(
-        Effect.map((value): CatalogLocalOverride<Schema.Json> => ({
+    return yield* Effect.forEach(
+      rows,
+      Effect.fn('CatalogSourceResolutionStore.decodeOverride')(function* decodeOverride({ revision: row }) {
+        const [lifecycle, targetKind, value] = yield* Effect.all(
+          [decodeOverrideLifecycle(row.lifecycle), decodeTargetKind(row.targetKind), decodeSourceFactValue(row.value)],
+          { concurrency: 3 },
+        );
+        return {
           actorPrincipalId: row.actorPrincipalId,
           evidenceRef: row.evidenceRef,
-          lifecycle: row.lifecycle === 'RELEASED' ? 'RELEASED' : 'ACTIVE',
+          lifecycle,
           reason: row.reason,
           revision: row.revision,
           scope: {
             factKey: row.factKey,
             targetId: row.targetId,
-            targetKind:
-              row.targetKind === 'VARIANT' || row.targetKind === 'PACKAGE_DEFINITION' ? row.targetKind : 'PRODUCT',
+            targetKind,
             tenantId: row.tenantId,
           },
           value,
-        })),
-        Effect.mapError(unavailable),
-      ),
-    );
+        } satisfies CatalogLocalOverride<Schema.Json>;
+      }),
+      { concurrency: 1 },
+    ).pipe(Effect.mapError(unavailable));
   });
 
   return {
-    appendAcceptedBase: (input) =>
-      Effect.gen(function* appendAcceptedBase() {
-        const { assertion, authority, sourceRecord, targetResolution } = input;
-        if (
-          assertion.scope.tenantId !== scope.tenantId ||
-          assertion.issuerSystemId !== sourceRecord.issuerId ||
-          assertion.sourceRecordId !== sourceRecord.recordId ||
-          authority.status !== 'VERIFIED' ||
-          authority.issuerSystemId !== assertion.issuerSystemId
-        ) {
-          return { reason: 'Accepted assertion provenance is inconsistent', status: 'CONFLICT' } as const;
-        }
-        const correlationCaptureStatus =
-          targetResolution.source === 'OWNER_CORRELATION'
-            ? 'ALREADY_OWNER_CONFIRMED'
-            : input.captureConfirmed
-              ? 'CONFIRMED_BEFORE_ACCEPTANCE'
-              : null;
-        if (correlationCaptureStatus === null) {
-          return { reason: 'Required owner correlation capture is not confirmed', status: 'CONFLICT' } as const;
-        }
-        const inserted = yield* transaction
-          .insert(catalogAcceptedSourceAssertions)
-          .values({
-            acceptedAt: context.acceptedAt,
-            actionInvocationId: context.actionInvocationId,
-            actingPrincipalId: context.principalId,
-            assertionId: assertion.assertionId,
-            authorityFactKey: authority.scope.factKey,
-            authorityIssuerSystemId: authority.issuerSystemId,
-            authorityStatus: authority.status,
-            authorityTargetKind: authority.scope.targetKind,
-            correlationCaptureStatus,
-            correlationRef: targetResolution.source === 'OWNER_CORRELATION' ? targetResolution.correlationRef : null,
-            deterministicRuleId: targetResolution.source === 'PRE_APPROVED_RULE' ? targetResolution.ruleId : null,
-            effectiveFrom: assertion.effectiveFrom,
-            effectiveTo: assertion.effectiveTo ?? null,
-            evidencedAt: assertion.evidencedAt,
-            factKey: assertion.scope.factKey,
-            issuerSystemId: assertion.issuerSystemId,
-            sourceIssuerId: sourceRecord.issuerId,
-            sourceIssuerKind: sourceRecord.issuerKind,
-            sourceRecordId: sourceRecord.recordId,
-            sourceRecordNamespace: sourceRecord.recordNamespace,
-            sourceRevision: assertion.sourceRevision,
-            targetId: assertion.scope.targetId,
-            targetKind: assertion.scope.targetKind,
-            targetResolutionSource: targetResolution.source,
-            tenantId: assertion.scope.tenantId,
-            value: assertion.value,
-            valueFingerprint: assertion.valueFingerprint,
-          })
-          .onConflictDoNothing()
-          .returning({ assertionId: catalogAcceptedSourceAssertions.assertionId });
-        if (inserted.length === 1) {
-          return { status: 'INSERTED' } as const;
-        }
-        const rows = yield* transaction
-          .select({
-            assertionId: catalogAcceptedSourceAssertions.assertionId,
-            valueFingerprint: catalogAcceptedSourceAssertions.valueFingerprint,
-          })
-          .from(catalogAcceptedSourceAssertions)
-          .where(
-            and(
-              acceptedScopeWhere(assertion.scope),
-              eq(catalogAcceptedSourceAssertions.sourceIssuerKind, sourceRecord.issuerKind),
-              eq(catalogAcceptedSourceAssertions.sourceIssuerId, sourceRecord.issuerId),
-              eq(catalogAcceptedSourceAssertions.sourceRecordNamespace, sourceRecord.recordNamespace),
-              eq(catalogAcceptedSourceAssertions.sourceRecordId, sourceRecord.recordId),
-              eq(catalogAcceptedSourceAssertions.sourceRevision, assertion.sourceRevision),
-            ),
-          );
-        return rows.length === 1 &&
-          rows[0]?.assertionId === assertion.assertionId &&
-          rows[0]?.valueFingerprint === assertion.valueFingerprint
-          ? ({ status: 'ALREADY_PRESENT' } as const)
-          : ({ reason: 'Source revision conflicts with accepted immutable evidence', status: 'CONFLICT' } as const);
-      }).pipe(Effect.mapError(unavailable)),
-    appendOverrideRevision: ({ expectedRevision, override }) =>
-      Effect.gen(function* appendOverrideRevision() {
+    appendAcceptedBase: Effect.fn('CatalogSourceResolutionStore.appendAcceptedBase')(function* appendAcceptedBase(
+      input,
+    ) {
+      const { assertion, authority, sourceRecord, targetResolution } = input;
+      if (
+        assertion.scope.tenantId !== scope.tenantId ||
+        assertion.issuerSystemId !== sourceRecord.issuerId ||
+        assertion.sourceRecordId !== sourceRecord.recordId ||
+        authority.status !== 'VERIFIED' ||
+        authority.issuerSystemId !== assertion.issuerSystemId
+      ) {
+        return { reason: 'Accepted assertion provenance is inconsistent', status: 'CONFLICT' } as const;
+      }
+      if (targetResolution.source !== 'OWNER_CORRELATION' && !input.captureConfirmed) {
+        return { reason: 'Required owner correlation capture is not confirmed', status: 'CONFLICT' } as const;
+      }
+      const correlationCaptureStatus =
+        targetResolution.source === 'OWNER_CORRELATION'
+          ? ('ALREADY_OWNER_CONFIRMED' as const)
+          : ('CONFIRMED_BEFORE_ACCEPTANCE' as const);
+      const inserted = yield* transaction
+        .insert(catalogAcceptedSourceAssertions)
+        .values({
+          acceptedAt: context.acceptedAt,
+          actingPrincipalId: context.principalId,
+          actionInvocationId: context.actionInvocationId,
+          assertionId: assertion.assertionId,
+          authorityFactKey: authority.scope.factKey,
+          authorityIssuerSystemId: authority.issuerSystemId,
+          authorityStatus: authority.status,
+          authorityTargetKind: authority.scope.targetKind,
+          correlationCaptureStatus,
+          correlationRef: targetResolution.source === 'OWNER_CORRELATION' ? targetResolution.correlationRef : null,
+          deterministicRuleId: targetResolution.source === 'PRE_APPROVED_RULE' ? targetResolution.ruleId : null,
+          effectiveFrom: assertion.effectiveFrom,
+          effectiveTo: assertion.effectiveTo ?? null,
+          evidencedAt: assertion.evidencedAt,
+          factKey: assertion.scope.factKey,
+          issuerSystemId: assertion.issuerSystemId,
+          sourceIssuerId: sourceRecord.issuerId,
+          sourceIssuerKind: sourceRecord.issuerKind,
+          sourceRecordId: sourceRecord.recordId,
+          sourceRecordNamespace: sourceRecord.recordNamespace,
+          sourceRevision: assertion.sourceRevision,
+          targetId: assertion.scope.targetId,
+          targetKind: assertion.scope.targetKind,
+          targetResolutionSource: targetResolution.source,
+          tenantId: assertion.scope.tenantId,
+          value: assertion.value,
+          valueFingerprint: assertion.valueFingerprint,
+        })
+        .onConflictDoNothing()
+        .returning({ assertionId: catalogAcceptedSourceAssertions.assertionId });
+      if (inserted.length === 1) {
+        return { status: 'INSERTED' } as const;
+      }
+      const rows = yield* transaction
+        .select({
+          assertionId: catalogAcceptedSourceAssertions.assertionId,
+          valueFingerprint: catalogAcceptedSourceAssertions.valueFingerprint,
+        })
+        .from(catalogAcceptedSourceAssertions)
+        .where(
+          and(
+            acceptedScopeWhere(assertion.scope),
+            eq(catalogAcceptedSourceAssertions.sourceIssuerKind, sourceRecord.issuerKind),
+            eq(catalogAcceptedSourceAssertions.sourceIssuerId, sourceRecord.issuerId),
+            eq(catalogAcceptedSourceAssertions.sourceRecordNamespace, sourceRecord.recordNamespace),
+            eq(catalogAcceptedSourceAssertions.sourceRecordId, sourceRecord.recordId),
+            eq(catalogAcceptedSourceAssertions.sourceRevision, assertion.sourceRevision),
+          ),
+        );
+      return rows.length === 1 &&
+        rows[0]?.assertionId === assertion.assertionId &&
+        rows[0]?.valueFingerprint === assertion.valueFingerprint
+        ? ({ status: 'ALREADY_PRESENT' } as const)
+        : ({ reason: 'Source revision conflicts with accepted immutable evidence', status: 'CONFLICT' } as const);
+    }, Effect.mapError(unavailable)),
+    appendOverrideRevision: Effect.fn('CatalogSourceResolutionStore.appendOverrideRevision')(
+      function* appendOverrideRevision({ expectedRevision, override }) {
         if (override.scope.tenantId !== scope.tenantId) {
           return { activeRevision: null, reason: 'Override Tenant is not trusted', status: 'CONFLICT' } as const;
         }
@@ -279,7 +306,9 @@ export const catalogSourceResolutionStoreForScope = (
           value: override.value,
         });
         return { status: 'APPLIED' } as const;
-      }).pipe(Effect.mapError(unavailable)),
+      },
+      Effect.mapError(unavailable),
+    ),
     readAcceptedBases,
     readOverrides,
   };

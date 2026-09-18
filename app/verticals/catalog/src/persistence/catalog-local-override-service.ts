@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from 'effect';
+import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect';
 
 import type { CatalogLocalOverrideOperation } from '../domain/catalog-local-override.ts';
 import type {
@@ -124,6 +124,18 @@ const operationChangeCause = {
   RELEASE: 'OVERRIDE_RELEASED',
 } as const satisfies Record<CatalogLocalOverrideOperation, CatalogResolvedCurrentChangeCause>;
 
+const epochOf = (value: Date): number => DateTime.toEpochMillis(DateTime.makeUnsafe(value));
+
+const newestAcceptedBaseFirst = <Value>(left: CatalogSourceAssertion<Value>, right: CatalogSourceAssertion<Value>) => {
+  if (left.sourceRevision === right.sourceRevision) {
+    return epochOf(right.evidencedAt) - epochOf(left.evidencedAt);
+  }
+  return left.sourceRevision < right.sourceRevision ? 1 : -1;
+};
+
+const ProductTargetKindSchema = Schema.Literals(['PRODUCT', 'VARIANT']);
+const isProductTargetKind = Schema.is(ProductTargetKindSchema);
+
 const acceptedBaseRevisionFor = <Value>(input: {
   readonly at: Date;
   readonly bases: readonly CatalogSourceAssertion<Value>[];
@@ -134,21 +146,15 @@ const acceptedBaseRevisionFor = <Value>(input: {
     return null;
   }
   const resolvedValue = input.resolved.value;
-  const epoch = input.at.getTime();
+  const epoch = epochOf(input.at);
   const matching = input.bases.filter(
     (base) =>
       Number.isFinite(epoch) &&
-      base.effectiveFrom.getTime() <= epoch &&
-      (base.effectiveTo === undefined || epoch < base.effectiveTo.getTime()) &&
+      epochOf(base.effectiveFrom) <= epoch &&
+      (base.effectiveTo === undefined || epoch < epochOf(base.effectiveTo)) &&
       input.valuesEqual(base.value, resolvedValue),
   );
-  const newestFirst = (left: CatalogSourceAssertion<Value>, right: CatalogSourceAssertion<Value>) => {
-    if (left.sourceRevision === right.sourceRevision) {
-      return right.evidencedAt.getTime() - left.evidencedAt.getTime();
-    }
-    return left.sourceRevision < right.sourceRevision ? 1 : -1;
-  };
-  return matching.toSorted(newestFirst)[0] ?? null;
+  return matching.toSorted(newestAcceptedBaseFirst)[0] ?? null;
 };
 
 /**
@@ -236,7 +242,7 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
       input.operation !== 'RELEASE' &&
       previous.status === 'CURRENT' &&
       !wiring.valuesEqual(previous.value, value) &&
-      (input.scope.targetKind === 'PRODUCT' || input.scope.targetKind === 'VARIANT')
+      isProductTargetKind(input.scope.targetKind)
     ) {
       const checked = yield* requireExistingCatalogFactChangeClassification({
         classification: input.classification ?? undefined,
@@ -357,3 +363,19 @@ export const makeCatalogLocalOverrideService = <Value>(wiring: CatalogLocalOverr
     }),
   };
 };
+
+export type CatalogLocalOverrideOperations<Value> = ReturnType<typeof makeCatalogLocalOverrideService<Value>>;
+
+export interface CatalogLocalOverrideServiceFactoryService {
+  readonly make: <Value>(wiring: CatalogLocalOverrideWiring<Value>) => CatalogLocalOverrideOperations<Value>;
+}
+
+export class CatalogLocalOverrideServiceFactory extends Context.Service<
+  CatalogLocalOverrideServiceFactory,
+  CatalogLocalOverrideServiceFactoryService
+>()('@app/catalog/persistence/catalog-local-override-service/CatalogLocalOverrideServiceFactory') {}
+
+export const catalogLocalOverrideServiceFactoryLive = Layer.succeed(
+  CatalogLocalOverrideServiceFactory,
+  Object.freeze({ make: makeCatalogLocalOverrideService }),
+);
