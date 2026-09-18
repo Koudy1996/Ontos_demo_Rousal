@@ -111,28 +111,44 @@ export const removeProductCategoryAssignmentAction = defineAction(
   handleRemoveProductCategoryAssignment,
   (transaction, scope) =>
     categoryPersistenceServiceFactory(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof RemoveProductCategoryAssignmentResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.remove-product-category-assignment', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(RemoveProductCategoryAssignmentResultSchema),
-              encode: Schema.encodeEffect(RemoveProductCategoryAssignmentResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
+      Effect.map(
+        (
+          services,
+        ): CategoryPersistence & {
+          readonly captureResult: (
+            actionInvocationId: string,
+            result: typeof RemoveProductCategoryAssignmentResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (
+            actionInvocationId: string,
+            result: typeof RemoveProductCategoryAssignmentResultSchema.Type,
+          ) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              {
+                actionInvocationId,
+                actionKey: 'commerce.catalog.remove-product-category-assignment',
+                schemaVersion: 1,
+              },
+              {
+                decode: Schema.decodeUnknownEffect(RemoveProductCategoryAssignmentResultSchema),
+                encode: Schema.encodeEffect(RemoveProductCategoryAssignmentResultSchema),
+              },
+              result,
+            ).pipe(
+              Effect.mapError(
+                () =>
+                  new ActionTransactionError({
+                    code: 'action_transaction_failed',
+                    reason: 'Catalog result capture failed',
+                  }),
+              ),
             ),
-          ),
-      })),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );

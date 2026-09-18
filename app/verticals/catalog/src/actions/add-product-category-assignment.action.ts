@@ -111,28 +111,37 @@ export const addProductCategoryAssignmentAction = defineAction(
   handleAddProductCategoryAssignment,
   (transaction, scope) =>
     categoryPersistenceServiceFactory(transaction, scope).pipe(
-      Effect.map((services) => ({
-        ...services,
-        captureResult: (actionInvocationId: string, result: typeof AddProductCategoryAssignmentResultSchema.Type) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: 'commerce.catalog.add-product-category-assignment', schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(AddProductCategoryAssignmentResultSchema),
-              encode: Schema.encodeEffect(AddProductCategoryAssignmentResultSchema),
-            },
-            result,
-          ).pipe(
-            Effect.mapError(
-              () =>
-                new ActionTransactionError({
-                  code: 'action_transaction_failed',
-                  reason: 'Catalog result capture failed',
-                }),
+      Effect.map(
+        (
+          services,
+        ): CategoryPersistence & {
+          readonly captureResult: (
+            actionInvocationId: string,
+            result: typeof AddProductCategoryAssignmentResultSchema.Type,
+          ) => Effect.Effect<void, ActionTransactionError>;
+        } => ({
+          ...services,
+          captureResult: (actionInvocationId: string, result: typeof AddProductCategoryAssignmentResultSchema.Type) =>
+            captureCatalogActionResult(
+              transaction,
+              scope,
+              { actionInvocationId, actionKey: 'commerce.catalog.add-product-category-assignment', schemaVersion: 1 },
+              {
+                decode: Schema.decodeUnknownEffect(AddProductCategoryAssignmentResultSchema),
+                encode: Schema.encodeEffect(AddProductCategoryAssignmentResultSchema),
+              },
+              result,
+            ).pipe(
+              Effect.mapError(
+                () =>
+                  new ActionTransactionError({
+                    code: 'action_transaction_failed',
+                    reason: 'Catalog result capture failed',
+                  }),
+              ),
             ),
-          ),
-      })),
+        }),
+      ),
     ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
