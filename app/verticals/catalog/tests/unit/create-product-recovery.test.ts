@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
-import { ActionRuntime, ReadHandlerNotFound, ReadHandlerUnavailable } from '@app/core-runtime';
+import {
+  ActionAlreadyCommitted,
+  ActionRequestHashConflict,
+  ActionRuntime,
+  ReadHandlerNotFound,
+  ReadHandlerUnavailable,
+} from '@app/core-runtime';
 import type { ActionRuntimeService } from '@app/core-runtime';
 
 import { CreateProductResultSchema } from '../../shared/actions/create-product.ts';
+import { mapCreateProductActionProblem } from '../../api/create-product-action-problems.ts';
 import { recoverCreateProduct } from '../../src/api/create-product-recovery.read.ts';
 import type { CatalogPersistence } from '../../src/persistence/catalog-persistence.ts';
 
@@ -68,6 +75,49 @@ const services = (recover: CatalogPersistence['recoverCreateProduct']): CatalogP
 });
 
 describe('create Product recovery', () => {
+  it.effect('reconciles a lost create response to the original result without treating the retry as a new write', () =>
+    Effect.gen(function* lostCreateResponse() {
+      const retry = mapCreateProductActionProblem(
+        new ActionAlreadyCommitted({
+          code: 'action_already_committed',
+          invocationId,
+          reason: 'The original create committed',
+        }),
+      );
+      expect(retry).toMatchObject({
+        invocationId,
+        resolution: 'RECOVER_CREATE_PRODUCT',
+        retryCommand: false,
+        status: 409,
+      });
+
+      let recoveryCalls = 0;
+      const recovered = yield* recoverCreateProduct(
+        { invocationId },
+        {
+          readKey: 'commerce.catalog.api.create-product-recovery',
+          scope,
+          services: services((id) => {
+            recoveryCalls += 1;
+            expect(id).toBe(invocationId);
+            return Effect.succeed({ result, status: 'committed' });
+          }),
+        },
+      ).pipe(Effect.provideService(ActionRuntime, runtime));
+      expect(recovered).toEqual(result);
+      expect(recoveryCalls).toBe(1);
+
+      const changedPayload = mapCreateProductActionProblem(
+        new ActionRequestHashConflict({
+          code: 'action_request_hash_conflict',
+          reason: 'The idempotency key belongs to a different create intent',
+        }),
+      );
+      expect(changedPayload.status).toBe(409);
+      expect('resolution' in changedPayload).toBe(false);
+      expect('invocationId' in changedPayload).toBe(false);
+    }),
+  );
   it.effect('returns the immutable committed snapshot', () =>
     Effect.gen(function* recoverCommittedCreateCase() {
       const recovered = yield* recoverCreateProduct(
