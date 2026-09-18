@@ -8,16 +8,26 @@ import {
 } from '../../shared/domain/catalog-revision-reference.ts';
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
+import type { SetCompositionRevision } from '../../shared/domain/set-composition.ts';
 import { productVariants, products } from '../database/schema.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 import { catalogSelectionPackageUnitBasisForScope } from './catalog-selection-package-unit-basis.ts';
+import { effectiveAttributeValueReadsForScope } from './effective-attribute-value-reads.ts';
 import { productConfigurationPersistenceForScope } from './product-configuration-persistence.ts';
+import { evaluateCurrentProductConfiguration } from './product-configuration-current-evaluator.ts';
+import type {
+  CurrentConfigurationAssessment,
+  TrustedConfigurationTarget,
+} from './product-configuration-current-evaluator.ts';
 import { productTypeReadinessSourceForScope } from './product-type-readiness-source.ts';
+import { setCompositionComponentCurrentBasisForScope } from './set-composition-component-current-basis.ts';
 import { setCompositionPersistenceForScope } from './set-composition-persistence.ts';
 import { variantAxisPersistenceForScope } from './variant-axis-persistence.ts';
+import type { CurrentVariantAxisValue } from './variant-axis-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 const catalogModuleId = 'commerce.catalog';
+const attributeDefinitionType = 'commerce.catalog.attribute-definition';
 
 /** A snapshot of facts, never an owner guarantee that a purchase remains Current. */
 export type CatalogSelectionCurrentBasis = Extract<
@@ -50,6 +60,301 @@ const validDependentRef = (
   resourceType: string,
 ): boolean => ref.moduleId === catalogModuleId && ref.resourceType === resourceType && ref.tenantId === tenantId;
 
+const verifySetComponents = Effect.fn('CatalogSelectionCurrentBasis.verifySetComponents')(function* verifySetComponents(
+  transaction: ScopedTransaction,
+  scope: OperationalScope,
+  revision: SetCompositionRevision,
+  at: Date,
+) {
+  const components = yield* setCompositionComponentCurrentBasisForScope(transaction, scope)
+    .read(revision, at)
+    .pipe(Effect.orElseSucceed(() => null));
+  if (components === null) {
+    return { reason: 'Set component Current source is unavailable', status: 'INDETERMINATE' as const };
+  }
+  if (components.status !== 'VALID') {
+    return { reason: `Set component Current proof: ${components.code}`, status: components.status };
+  }
+  return components.assessedAt === DateTime.formatIso(DateTime.makeUnsafe(at))
+    ? null
+    : { reason: 'Set component proof time differs from this assessment', status: 'INDETERMINATE' as const };
+});
+
+const appendAxisValueBasis = (
+  basis: CatalogSelectionCurrentFacts['basis'][number][],
+  values: readonly CurrentVariantAxisValue[],
+  tenantId: string,
+): string | null => {
+  const seen = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value.attributeDefinitionId)) {
+      return 'Current Variant axes repeat an Attribute Definition';
+    }
+    seen.add(value.attributeDefinitionId);
+    const definitionRevision = Schema.decodeOption(CatalogRevisionNumberSchema)(value.definitionRevision);
+    if (Option.isNone(definitionRevision)) {
+      return 'Current axis Attribute Definition revision is unavailable';
+    }
+    basis.push({
+      role: 'ATTRIBUTE_DEFINITION',
+      source: {
+        resourceRef: {
+          moduleId: catalogModuleId,
+          resourceId: value.attributeDefinitionId,
+          resourceType: attributeDefinitionType,
+          tenantId,
+        },
+        revision: definitionRevision.value,
+      },
+    });
+    if (value.source === 'MISSING') {
+      if (value.sourceRevision !== null || value.sourceValueSetRef !== null) {
+        return 'Missing Current axis value has a contradictory owner source';
+      }
+      continue;
+    }
+    const valueRevision = Schema.decodeUnknownOption(CatalogRevisionNumberSchema)(value.sourceRevision);
+    if (
+      Option.isNone(valueRevision) ||
+      value.sourceValueSetRef === null ||
+      value.sourceValueSetRef.tenantId !== tenantId
+    ) {
+      return 'Current axis value has no owner-qualified revision';
+    }
+    basis.push({
+      role: value.source === 'PRODUCT' ? 'INHERITED_VALUE' : 'OTHER_CATALOG_FACT',
+      source: {
+        resourceRef: {
+          moduleId: catalogModuleId,
+          resourceId: value.sourceValueSetRef.attributeValueSetId,
+          resourceType: 'commerce.catalog.attribute-value-set',
+          tenantId,
+        },
+        revision: valueRevision.value,
+      },
+    });
+  }
+  return null;
+};
+
+const readProductValueValidity = Effect.fn('CatalogSelectionCurrentBasis.readProductValueValidity')(
+  function* readProductValueValidity(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    productId: string,
+    variantId: string,
+  ) {
+    const reads = yield* effectiveAttributeValueReadsForScope(transaction, scope);
+    const validity = yield* reads.readProductTypeValidity([productId]).pipe(Effect.orElseSucceed(() => null));
+    if (validity === null || !validity.complete || validity.tenantId !== scope.tenantId) {
+      return { reason: 'Current Product Attribute value inventory is unavailable', status: 'INDETERMINATE' as const };
+    }
+    if (validity.entries.some((entry) => entry.productId !== productId)) {
+      return {
+        reason: 'Current Product Attribute inventory contains a foreign Product',
+        status: 'INDETERMINATE' as const,
+      };
+    }
+    if (validity.entries.some((entry) => (entry.variantId === null || entry.variantId === variantId) && !entry.valid)) {
+      return { reason: 'Current Product Attribute value is invalid', status: 'INVALID' as const };
+    }
+    return null;
+  },
+);
+
+type ConfigurationChoice = NonNullable<CatalogSelection['configuration']>['choices'][number];
+const readOneConfigurationChoice = Effect.fn('CatalogSelectionCurrentBasis.readOneConfigurationChoice')(
+  function* readOneConfigurationChoice(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    choice: ConfigurationChoice,
+    assessment: CurrentConfigurationAssessment,
+    definitionRevision: number,
+  ) {
+    const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+    const recorded = assessment.choiceRevisions.find((item) => item.choiceKey === choice.choiceKey);
+    if (recorded === undefined || recorded.revision !== definitionRevision) {
+      return { basis, reason: 'Selected Configuration choice lacks owner meaning', status: 'INDETERMINATE' as const };
+    }
+    if (choice.unit !== undefined) {
+      const unit = assessment.unitRevisions.find((item) => item.ref.resourceId === choice.unit?.resourceRef.resourceId);
+      if (
+        choice.unit.revisionId !== undefined ||
+        recorded.unitRevision !== choice.unit.revision ||
+        unit?.revision !== choice.unit.revision ||
+        unit.ref.tenantId !== scope.tenantId
+      ) {
+        return { basis, reason: 'Selected Configuration Unit is not Current', status: 'INVALID' as const };
+      }
+      basis.push({ role: 'UNIT', source: choice.unit });
+    }
+    if (choice.attributeDefinition !== undefined) {
+      const ref = choice.attributeDefinition.resourceRef;
+      if (!validDependentRef(ref, scope.tenantId, attributeDefinitionType)) {
+        return {
+          basis,
+          reason: 'Selected Attribute Definition reference is not owner-verifiable',
+          status: 'INDETERMINATE' as const,
+        };
+      }
+      const reads = yield* effectiveAttributeValueReadsForScope(transaction, scope);
+      const definition = yield* reads
+        .readDefinitionCurrent({
+          moduleId: catalogModuleId,
+          resourceId: ref.resourceId,
+          resourceType: attributeDefinitionType,
+          tenantId: scope.tenantId,
+        })
+        .pipe(Effect.orElseSucceed(() => null));
+      if (definition === null || !definition.complete) {
+        return {
+          basis,
+          reason: 'Selected Attribute Definition Current source is unavailable',
+          status: 'INDETERMINATE' as const,
+        };
+      }
+      if (definition.revision !== choice.attributeDefinition.revision) {
+        return { basis, reason: 'Selected Attribute Definition revision is not Current', status: 'INVALID' as const };
+      }
+      basis.push({ role: 'ATTRIBUTE_DEFINITION', source: choice.attributeDefinition });
+    }
+    return { basis, reason: null };
+  },
+);
+
+const readConfigurationChoiceProof = Effect.fn('CatalogSelectionCurrentBasis.readConfigurationChoiceProof')(
+  function* readConfigurationChoiceProof(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    selection: CatalogSelection,
+    at: Date,
+  ) {
+    const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+    const { configuration } = selection;
+    if (configuration === undefined) {
+      return { basis, reason: null };
+    }
+    const target: TrustedConfigurationTarget = {
+      definitionId: configuration.definition.resourceRef.resourceId,
+      productId: selection.productRef.resourceId,
+      variantId: selection.variantRef.resourceId,
+    };
+    if (selection.packageOption !== undefined) {
+      Object.assign(target, { packageDefinitionId: selection.packageOption.optionRef.resourceId });
+    }
+    const assessment = yield* evaluateCurrentProductConfiguration(
+      productConfigurationPersistenceForScope(transaction, scope),
+      {
+        at,
+        target,
+        values: configuration.choices.map((choice) =>
+          choice.unit === undefined
+            ? { choiceKey: choice.choiceKey, kind: 'SINGLE_CHOICE' as const, optionKey: choice.value }
+            : {
+                amount: choice.value,
+                choiceKey: choice.choiceKey,
+                kind: 'MEASURED_VALUE' as const,
+                unitId: choice.unit.resourceRef.resourceId,
+              },
+        ),
+      },
+    ).pipe(Effect.orElseSucceed(() => null));
+    if (assessment === null) {
+      return { basis, reason: 'Configuration choice Current source is unavailable', status: 'INDETERMINATE' as const };
+    }
+    if (assessment.status !== 'VALID') {
+      return { basis, reason: `Configuration choice proof: ${assessment.code}`, status: assessment.status };
+    }
+    if (
+      assessment.definitionRevision !== configuration.definition.revision ||
+      assessment.target.productId !== selection.productRef.resourceId ||
+      assessment.target.variantId !== selection.variantRef.resourceId ||
+      DateTime.toEpochMillis(DateTime.makeUnsafe(assessment.assessedAt)) !==
+        DateTime.toEpochMillis(DateTime.makeUnsafe(at))
+    ) {
+      return {
+        basis,
+        reason: 'Configuration choice proof does not match the exact target',
+        status: 'INDETERMINATE' as const,
+      };
+    }
+    const proofs = yield* Effect.forEach(
+      configuration.choices,
+      (choice) => readOneConfigurationChoice(transaction, scope, choice, assessment, configuration.definition.revision),
+      { concurrency: 1 },
+    );
+    for (const proof of proofs) {
+      basis.push(...proof.basis);
+      if (proof.reason !== null) {
+        return { basis, reason: proof.reason, status: proof.status };
+      }
+    }
+    return { basis, reason: null };
+  },
+);
+
+const readSelectedConfiguration = Effect.fn('CatalogSelectionCurrentBasis.readSelectedConfiguration')(
+  function* readSelectedConfiguration(
+    transaction: ScopedTransaction,
+    scope: OperationalScope,
+    selection: CatalogSelection,
+    at: Date,
+  ) {
+    const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
+    if (selection.configuration === undefined) {
+      return { basis, reason: null };
+    }
+    const selected = selection.configuration.definition;
+    if (
+      selected.revisionId !== undefined ||
+      !validDependentRef(selected.resourceRef, scope.tenantId, 'commerce.catalog.configuration-definition')
+    ) {
+      return {
+        basis,
+        reason: 'Selected Configuration reference is not owner-verifiable',
+        status: 'INDETERMINATE' as const,
+      };
+    }
+    const current = yield* productConfigurationPersistenceForScope(transaction, scope)
+      .readCurrent({ at, definitionId: selected.resourceRef.resourceId, productId: selection.productRef.resourceId })
+      .pipe(Effect.catchTag('ProductConfigurationPersistenceUnavailable', () => Effect.succeedNone));
+    if (Option.isNone(current)) {
+      return {
+        basis,
+        reason: 'Configuration Current revision is unavailable or missing',
+        status: 'INDETERMINATE' as const,
+      };
+    }
+    if (
+      current.value.revision !== selected.revision ||
+      current.value.definitionId !== selected.resourceRef.resourceId ||
+      current.value.productId !== selection.productRef.resourceId
+    ) {
+      return { basis, reason: 'Selected Configuration revision is not Current', status: 'INVALID' as const };
+    }
+    const revision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(current.value.revision).pipe(
+      Effect.mapError(unavailable),
+    );
+    basis.push({
+      role: 'CONFIGURATION_DEFINITION',
+      source: {
+        resourceRef: {
+          moduleId: catalogModuleId,
+          resourceId: current.value.definitionId,
+          resourceType: 'commerce.catalog.configuration-definition',
+          tenantId: scope.tenantId,
+        },
+        revision,
+      },
+    });
+    const choices = yield* readConfigurationChoiceProof(transaction, scope, selection, at);
+    basis.push(...choices.basis);
+    return choices.reason === null
+      ? { basis, reason: null }
+      : { basis, reason: choices.reason, status: choices.status };
+  },
+);
+
 /** Only exact effective revisions may enter the basis; component and choice validity is still separate. */
 const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSelectedDependencies')(
   function* readSelectedDependencies(
@@ -59,54 +364,10 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
     at: Date,
   ) {
     const basis: CatalogSelectionCurrentFacts['basis'][number][] = [];
-    if (selection.configuration !== undefined) {
-      const selected = selection.configuration.definition;
-      if (
-        selected.revisionId !== undefined ||
-        !validDependentRef(selected.resourceRef, scope.tenantId, 'commerce.catalog.configuration-definition')
-      ) {
-        return {
-          basis,
-          reason: 'Selected Configuration reference is not owner-verifiable',
-          status: 'INDETERMINATE' as const,
-        };
-      }
-      const current = yield* productConfigurationPersistenceForScope(transaction, scope)
-        .readCurrent({
-          at,
-          definitionId: selected.resourceRef.resourceId,
-          productId: selection.productRef.resourceId,
-        })
-        .pipe(Effect.catchTag('ProductConfigurationPersistenceUnavailable', () => Effect.succeedNone));
-      if (Option.isNone(current)) {
-        return {
-          basis,
-          reason: 'Configuration Current revision is unavailable or missing',
-          status: 'INDETERMINATE' as const,
-        };
-      }
-      if (
-        current.value.revision !== selected.revision ||
-        current.value.definitionId !== selected.resourceRef.resourceId ||
-        current.value.productId !== selection.productRef.resourceId
-      ) {
-        return { basis, reason: 'Selected Configuration revision is not Current', status: 'INVALID' as const };
-      }
-      const revision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(current.value.revision).pipe(
-        Effect.mapError(unavailable),
-      );
-      basis.push({
-        role: 'CONFIGURATION_DEFINITION',
-        source: {
-          resourceRef: {
-            moduleId: catalogModuleId,
-            resourceId: current.value.definitionId,
-            resourceType: 'commerce.catalog.configuration-definition',
-            tenantId: scope.tenantId,
-          },
-          revision,
-        },
-      });
+    const configuration = yield* readSelectedConfiguration(transaction, scope, selection, at);
+    basis.push(...configuration.basis);
+    if (configuration.reason !== null) {
+      return { basis, reason: configuration.reason, status: configuration.status };
     }
     if (selection.setComposition !== undefined) {
       const selected = selection.setComposition;
@@ -144,6 +405,10 @@ const readSelectedDependencies = Effect.fn('CatalogSelectionCurrentBasis.readSel
           status: 'INVALID' as const,
         };
       }
+      const componentFailure = yield* verifySetComponents(transaction, scope, revision, at);
+      if (componentFailure !== null) {
+        return { basis, ...componentFailure };
+      }
       basis.push({ role: 'SET_COMPOSITION', source: revision.reference });
     }
     return { basis, reason: null, status: 'INDETERMINATE' as const };
@@ -178,9 +443,17 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
         revisionId: typeSource.basis.revisionId,
       },
     });
-    const axes = yield* variantAxisPersistenceForScope(transaction, scope)
-      .readCurrent(selection.productRef)
-      .pipe(Effect.orElseSucceed(() => null));
+    const productValueFailure = yield* readProductValueValidity(
+      transaction,
+      scope,
+      selection.productRef.resourceId,
+      selection.variantRef.resourceId,
+    );
+    if (productValueFailure !== null) {
+      return { basis, ...productValueFailure };
+    }
+    const axisReader = variantAxisPersistenceForScope(transaction, scope);
+    const axes = yield* axisReader.readCurrent(selection.productRef).pipe(Effect.orElseSucceed(() => null));
     if (
       axes === null ||
       axes.productId !== selection.productRef.resourceId ||
@@ -195,6 +468,16 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
       Effect.mapError(unavailable),
     );
     basis.push({ role: 'VARIANT_AXIS', source: { resourceRef: selection.productRef, revision: axisRevision } });
+    const axisValues = yield* axisReader
+      .readEffectiveValues(selection.productRef, selection.variantRef, axes)
+      .pipe(Effect.orElseSucceed(() => null));
+    if (axisValues === null || axisValues.length !== axes.axes.length) {
+      return unknown('Current Variant axis values are unavailable or incomplete');
+    }
+    const axisValueProblem = appendAxisValueBasis(basis, axisValues, scope.tenantId);
+    if (axisValueProblem !== null) {
+      return unknown(axisValueProblem);
+    }
 
     const packageBasis = yield* catalogSelectionPackageUnitBasisForScope(transaction, scope)
       .read(selection, DateTime.toDateUtc(now))

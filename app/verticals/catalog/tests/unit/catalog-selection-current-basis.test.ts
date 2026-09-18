@@ -4,6 +4,11 @@ import { describe, expect, it } from 'effect-rstest';
 
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
+  attributeDefinitionRevisions,
+  attributeDefinitions,
+  attributeValueItems,
+  attributeValueRevisions,
+  attributeValueSets,
   packageContentRevisions,
   packageDefinitions,
   packageOptionRoleRevisions,
@@ -124,6 +129,8 @@ describe('Catalog Selection Current basis', () => {
       const revisionId = '88888888-8888-4888-8888-888888888888';
       const packageId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
       const unitId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const definitionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+      const valueSetId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
       const packageSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
         ...selection,
         packageOption: {
@@ -148,6 +155,7 @@ describe('Catalog Selection Current basis', () => {
         currentRevision: number,
         packageCurrentRevision?: number,
         packageEffectiveAt = new Date('1960-01-01T00:00:00.000Z'),
+        inheritedRevision?: number,
       ) => {
         const rows = new Map<unknown, readonly object[]>([
           [products, [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId, revision: 4 }]],
@@ -224,6 +232,90 @@ describe('Catalog Selection Current basis', () => {
             ],
           ],
         ]);
+        if (inheritedRevision !== undefined) {
+          const definitionRules = {
+            allowsNone: 0,
+            allowsNotApplicable: 0,
+            allowsUnknown: 0,
+            applicableLevels: ['PRODUCT', 'VARIANT'],
+            canonicalUnit: null,
+            controlledValueKind: null,
+            decimalPlaces: null,
+            maximumValue: null,
+            meaning: 'Material',
+            measuredQuantity: null,
+            minimumValue: null,
+            multiplicity: 'SINGLE',
+            name: 'Material',
+            valueKind: 'TEXT',
+          };
+          rows.set(productTypeRevisionAttributes, [
+            {
+              attributeDefinitionId: definitionId,
+              level: 'PRODUCT',
+              productTypeId: typeId,
+              requirement: 'OPTIONAL',
+              revision: currentRevision,
+              tenantId,
+            },
+            {
+              attributeDefinitionId: definitionId,
+              level: 'VARIANT',
+              productTypeId: typeId,
+              requirement: 'OPTIONAL',
+              revision: currentRevision,
+              tenantId,
+            },
+          ]);
+          rows.set(productVariantAxes, [
+            { attributeDefinitionId: definitionId, axisRevision: 3, ordinal: 0, productId, tenantId },
+          ]);
+          rows.set(productVariantAxisEvents, [
+            { attributeDefinitionIds: [definitionId], axisRevision: 3, productId, tenantId },
+          ]);
+          rows.set(attributeDefinitions, [
+            { ...definitionRules, attributeDefinitionId: definitionId, currentRevision: 3, tenantId },
+          ]);
+          rows.set(attributeDefinitionRevisions, [
+            { ...definitionRules, attributeDefinitionId: definitionId, revision: 3, tenantId },
+          ]);
+          rows.set(attributeValueSets, [
+            {
+              attributeDefinitionId: definitionId,
+              attributeValueSetId: valueSetId,
+              currentRevision: inheritedRevision,
+              currentState: 'SET',
+              productId,
+              tenantId,
+              variantId: null,
+            },
+          ]);
+          rows.set(attributeValueRevisions, [
+            {
+              attributeValueSetId: valueSetId,
+              changeKind: 'SET',
+              revision: inheritedRevision,
+              tenantId,
+              valueSnapshot: {
+                attributeDefinitionRevision: 3,
+                productTypeId: typeId,
+                productTypeRevision: currentRevision,
+                sourceProductValueRevision: null,
+                values: [{ kind: 'TEXT', text: 'cotton' }],
+              },
+            },
+          ]);
+          rows.set(attributeValueItems, [
+            {
+              attributeDefinitionId: definitionId,
+              attributeValueSetId: valueSetId,
+              ordinal: 0,
+              tenantId,
+              textValue: 'cotton',
+              valueKind: 'TEXT',
+            },
+          ]);
+        }
         const transaction = {
           select: () => ({
             from: (table: typeof products) => selectedWithOrder(rows.get(table) ?? []),
@@ -263,6 +355,21 @@ describe('Catalog Selection Current basis', () => {
       const futureContent = yield* readAt(3, 4, new Date('2999-01-01T00:00:00.000Z'));
       expect(futureContent.status).toBe('INVALID');
       expect(futureContent.basis.some(({ role }) => role === 'PACKAGE_CONTENT')).toBe(false);
+      const inheritedBefore = yield* readAt(3, undefined, undefined, 1);
+      const inheritedAfter = yield* readAt(3, undefined, undefined, 2);
+      expect(inheritedBefore.status).toBe('INDETERMINATE');
+      expect(inheritedAfter.status).toBe('INDETERMINATE');
+      expect(inheritedBefore.basis.map(({ role, source }) => [role, source.revision])).toContainEqual([
+        'INHERITED_VALUE',
+        1,
+      ]);
+      expect(inheritedAfter.basis.map(({ role, source }) => [role, source.revision])).toContainEqual([
+        'INHERITED_VALUE',
+        2,
+      ]);
+      expect(inheritedAfter.basis.find(({ role }) => role === 'INHERITED_VALUE')?.source.resourceRef.resourceId).toBe(
+        valueSetId,
+      );
     }),
   );
 
@@ -478,6 +585,23 @@ describe('Catalog Selection Current basis', () => {
         status: 'INVALID',
       });
       expect(result.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT']);
+      const currentButNested = yield* reader.read({
+        purpose: 'PURCHASE_ACCEPTANCE',
+        selection: Schema.decodeUnknownSync(CatalogSelectionSchema)({
+          ...selection,
+          setComposition: {
+            resourceRef: {
+              moduleId: 'commerce.catalog',
+              resourceId: compositionId,
+              resourceType: 'commerce.catalog.set-composition',
+              tenantId,
+            },
+            revision: 1,
+          },
+        }),
+      });
+      expect(currentButNested).toMatchObject({ reason: 'Set component Current proof: NESTED_SET', status: 'INVALID' });
+      expect(currentButNested.basis.some(({ role }) => role === 'SET_COMPOSITION')).toBe(false);
     }),
   );
 });
