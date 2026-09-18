@@ -138,8 +138,12 @@ const mapDomainProblem = (error: DomainError): SetProductAttributeValuesActionPr
           ),
           Match.exhaustive,
         ),
+      CatalogOpenSelectionImpactUnavailable: () =>
+        setProductAttributeValuesActionProblem.unavailable('catalog_persistence_unavailable'),
       CatalogPersistenceUnavailable: () =>
         setProductAttributeValuesActionProblem.unavailable('catalog_persistence_unavailable'),
+      ProductAttributeChangeConflict: () =>
+        setProductAttributeValuesActionProblem.ineligible('attribute_values_ineligible'),
     }),
     Match.exhaustive,
   );

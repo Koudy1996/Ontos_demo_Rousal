@@ -140,8 +140,12 @@ const mapDomainProblem = (error: DomainError): RemoveProductAttributeValuesActio
           ),
           Match.exhaustive,
         ),
+      CatalogOpenSelectionImpactUnavailable: () =>
+        removeProductAttributeValuesActionProblem.unavailable('catalog_persistence_unavailable'),
       CatalogPersistenceUnavailable: () =>
         removeProductAttributeValuesActionProblem.unavailable('catalog_persistence_unavailable'),
+      ProductAttributeChangeConflict: () =>
+        removeProductAttributeValuesActionProblem.ineligible('attribute_values_ineligible'),
     }),
     Match.exhaustive,
   );

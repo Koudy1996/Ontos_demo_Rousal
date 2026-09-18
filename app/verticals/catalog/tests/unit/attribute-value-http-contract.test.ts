@@ -7,6 +7,8 @@ import { SetVariantAttributeOverrideActionApi } from '../../shared/apis/set-vari
 import { RemoveVariantAttributeOverrideActionApi } from '../../shared/apis/remove-variant-attribute-override-action.ts';
 import { AttributeValuesConflict } from '../../src/persistence/attribute-values-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../../src/persistence/errors.ts';
+import { CatalogOpenSelectionImpactUnavailable } from '../../src/persistence/catalog-open-selection-impact.ts';
+import { ProductAttributeChangeConflict } from '../../shared/actions/attribute-value-mutations.ts';
 import { mapSetProductAttributeValuesActionProblem } from '../../api/set-product-attribute-values-action-problems.ts';
 import { mapRemoveProductAttributeValuesActionProblem } from '../../api/remove-product-attribute-values-action-problems.ts';
 import { mapSetVariantAttributeOverrideActionProblem } from '../../api/set-variant-attribute-override-action-problems.ts';
@@ -98,6 +100,26 @@ describe('Attribute Value HTTP Actions', () => {
       );
       expect(unavailable).toMatchObject({ code: 'catalog_persistence_unavailable', retryable: true, status: 503 });
       expect(JSON.stringify(unavailable)).not.toContain('private database detail');
+    }
+  });
+
+  it('maps Product classification and unavailable impact without leaking evidence', () => {
+    for (const map of [mapSetProductAttributeValuesActionProblem, mapRemoveProductAttributeValuesActionProblem]) {
+      const classification = map(
+        new ProductAttributeChangeConflict({
+          code: 'product_attribute_change_conflict',
+          reason: 'private realization detail',
+        }),
+      );
+      const impact = map(
+        new CatalogOpenSelectionImpactUnavailable({
+          code: 'catalog_open_selection_impact_unavailable',
+          reason: 'private selection detail',
+        }),
+      );
+      expect(classification).toMatchObject({ code: 'attribute_values_ineligible', status: 422 });
+      expect(impact).toMatchObject({ code: 'catalog_persistence_unavailable', retryable: true, status: 503 });
+      expect(JSON.stringify([classification, impact])).not.toContain('private');
     }
   });
 });

@@ -9,6 +9,8 @@ import { Effect, Schema } from 'effect';
 import {
   SetProductAttributeValuesPayloadSchema,
   SetProductAttributeValuesResultSchema,
+  ProductAttributeChangeConflict,
+  requireProductAttributeCorrection,
 } from '../../shared/actions/attribute-value-mutations.ts';
 import type { SetProductAttributeValuesPayload } from '../../shared/actions/attribute-value-mutations.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
@@ -18,6 +20,10 @@ import {
 } from '../persistence/attribute-values-persistence.ts';
 import type { AttributeValuesPersistence } from '../persistence/attribute-values-persistence.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
+import {
+  CatalogOpenSelectionImpactUnavailable,
+  catalogOpenSelectionImpactForScope,
+} from '../persistence/catalog-open-selection-impact.ts';
 
 export {
   SetProductAttributeValuesPayloadSchema,
@@ -27,11 +33,18 @@ export type { SetProductAttributeValuesPayload } from '../../shared/actions/attr
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 const domainEvents = {} as const;
+type ProductAttributeServices = AttributeValuesPersistence & {
+  readonly assessOpenSelectionImpact: (
+    productRef: SetProductAttributeValuesPayload['productRef'],
+  ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable>;
+};
 export const handleSetProductAttributeValues = Effect.fn('SetProductAttributeValuesAction.handle')(
   function* handleSetProductAttributeValues(
     payload: SetProductAttributeValuesPayload,
-    context: ActionHandlerContext<typeof domainEvents, AttributeValuesPersistence>,
+    context: ActionHandlerContext<typeof domainEvents, ProductAttributeServices>,
   ) {
+    yield* requireProductAttributeCorrection(payload.classification, payload.productRef);
+    yield* context.services.assessOpenSelectionImpact(payload.productRef);
     const result = yield* context.services.setProductValues({
       ...payload,
       actionInvocationId: context.actionInvocationId,
@@ -46,7 +59,7 @@ export const handleSetProductAttributeValues = Effect.fn('SetProductAttributeVal
       targetResourceId: payload.productRef.resourceId,
       targetResourceType: 'commerce.catalog.product',
     });
-    yield* context.recordAuditEvidence({ reason: payload.reason });
+    yield* context.recordAuditEvidence({ evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason });
     return yield* Schema.decodeEffect(SetProductAttributeValuesResultSchema)(result).pipe(
       Effect.mapError((cause) => {
         const failure = new CatalogPersistenceUnavailable({
@@ -78,7 +91,12 @@ export const setProductAttributeValuesAction = defineAction(
     actionKey: ACTION_KEY,
     auditEvidenceSchema: ProductAuditEvidenceSchema,
     auditProfile: 'standard',
-    domainErrorSchema: Schema.Union([AttributeValuesConflict, CatalogPersistenceUnavailable]),
+    domainErrorSchema: Schema.Union([
+      AttributeValuesConflict,
+      CatalogPersistenceUnavailable,
+      ProductAttributeChangeConflict,
+      CatalogOpenSelectionImpactUnavailable,
+    ]),
     domainEvents,
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
@@ -101,13 +119,14 @@ export const setProductAttributeValuesAction = defineAction(
       Effect.map(
         (
           services,
-        ): AttributeValuesPersistence & {
+        ): ProductAttributeServices & {
           captureResult: (
             actionInvocationId: string,
             result: typeof SetProductAttributeValuesResultSchema.Type,
           ) => Effect.Effect<void, ActionTransactionError>;
         } => ({
           ...services,
+          assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope).assess,
           captureResult: (actionInvocationId: string, result: typeof SetProductAttributeValuesResultSchema.Type) =>
             captureCatalogActionResult(
               transaction,

@@ -27,6 +27,7 @@ import {
 } from '../../src/actions/set-variant-attribute-override.action.ts';
 import { AttributeValuesConflict } from '../../src/persistence/attribute-values-persistence.ts';
 import type { AttributeValuesPersistence } from '../../src/persistence/attribute-values-persistence.ts';
+import { CatalogOpenSelectionImpactUnavailable } from '../../src/persistence/catalog-open-selection-impact.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const productRef = {
@@ -48,7 +49,19 @@ const attributeDefinitionRef = {
   tenantId,
 };
 const base = { attributeDefinitionRef, expectedRevision: null, productRef, reason: 'Assign documented product fact' };
+const classification = {
+  evidenceRefs: ['catalog-review-1'],
+  kind: 'EVIDENCED_CORRECTION',
+  reason: base.reason,
+} as const;
 const unexpected = () => Effect.die('Unexpected persistence method');
+const unavailableImpact = () =>
+  Effect.fail(
+    new CatalogOpenSelectionImpactUnavailable({
+      code: 'catalog_open_selection_impact_unavailable',
+      reason: 'Population unavailable',
+    }),
+  );
 const failure = (conflict: AttributeValuesConflict['conflict']) =>
   new AttributeValuesConflict({ code: 'attribute_values_conflict', conflict, reason: 'Unsafe value change' });
 const scope = {
@@ -62,14 +75,20 @@ const scope = {
 };
 const makeContext = (
   services: AttributeValuesPersistence,
-): ActionHandlerContext<Readonly<Record<string, never>>, AttributeValuesPersistence> => ({
+  assessOpenSelectionImpact: (
+    productRef: typeof base.productRef,
+  ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable> = () => Effect.void,
+): ActionHandlerContext<
+  Readonly<Record<string, never>>,
+  AttributeValuesPersistence & { assessOpenSelectionImpact: typeof assessOpenSelectionImpact }
+> => ({
   actionInvocationId: '66666666-6666-4666-8666-666666666666',
   addDomainEvent: () => Effect.succeed(Object.create(null)),
   addOutboxMessage: () => Effect.void,
   recordAuditEvidence: () => Effect.void,
   recordDataAccess: () => Effect.void,
   scope,
-  services,
+  services: { ...services, assessOpenSelectionImpact },
 });
 
 describe('Catalog attribute value Actions', () => {
@@ -79,7 +98,11 @@ describe('Catalog attribute value Actions', () => {
       false,
     );
     expect(
-      Schema.is(SetProductAttributeValuesPayloadSchema)({ ...base, values: [{ kind: 'SPECIAL', state: 'UNKNOWN' }] }),
+      Schema.is(SetProductAttributeValuesPayloadSchema)({
+        ...base,
+        classification,
+        values: [{ kind: 'SPECIAL', state: 'UNKNOWN' }],
+      }),
     ).toBe(true);
     expect(
       Schema.is(SetProductAttributeValuesPayloadSchema)({
@@ -109,6 +132,7 @@ describe('Catalog attribute value Actions', () => {
     Effect.gen(function* handoff() {
       const payload = Schema.decodeUnknownSync(SetProductAttributeValuesPayloadSchema)({
         ...base,
+        classification,
         values: [{ kind: 'SPECIAL', state: 'UNKNOWN' }],
       });
       const services: AttributeValuesPersistence = {
@@ -125,6 +149,29 @@ describe('Catalog attribute value Actions', () => {
       };
       const result = yield* handleSetProductAttributeValues(payload, makeContext(services));
       expect(result.state).toBe('SET');
+    }),
+  );
+
+  it.effect('does not write either Product attribute mutation when open-selection impact is unavailable', () =>
+    Effect.gen(function* rejectedForUnavailableImpact() {
+      const services: AttributeValuesPersistence = {
+        removeProductValues: unexpected,
+        removeVariantOverride: unexpected,
+        setProductValues: unexpected,
+        setVariantOverride: unexpected,
+      };
+      const context = makeContext(services, unavailableImpact);
+      const set = Schema.decodeUnknownSync(SetProductAttributeValuesPayloadSchema)({
+        ...base,
+        classification,
+        values: [{ kind: 'TEXT', text: '90 cm' }],
+      });
+      const remove = Schema.decodeUnknownSync(RemoveProductAttributeValuesPayloadSchema)({ ...base, classification });
+      const outcomes = yield* Effect.all([
+        handleSetProductAttributeValues(set, context).pipe(Effect.flip),
+        handleRemoveProductAttributeValues(remove, context).pipe(Effect.flip),
+      ]);
+      expect(outcomes.every(Schema.is(CatalogOpenSelectionImpactUnavailable))).toBe(true);
     }),
   );
 
@@ -169,9 +216,13 @@ describe('Catalog attribute value Actions', () => {
       const context = makeContext(services);
       const productSet = Schema.decodeUnknownSync(SetProductAttributeValuesPayloadSchema)({
         ...base,
+        classification,
         values: [{ kind: 'TEXT', text: 'Steel' }],
       });
-      const productRemove = Schema.decodeUnknownSync(RemoveProductAttributeValuesPayloadSchema)(base);
+      const productRemove = Schema.decodeUnknownSync(RemoveProductAttributeValuesPayloadSchema)({
+        ...base,
+        classification,
+      });
       const variantSet = Schema.decodeUnknownSync(SetVariantAttributeOverridePayloadSchema)({
         ...base,
         values: [{ kind: 'TEXT', text: 'Blue' }],
