@@ -7,6 +7,7 @@ import { and, asc, eq } from 'drizzle-orm';
 /* oxlint-disable anti-slop/no-conditional-empty-object-spread, effect-native/no-sequential-independent-yields, eslint/no-negated-condition, eslint/prefer-destructuring, perfectionist/sort-object-types, perfectionist/sort-objects, typescript/consistent-type-specifier-style -- Drizzle rows and optional SQL columns are decoded at this tenant-scoped persistence boundary; generated insert key order and transactional read ordering are intentional. expires: 2027-03-31. */
 import {
   catalogReadiness,
+  productActivationBlockers,
   ProductSchema,
   ProductVariantSchema,
   type Product,
@@ -400,28 +401,6 @@ export const catalogPersistenceForScope = (
 ): Effect.Effect<CatalogPersistence> => {
   const tenantId = scope.tenantId;
 
-  const recoverCreateProduct: CatalogPersistence['recoverCreateProduct'] = (invocationId) =>
-    recoverCatalogActionResult(
-      transaction,
-      scope,
-      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-product', schemaVersion: 1 },
-      {
-        decode: Schema.decodeUnknownEffect(CreateProductResultSchema),
-        encode: Schema.encodeEffect(CreateProductResultSchema),
-      },
-    );
-
-  const recoverUpdateProduct: CatalogPersistence['recoverUpdateProduct'] = (invocationId) =>
-    recoverCatalogActionResult(
-      transaction,
-      scope,
-      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.update-product', schemaVersion: 1 },
-      {
-        decode: Schema.decodeUnknownEffect(UpdateProductResultSchema),
-        encode: Schema.encodeEffect(UpdateProductResultSchema),
-      },
-    );
-
   const getCreatedByInvocation: CatalogPersistence['getCreatedByInvocation'] = Effect.fn(
     'CatalogPersistence.getCreatedByInvocation',
   )(function* getCreatedByInvocation(invocationId, principalId) {
@@ -486,6 +465,43 @@ export const catalogPersistenceForScope = (
     }).pipe(Effect.mapError(unavailable));
     return Option.some(result);
   });
+
+  const recoverCreateProduct: CatalogPersistence['recoverCreateProduct'] = Effect.fn(
+    'CatalogPersistence.recoverCreateProduct',
+  )(function* recoverCreateProduct(invocationId) {
+    const snapshotRecovery = yield* recoverCatalogActionResult(
+      transaction,
+      scope,
+      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.create-product', schemaVersion: 1 },
+      {
+        decode: Schema.decodeUnknownEffect(CreateProductResultSchema),
+        encode: Schema.encodeEffect(CreateProductResultSchema),
+      },
+    );
+    if (snapshotRecovery.status !== 'unavailable') {
+      return snapshotRecovery;
+    }
+    // Core confirmed the original commit, but the immutable owner snapshot is missing or
+    // unreadable. Reconcile against the canonical Product row created by this invocation and
+    // principal so a lost create response resolves to its original result, never a second Product.
+    const reconciled = yield* getCreatedByInvocation(invocationId, scope.principalId).pipe(
+      Effect.orElseSucceed(() => Option.none<CreateProductResult>()),
+    );
+    return Option.isSome(reconciled)
+      ? ({ result: reconciled.value, status: 'committed' } as const)
+      : ({ status: 'unavailable' } as const);
+  });
+
+  const recoverUpdateProduct: CatalogPersistence['recoverUpdateProduct'] = (invocationId) =>
+    recoverCatalogActionResult(
+      transaction,
+      scope,
+      { actionInvocationId: invocationId, actionKey: 'commerce.catalog.update-product', schemaVersion: 1 },
+      {
+        decode: Schema.decodeUnknownEffect(UpdateProductResultSchema),
+        encode: Schema.encodeEffect(UpdateProductResultSchema),
+      },
+    );
 
   const getCurrent: CatalogPersistence['getCurrent'] = Effect.fn('CatalogPersistence.getCurrent')(
     function* getCurrent(productId) {
@@ -598,9 +614,9 @@ export const catalogPersistenceForScope = (
     } as const;
     if (lifecycle === 'ACTIVE') {
       const localizedNames = yield* getLocalizedNames(transaction, tenantId, input.productId);
-      const readiness = catalogReadiness(candidate, localizedNames);
-      if (!readiness.catalogReady) {
-        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
+      const blockers = productActivationBlockers(candidate, localizedNames);
+      if (blockers.length > 0) {
+        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: blockers };
       }
     }
     const changed = input.name !== undefined || input.description !== undefined || lifecycle !== existing.lifecycle;
@@ -748,15 +764,15 @@ export const catalogPersistenceForScope = (
         return { _tag: 'lifecycle_conflict' as const, product: existing };
       }
       const localizedNames = yield* getLocalizedNames(transaction, tenantId, input.productId);
-      const readiness = catalogReadiness(
+      const blockers = productActivationBlockers(
         {
           lifecycle: 'ACTIVE',
           variants: existing.variants,
         },
         localizedNames,
       );
-      if (!readiness.catalogReady) {
-        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: readiness.reasons };
+      if (blockers.length > 0) {
+        return { _tag: 'not_catalog_ready' as const, product: existing, reasons: blockers };
       }
       const revision = existing.revision + 1;
       const now = DateTime.toDateUtc(yield* DateTime.now);

@@ -146,11 +146,15 @@ export const CatalogReadinessSchema = Schema.Struct({
 });
 export type CatalogReadiness = typeof CatalogReadinessSchema.Type;
 
-/** Current owner-local localized names, not the legacy Product label, satisfy the text minimum. */
-export const catalogReadiness = (
+/**
+ * Necessary row evidence for a documented Product lifecycle transition into ACTIVE.
+ * This is a state gate, not the derived Current Catalog-readiness of a concrete use:
+ * an ACTIVE Product may still be Catalog-incomplete (#414, #479).
+ */
+export const productActivationBlockers = (
   product: Pick<Product, 'lifecycle' | 'variants'>,
   localizedNames: readonly string[],
-): CatalogReadiness => {
+): readonly string[] => {
   const reasons: string[] = [];
   if (product.lifecycle !== 'ACTIVE') {
     reasons.push('Product must be ACTIVE');
@@ -161,10 +165,21 @@ export const catalogReadiness = (
   if (!product.variants.some(({ lifecycle }) => lifecycle === 'ACTIVE')) {
     reasons.push('Product needs at least one ACTIVE Variant');
   }
-  // Row state and a localized name are necessary, never sufficient, for a
-  // concrete Current selection. #479 must supply owner-issued proof of the
-  // effective Type, required facts, axes, Unit and dependent content first.
-  reasons.push('Current Product Type, required facts, Variant axes, Unit and dependent content are not verified');
+  return reasons;
+};
+
+/** Current owner-local localized names, not the legacy Product label, satisfy the text minimum. */
+export const catalogReadiness = (
+  product: Pick<Product, 'lifecycle' | 'variants'>,
+  localizedNames: readonly string[],
+): CatalogReadiness => {
+  const reasons = [
+    ...productActivationBlockers(product, localizedNames),
+    // Row state and a localized name are necessary, never sufficient, for a
+    // concrete Current selection. #479 must supply owner-issued proof of the
+    // effective Type, required facts, axes, Unit and dependent content first.
+    'Current Product Type, required facts, Variant axes, Unit and dependent content are not verified',
+  ];
   return { catalogReady: reasons.length === 0, reasons };
 };
 

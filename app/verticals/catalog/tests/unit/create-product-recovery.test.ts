@@ -12,7 +12,10 @@ import type { ActionRuntimeService } from '@app/core-runtime';
 import { CreateProductResultSchema } from '../../shared/actions/create-product.ts';
 import { mapCreateProductActionProblem } from '../../api/create-product-action-problems.ts';
 import { recoverCreateProduct } from '../../src/api/create-product-recovery.read.ts';
+import { catalogResultSnapshots, productRevisions, products, productVariants } from '../../src/database/schema.ts';
+import { catalogPersistenceForScope } from '../../src/persistence/catalog-persistence.ts';
 import type { CatalogPersistence } from '../../src/persistence/catalog-persistence.ts';
+// oxlint-disable sonarjs/no-nested-functions -- Focused Drizzle transaction mock needs the select/from/where/limit chain. owner: Catalog #478; expires: 2027-03-31.
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const principalId = '22222222-2222-4222-8222-222222222222';
@@ -151,4 +154,139 @@ describe('create Product recovery', () => {
       }),
     );
   }
+});
+
+const committedRuntime: ActionRuntimeService = {
+  resolveActionCommit: () =>
+    Effect.fail(
+      new ActionAlreadyCommitted({
+        code: 'action_already_committed',
+        invocationId,
+        reason: 'The original create committed',
+      }),
+    ),
+  runAction: () => Effect.die('Recovery must never replay the create Action'),
+};
+
+const canonicalCreateRows = () => {
+  const recordedAt = new Date('2026-09-17T10:00:00.000Z');
+  return {
+    created: {
+      createdAt: recordedAt,
+      createdByActionInvocationId: invocationId,
+      createdByPrincipalId: principalId,
+      currentRevision: 1,
+      description: null,
+      lifecycleState: 'DRAFT',
+      name: 'Original',
+      productId,
+      retiredEffectiveAt: null,
+      retiredReason: null,
+      tenantId,
+      updatedAt: recordedAt,
+    },
+    revision: {
+      actingPrincipalId: principalId,
+      actionInvocationId: invocationId,
+      changeKind: 'CREATED',
+      description: null,
+      evidenceRefs: [],
+      lifecycleState: 'DRAFT',
+      name: 'Original',
+      productId,
+      productRevisionId: '77777777-7777-4777-8777-777777777777',
+      reason: 'Create Product',
+      recordedAt,
+      revision: 1,
+      tenantId,
+    },
+    variant: {
+      combinationAxisRevision: null,
+      combinationKey: null,
+      createdAt: recordedAt,
+      createdByActionInvocationId: invocationId,
+      createdByPrincipalId: principalId,
+      currentRevision: 1,
+      lifecycleState: 'WORK_IN_PROGRESS',
+      productId,
+      tenantId,
+      updatedAt: recordedAt,
+      variantId,
+    },
+  };
+};
+
+type CanonicalCreateRows = ReturnType<typeof canonicalCreateRows>;
+type CatalogTable = typeof catalogResultSnapshots | typeof products | typeof productRevisions | typeof productVariants;
+
+const reconciliationTransaction = (rows?: CanonicalCreateRows) => {
+  let snapshotReads = 0;
+  const limit = (table: CatalogTable) => {
+    if (table === catalogResultSnapshots) {
+      snapshotReads += 1;
+      return Effect.succeed([]);
+    }
+    if (rows === undefined) {
+      return Effect.succeed([]);
+    }
+    if (table === products) {
+      return Effect.succeed([rows.created]);
+    }
+    if (table === productRevisions) {
+      return Effect.succeed([rows.revision]);
+    }
+    if (table === productVariants) {
+      return Effect.succeed([rows.variant]);
+    }
+    return Effect.die('unexpected Catalog table');
+  };
+  const transaction = {
+    select: () => ({
+      from: (table: CatalogTable) => ({
+        where: () => ({
+          limit: () => limit(table),
+        }),
+      }),
+    }),
+  };
+  return {
+    get snapshotReads() {
+      return snapshotReads;
+    },
+    transaction,
+  };
+};
+
+describe('create Product lost-result reconciliation (#478)', () => {
+  it.effect('reconciles a committed create whose immutable snapshot is missing from the canonical Product row', () =>
+    Effect.gen(function* reconcileLostCreate() {
+      const mock = reconciliationTransaction(canonicalCreateRows());
+      const persistence = yield* catalogPersistenceForScope(
+        // @ts-expect-error Focused mock implements only snapshot and canonical-row select chains.
+        mock.transaction,
+        scope,
+      );
+      const recovery = yield* persistence
+        .recoverCreateProduct(invocationId)
+        .pipe(Effect.provideService(ActionRuntime, committedRuntime));
+      expect(recovery).toEqual({ result, status: 'committed' });
+      expect(mock.snapshotReads).toBe(1);
+    }),
+  );
+
+  it.effect(
+    'keeps a committed create without any canonical Product row indeterminate instead of inventing a result',
+    () =>
+      Effect.gen(function* missingCanonicalRow() {
+        const persistence = yield* catalogPersistenceForScope(
+          // @ts-expect-error Focused mock implements only snapshot and canonical-row select chains.
+          reconciliationTransaction().transaction,
+          scope,
+        );
+        const recovery = yield* persistence
+          .recoverCreateProduct(invocationId)
+          .pipe(Effect.provideService(ActionRuntime, committedRuntime));
+        expect(recovery).toEqual({ status: 'unavailable' });
+      }),
+  );
 });
