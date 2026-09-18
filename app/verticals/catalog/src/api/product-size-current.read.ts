@@ -17,6 +17,8 @@ import type { SizeUsagePersistence } from '../persistence/size-usage-persistence
 import { sizeUsagePersistenceForScope } from '../persistence/size-usage-persistence.ts';
 import type { CatalogPersistence } from '../persistence/catalog-persistence.ts';
 import { catalogPersistenceForScope } from '../persistence/catalog-persistence.ts';
+import type { ProductMeasurementsRead } from '../persistence/product-measurements-read.ts';
+import { productMeasurementsReadForScope } from '../persistence/product-measurements-read.ts';
 
 const moduleKey = 'commerce.catalog';
 const notFound = () => new ReadHandlerNotFound({ code: 'read_handler_not_found', reason: 'Product was not found' });
@@ -60,7 +62,10 @@ export const productSizeCurrentRead = defineRead(
   },
   Effect.fn('ProductSizeCurrentRead.read')(function* read(
     input: ProductSizeCurrentRequest,
-    context: ReadHandlerContext<Pick<SizeUsagePersistence, 'read'> & Pick<CatalogPersistence, 'getCurrent'>>,
+    context: ReadHandlerContext<
+      Pick<SizeUsagePersistence, 'read'> &
+        Pick<CatalogPersistence, 'getCurrent'> & { readonly readMeasurements: ProductMeasurementsRead['read'] }
+    >,
   ) {
     if (input.productRef.tenantId !== context.scope.tenantId) {
       return yield* notFound();
@@ -70,7 +75,9 @@ export const productSizeCurrentRead = defineRead(
       return yield* notFound();
     }
     const usage = yield* context.services.read(input.productRef.resourceId).pipe(Effect.mapError(unavailable));
+    const measurements = yield* context.services.readMeasurements(input.productRef).pipe(Effect.mapError(unavailable));
     const result = {
+      measurements,
       productRef: input.productRef,
       revision: Option.isSome(usage) ? usage.value.revision : 0,
       sizes: Option.isSome(usage) ? usage.value.orderedSizeIds.map((sizeId, position) => ({ position, sizeId })) : [],
@@ -82,6 +89,7 @@ export const productSizeCurrentRead = defineRead(
       Effect.map((catalog) => ({
         getCurrent: catalog.getCurrent,
         read: sizeUsagePersistenceForScope(transaction, scope).read,
+        readMeasurements: productMeasurementsReadForScope(transaction, scope).read,
       })),
     ),
   () => ({ kind: 'module', moduleId: moduleKey }),

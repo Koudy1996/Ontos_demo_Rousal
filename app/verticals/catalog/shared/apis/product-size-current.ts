@@ -7,7 +7,24 @@ import { CatalogRevisionResourceIdSchema } from '../domain/catalog-revision-refe
 
 export const ProductSizeCurrentRequestSchema = Schema.Struct({ productRef: ProductRefSchema });
 export type ProductSizeCurrentRequest = typeof ProductSizeCurrentRequestSchema.Type;
+const ProductMeasurementSchema = Schema.Struct({
+  amount: Schema.Number.check(Schema.isFinite()),
+  attributeDefinitionId: CatalogRevisionResourceIdSchema,
+  attributeDefinitionRevision: Schema.Int.check(Schema.isGreaterThan(0)),
+  attributeValueSetId: CatalogRevisionResourceIdSchema,
+  attributeValueSetRevision: Schema.Int.check(Schema.isGreaterThan(0)),
+  canonicalUnit: Schema.String.check(Schema.isNonEmpty()),
+  meaning: Schema.String,
+  quantity: Schema.String.check(Schema.isNonEmpty()),
+  unit: Schema.String.check(Schema.isNonEmpty()),
+});
+const ProductMeasurementsSchema = Schema.Union([
+  Schema.Struct({ measurements: Schema.Array(ProductMeasurementSchema), status: Schema.Literal('KNOWN') }),
+  Schema.Struct({ status: Schema.Literal('ABSENT') }),
+  Schema.Struct({ status: Schema.Literal('UNAVAILABLE') }),
+]);
 export const ProductSizeCurrentResponseSchema = Schema.Struct({
+  measurements: ProductMeasurementsSchema,
   productRef: ProductRefSchema,
   revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   sizes: Schema.Array(
