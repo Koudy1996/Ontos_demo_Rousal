@@ -371,6 +371,32 @@ describe('Variant allowed-value governance', () => {
     }),
   );
 
+  it.effect('stages an allowed-value snapshot for a permitted proposed axis', () =>
+    Effect.gen(function* stagesProposedAxis() {
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<Table, readonly object[]>([
+            [
+              productVariantAxisEvents,
+              [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 1, productId, tenantId }],
+            ],
+            [productVariantAxes, []],
+          ]),
+          writes,
+        ),
+        scope,
+      );
+      const outcome = yield* persistence.governAllowedValues(input);
+      expect(Schema.is(GovernVariantAllowedValuesGovernedSchema)(outcome)).toBe(true);
+      expect(writes).toContainEqual({
+        insert: productVariantAxisAllowanceEvents,
+        values: expect.objectContaining({ attributeDefinitionId: definitionId, axisRevision: 1 }),
+      });
+    }),
+  );
+
   it.effect('records an intentionally empty allowed set without inventing a Variant', () =>
     Effect.gen(function* recordsEmpty() {
       const writes: object[] = [];
@@ -536,6 +562,51 @@ describe('Variant allowed-value governance', () => {
       const staleAxes = yield* stale.readCurrent(productRef);
       const failure = yield* Effect.flip(stale.readCurrentAllowedValues(productRef, staleAxes));
       expect(Schema.is(VariantAxisBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+
+  it.effect('carries an explicitly governed allowance across a revalidated axis revision', () =>
+    Effect.gen(function* carriesAllowance() {
+      const key = allowedValueKeyHash(controlledValue);
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<Table, readonly object[]>([
+            [
+              productVariantAxisEvents,
+              [
+                {
+                  attributeDefinitionIds: [definitionId],
+                  attributeDefinitionRevisions: [3],
+                  axisRevision: 2,
+                  productId,
+                  tenantId,
+                },
+              ],
+            ],
+            [
+              productVariantAxes,
+              [
+                {
+                  attributeDefinitionId: definitionId,
+                  axisRevision: 2,
+                  definitionRevision: 3,
+                  ordinal: 0,
+                  productId,
+                  tenantId,
+                },
+              ],
+            ],
+            [productVariantAxisAllowanceEvents, [allowanceRow()]],
+            [productVariantAxisAllowedValues, [allowedValueRow(key)]],
+          ]),
+        ),
+        scope,
+      );
+      const axes = yield* persistence.readCurrent(productRef);
+      expect(yield* persistence.readCurrentAllowedValues(productRef, axes)).toEqual([
+        { allowanceRevision: 1, attributeDefinitionId: definitionId, definitionRevision: 3, valueKeys: [key] },
+      ]);
     }),
   );
 });

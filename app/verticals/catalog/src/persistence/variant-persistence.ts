@@ -49,7 +49,9 @@ interface CreateVariantPersistenceInput extends ChangeEvidence {
 
 interface ChangeVariantPersistenceInput extends ChangeEvidence {
   readonly classification: 'SAME_MEANING' | 'EVIDENCED_CORRECTION' | 'EVIDENCED_PARENT_CORRECTION';
+  readonly currentProductRef: ProductRef;
   readonly expectedRevision: number;
+  readonly originalDataErrorEvidenceRef?: string | undefined;
   readonly targetProductRef?: ProductRef | undefined;
   readonly variantRef: VariantRef;
 }
@@ -392,6 +394,7 @@ export const variantPersistenceForScope = (
 
   const change: VariantPersistence['change'] = Effect.fn('VariantPersistence.change')(function* change(input) {
     if (
+      !isRef(input.currentProductRef, tenantId, PRODUCT_RESOURCE) ||
       !isRef(input.variantRef, tenantId, VARIANT_RESOURCE) ||
       !validEvidence(input) ||
       (input.targetProductRef !== undefined && !isRef(input.targetProductRef, tenantId, PRODUCT_RESOURCE))
@@ -408,13 +411,24 @@ export const variantPersistenceForScope = (
     if (row.lifecycleState === 'RETIRED') {
       return { _tag: 'lifecycle_conflict' };
     }
+    if (row.productId !== input.currentProductRef.resourceId) {
+      return { _tag: 'invalid_change' };
+    }
     if (
-      input.classification !== 'SAME_MEANING' ||
+      input.classification === 'EVIDENCED_PARENT_CORRECTION' ||
       (input.targetProductRef !== undefined && input.targetProductRef.resourceId !== row.productId)
     ) {
       return yield* basisUnavailable();
     }
-    // A same-meaning attestation changes no effective axis, parent, or identity.
+    if (
+      input.classification === 'EVIDENCED_CORRECTION' &&
+      (input.originalDataErrorEvidenceRef === undefined ||
+        !input.evidenceRefs.includes(input.originalDataErrorEvidenceRef))
+    ) {
+      return { _tag: 'invalid_change' };
+    }
+    // A same-meaning or evidenced record-correction attestation changes no effective axis,
+    // parent, or identity. Material value writes remain in their value-owner Actions.
     const [updated] = yield* transaction
       .update(productVariants)
       .set({ currentRevision: row.currentRevision + 1, updatedAt: DateTime.toDateUtc(yield* DateTime.now) })

@@ -184,6 +184,117 @@ describe('Variant persistence', () => {
     }),
   );
 
+  it.effect('records an evidenced correction after the original data error is named', () =>
+    Effect.gen(function* recordEvidencedCorrection() {
+      const revisions: unknown[] = [];
+      let written: Partial<typeof productVariants.$inferInsert> | undefined;
+      const transaction = {
+        insert: (table: typeof productVariantRevisions) => {
+          expect(table).toBe(productVariantRevisions);
+          return {
+            values: (value: typeof productVariantRevisions.$inferInsert) => {
+              revisions.push(value);
+              return Effect.succeed([]);
+            },
+          };
+        },
+        select: () => ({
+          from: (table: typeof productVariants) => {
+            expect(table).toBe(productVariants);
+            return lockedRow(row);
+          },
+        }),
+        update: (table: typeof productVariants) => {
+          expect(table).toBe(productVariants);
+          return {
+            set: (values: Partial<typeof productVariants.$inferInsert>) => {
+              written = values;
+              return returnedRow({ ...row, ...values });
+            },
+          };
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope);
+      const outcome = yield* service.change({
+        ...evidence,
+        classification: 'EVIDENCED_CORRECTION',
+        currentProductRef: productRef,
+        expectedRevision: 1,
+        originalDataErrorEvidenceRef: evidence.evidenceRefs[0],
+        variantRef,
+      });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('changed', ({ revision }) => revision),
+          Match.orElse(() => 0),
+        ),
+      ).toBe(2);
+      expect(written).toMatchObject({ currentRevision: 2 });
+      expect(revisions).toEqual([
+        expect.objectContaining({
+          changeKind: 'CORRECTED',
+          evidenceRefs: evidence.evidenceRefs,
+          productId,
+          revision: 2,
+          variantId,
+        }),
+      ]);
+    }),
+  );
+
+  it.effect('rejects a correction whose original-error reference is absent from its evidence', () =>
+    Effect.gen(function* rejectUnevidencedCorrection() {
+      const transaction = {
+        select: () => ({ from: () => lockedRow(row) }),
+        update: () => {
+          throw new Error('unevidenced correction must not write');
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope);
+      const outcome = yield* service.change({
+        ...evidence,
+        classification: 'EVIDENCED_CORRECTION',
+        currentProductRef: productRef,
+        expectedRevision: 1,
+        originalDataErrorEvidenceRef: 'catalog-record:other',
+        variantRef,
+      });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('invalid_change', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('keeps Product membership correction typed fail-closed without its owner migration proof', () =>
+    Effect.gen(function* rejectUnprovenMembershipCorrection() {
+      const targetProductRef = { ...productRef, resourceId: '00000000-0000-4000-8000-000000000006' };
+      const transaction = {
+        select: () => ({ from: () => lockedRow(row) }),
+        update: () => {
+          throw new Error('unproven membership correction must not write');
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope);
+      const failure = yield* service
+        .change({
+          ...evidence,
+          classification: 'EVIDENCED_PARENT_CORRECTION',
+          currentProductRef: productRef,
+          expectedRevision: 1,
+          targetProductRef,
+          variantRef,
+        })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantCurrentBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+
   it.effect('refuses reactivation without authoritative effective axes and Current proof', () =>
     Effect.gen(function* rejectUnverifiedReactivate() {
       const transaction = {

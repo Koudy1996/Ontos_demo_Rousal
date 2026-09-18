@@ -14,6 +14,8 @@ import {
   productTypeRevisions,
   productTypes,
   productVariantAxes,
+  productVariantAxisAllowanceEvents,
+  productVariantAxisAllowedValues,
   productVariantAxisEvents,
   productVariants,
   products,
@@ -21,9 +23,11 @@ import {
 import {
   VariantAxisBasisUnavailable,
   VariantAxisWriteConflict,
+  allowedValueKeyHash,
   recordedVariantCombinationKey,
   variantAxisPersistenceForScope,
 } from '../../src/persistence/variant-axis-persistence.ts';
+import type { GovernVariantAxesInput } from '../../src/persistence/variant-axis-persistence.ts';
 import { axisFreeCombinationKey } from '../../src/persistence/variant-current-basis.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -75,6 +79,8 @@ type AxisTable =
   | typeof productVariantAxisEvents
   | typeof productVariants
   | typeof productVariantAxes
+  | typeof productVariantAxisAllowanceEvents
+  | typeof productVariantAxisAllowedValues
   | typeof productTypeAssignments
   | typeof productTypes
   | typeof productTypeRevisions
@@ -89,6 +95,19 @@ type AxisTable =
 type AxisWriteValues =
   | typeof productVariantAxisEvents.$inferInsert
   | readonly (typeof productVariantAxes.$inferInsert)[];
+type AxisUpdateValues = Partial<typeof productVariants.$inferInsert>;
+
+const updatedVariantRows = (writes: object[], table: AxisTable, values: AxisUpdateValues) =>
+  Effect.sync(() => {
+    writes.push({ update: table, values });
+    return [{ variantId }];
+  });
+
+const updateChain = (writes: object[], table: AxisTable) => ({
+  set: (values: AxisUpdateValues) => ({
+    where: () => ({ returning: () => updatedVariantRows(writes, table, values) }),
+  }),
+});
 
 const transactionWith = (overrides = new Map<AxisTable, readonly object[]>(), writes: object[] = []) => {
   const rows = new Map<AxisTable, readonly object[]>([
@@ -194,6 +213,7 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>(), wr
         }),
     }),
     select: () => ({ from: selected }),
+    update: (table: AxisTable) => updateChain(writes, table),
   };
 };
 
@@ -765,12 +785,17 @@ describe('Variant Axis Current basis', () => {
 describe('Variant Axis governed write', () => {
   const input = {
     actionInvocationId: '99999999-9999-4999-8999-999999999999',
-    axes: [{ attributeDefinitionId: definitionId, definitionRevision: 3 }],
+    axes: [{ attributeDefinitionId: definitionId, definitionRevision: 3, expectedAllowanceRevision: 0 }],
+    change: {
+      evidenceRefs: ['catalog-axis-review-1'],
+      kind: 'AXIS_ADDITION' as const,
+      reason: 'Distinguishes the physical forms',
+    },
     expectedAxisRevision: 1,
     principalId: scope.principalId,
     productRef,
     reason: 'Distinguishes the physical forms',
-  };
+  } satisfies GovernVariantAxesInput;
 
   it.effect('requires compare-and-swap before writing', () =>
     Effect.gen(function* staleWrite() {
@@ -784,7 +809,7 @@ describe('Variant Axis governed write', () => {
     }),
   );
 
-  it.effect('rejects changed axes while an active Variant exists', () =>
+  it.effect('fails closed when an active Variant does not carry the locked Current combination basis', () =>
     Effect.gen(function* activeSelection() {
       const writes: object[] = [];
       const persistence = variantAxisPersistenceForScope(
@@ -795,9 +820,209 @@ describe('Variant Axis governed write', () => {
         ),
         scope,
       );
-      const error = yield* Effect.flip(persistence.govern({ ...input, axes: [] }));
+      const error = yield* Effect.flip(
+        persistence.govern({
+          ...input,
+          axes: [],
+          change: { ...input.change, kind: 'AXIS_REMOVAL' },
+        }),
+      );
       expect(Schema.is(VariantAxisWriteConflict)(error)).toBe(true);
-      expect(error).toMatchObject({ conflict: 'ACTIVE_SELECTION' });
+      expect(error).toMatchObject({ conflict: 'REVISION' });
+      expect(writes).toEqual([]);
+    }),
+  );
+
+  it.effect('removes an axis after revalidating and advancing the recorded active Variant', () =>
+    Effect.gen(function* removesAxis() {
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<AxisTable, readonly object[]>([
+            [
+              productVariants,
+              [
+                {
+                  combinationAxisRevision: 1,
+                  lifecycleState: 'ACTIVE',
+                  productId,
+                  tenantId,
+                  variantId,
+                },
+              ],
+            ],
+          ]),
+          writes,
+        ),
+        scope,
+      );
+      const result = yield* persistence.govern({
+        ...input,
+        axes: [],
+        change: { ...input.change, kind: 'AXIS_REMOVAL' },
+      });
+      expect(result).toEqual({ axisRevision: 2, changed: true });
+      expect(writes).toContainEqual({
+        update: productVariants,
+        values: { combinationAxisRevision: 2, combinationKey: axisFreeCombinationKey() },
+      });
+      expect(writes).toContainEqual({
+        insert: productVariantAxisEvents,
+        values: expect.objectContaining({
+          axisRevision: 2,
+          evidenceRefs: ['catalog-axis-review-1'],
+        }),
+      });
+    }),
+  );
+
+  it.effect('adds an axis once the active Variant value and staged allowance are both verified', () =>
+    Effect.gen(function* addsAxis() {
+      const controlledValueId = '88888888-8888-4888-8888-888888888888';
+      const value = {
+        kind: 'CONTROLLED' as const,
+        valueRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: controlledValueId,
+          resourceType: 'commerce.catalog.controlled-attribute-value',
+          tenantId,
+        },
+      } as const;
+      const item = {
+        attributeDefinitionId: definitionId,
+        attributeValueSetId: valueSetId,
+        controlledAttributeValueId: controlledValueId,
+        numericValue: null,
+        ordinal: 0,
+        specialState: null,
+        tenantId,
+        textValue: null,
+        unit: null,
+        valueKind: 'CONTROLLED',
+      };
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<AxisTable, readonly object[]>([
+            [
+              productVariantAxisEvents,
+              [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 1, productId, tenantId }],
+            ],
+            [productVariantAxes, []],
+            [
+              productVariantAxisAllowanceEvents,
+              [
+                {
+                  allowanceRevision: 1,
+                  attributeDefinitionId: definitionId,
+                  axisRevision: 1,
+                  definitionRevision: 3,
+                  productId,
+                  tenantId,
+                  valueCount: 1,
+                },
+              ],
+            ],
+            [
+              productVariantAxisAllowedValues,
+              [{ allowanceRevision: 1, attributeDefinitionId: definitionId, valueKey: allowedValueKeyHash(value) }],
+            ],
+            [
+              productVariants,
+              [
+                {
+                  combinationAxisRevision: 1,
+                  lifecycleState: 'ACTIVE',
+                  productId,
+                  tenantId,
+                  variantId,
+                },
+              ],
+            ],
+            [
+              attributeValueSets,
+              [
+                {
+                  attributeDefinitionId: definitionId,
+                  attributeValueSetId: valueSetId,
+                  currentRevision: 5,
+                  currentState: 'SET',
+                  productId,
+                  tenantId,
+                  variantId,
+                },
+              ],
+            ],
+            [attributeValueItems, [item]],
+          ]),
+          writes,
+        ),
+        scope,
+      );
+      const result = yield* persistence.govern({
+        ...input,
+        axes: [{ attributeDefinitionId: definitionId, definitionRevision: 3, expectedAllowanceRevision: 1 }],
+      });
+      expect(result).toEqual({ axisRevision: 2, changed: true });
+      expect(writes).toContainEqual({
+        update: productVariants,
+        values: {
+          combinationAxisRevision: 2,
+          combinationKey: recordedVariantCombinationKey(
+            [
+              {
+                attributeDefinitionId: definitionId,
+                definitionRevision: 3,
+                items: [item],
+                source: 'VARIANT',
+                sourceRevision: 5,
+                sourceValueSetRef: { attributeValueSetId: valueSetId, tenantId },
+              },
+            ],
+            tenantId,
+          ),
+        },
+      });
+    }),
+  );
+
+  it.effect('rejects an axis removal that makes two active Variants indistinguishable', () =>
+    Effect.gen(function* rejectsDuplicateRemoval() {
+      const writes: object[] = [];
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle transaction mock.
+        transactionWith(
+          new Map<AxisTable, readonly object[]>([
+            [
+              productVariants,
+              [
+                {
+                  combinationAxisRevision: 1,
+                  lifecycleState: 'ACTIVE',
+                  productId,
+                  tenantId,
+                  variantId,
+                },
+                {
+                  combinationAxisRevision: 1,
+                  lifecycleState: 'ACTIVE',
+                  productId,
+                  tenantId,
+                  variantId: '88888888-8888-4888-8888-888888888888',
+                },
+              ],
+            ],
+          ]),
+          writes,
+        ),
+        scope,
+      );
+      const error = yield* persistence
+        .govern({ ...input, axes: [], change: { ...input.change, kind: 'AXIS_REMOVAL' } })
+        .pipe(Effect.flip);
+      expect(error).toMatchObject({ conflict: 'DUPLICATE_COMBINATION' });
       expect(writes).toEqual([]);
     }),
   );

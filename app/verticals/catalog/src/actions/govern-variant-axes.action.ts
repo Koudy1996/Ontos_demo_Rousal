@@ -10,10 +10,14 @@ import {
   GovernVariantAxesResultSchema,
 } from '../../shared/actions/govern-variant-axes.ts';
 import type { GovernVariantAxesPayload } from '../../shared/actions/govern-variant-axes.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
+import { decideVariantUseChange } from '../../shared/domain/variant-use-change.ts';
 import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-variant-axes-changed-v1.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
+import type { CatalogOpenSelectionImpactUnavailable } from '../persistence/catalog-open-selection-impact.ts';
+import { catalogOpenSelectionImpactForScope } from '../persistence/catalog-open-selection-impact.ts';
 import { VariantAxisWriteConflict, variantAxisPersistenceForScope } from '../persistence/variant-axis-persistence.ts';
 import type { VariantAxisPersistence } from '../persistence/variant-axis-persistence.ts';
 import { createGovernVariantAxesCommerceCatalogVariantAxesChangedV1OutboxMessage } from './govern-variant-axes-commerce-catalog-variant-axes-changed-v1.outbox-message.ts';
@@ -23,10 +27,15 @@ export type { GovernVariantAxesPayload } from '../../shared/actions/govern-varia
 const moduleKey = 'commerce.catalog' as const;
 const actionKey = 'commerce.catalog.govern-variant-axes' as const;
 const domainEvents = { 'commerce.catalog.variant-axes-changed.v1': OutboxPayloadSchema } as const;
+type GovernVariantAxesServices = VariantAxisPersistence & {
+  readonly assessOpenSelectionImpact: (
+    productRef: GovernVariantAxesPayload['productRef'],
+  ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable>;
+};
 
 export const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle')(function* handleGovernVariantAxes(
   payload: GovernVariantAxesPayload,
-  context: ActionHandlerContext<typeof domainEvents, VariantAxisPersistence>,
+  context: ActionHandlerContext<typeof domainEvents, GovernVariantAxesServices>,
 ) {
   if (payload.axes.some((axis) => axis.attributeDefinitionRef.tenantId !== context.scope.tenantId)) {
     return yield* new VariantAxisWriteConflict({
@@ -35,12 +44,41 @@ export const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle
       reason: 'Axis definition is outside the trusted Tenant',
     });
   }
+  if (payload.classification.reason !== payload.reason) {
+    return yield* new VariantAxisWriteConflict({
+      code: 'variant_axis_write_conflict',
+      conflict: 'INVALID_INPUT',
+      reason: 'Axis change classification reason must match the Action reason',
+    });
+  }
+  yield* decideVariantUseChange(payload.classification, { currentProductRef: payload.productRef }).pipe(
+    Effect.mapError(
+      (failure) =>
+        new VariantAxisWriteConflict({
+          code: 'variant_axis_write_conflict',
+          conflict: failure.conflict,
+          reason: failure.reason,
+        }),
+    ),
+  );
+  yield* context.services.assessOpenSelectionImpact(payload.productRef).pipe(
+    Effect.mapError(
+      (failure) =>
+        new VariantAxisWriteConflict({
+          code: 'variant_axis_write_conflict',
+          conflict: 'ACTIVE_SELECTION',
+          reason: failure.reason,
+        }),
+    ),
+  );
   const result = yield* context.services.govern({
     actionInvocationId: context.actionInvocationId,
     axes: payload.axes.map((axis) => ({
       attributeDefinitionId: axis.attributeDefinitionRef.resourceId,
       definitionRevision: axis.definitionRevision,
+      expectedAllowanceRevision: axis.expectedAllowanceRevision,
     })),
+    change: payload.classification,
     expectedAxisRevision: payload.expectedAxisRevision,
     principalId: context.scope.principalId,
     productRef: payload.productRef,
@@ -55,7 +93,7 @@ export const handleGovernVariantAxes = Effect.fn('GovernVariantAxesAction.handle
     targetResourceId: payload.productRef.resourceId,
     targetResourceType: 'commerce.catalog.product',
   });
-  yield* context.recordAuditEvidence({ reason: payload.reason });
+  yield* context.recordAuditEvidence({ evidenceRefs: payload.classification.evidenceRefs, reason: payload.reason });
   const decoded = yield* Schema.decodeEffect(GovernVariantAxesResultSchema)({
     ...result,
     productRef: payload.productRef,
@@ -115,9 +153,11 @@ export const governVariantAxesAction = defineAction(
     schemaVersion: '1',
   },
   handleGovernVariantAxes,
-  (transaction, scope) =>
-    Effect.succeed({
+  Effect.fn('GovernVariantAxesAction.services')(function* makeGovernVariantAxesServices(transaction, scope) {
+    const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+    return {
       ...variantAxisPersistenceForScope(transaction, scope),
+      assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope, openSelections).assess,
       captureResult: (actionInvocationId: string, result: typeof GovernVariantAxesResultSchema.Type) =>
         captureCatalogActionResult(
           transaction,
@@ -138,7 +178,8 @@ export const governVariantAxesAction = defineAction(
             return failure;
           }),
         ),
-    }),
+    };
+  }),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

@@ -7,9 +7,16 @@ import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } fr
 
 import { ChangeVariantPayloadSchema, ChangeVariantResultSchema } from '../../shared/actions/change-variant.ts';
 import type { ChangeVariantPayload, ChangeVariantResult } from '../../shared/actions/change-variant.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
+import { decideVariantUseChange } from '../../shared/domain/variant-use-change.ts';
+import type { VariantUseChangeOperation } from '../../shared/domain/variant-use-change.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
+import type { CatalogOpenSelectionImpactUnavailable } from '../persistence/catalog-open-selection-impact.ts';
+import { catalogOpenSelectionImpactForScope } from '../persistence/catalog-open-selection-impact.ts';
+import { VariantCurrentBasisUnavailable } from '../persistence/variant-persistence.ts';
 import {
+  VariantActionConflict,
   checkVariantTenant,
   conflictForOutcome,
   ProductAuditEvidenceSchema,
@@ -19,7 +26,12 @@ import {
   variantPersistenceForScope,
 } from './variant-action-support.ts';
 
-type ChangeVariantServices = VariantPersistence & {
+type ChangeVariantHandlerServices = VariantPersistence & {
+  readonly assessOpenSelectionImpact: (
+    productRef: ChangeVariantPayload['currentProductRef'],
+  ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable>;
+};
+type ChangeVariantServices = ChangeVariantHandlerServices & {
   readonly captureResult: (
     actionInvocationId: string,
     result: ChangeVariantResult,
@@ -27,13 +39,59 @@ type ChangeVariantServices = VariantPersistence & {
 };
 const ACTION_KEY = 'commerce.catalog.change-variant' as const;
 
+const operationForPayload = (payload: ChangeVariantPayload): VariantUseChangeOperation => {
+  if (payload.classification === 'SAME_MEANING_RENAME') {
+    return { evidenceRefs: payload.evidenceRefs, kind: 'SAME_MEANING_RENAME', reason: payload.reason };
+  }
+  if (payload.classification === 'EVIDENCED_RECORD_CORRECTION') {
+    return {
+      evidenceRefs: payload.evidenceRefs,
+      kind: 'EVIDENCED_VALUE_CORRECTION',
+      originalDataErrorEvidenceRef: payload.originalDataErrorEvidenceRef ?? '',
+      reason: payload.reason,
+    };
+  }
+  return {
+    evidenceRefs: payload.evidenceRefs,
+    kind: 'EVIDENCED_MEMBERSHIP_CORRECTION',
+    reason: payload.reason,
+    targetProductRef: payload.targetProductRef ?? payload.currentProductRef,
+  };
+};
+
 export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(function* handleChangeVariant(
   payload: ChangeVariantPayload,
-  context: ActionHandlerContext<Readonly<Record<string, never>>, VariantPersistence>,
+  context: ActionHandlerContext<Readonly<Record<string, never>>, ChangeVariantHandlerServices>,
 ) {
   yield* checkVariantTenant(context.scope.tenantId, payload.variantRef);
-  if (payload.targetProductRef !== undefined && payload.targetProductRef.tenantId !== context.scope.tenantId) {
+  if (
+    payload.currentProductRef.tenantId !== context.scope.tenantId ||
+    (payload.targetProductRef !== undefined && payload.targetProductRef.tenantId !== context.scope.tenantId)
+  ) {
     return yield* variantNotFound();
+  }
+  const decision = yield* decideVariantUseChange(operationForPayload(payload), {
+    currentProductRef: payload.currentProductRef,
+  }).pipe(
+    Effect.mapError(
+      (failure) =>
+        new VariantActionConflict({
+          code: 'variant_action_conflict',
+          conflict: 'INVALID_CHANGE',
+          reason: failure.reason,
+        }),
+    ),
+  );
+  if (decision.revalidation === 'REQUIRED') {
+    yield* context.services.assessOpenSelectionImpact(payload.currentProductRef).pipe(
+      Effect.mapError(
+        (failure) =>
+          new VariantCurrentBasisUnavailable({
+            code: 'variant_current_basis_unavailable',
+            reason: failure.reason,
+          }),
+      ),
+    );
   }
   const outcome = yield* context.services.change({
     actionInvocationId: context.actionInvocationId,
@@ -44,8 +102,10 @@ export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(funct
         SAME_MEANING_RENAME: 'SAME_MEANING',
       } as const
     )[payload.classification],
+    currentProductRef: payload.currentProductRef,
     evidenceRefs: payload.evidenceRefs,
     expectedRevision: payload.expectedVariantRevision,
+    originalDataErrorEvidenceRef: payload.originalDataErrorEvidenceRef,
     principalId: context.scope.principalId,
     reason: payload.reason,
     targetProductRef: payload.targetProductRef,
@@ -53,7 +113,7 @@ export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(funct
   });
   const result = yield* Match.value(outcome).pipe(
     Match.tag('changed', ({ variant }) => {
-      const decision = {
+      const resultDecision = {
         classification: payload.classification,
         evidenceRefs: payload.evidenceRefs,
         reason: payload.reason,
@@ -62,8 +122,8 @@ export const handleChangeVariant = Effect.fn('ChangeVariantAction.handle')(funct
       return Effect.succeed({
         decision:
           payload.targetProductRef === undefined
-            ? decision
-            : { ...decision, targetProductRef: payload.targetProductRef },
+            ? resultDecision
+            : { ...resultDecision, targetProductRef: payload.targetProductRef },
         variant,
       });
     }),
@@ -106,10 +166,12 @@ export const changeVariantAction = defineAction(
     schemaVersion: '2',
   },
   handleChangeVariant,
-  (transaction, scope) =>
-    variantPersistenceForScope(transaction, scope).pipe(
+  Effect.fn('ChangeVariantAction.makeServices')(function* makeChangeVariantServices(transaction, scope) {
+    const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+    return yield* variantPersistenceForScope(transaction, scope).pipe(
       Effect.map((services): ChangeVariantServices => ({
         ...services,
+        assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope, openSelections).assess,
         captureResult: (actionInvocationId, result) =>
           captureCatalogActionResult(
             transaction,
@@ -132,7 +194,8 @@ export const changeVariantAction = defineAction(
             ),
           ),
       })),
-    ),
+    );
+  }),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

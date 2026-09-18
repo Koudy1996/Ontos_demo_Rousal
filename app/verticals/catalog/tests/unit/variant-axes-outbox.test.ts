@@ -25,7 +25,17 @@ const scope = {
   }),
   correlationId: 'variant-axes-outbox-test',
 };
-const payload = { axes: [], expectedAxisRevision: 1, productRef, reason: 'Update distinguishing axes' } as const;
+const payload = {
+  axes: [],
+  classification: {
+    evidenceRefs: ['catalog-axis-review-1'],
+    kind: 'AXIS_REMOVAL',
+    reason: 'Update distinguishing axes',
+  },
+  expectedAxisRevision: 1,
+  productRef,
+  reason: 'Update distinguishing axes',
+} as const;
 const unexpected = () => Effect.die('Unexpected persistence call');
 
 const context = (govern: VariantAxisPersistence['govern']) => {
@@ -40,7 +50,10 @@ const context = (govern: VariantAxisPersistence['govern']) => {
     readRecordedCombinations: unexpected,
     readRecordedVariants: unexpected,
   };
-  const value: ActionHandlerContext<typeof governVariantAxesAction.descriptor.domainEvents, VariantAxisPersistence> = {
+  const value: ActionHandlerContext<
+    typeof governVariantAxesAction.descriptor.domainEvents,
+    VariantAxisPersistence & { readonly assessOpenSelectionImpact: () => Effect.Effect<void> }
+  > = {
     actionInvocationId: '44444444-4444-4444-8444-444444444444',
     addDomainEvent: (event) =>
       Effect.sync(() => {
@@ -60,7 +73,7 @@ const context = (govern: VariantAxisPersistence['govern']) => {
     recordAuditEvidence: () => Effect.void,
     recordDataAccess: () => Effect.void,
     scope,
-    services,
+    services: { ...services, assessOpenSelectionImpact: () => Effect.void },
   };
   return { events, outbox, value };
 };

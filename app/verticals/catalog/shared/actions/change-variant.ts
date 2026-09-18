@@ -13,8 +13,10 @@ export const VariantChangeClassificationSchema = Schema.Literals([
 /** A genuinely new atomic realization must be created under a new Variant identity. */
 export const ChangeVariantPayloadSchema = Schema.Struct({
   classification: VariantChangeClassificationSchema,
+  currentProductRef: ProductRefSchema,
   evidenceRefs: Schema.NonEmptyArray(ProductEvidenceReferenceSchema),
   expectedVariantRevision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+  originalDataErrorEvidenceRef: Schema.optionalKey(ProductEvidenceReferenceSchema),
   reason: ProductReasonSchema,
   targetProductRef: Schema.optionalKey(ProductRefSchema),
   variantRef: VariantRefSchema,

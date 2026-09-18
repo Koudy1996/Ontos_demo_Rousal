@@ -3,11 +3,13 @@ import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
+import type { ChangeVariantPayload } from '../../shared/actions/change-variant.ts';
 import { handleChangeVariant } from '../../src/actions/change-variant.action.ts';
 import { handleCreateVariant } from '../../src/actions/create-variant.action.ts';
 import { handleRetireVariant } from '../../src/actions/retire-variant.action.ts';
 import { handleReactivateVariant } from '../../src/actions/reactivate-variant.action.ts';
 import { VariantActionConflict } from '../../src/actions/variant-action-support.ts';
+import { CatalogOpenSelectionImpactUnavailable } from '../../src/persistence/catalog-open-selection-impact.ts';
 import { VariantCurrentBasisUnavailable } from '../../src/persistence/variant-persistence.ts';
 import type { VariantPersistence } from '../../src/persistence/variant-persistence.ts';
 
@@ -44,9 +46,15 @@ const scope = {
   correlationId: 'variant-action-test',
 };
 const unexpected = () => Effect.die('Unexpected persistence call');
-const context = (overrides: Partial<VariantPersistence>) => {
+type TestVariantServices = VariantPersistence & {
+  readonly assessOpenSelectionImpact: (
+    ref: ChangeVariantPayload['currentProductRef'],
+  ) => Effect.Effect<void, CatalogOpenSelectionImpactUnavailable>;
+};
+const context = (overrides: Partial<TestVariantServices>) => {
   const reads: string[] = [];
-  const services: VariantPersistence = {
+  const services: TestVariantServices = {
+    assessOpenSelectionImpact: () => Effect.void,
     change: unexpected,
     confirm: unexpected,
     create: unexpected,
@@ -55,7 +63,7 @@ const context = (overrides: Partial<VariantPersistence>) => {
     retire: unexpected,
     ...overrides,
   };
-  const value: ActionHandlerContext<Readonly<Record<string, never>>, VariantPersistence> = {
+  const value: ActionHandlerContext<Readonly<Record<string, never>>, TestVariantServices> = {
     actionInvocationId: '66666666-6666-4666-8666-666666666666',
     addDomainEvent: () => Effect.succeed(Object.create(null)),
     addOutboxMessage: () => Effect.void,
@@ -182,8 +190,10 @@ describe('Variant Action handlers', () => {
       const error = yield* handleChangeVariant(
         {
           classification: 'EVIDENCED_RECORD_CORRECTION',
+          currentProductRef: productRef,
           evidenceRefs: ['drawing'],
           expectedVariantRevision: 1,
+          originalDataErrorEvidenceRef: 'drawing',
           reason: 'Wrong record',
           variantRef,
         },
@@ -199,8 +209,10 @@ describe('Variant Action handlers', () => {
       const result = yield* handleChangeVariant(
         {
           classification: 'EVIDENCED_RECORD_CORRECTION',
+          currentProductRef: productRef,
           evidenceRefs: ['drawing'],
           expectedVariantRevision: 1,
+          originalDataErrorEvidenceRef: 'drawing',
           reason: 'Wrong record',
           variantRef,
         },
@@ -212,6 +224,55 @@ describe('Variant Action handlers', () => {
         reason: 'Wrong record',
         variantRef,
       });
+    }),
+  );
+
+  it.effect('rejects a record correction without evidence naming the original data error', () =>
+    Effect.gen(function* variantCorrectionEvidenceTest() {
+      const run = context({});
+      const error = yield* handleChangeVariant(
+        {
+          classification: 'EVIDENCED_RECORD_CORRECTION',
+          currentProductRef: productRef,
+          evidenceRefs: ['drawing'],
+          expectedVariantRevision: 1,
+          originalDataErrorEvidenceRef: 'different-record',
+          reason: 'Wrong record',
+          variantRef,
+        },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(Schema.is(VariantActionConflict)(error)).toBe(true);
+      expect(error).toMatchObject({ conflict: 'INVALID_CHANGE' });
+      expect(error.reason).toContain('original data error');
+    }),
+  );
+
+  it.effect('fails closed when Cart cannot prove the complete open-selection impact', () =>
+    Effect.gen(function* variantCorrectionSelectionTest() {
+      const run = context({
+        assessOpenSelectionImpact: () =>
+          Effect.fail(
+            new CatalogOpenSelectionImpactUnavailable({
+              code: 'catalog_open_selection_impact_unavailable',
+              reason: 'Cart population unavailable',
+            }),
+          ),
+      });
+      const error = yield* handleChangeVariant(
+        {
+          classification: 'EVIDENCED_RECORD_CORRECTION',
+          currentProductRef: productRef,
+          evidenceRefs: ['drawing'],
+          expectedVariantRevision: 1,
+          originalDataErrorEvidenceRef: 'drawing',
+          reason: 'Wrong record',
+          variantRef,
+        },
+        run.value,
+      ).pipe(Effect.flip);
+      expect(Schema.is(VariantCurrentBasisUnavailable)(error)).toBe(true);
+      expect(error.reason).toBe('Cart population unavailable');
     }),
   );
 
@@ -233,6 +294,7 @@ describe('Variant Action handlers', () => {
       const error = yield* handleChangeVariant(
         {
           classification: 'EVIDENCED_PARENT_CORRECTION',
+          currentProductRef: productRef,
           evidenceRefs: ['original record'],
           expectedVariantRevision: 1,
           reason: 'Correct mistaken parent',
@@ -252,6 +314,7 @@ describe('Variant Action handlers', () => {
       const error = yield* handleChangeVariant(
         {
           classification: 'EVIDENCED_PARENT_CORRECTION',
+          currentProductRef: productRef,
           evidenceRefs: ['original record'],
           expectedVariantRevision: 1,
           reason: 'Wrong tenant',
@@ -270,6 +333,7 @@ describe('Variant Action handlers', () => {
       const changeError = yield* handleChangeVariant(
         {
           classification: 'SAME_MEANING_RENAME',
+          currentProductRef: productRef,
           evidenceRefs: ['record'],
           expectedVariantRevision: 2,
           reason: 'Rename retired variant',

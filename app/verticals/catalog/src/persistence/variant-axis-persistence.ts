@@ -11,7 +11,15 @@ import {
   validateAttributeValues,
 } from '../../shared/domain/attribute-values.ts';
 import type { AttributeDefinition, AttributeValue } from '../../shared/domain/attribute-values.ts';
+import type { ProductTypeAttributeRule } from '../../shared/domain/product-type-rules.ts';
+import type {
+  VariantAxis,
+  VariantAxisCandidate,
+  VariantAxisDefinitionSnapshot,
+} from '../../shared/domain/variant-axes.ts';
 import { stableCombinationKeyContent, stableParts, valueKey } from '../../shared/domain/variant-axes.ts';
+import type { VariantUseChangeOperation } from '../../shared/domain/variant-use-change.ts';
+import { decideVariantUseChange, revalidateVariantAxisChange } from '../../shared/domain/variant-use-change.ts';
 import {
   attributeDefinitions,
   attributeDefinitionRevisions,
@@ -40,15 +48,24 @@ export { VariantAxisWriteConflict } from './variant-axis-write-conflict.ts';
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 const catalogModuleId = 'commerce.catalog';
 const productResourceType = 'commerce.catalog.product';
+const variantResourceType = 'commerce.catalog.variant';
+const attributeDefinitionResourceType = 'commerce.catalog.attribute-definition';
+const variantAxisBasisUnavailableCode = 'variant_axis_basis_unavailable';
+const productTypeRevisionUnavailableReason = 'Product Type revision cannot be verified';
 
 export class VariantAxisBasisUnavailable extends Schema.TaggedError<VariantAxisBasisUnavailable>()(
   'VariantAxisBasisUnavailable',
-  { code: Schema.Literal('variant_axis_basis_unavailable'), reason: Schema.String },
+  { code: Schema.Literal(variantAxisBasisUnavailableCode), reason: Schema.String },
 ) {}
 
 export interface GovernVariantAxesInput {
   readonly actionInvocationId: string;
-  readonly axes: readonly { readonly attributeDefinitionId: string; readonly definitionRevision: number }[];
+  readonly axes: readonly {
+    readonly attributeDefinitionId: string;
+    readonly definitionRevision: number;
+    readonly expectedAllowanceRevision: number;
+  }[];
+  readonly change: VariantUseChangeOperation;
   readonly expectedAxisRevision: number;
   readonly principalId: string;
   readonly productRef: ProductRef;
@@ -284,7 +301,7 @@ const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
 
 const basisUnavailable = () =>
   new VariantAxisBasisUnavailable({
-    code: 'variant_axis_basis_unavailable',
+    code: variantAxisBasisUnavailableCode,
     reason: 'Current Product axes or allowed values cannot be verified',
   });
 
@@ -329,7 +346,15 @@ const invalidGovernInput = (input: GovernVariantAxesInput, tenantId: string): bo
   input.expectedAxisRevision < 0 ||
   input.axes.length > 32 ||
   new Set(input.axes.map((axis) => axis.attributeDefinitionId)).size !== input.axes.length ||
-  input.axes.some((axis) => !Number.isSafeInteger(axis.definitionRevision) || axis.definitionRevision < 1);
+  input.axes.some(
+    (axis) =>
+      !Number.isSafeInteger(axis.definitionRevision) ||
+      axis.definitionRevision < 1 ||
+      !Number.isSafeInteger(axis.expectedAllowanceRevision) ||
+      axis.expectedAllowanceRevision < 0,
+  ) ||
+  (input.change.kind !== 'AXIS_ADDITION' && input.change.kind !== 'AXIS_REMOVAL') ||
+  input.change.reason !== input.reason;
 
 const validAllowedValuesEvidence = (input: GovernVariantAllowedValuesInput): boolean =>
   input.reason === input.reason.trim() &&
@@ -491,7 +516,7 @@ export const variantAxisPersistenceForScope = (
       const definitionProof = yield* attributeReads.readDefinitionCurrent({
         moduleId: catalogModuleId,
         resourceId: row.attributeDefinitionId,
-        resourceType: 'commerce.catalog.attribute-definition',
+        resourceType: attributeDefinitionResourceType,
         tenantId,
       });
       if (
@@ -762,7 +787,7 @@ export const variantAxisPersistenceForScope = (
       productRef.moduleId !== catalogModuleId ||
       variantRef.moduleId !== catalogModuleId ||
       productRef.resourceType !== productResourceType ||
-      variantRef.resourceType !== 'commerce.catalog.variant' ||
+      variantRef.resourceType !== variantResourceType ||
       axes.productId !== productRef.resourceId ||
       axes.axisRevision < 1
     ) {
@@ -827,7 +852,7 @@ export const variantAxisPersistenceForScope = (
         const variantRef: VariantRef = {
           moduleId: catalogModuleId,
           resourceId: item.variantId,
-          resourceType: 'commerce.catalog.variant',
+          resourceType: variantResourceType,
           tenantId,
         };
         const values = yield* readEffectiveValues(productRef, variantRef, axes);
@@ -846,11 +871,87 @@ export const variantAxisPersistenceForScope = (
     );
   });
 
-  const govern: VariantAxisPersistence['govern'] = Effect.fn('VariantAxisPersistence.govern')(function* govern(input) {
+  const readCurrentAllowedValues: VariantAxisPersistence['readCurrentAllowedValues'] = Effect.fn(
+    'VariantAxisPersistence.readCurrentAllowedValues',
+  )(function* readCurrentAllowedValues(productRef, axes) {
+    if (
+      productRef.tenantId !== tenantId ||
+      productRef.moduleId !== catalogModuleId ||
+      productRef.resourceType !== productResourceType ||
+      axes.productId !== productRef.resourceId ||
+      !Number.isSafeInteger(axes.axisRevision) ||
+      axes.axisRevision < 1
+    ) {
+      return yield* basisUnavailable();
+    }
+    return yield* Effect.forEach(
+      axes.axes,
+      Effect.fn('VariantAxisPersistence.readAxisAllowedValues')(function* readAxisAllowedValues(axis) {
+        const [event] = yield* transaction
+          .select()
+          .from(productVariantAxisAllowanceEvents)
+          .where(
+            and(
+              eq(productVariantAxisAllowanceEvents.tenantId, tenantId),
+              eq(productVariantAxisAllowanceEvents.productId, productRef.resourceId),
+              eq(productVariantAxisAllowanceEvents.attributeDefinitionId, axis.attributeDefinitionId),
+            ),
+          )
+          .orderBy(desc(productVariantAxisAllowanceEvents.allowanceRevision))
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+        if (
+          event === undefined ||
+          event.tenantId !== tenantId ||
+          event.productId !== productRef.resourceId ||
+          event.attributeDefinitionId !== axis.attributeDefinitionId ||
+          event.axisRevision > axes.axisRevision ||
+          event.definitionRevision !== axis.definitionRevision
+        ) {
+          return yield* basisUnavailable();
+        }
+        const values = yield* transaction
+          .select({ valueKey: productVariantAxisAllowedValues.valueKey })
+          .from(productVariantAxisAllowedValues)
+          .where(
+            and(
+              eq(productVariantAxisAllowedValues.tenantId, tenantId),
+              eq(productVariantAxisAllowedValues.productId, productRef.resourceId),
+              eq(productVariantAxisAllowedValues.attributeDefinitionId, axis.attributeDefinitionId),
+              eq(productVariantAxisAllowedValues.allowanceRevision, event.allowanceRevision),
+            ),
+          )
+          .pipe(Effect.mapError(unavailable));
+        const keys = values.map((row) => row.valueKey);
+        if (
+          keys.length !== event.valueCount ||
+          new Set(keys).size !== keys.length ||
+          keys.some((key) => !/^[0-9a-f]{64}$/u.test(key))
+        ) {
+          return yield* basisUnavailable();
+        }
+        return {
+          allowanceRevision: event.allowanceRevision,
+          attributeDefinitionId: axis.attributeDefinitionId,
+          definitionRevision: axis.definitionRevision,
+          valueKeys: keys,
+        } satisfies CurrentAxisAllowedValues;
+      }),
+      { concurrency: 1 },
+    );
+  });
+
+  const govern: VariantAxisPersistence['govern'] = Effect.fn(
+    'VariantAxisPersistence.govern',
+    // oxlint-disable-next-line complexity -- One locked transaction preserves the axis, allowance, active-combination, and optimistic-revision decision boundary. expires: 2027-03-31.
+  )(function* govern(input) {
     const conflict = writeConflict;
     if (invalidGovernInput(input, tenantId)) {
-      return yield* conflict('INVALID_INPUT', 'Invalid Product or duplicate/invalid axis definitions');
+      return yield* conflict('INVALID_INPUT', 'Invalid Product, change evidence, or axis definitions');
     }
+    yield* decideVariantUseChange(input.change, { currentProductRef: input.productRef }).pipe(
+      Effect.mapError((failure) => conflict(failure.conflict, failure.reason)),
+    );
     const productId = input.productRef.resourceId;
     const [product] = yield* transaction
       .select({ lifecycleState: products.lifecycleState, productId: products.productId })
@@ -895,17 +996,17 @@ export const variantAxisPersistenceForScope = (
     if (unchanged && latest !== undefined) {
       return { axisRevision: currentRevision, changed: false };
     }
-    // #438/#440/#479 do not yet supply revalidation of active combinations or
-    // open selections. Never reinterpret an ACTIVE form by changing axes here.
-    const variants = yield* transaction
-      .select({ lifecycleState: productVariants.lifecycleState, variantId: productVariants.variantId })
-      .from(productVariants)
-      .where(and(eq(productVariants.tenantId, tenantId), eq(productVariants.productId, productId)))
-      .for('update')
-      .pipe(Effect.mapError(unavailable));
-    if (variants.some((variant) => variant.lifecycleState === 'ACTIVE')) {
-      return yield* conflict('ACTIVE_SELECTION', 'Active Variant combinations require authoritative impact review');
+    const currentIds = new Set(current.map((axis) => axis.attributeDefinitionId));
+    const proposedIds = new Set(input.axes.map((axis) => axis.attributeDefinitionId));
+    const additions = input.axes.filter((axis) => !currentIds.has(axis.attributeDefinitionId));
+    const removals = current.filter((axis) => !proposedIds.has(axis.attributeDefinitionId));
+    if (
+      (input.change.kind === 'AXIS_ADDITION' && (additions.length === 0 || removals.length > 0)) ||
+      (input.change.kind === 'AXIS_REMOVAL' && (removals.length === 0 || additions.length > 0))
+    ) {
+      return yield* conflict('INVALID_INPUT', 'Axis change classification does not match the proposed replacement');
     }
+
     const [assignment] = yield* transaction
       .select()
       .from(productTypeAssignments)
@@ -915,6 +1016,7 @@ export const variantAxisPersistenceForScope = (
     if (input.axes.length > 0 && assignment === undefined) {
       return yield* conflict('TYPE_RULE', 'Product has no Product Type permitting Variant axes');
     }
+    let productTypeRevision: number | null = null;
     if (assignment !== undefined) {
       const [type] = yield* transaction
         .select({ currentRevision: productTypes.currentRevision })
@@ -923,7 +1025,7 @@ export const variantAxisPersistenceForScope = (
         .limit(1)
         .pipe(Effect.mapError(unavailable));
       if (type === undefined || !Number.isSafeInteger(type.currentRevision) || type.currentRevision < 1) {
-        return yield* conflict('TYPE_RULE', 'Product Type revision cannot be verified');
+        return yield* conflict('TYPE_RULE', productTypeRevisionUnavailableReason);
       }
       const [typeRevision] = yield* transaction
         .select({ revision: productTypeRevisions.revision })
@@ -938,103 +1040,265 @@ export const variantAxisPersistenceForScope = (
         .limit(1)
         .pipe(Effect.mapError(unavailable));
       if (typeRevision === undefined) {
-        return yield* conflict('TYPE_RULE', 'Product Type revision cannot be verified');
+        return yield* conflict('TYPE_RULE', productTypeRevisionUnavailableReason);
       }
-      yield* Effect.forEach(
-        input.axes,
-        Effect.fn('VariantAxisPersistence.verifyAxis')(function* verifyAxis(
-          axis: GovernVariantAxesInput['axes'][number],
-        ) {
-          const [definition] = yield* transaction
-            .select({ currentRevision: attributeDefinitions.currentRevision })
-            .from(attributeDefinitions)
-            .where(
-              and(
-                eq(attributeDefinitions.tenantId, tenantId),
-                eq(attributeDefinitions.attributeDefinitionId, axis.attributeDefinitionId),
-              ),
-            )
-            .limit(1)
-            .pipe(Effect.mapError(unavailable));
-          if (definition?.currentRevision !== axis.definitionRevision) {
-            return yield* conflict('DEFINITION', 'Axis must pin the current Attribute Definition revision');
-          }
-          const [revision] = yield* transaction
-            .select({ applicableLevels: attributeDefinitionRevisions.applicableLevels })
-            .from(attributeDefinitionRevisions)
-            .where(
-              and(
-                eq(attributeDefinitionRevisions.tenantId, tenantId),
-                eq(attributeDefinitionRevisions.attributeDefinitionId, axis.attributeDefinitionId),
-                eq(attributeDefinitionRevisions.revision, axis.definitionRevision),
-              ),
-            )
-            .limit(1)
-            .pipe(Effect.mapError(unavailable));
-          if (revision === undefined || !new Set(revision.applicableLevels).has('VARIANT')) {
-            return yield* conflict('DEFINITION', 'Definition is not applicable to Variants');
-          }
-          const [rule] = yield* transaction
-            .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
-            .from(productTypeRevisionAttributes)
-            .where(
-              and(
-                eq(productTypeRevisionAttributes.tenantId, tenantId),
-                eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
-                eq(productTypeRevisionAttributes.revision, type.currentRevision),
-                eq(productTypeRevisionAttributes.attributeDefinitionId, axis.attributeDefinitionId),
-                eq(productTypeRevisionAttributes.level, 'VARIANT'),
-              ),
-            )
-            .limit(1)
-            .pipe(Effect.mapError(unavailable));
-          if (rule === undefined) {
-            return yield* conflict('TYPE_RULE', 'Definition is not permitted on Variants by Product Type');
-          }
-          const [applicability] = yield* transaction
-            .select()
-            .from(productAttributeApplicability)
-            .where(
-              and(
-                eq(productAttributeApplicability.tenantId, tenantId),
-                eq(productAttributeApplicability.productId, productId),
-                eq(productAttributeApplicability.attributeDefinitionId, axis.attributeDefinitionId),
-              ),
-            )
-            .limit(1)
-            .pipe(Effect.mapError(unavailable));
-          if (
-            applicability?.variantLevel !== true ||
-            !Number.isSafeInteger(applicability.currentRevision) ||
-            applicability.currentRevision < 1
-          ) {
-            return yield* conflict(
-              'TYPE_RULE',
-              'Definition is not declared applicable to this Product at Variant level',
-            );
-          }
-          const [applicabilityRevision] = yield* transaction
-            .select({ variantLevel: productAttributeApplicabilityRevisions.variantLevel })
-            .from(productAttributeApplicabilityRevisions)
-            .where(
-              and(
-                eq(productAttributeApplicabilityRevisions.tenantId, tenantId),
-                eq(productAttributeApplicabilityRevisions.productId, productId),
-                eq(productAttributeApplicabilityRevisions.attributeDefinitionId, axis.attributeDefinitionId),
-                eq(productAttributeApplicabilityRevisions.revision, applicability.currentRevision),
-              ),
-            )
-            .limit(1)
-            .pipe(Effect.mapError(unavailable));
-          if (applicabilityRevision?.variantLevel !== true) {
-            return yield* conflict('TYPE_RULE', 'Current Product applicability revision cannot be verified');
-          }
-          return null;
-        }),
-        { concurrency: 1 },
-      );
+      productTypeRevision = type.currentRevision;
     }
+
+    const verified = yield* Effect.forEach(
+      input.axes,
+      Effect.fn('VariantAxisPersistence.verifyProposedAxis')(function* verifyProposedAxis(axis, ordinal) {
+        if (assignment === undefined || productTypeRevision === null) {
+          return yield* conflict('TYPE_RULE', productTypeRevisionUnavailableReason);
+        }
+        const [definition] = yield* transaction
+          .select({ currentRevision: attributeDefinitions.currentRevision })
+          .from(attributeDefinitions)
+          .where(
+            and(
+              eq(attributeDefinitions.tenantId, tenantId),
+              eq(attributeDefinitions.attributeDefinitionId, axis.attributeDefinitionId),
+            ),
+          )
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+        if (definition?.currentRevision !== axis.definitionRevision) {
+          return yield* conflict('DEFINITION', 'Axis must pin the current Attribute Definition revision');
+        }
+        const [revision] = yield* transaction
+          .select()
+          .from(attributeDefinitionRevisions)
+          .where(
+            and(
+              eq(attributeDefinitionRevisions.tenantId, tenantId),
+              eq(attributeDefinitionRevisions.attributeDefinitionId, axis.attributeDefinitionId),
+              eq(attributeDefinitionRevisions.revision, axis.definitionRevision),
+            ),
+          )
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+        const definitionValue =
+          revision === undefined
+            ? undefined
+            : definitionFromRevision(revision, {
+                moduleId: catalogModuleId,
+                resourceId: axis.attributeDefinitionId,
+                resourceType: attributeDefinitionResourceType,
+                tenantId,
+              });
+        if (
+          revision === undefined ||
+          definitionValue === undefined ||
+          !new Set(definitionValue.levels).has('VARIANT')
+        ) {
+          return yield* conflict('DEFINITION', 'Definition is not applicable to Variants');
+        }
+        const [rule] = yield* transaction
+          .select()
+          .from(productTypeRevisionAttributes)
+          .where(
+            and(
+              eq(productTypeRevisionAttributes.tenantId, tenantId),
+              eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
+              eq(productTypeRevisionAttributes.revision, productTypeRevision),
+              eq(productTypeRevisionAttributes.attributeDefinitionId, axis.attributeDefinitionId),
+              eq(productTypeRevisionAttributes.level, 'VARIANT'),
+            ),
+          )
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+        if (rule === undefined) {
+          return yield* conflict('TYPE_RULE', 'Definition is not permitted on Variants by Product Type');
+        }
+        const [applicability] = yield* transaction
+          .select()
+          .from(productAttributeApplicability)
+          .where(
+            and(
+              eq(productAttributeApplicability.tenantId, tenantId),
+              eq(productAttributeApplicability.productId, productId),
+              eq(productAttributeApplicability.attributeDefinitionId, axis.attributeDefinitionId),
+            ),
+          )
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+        if (invalidProductAxisApplicability(applicability, tenantId, productId, axis.attributeDefinitionId)) {
+          return yield* conflict('TYPE_RULE', 'Definition is not declared applicable to this Product at Variant level');
+        }
+        if (applicability === undefined) {
+          return yield* conflict('TYPE_RULE', 'Current Product applicability cannot be verified');
+        }
+        const [applicabilityRevision] = yield* transaction
+          .select()
+          .from(productAttributeApplicabilityRevisions)
+          .where(
+            and(
+              eq(productAttributeApplicabilityRevisions.tenantId, tenantId),
+              eq(productAttributeApplicabilityRevisions.productId, productId),
+              eq(productAttributeApplicabilityRevisions.attributeDefinitionId, axis.attributeDefinitionId),
+              eq(productAttributeApplicabilityRevisions.revision, applicability.currentRevision),
+            ),
+          )
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+        if (invalidProductAxisApplicabilityRevision(applicabilityRevision, applicability)) {
+          return yield* conflict('TYPE_RULE', 'Current Product applicability revision cannot be verified');
+        }
+        const [productRule] = new Set(definitionValue.levels).has('PRODUCT')
+          ? yield* transaction
+              .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
+              .from(productTypeRevisionAttributes)
+              .where(
+                and(
+                  eq(productTypeRevisionAttributes.tenantId, tenantId),
+                  eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
+                  eq(productTypeRevisionAttributes.revision, productTypeRevision),
+                  eq(productTypeRevisionAttributes.attributeDefinitionId, axis.attributeDefinitionId),
+                  eq(productTypeRevisionAttributes.level, 'PRODUCT'),
+                ),
+              )
+              .limit(1)
+              .pipe(Effect.mapError(unavailable))
+          : [];
+        return {
+          axis: {
+            attributeDefinitionId: axis.attributeDefinitionId,
+            controlledValueKind: revision.controlledValueKind,
+            definitionRevision: axis.definitionRevision,
+            inheritable: productRule !== undefined,
+            multiplicity: revision.multiplicity,
+            ordinal,
+            valueKind: revision.valueKind,
+          } satisfies CurrentVariantAxis,
+          definition: {
+            definition: definitionValue,
+            revision: axis.definitionRevision,
+          } satisfies VariantAxisDefinitionSnapshot,
+          rule: {
+            attributeDefinitionRef: definitionValue.ref,
+            level: 'VARIANT',
+            required: rule.requirement === 'REQUIRED',
+          } satisfies ProductTypeAttributeRule,
+        };
+      }),
+      { concurrency: 1 },
+    );
     const axisRevision = currentRevision + 1;
+    const proposed: CurrentVariantAxes = {
+      axes: verified.map((item) => item.axis),
+      axisRevision,
+      productId,
+      productTypeRevision,
+    };
+    const variants = yield* transaction
+      .select({
+        combinationAxisRevision: productVariants.combinationAxisRevision,
+        lifecycleState: productVariants.lifecycleState,
+        productId: productVariants.productId,
+        tenantId: productVariants.tenantId,
+        variantId: productVariants.variantId,
+      })
+      .from(productVariants)
+      .where(and(eq(productVariants.tenantId, tenantId), eq(productVariants.productId, productId)))
+      .for('update')
+      .pipe(Effect.mapError(unavailable));
+    const active = variants.filter((variant) => variant.lifecycleState === 'ACTIVE');
+    let proposedValues = new Map<string, readonly CurrentVariantAxisValue[]>();
+    if (active.length > 0) {
+      if (currentRevision < 1 || active.some((variant) => variant.combinationAxisRevision !== currentRevision)) {
+        return yield* conflict('REVISION', 'Active Variant combination basis is stale');
+      }
+      const allowed = yield* readCurrentAllowedValues(input.productRef, proposed).pipe(
+        Effect.mapError((failure) =>
+          Schema.is(VariantAxisBasisUnavailable)(failure) ? conflict('UNVERIFIABLE_VALUE', failure.reason) : failure,
+        ),
+      );
+      if (
+        allowed.some(
+          (item) =>
+            item.allowanceRevision !==
+            input.axes.find((axis) => axis.attributeDefinitionId === item.attributeDefinitionId)
+              ?.expectedAllowanceRevision,
+        )
+      ) {
+        return yield* conflict('REVISION', 'Product Variant Axis allowance revision changed');
+      }
+      proposedValues = new Map(
+        yield* Effect.forEach(
+          active,
+          Effect.fn('VariantAxisPersistence.readProposedVariantValues')(function* readProposedVariantValues(row) {
+            const values = yield* readEffectiveValues(
+              input.productRef,
+              {
+                moduleId: catalogModuleId,
+                resourceId: row.variantId,
+                resourceType: variantResourceType,
+                tenantId,
+              },
+              proposed,
+            ).pipe(
+              Effect.mapError((failure) =>
+                Schema.is(VariantAxisBasisUnavailable)(failure)
+                  ? conflict('UNVERIFIABLE_VALUE', failure.reason)
+                  : failure,
+              ),
+            );
+            return [row.variantId, values] as const;
+          }),
+          { concurrency: 1 },
+        ),
+      );
+      const allowedByAxis = new Map(allowed.map((item) => [item.attributeDefinitionId, new Set(item.valueKeys)]));
+      const candidates: VariantAxisCandidate[] = [];
+      for (const row of active) {
+        const values = proposedValues.get(row.variantId) ?? [];
+        const effectiveAxisValues: VariantAxisCandidate['effectiveAxisValues'][number][] = [];
+        for (const value of values) {
+          const decoded = value.items.map(effectiveItemToAttributeValue);
+          if (decoded.some((item) => item === undefined)) {
+            return yield* conflict('UNVERIFIABLE_VALUE', 'Stored Variant axis values cannot be decoded');
+          }
+          effectiveAxisValues.push({
+            attributeDefinitionRef: {
+              moduleId: catalogModuleId,
+              resourceId: value.attributeDefinitionId,
+              resourceType: attributeDefinitionResourceType,
+              tenantId,
+            },
+            values: decoded.filter((item): item is AttributeValue => item !== undefined),
+          });
+        }
+        candidates.push({
+          effectiveAxisValues,
+          variant: {
+            lifecycle: 'ACTIVE',
+            productRef: input.productRef,
+            variantId: row.variantId,
+            variantRef: {
+              moduleId: catalogModuleId,
+              resourceId: row.variantId,
+              resourceType: variantResourceType,
+              tenantId,
+            },
+          },
+        });
+      }
+      const proposedAxes: VariantAxis[] = verified.map(({ definition }) => ({
+        attributeDefinitionRef: definition.definition.ref,
+        definitionRevision: definition.revision,
+      }));
+      yield* revalidateVariantAxisChange({
+        candidates,
+        definitions: verified.map((item) => item.definition),
+        isAllowedValue: (definition, value) =>
+          allowedByAxis.get(definition.ref.resourceId)?.has(allowedValueKeyHash(value)),
+        isRecordedCombination: (candidate) => active.some((row) => row.variantId === candidate.variantRef.resourceId),
+        productRef: input.productRef,
+        productTypeRules: verified.map((item) => item.rule),
+        proposedAxes,
+      }).pipe(Effect.mapError((failure) => conflict(failure.conflict, failure.reason)));
+    }
+
     yield* transaction
       .delete(productVariantAxes)
       .where(and(eq(productVariantAxes.tenantId, tenantId), eq(productVariantAxes.productId, productId)))
@@ -1047,7 +1311,7 @@ export const variantAxisPersistenceForScope = (
         attributeDefinitionIds: input.axes.map((axis) => axis.attributeDefinitionId),
         attributeDefinitionRevisions: input.axes.map((axis) => axis.definitionRevision),
         axisRevision,
-        evidenceRefs: [],
+        evidenceRefs: [...input.change.evidenceRefs],
         productId,
         reason: input.reason,
         tenantId,
@@ -1068,77 +1332,33 @@ export const variantAxisPersistenceForScope = (
         )
         .pipe(Effect.mapError(unavailable));
     }
-    return { axisRevision, changed: true };
-  });
-
-  const readCurrentAllowedValues: VariantAxisPersistence['readCurrentAllowedValues'] = Effect.fn(
-    'VariantAxisPersistence.readCurrentAllowedValues',
-  )(function* readCurrentAllowedValues(productRef, axes) {
-    if (
-      productRef.tenantId !== tenantId ||
-      productRef.moduleId !== catalogModuleId ||
-      productRef.resourceType !== productResourceType ||
-      axes.productId !== productRef.resourceId ||
-      !Number.isSafeInteger(axes.axisRevision) ||
-      axes.axisRevision < 1
-    ) {
-      return yield* basisUnavailable();
-    }
-    return yield* Effect.forEach(
-      axes.axes,
-      Effect.fn('VariantAxisPersistence.readAxisAllowedValues')(function* readAxisAllowedValues(axis) {
-        const [event] = yield* transaction
-          .select()
-          .from(productVariantAxisAllowanceEvents)
+    yield* Effect.forEach(
+      active,
+      Effect.fn('VariantAxisPersistence.advanceRecordedVariant')(function* advanceRecordedVariant(row) {
+        const values = proposedValues.get(row.variantId) ?? [];
+        const [updated] = yield* transaction
+          .update(productVariants)
+          .set({
+            combinationAxisRevision: axisRevision,
+            combinationKey: recordedVariantCombinationKey(values, tenantId),
+          })
           .where(
             and(
-              eq(productVariantAxisAllowanceEvents.tenantId, tenantId),
-              eq(productVariantAxisAllowanceEvents.productId, productRef.resourceId),
-              eq(productVariantAxisAllowanceEvents.attributeDefinitionId, axis.attributeDefinitionId),
+              eq(productVariants.tenantId, tenantId),
+              eq(productVariants.variantId, row.variantId),
+              eq(productVariants.combinationAxisRevision, currentRevision),
             ),
           )
-          .orderBy(desc(productVariantAxisAllowanceEvents.allowanceRevision))
-          .limit(1)
+          .returning({ variantId: productVariants.variantId })
           .pipe(Effect.mapError(unavailable));
-        if (
-          event === undefined ||
-          event.tenantId !== tenantId ||
-          event.productId !== productRef.resourceId ||
-          event.attributeDefinitionId !== axis.attributeDefinitionId ||
-          event.axisRevision !== axes.axisRevision ||
-          event.definitionRevision !== axis.definitionRevision
-        ) {
-          return yield* basisUnavailable();
+        if (updated?.variantId !== row.variantId) {
+          return yield* conflict('REVISION', 'Active Variant combination changed during axis governance');
         }
-        const values = yield* transaction
-          .select({ valueKey: productVariantAxisAllowedValues.valueKey })
-          .from(productVariantAxisAllowedValues)
-          .where(
-            and(
-              eq(productVariantAxisAllowedValues.tenantId, tenantId),
-              eq(productVariantAxisAllowedValues.productId, productRef.resourceId),
-              eq(productVariantAxisAllowedValues.attributeDefinitionId, axis.attributeDefinitionId),
-              eq(productVariantAxisAllowedValues.allowanceRevision, event.allowanceRevision),
-            ),
-          )
-          .pipe(Effect.mapError(unavailable));
-        const keys = values.map((row) => row.valueKey);
-        if (
-          keys.length !== event.valueCount ||
-          new Set(keys).size !== keys.length ||
-          keys.some((key) => !/^[0-9a-f]{64}$/u.test(key))
-        ) {
-          return yield* basisUnavailable();
-        }
-        return {
-          allowanceRevision: event.allowanceRevision,
-          attributeDefinitionId: axis.attributeDefinitionId,
-          definitionRevision: axis.definitionRevision,
-          valueKeys: keys,
-        } satisfies CurrentAxisAllowedValues;
+        return null;
       }),
       { concurrency: 1 },
     );
+    return { axisRevision, changed: true };
   });
 
   const lockProduct = Effect.fn('VariantAxisPersistence.lockAllowedValuesProduct')(function* lockProduct(
@@ -1210,7 +1430,7 @@ export const variantAxisPersistenceForScope = (
         : definitionFromRevision(revisionRow, {
             moduleId: catalogModuleId,
             resourceId: attributeDefinitionId,
-            resourceType: 'commerce.catalog.attribute-definition',
+            resourceType: attributeDefinitionResourceType,
             tenantId,
           });
     },
@@ -1327,12 +1547,102 @@ export const variantAxisPersistenceForScope = (
     if (current.axisRevision !== input.expectedAxisRevision) {
       return { _tag: 'axis_conflict', actualAxisRevision: current.axisRevision } as const;
     }
+    if (current.axisRevision < 1) {
+      return {
+        _tag: 'invalid_input',
+        reason: 'A Product needs an established axis revision before allowed values can be staged',
+      } as const;
+    }
     const axis = current.axes.find((item) => item.attributeDefinitionId === input.attributeDefinitionId);
-    if (axis === undefined || axis.definitionRevision !== input.definitionRevision) {
+    if (axis !== undefined && axis.definitionRevision !== input.definitionRevision) {
       return {
         _tag: 'invalid_input',
         reason: 'Allowed values must pin the Current declared axis definition revision',
       } as const;
+    }
+    if (axis === undefined) {
+      const [definition] = yield* transaction
+        .select({ currentRevision: attributeDefinitions.currentRevision })
+        .from(attributeDefinitions)
+        .where(
+          and(
+            eq(attributeDefinitions.tenantId, tenantId),
+            eq(attributeDefinitions.attributeDefinitionId, input.attributeDefinitionId),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      // oxlint-disable-next-line effect-native/no-sequential-independent-yields -- Preserve deterministic authorization reads inside the locked staging transaction. expires: 2027-03-31.
+      const [assignment] = yield* transaction
+        .select()
+        .from(productTypeAssignments)
+        .where(and(eq(productTypeAssignments.tenantId, tenantId), eq(productTypeAssignments.productId, productId)))
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (definition?.currentRevision !== input.definitionRevision || assignment === undefined) {
+        return { _tag: 'invalid_input', reason: 'Proposed axis definition is not Current for this Product' } as const;
+      }
+      const [type] = yield* transaction
+        .select({ currentRevision: productTypes.currentRevision })
+        .from(productTypes)
+        .where(and(eq(productTypes.tenantId, tenantId), eq(productTypes.productTypeId, assignment.productTypeId)))
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (type === undefined || !Number.isSafeInteger(type.currentRevision) || type.currentRevision < 1) {
+        return { _tag: 'invalid_input', reason: productTypeRevisionUnavailableReason } as const;
+      }
+      const [rule] = yield* transaction
+        .select({ attributeDefinitionId: productTypeRevisionAttributes.attributeDefinitionId })
+        .from(productTypeRevisionAttributes)
+        .where(
+          and(
+            eq(productTypeRevisionAttributes.tenantId, tenantId),
+            eq(productTypeRevisionAttributes.productTypeId, assignment.productTypeId),
+            eq(productTypeRevisionAttributes.revision, type.currentRevision),
+            eq(productTypeRevisionAttributes.attributeDefinitionId, input.attributeDefinitionId),
+            eq(productTypeRevisionAttributes.level, 'VARIANT'),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      // oxlint-disable-next-line effect-native/no-sequential-independent-yields -- Keep staged allowance authorization reads ordered inside the Product lock transaction. expires: 2027-03-31.
+      const [applicability] = yield* transaction
+        .select()
+        .from(productAttributeApplicability)
+        .where(
+          and(
+            eq(productAttributeApplicability.tenantId, tenantId),
+            eq(productAttributeApplicability.productId, productId),
+            eq(productAttributeApplicability.attributeDefinitionId, input.attributeDefinitionId),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (
+        rule === undefined ||
+        invalidProductAxisApplicability(applicability, tenantId, productId, input.attributeDefinitionId)
+      ) {
+        return { _tag: 'invalid_input', reason: 'Proposed axis is not permitted for this Product' } as const;
+      }
+      if (applicability === undefined) {
+        return { _tag: 'invalid_input', reason: 'Proposed axis applicability cannot be verified' } as const;
+      }
+      const [applicabilityRevision] = yield* transaction
+        .select()
+        .from(productAttributeApplicabilityRevisions)
+        .where(
+          and(
+            eq(productAttributeApplicabilityRevisions.tenantId, tenantId),
+            eq(productAttributeApplicabilityRevisions.productId, productId),
+            eq(productAttributeApplicabilityRevisions.attributeDefinitionId, input.attributeDefinitionId),
+            eq(productAttributeApplicabilityRevisions.revision, applicability.currentRevision),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      if (invalidProductAxisApplicabilityRevision(applicabilityRevision, applicability)) {
+        return { _tag: 'invalid_input', reason: 'Proposed axis applicability revision cannot be verified' } as const;
+      }
     }
     const latest = yield* readLatestAllowance(productId, input.attributeDefinitionId);
     if ((latest?.allowanceRevision ?? 0) !== input.expectedAllowanceRevision) {
