@@ -12,6 +12,7 @@ import {
 import type { ReviseProductTypePayload } from '../../shared/actions/revise-product-type.ts';
 import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
 import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
+import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import type { CatalogPersistenceConflict } from '../persistence/errors.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
@@ -23,12 +24,16 @@ import type {
   ProductTypeRevisePersistence,
   ReviseProductTypePersistenceOutcome,
 } from '../persistence/product-type-revise-persistence.ts';
+import { createReviseProductTypeCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './revise-product-type-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+import { decideSelectionSourceChange } from './selection-source-change-decision.ts';
 
 export { ReviseProductTypePayloadSchema } from '../../shared/actions/revise-product-type.ts';
 
 const ACTION_KEY = 'commerce.catalog.revise-product-type' as const;
 const MODULE_KEY = 'commerce.catalog' as const;
-const domainEvents = {} as const;
+const SELECTION_SOURCE_CHANGED_EVENT_TYPE = 'commerce.catalog.selection-source-changed.v1' as const;
+const PRODUCT_TYPE_RESOURCE_TYPE = 'commerce.catalog.product-type' as const;
+const domainEvents = { [SELECTION_SOURCE_CHANGED_EVENT_TYPE]: SelectionSourceChangedEventSchema } as const;
 
 const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
   Object.assign(
@@ -84,18 +89,64 @@ export const handleReviseProductType = Effect.fn('ReviseProductTypeAction.handle
       ({ reason }: Extract<ReviseProductTypePersistenceOutcome, { readonly _tag: 'stale_basis' }>) =>
         Effect.fail(staleBasis(reason)),
     ),
-    Match.tag('revised', ({ result }: Extract<ReviseProductTypePersistenceOutcome, { readonly _tag: 'revised' }>) =>
-      context
-        .recordDataAccess({
+    Match.tag(
+      'revised',
+      Effect.fn('ReviseProductTypeAction.revised')(function* recordCommittedProductTypeRevision({
+        result,
+      }: Extract<ReviseProductTypePersistenceOutcome, { readonly _tag: 'revised' }>) {
+        yield* context.recordDataAccess({
           accessKind: 'read',
           queryHash: `catalog-product-type-revision:${payload.productTypeRef.resourceId}:${payload.expectedCurrentRevision}`,
           resultCount: 1,
           servingModuleKey: MODULE_KEY,
           targetModuleKey: MODULE_KEY,
           targetResourceId: payload.productTypeRef.resourceId,
-          targetResourceType: 'commerce.catalog.product-type',
-        })
-        .pipe(Effect.as(result)),
+          targetResourceType: PRODUCT_TYPE_RESOURCE_TYPE,
+        });
+        const decision = decideSelectionSourceChange({
+          nextRevision: result.revision,
+          nextSourceLevel: 'PRODUCT',
+          previousRevision: payload.expectedCurrentRevision,
+          previousSourceLevel: 'PRODUCT',
+        });
+        if (decision.kind !== 'CHANGED') {
+          return yield* Effect.fail(
+            new CatalogPersistenceUnavailable({
+              code: 'catalog_persistence_unavailable',
+              reason: 'Catalog could not prove the committed Product Type changed resolved Current selection evidence',
+            }),
+          );
+        }
+        const eventPayload = yield* Schema.decodeEffect(SelectionSourceChangedEventSchema)({
+          changeId: context.actionInvocationId,
+          changeKind: 'SOURCE_REVISED',
+          source: { resourceRef: result.productTypeRef, revision: result.revision },
+          sourceKind: 'PRODUCT_TYPE',
+          tenantId: result.productTypeRef.tenantId,
+        }).pipe(
+          Effect.mapError((cause) => {
+            const failure = new CatalogPersistenceUnavailable({
+              code: 'catalog_persistence_unavailable',
+              reason: 'Catalog could not attest the committed Product Type source revision',
+            });
+            Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+            return failure;
+          }),
+        );
+        const event = yield* context.addDomainEvent({
+          eventType: SELECTION_SOURCE_CHANGED_EVENT_TYPE,
+          payloadJson: eventPayload,
+          producerModuleKey: MODULE_KEY,
+          subjectModuleKey: MODULE_KEY,
+          subjectResourceId: result.productTypeRef.resourceId,
+          subjectResourceType: PRODUCT_TYPE_RESOURCE_TYPE,
+        });
+        yield* context.addOutboxMessage(
+          event,
+          createReviseProductTypeCommerceCatalogSelectionSourceChangedV1OutboxMessage(eventPayload),
+        );
+        return result;
+      }),
     ),
     Match.exhaustive,
   );
@@ -119,8 +170,8 @@ export const reviseProductTypeAction = defineAction(
     entrypoint: defineTenantModuleEntrypoint({
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
-      entrypointKey: ACTION_KEY,
-      moduleKey: MODULE_KEY,
+      entrypointKey: 'commerce.catalog.revise-product-type',
+      moduleKey: 'commerce.catalog',
       role: 'action',
     }),
     idempotency: 'required',
@@ -162,4 +213,9 @@ export const reviseProductTypeAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
+export { createReviseProductTypeCommerceCatalogSelectionSourceChangedV1OutboxMessage } from './revise-product-type-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { ReviseProductTypeCommerceCatalogSelectionSourceChangedV1OutboxPayloadSchema } from './revise-product-type-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { ReviseProductTypeCommerceCatalogSelectionSourceChangedV1OutboxProducerModuleKey } from './revise-product-type-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export { ReviseProductTypeCommerceCatalogSelectionSourceChangedV1OutboxTopic } from './revise-product-type-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
+export type { ReviseProductTypeCommerceCatalogSelectionSourceChangedV1OutboxPayload } from './revise-product-type-commerce-catalog-selection-source-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

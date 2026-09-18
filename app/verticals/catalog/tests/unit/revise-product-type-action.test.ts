@@ -54,10 +54,23 @@ const scope = {
 const contextWith = (
   revise: ProductTypeRevisePersistence['revise'],
   accessed: { readonly targetResourceId: string }[] = [],
-): ActionHandlerContext<Readonly<Record<string, never>>, ProductTypeRevisePersistence> => ({
+  events: { readonly eventType: string; readonly payloadJson: unknown; readonly reference: object }[] = [],
+  outbox: {
+    readonly event: object;
+    readonly message: { readonly payloadJson: unknown; readonly producerModuleKey: string; readonly topic: string };
+  }[] = [],
+): ActionHandlerContext<typeof reviseProductTypeAction.descriptor.domainEvents, ProductTypeRevisePersistence> => ({
   actionInvocationId: '66666666-6666-4666-8666-666666666666',
-  addDomainEvent: () => Effect.succeed(Object.create(null)),
-  addOutboxMessage: () => Effect.void,
+  addDomainEvent: (event) =>
+    Effect.sync(() => {
+      const reference = Object.create(null);
+      events.push({ eventType: event.eventType, payloadJson: event.payloadJson, reference });
+      return reference;
+    }),
+  addOutboxMessage: (event, message) =>
+    Effect.sync(() => {
+      outbox.push({ event, message });
+    }),
   recordAuditEvidence: () => Effect.void,
   recordDataAccess: (evidence) =>
     Effect.sync(() => {
@@ -94,6 +107,11 @@ describe('Revise Product Type Action contract', () => {
   it.effect('passes trusted identity and the exact reviewed intent to owner persistence', () =>
     Effect.gen(function* handoff() {
       const accessed: { readonly targetResourceId: string }[] = [];
+      const events: { readonly eventType: string; readonly payloadJson: unknown; readonly reference: object }[] = [];
+      const outbox: {
+        readonly event: object;
+        readonly message: { readonly payloadJson: unknown; readonly producerModuleKey: string; readonly topic: string };
+      }[] = [];
       const context = contextWith(
         (input) =>
           Effect.sync(() => {
@@ -118,25 +136,84 @@ describe('Revise Product Type Action contract', () => {
             };
           }),
         accessed,
+        events,
+        outbox,
       );
       expect(yield* handleReviseProductType(payload, context)).toMatchObject({
         revision: 2,
         unresolvedProductRefs: [productRef],
       });
       expect(accessed).toEqual([{ targetResourceId: productTypeRef.resourceId }]);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        eventType: 'commerce.catalog.selection-source-changed.v1',
+        payloadJson: {
+          changeId: context.actionInvocationId,
+          changeKind: 'SOURCE_REVISED',
+          source: { resourceRef: productTypeRef, revision: 2 },
+          sourceKind: 'PRODUCT_TYPE',
+          tenantId,
+        },
+      });
+      expect(Object.keys(events[0]?.payloadJson ?? {})).not.toContain('productRef');
+      expect(Object.keys(events[0]?.payloadJson ?? {})).not.toContain('variantRef');
+      expect(outbox).toHaveLength(1);
+      expect(outbox[0]?.event).toBe(events[0]?.reference);
+      expect(outbox[0]?.message).toEqual({
+        payloadJson: events[0]?.payloadJson,
+        producerModuleKey: 'commerce.catalog',
+        topic: 'commerce.catalog.selection-source-changed.v1',
+      });
     }),
   );
 
   it.effect('maps an absent or changed owner basis to the declared stale conflict', () =>
     Effect.gen(function* staleOwnerBasis() {
+      const events: { readonly eventType: string; readonly payloadJson: unknown; readonly reference: object }[] = [];
+      const outbox: {
+        readonly event: object;
+        readonly message: { readonly payloadJson: unknown; readonly producerModuleKey: string; readonly topic: string };
+      }[] = [];
       const failure = yield* Effect.flip(
         handleReviseProductType(
           payload,
-          contextWith(() => Effect.succeed({ _tag: 'stale_basis', reason: 'Cart population changed' })),
+          contextWith(
+            () => Effect.succeed({ _tag: 'stale_basis', reason: 'Cart population changed' }),
+            [],
+            events,
+            outbox,
+          ),
         ),
       );
       expect(Schema.is(ReviseProductTypeStaleBasisSchema)(failure)).toBe(true);
       expect(failure).toMatchObject({ code: 'product_type_stale_basis', reason: 'Cart population changed' });
+      expect(events).toHaveLength(0);
+      expect(outbox).toHaveLength(0);
+    }),
+  );
+
+  it.effect('fails the transaction without an event when a revised outcome does not prove a Current change', () =>
+    Effect.gen(function* unchangedRevision() {
+      const events: { readonly eventType: string; readonly payloadJson: unknown; readonly reference: object }[] = [];
+      const outbox: {
+        readonly event: object;
+        readonly message: { readonly payloadJson: unknown; readonly producerModuleKey: string; readonly topic: string };
+      }[] = [];
+      const result = Schema.decodeUnknownSync(reviseProductTypeAction.descriptor.resultSchema)({
+        effectiveFrom: payload.effectiveFrom,
+        productTypeRef,
+        revision: payload.expectedCurrentRevision,
+        unresolvedProductRefs: [productRef],
+      });
+      const failure = yield* Effect.flip(
+        handleReviseProductType(
+          payload,
+          contextWith(() => Effect.succeed({ _tag: 'revised', result }), [], events, outbox),
+        ),
+      );
+      expect(failure).toBeInstanceOf(CatalogPersistenceUnavailable);
+      expect(events).toHaveLength(0);
+      expect(outbox).toHaveLength(0);
     }),
   );
 
