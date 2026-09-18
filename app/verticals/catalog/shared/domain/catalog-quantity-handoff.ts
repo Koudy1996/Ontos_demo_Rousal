@@ -2,27 +2,92 @@ import { Option, Schema } from 'effect';
 
 import { assessCatalogSelection } from './catalog-selection-assessment.ts';
 import type { CatalogSelectionCurrentFacts } from './catalog-selection-assessment.ts';
-import { CatalogSelectionSchema } from './catalog-selection-evidence.ts';
+import {
+  CatalogSelectionRevisionSchema,
+  CatalogSelectionSchema,
+  CatalogSelectionValidEvidenceSchema,
+} from './catalog-selection-evidence.ts';
 import type { CatalogSelection, CatalogSelectionEvidence } from './catalog-selection-evidence.ts';
 import type { CatalogResourceRef } from './catalog-revision-reference.ts';
-import { CatalogRevisionNumberSchema, sameCatalogRevisionReference } from './catalog-revision-reference.ts';
+import {
+  CatalogResourceRefSchema,
+  CatalogRevisionNumberSchema,
+  sameCatalogRevisionReference,
+} from './catalog-revision-reference.ts';
 import { resolvePackageContent } from './package-content.ts';
 import type { PackageContentRevision, PackageResolution } from './package-content.ts';
 import type { QuantityNormalization } from './purchase-quantity.ts';
+import { VariantExactFormSchema } from './variant-exact-form.ts';
 
-/** Catalog product facts supplied to Commerce; no customer profile or commercial verdict. */
-export type CatalogQuantityHandoff =
-  | {
-      readonly divisible: boolean;
-      readonly evidence: Extract<CatalogSelectionEvidence, { status: 'VALID' }>;
-      readonly packageContent?: Extract<PackageResolution, { status: 'VALID' }>;
-      readonly packageRevision?: PackageContentRevision;
-      readonly quantity: Extract<QuantityNormalization, { status: 'VALID' }>;
-      readonly selection: CatalogSelection;
-      readonly status: 'READY';
-      readonly unitRef: CatalogResourceRef;
-    }
-  | { readonly reason: string; readonly status: 'INVALID' | 'UNVERIFIABLE' | 'STALE' };
+const quantityText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
+const CatalogQuantityTargetIdSchema = Schema.String.check(Schema.isUUID(), Schema.isTrimmed()).pipe(
+  Schema.brand('CatalogQuantityTargetId'),
+  Schema.decodeTo(Schema.String),
+);
+const CatalogQuantityTenantIdSchema = Schema.String.check(Schema.isUUID(), Schema.isTrimmed()).pipe(
+  Schema.brand('CatalogQuantityTenantId'),
+  Schema.decodeTo(Schema.String),
+);
+const CatalogQuantityUnitIdSchema = Schema.String.check(Schema.isUUID(), Schema.isTrimmed()).pipe(
+  Schema.brand('CatalogQuantityUnitId'),
+  Schema.decodeTo(Schema.String),
+);
+const CatalogQuantityConfigurationKeySchema = quantityText.pipe(
+  Schema.brand('CatalogQuantityConfigurationKey'),
+  Schema.decodeTo(quantityText),
+);
+const validQuantitySchema = Schema.Struct({
+  changed: Schema.Boolean,
+  notice: Schema.Union([Schema.Literal('ROUNDED'), Schema.Null]),
+  requested: quantityText,
+  resulting: quantityText,
+  rounding: Schema.Literals(['UP', 'DOWN', 'HALF_UP']),
+  status: Schema.Literal('VALID'),
+  step: quantityText,
+  targetId: CatalogQuantityTargetIdSchema,
+  tenantId: CatalogQuantityTenantIdSchema,
+  unitId: CatalogQuantityUnitIdSchema,
+  unitRuleRevision: Schema.Int.check(Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })),
+});
+const packageResolutionSchema = Schema.Struct({
+  amount: quantityText,
+  path: Schema.Array(CatalogSelectionRevisionSchema),
+  status: Schema.Literal('VALID'),
+  unitRef: CatalogResourceRefSchema,
+});
+const packageContentRevisionSchema = Schema.Struct({
+  amount: quantityText,
+  configurationKey: Schema.optionalKey(CatalogQuantityConfigurationKeySchema),
+  form: VariantExactFormSchema,
+  lower: Schema.optionalKey(Schema.Struct({ count: quantityText, revision: CatalogSelectionRevisionSchema })),
+  reference: CatalogSelectionRevisionSchema,
+  setComposition: Schema.optionalKey(CatalogSelectionRevisionSchema),
+  unitRef: CatalogResourceRefSchema,
+});
+
+const CatalogQuantityHandoffReadySchema = Schema.Struct({
+  divisible: Schema.Boolean,
+  evidence: CatalogSelectionValidEvidenceSchema,
+  packageContent: Schema.optionalKey(packageResolutionSchema),
+  packageRevision: Schema.optionalKey(packageContentRevisionSchema),
+  quantity: validQuantitySchema,
+  selection: CatalogSelectionSchema,
+  status: Schema.Literal('READY'),
+  unitRef: CatalogResourceRefSchema,
+});
+export type CatalogQuantityHandoffReady = typeof CatalogQuantityHandoffReadySchema.Type;
+
+const CatalogQuantityHandoffFailureSchema = Schema.Struct({
+  reason: Schema.String,
+  status: Schema.Literals(['INVALID', 'UNVERIFIABLE', 'STALE']),
+});
+
+/** Public Commerce handoff: exact Catalog facts and evidence, without a customer policy verdict. */
+export const CatalogQuantityHandoffSchema = Schema.Union([
+  CatalogQuantityHandoffReadySchema,
+  CatalogQuantityHandoffFailureSchema,
+]);
+export type CatalogQuantityHandoff = typeof CatalogQuantityHandoffSchema.Type;
 
 const sameSelection = Schema.toEquivalence(CatalogSelectionSchema);
 const matchesQuantityIdentity = (input: {
@@ -218,7 +283,7 @@ export const prepareCatalogQuantityHandoff = (input: HandoffInput): CatalogQuant
   ) {
     return { reason: 'Package content does not equal the prepared number of exact packages', status: 'STALE' };
   }
-  const ready: Extract<CatalogQuantityHandoff, { status: 'READY' }> = {
+  const ready: CatalogQuantityHandoffReady = {
     divisible: input.divisible,
     evidence: input.evidence,
     quantity: input.quantity,

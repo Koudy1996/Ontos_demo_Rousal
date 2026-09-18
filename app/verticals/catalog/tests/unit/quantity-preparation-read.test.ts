@@ -24,54 +24,31 @@ const selection = {
     tenantId,
   },
 } as const;
-const request = Schema.decodeUnknownSync(QuantityPreparationRequestSchema)({ amount: '2.537', selection });
+const request = Schema.decodeUnknownSync(QuantityPreparationRequestSchema)({
+  amount: '2.537',
+  purpose: 'PURCHASE_ACCEPTANCE',
+  selection,
+});
 
 describe('Catalog governed Quantity preparation', () => {
-  it.effect('returns the exact PREPARE candidate snapshot without claiming approval or price', () =>
-    Effect.gen(function* preparesCandidate() {
+  it.effect('returns the purpose-scoped Catalog handoff without claiming a commercial verdict', () =>
+    Effect.gen(function* preparesHandoff() {
       const observed: unknown[] = [];
       const services = {
-        prepare: (input: QuantityPreparationRequest & { readonly phase: 'PREPARE' }) => {
+        prepare: (input: QuantityPreparationRequest) => {
           observed.push(input);
           return Effect.succeed({
-            divisible: true,
-            quantity: {
-              changed: true,
-              notice: 'ROUNDED',
-              requested: '2.537',
-              resulting: '2.54',
-              rounding: 'UP',
-              status: 'VALID',
-              step: '0.01',
-              targetId: selection.variantRef.resourceId,
-              tenantId,
-              unitId: '44444444-4444-4444-8444-444444444444',
-              unitRuleRevision: 7,
-            },
-            selection,
-            sources: {
-              packageDefinition: null,
-              product: { resourceRef: selection.productRef, revision: 2 },
-              targetDivisibilityRevision: 5,
-              unitRuleRevision: 7,
-              variant: { resourceRef: selection.variantRef, revision: 3 },
-            },
-            status: 'PREPARED',
-            unitRef: {
-              moduleId: 'commerce.catalog',
-              resourceId: '44444444-4444-4444-8444-444444444444',
-              resourceType: 'commerce.catalog.product-unit',
-              tenantId,
-            },
+            reason: 'Exact Current quantity basis is unavailable',
+            status: 'UNVERIFIABLE',
           } as const);
         },
       };
       // @ts-expect-error The fake supplies the one owner-local service exercised by this read.
       const result = yield* readQuantityPreparation(request, tenantId, services);
-      expect(observed).toEqual([{ amount: '2.537', phase: 'PREPARE', selection: request.selection }]);
-      expect(result.status).toBe('PREPARED');
+      expect(observed).toEqual([request]);
+      expect(result.status).toBe('UNVERIFIABLE');
       expect(() => Schema.encodeSync(QuantityPreparationResponseSchema)(result)).not.toThrow();
-      expect(JSON.stringify(result)).not.toContain('APPROVED');
+      expect(JSON.stringify(result)).not.toMatch(/allowed|approved|customer/iu);
     }),
   );
 

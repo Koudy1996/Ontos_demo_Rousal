@@ -1,6 +1,7 @@
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
+import { CatalogQuantityHandoffSchema } from '../../shared/domain/catalog-quantity-handoff.ts';
 import type { CatalogQuantityHandoffBasisFacts } from '../../shared/domain/catalog-quantity-handoff.ts';
 import { CatalogResourceRefSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import type { CatalogResourceRef } from '../../shared/domain/catalog-revision-reference.ts';
@@ -159,6 +160,7 @@ describe('Catalog quantity handoff seam', () => {
         expect(keys).toContain(key);
       }
       expect(keys).toHaveLength(8);
+      expect(() => Schema.encodeSync(CatalogQuantityHandoffSchema)(result)).not.toThrow();
       expect(JSON.stringify(result)).not.toMatch(/allowed|denied|minimum|multiple|customer/iu);
     }),
   );

@@ -2,48 +2,17 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import {
-  CatalogResourceRefSchema,
-  CatalogRevisionResourceIdSchema,
-  CatalogRevisionTenantIdSchema,
-} from '../domain/catalog-revision-reference.ts';
-import { CatalogSelectionRevisionSchema, CatalogSelectionSchema } from '../domain/catalog-selection-evidence.ts';
+import { CatalogQuantityHandoffSchema } from '../domain/catalog-quantity-handoff.ts';
+import { CatalogSelectionSchema } from '../domain/catalog-selection-evidence.ts';
+import { CatalogSelectionPurposeSchema } from '../domain/catalog-selection-purpose.ts';
 
 export const QuantityPreparationRequestSchema = Schema.Struct({
   amount: Schema.String.check(Schema.isMaxLength(1000)),
+  purpose: CatalogSelectionPurposeSchema,
   selection: CatalogSelectionSchema,
 });
 export type QuantityPreparationRequest = typeof QuantityPreparationRequestSchema.Type;
-const QuantityPreparationValidQuantitySchema = Schema.Struct({
-  changed: Schema.Boolean,
-  notice: Schema.Union([Schema.Literal('ROUNDED'), Schema.Null]),
-  requested: Schema.String,
-  resulting: Schema.String,
-  rounding: Schema.Literals(['UP', 'DOWN', 'HALF_UP']),
-  status: Schema.Literal('VALID'),
-  step: Schema.String,
-  targetId: CatalogRevisionResourceIdSchema,
-  tenantId: CatalogRevisionTenantIdSchema,
-  unitId: CatalogRevisionResourceIdSchema,
-  unitRuleRevision: Schema.Int,
-});
-export const QuantityPreparationResponseSchema = Schema.Union([
-  Schema.Struct({
-    divisible: Schema.Boolean,
-    quantity: QuantityPreparationValidQuantitySchema,
-    selection: CatalogSelectionSchema,
-    sources: Schema.Struct({
-      packageDefinition: Schema.Union([CatalogSelectionRevisionSchema, Schema.Null]),
-      product: CatalogSelectionRevisionSchema,
-      targetDivisibilityRevision: Schema.Int,
-      unitRuleRevision: Schema.Int,
-      variant: CatalogSelectionRevisionSchema,
-    }),
-    status: Schema.Literal('PREPARED'),
-    unitRef: CatalogResourceRefSchema,
-  }),
-  Schema.Struct({ reason: Schema.String, status: Schema.Literals(['INVALID', 'INDETERMINATE', 'STALE']) }),
-]);
+export const QuantityPreparationResponseSchema = CatalogQuantityHandoffSchema;
 export type QuantityPreparationResponse = typeof QuantityPreparationResponseSchema.Type;
 
 export const QuantityPreparationAuthenticationProblemSchema = makeProblemDetailsSchema(
@@ -76,24 +45,23 @@ export const QuantityPreparationInternalProblemSchema = makeProblemDetailsSchema
   500,
 );
 
-export const QuantityPreparationApi = HttpApi.make('QuantityPreparationApi').add(
-  HttpApiGroup.make('quantityPreparation').add(
-    HttpApiEndpoint.post('execute', '/reads/quantity-preparation', {
-      error: [
-        QuantityPreparationInvalidProblemSchema,
-        QuantityPreparationAuthenticationProblemSchema,
-        QuantityPreparationForbiddenProblemSchema,
-        QuantityPreparationNotFoundProblemSchema,
-        QuantityPreparationPolicyConflictProblemSchema,
-        QuantityPreparationPolicyProblemSchema,
-        QuantityPreparationUnavailableProblemSchema,
-        QuantityPreparationInternalProblemSchema,
-      ],
-      headers: {},
-      params: {},
-      payload: QuantityPreparationRequestSchema,
-      query: {},
-      success: QuantityPreparationResponseSchema,
-    }),
-  ),
-);
+export const QuantityPreparationEndpoint = HttpApiEndpoint.post('execute', '/reads/quantity-preparation', {
+  error: [
+    QuantityPreparationInvalidProblemSchema,
+    QuantityPreparationAuthenticationProblemSchema,
+    QuantityPreparationForbiddenProblemSchema,
+    QuantityPreparationNotFoundProblemSchema,
+    QuantityPreparationPolicyConflictProblemSchema,
+    QuantityPreparationPolicyProblemSchema,
+    QuantityPreparationUnavailableProblemSchema,
+    QuantityPreparationInternalProblemSchema,
+  ],
+  headers: {},
+  params: {},
+  payload: QuantityPreparationRequestSchema,
+  query: {},
+  success: QuantityPreparationResponseSchema,
+});
+export const QuantityPreparationGroup = HttpApiGroup.make('quantityPreparation').add(QuantityPreparationEndpoint);
+export const QuantityPreparationApi: HttpApi.HttpApi<'QuantityPreparationApi', typeof QuantityPreparationGroup> =
+  HttpApi.make('QuantityPreparationApi').add(QuantityPreparationGroup);

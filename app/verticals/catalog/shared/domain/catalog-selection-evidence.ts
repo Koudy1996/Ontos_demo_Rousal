@@ -282,7 +282,7 @@ const assessmentFields = {
   selection: CatalogSelectionSchema,
   validUntil: Schema.optionalKey(CatalogRevisionInstantSchema),
 };
-const CatalogSelectionValidEvidenceSchema = Schema.Struct({
+export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
   ...assessmentFields,
   membership: CatalogSelectionMembershipSchema,
   status: Schema.Literal('VALID'),

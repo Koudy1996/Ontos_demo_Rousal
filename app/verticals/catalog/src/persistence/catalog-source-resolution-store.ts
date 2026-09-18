@@ -192,8 +192,7 @@ export const catalogSourceResolutionStoreForScope = (
             valueFingerprint: assertion.valueFingerprint,
           })
           .onConflictDoNothing()
-          .returning({ assertionId: catalogAcceptedSourceAssertions.assertionId })
-          .pipe(Effect.mapError(unavailable));
+          .returning({ assertionId: catalogAcceptedSourceAssertions.assertionId });
         if (inserted.length === 1) {
           return { status: 'INSERTED' } as const;
         }
@@ -212,14 +211,13 @@ export const catalogSourceResolutionStoreForScope = (
               eq(catalogAcceptedSourceAssertions.sourceRecordId, sourceRecord.recordId),
               eq(catalogAcceptedSourceAssertions.sourceRevision, assertion.sourceRevision),
             ),
-          )
-          .pipe(Effect.mapError(unavailable));
+          );
         return rows.length === 1 &&
           rows[0]?.assertionId === assertion.assertionId &&
           rows[0]?.valueFingerprint === assertion.valueFingerprint
           ? ({ status: 'ALREADY_PRESENT' } as const)
           : ({ reason: 'Source revision conflicts with accepted immutable evidence', status: 'CONFLICT' } as const);
-      }),
+      }).pipe(Effect.mapError(unavailable)),
     appendOverrideRevision: ({ expectedRevision, override }) =>
       Effect.gen(function* appendOverrideRevision() {
         if (override.scope.tenantId !== scope.tenantId) {
@@ -258,7 +256,7 @@ export const catalogSourceResolutionStoreForScope = (
                   ),
                 )
                 .returning({ revision: catalogLocalOverrideHeads.latestRevision });
-        const advanced = yield* advanceHead.pipe(Effect.mapError(unavailable));
+        const advanced = yield* advanceHead;
         if (advanced.length !== 1) {
           return {
             activeRevision: expectedRevision,
@@ -266,25 +264,22 @@ export const catalogSourceResolutionStoreForScope = (
             status: 'CONFLICT',
           } as const;
         }
-        yield* transaction
-          .insert(catalogLocalOverrideRevisions)
-          .values({
-            actionInvocationId: context.actionInvocationId,
-            actorPrincipalId: override.actorPrincipalId,
-            decidedAt: context.acceptedAt,
-            evidenceRef: override.evidenceRef,
-            factKey: override.scope.factKey,
-            lifecycle: override.lifecycle,
-            reason: override.reason,
-            revision: override.revision,
-            targetId: override.scope.targetId,
-            targetKind: override.scope.targetKind,
-            tenantId: override.scope.tenantId,
-            value: override.value,
-          })
-          .pipe(Effect.mapError(unavailable));
+        yield* transaction.insert(catalogLocalOverrideRevisions).values({
+          actionInvocationId: context.actionInvocationId,
+          actorPrincipalId: override.actorPrincipalId,
+          decidedAt: context.acceptedAt,
+          evidenceRef: override.evidenceRef,
+          factKey: override.scope.factKey,
+          lifecycle: override.lifecycle,
+          reason: override.reason,
+          revision: override.revision,
+          targetId: override.scope.targetId,
+          targetKind: override.scope.targetKind,
+          tenantId: override.scope.tenantId,
+          value: override.value,
+        });
         return { status: 'APPLIED' } as const;
-      }),
+      }).pipe(Effect.mapError(unavailable)),
     readAcceptedBases,
     readOverrides,
   };

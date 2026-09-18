@@ -16,7 +16,7 @@ import type {
   QuantityPreparationRequest,
   QuantityPreparationResponse,
 } from '../../shared/apis/quantity-preparation.ts';
-import { catalogQuantityPreparationForScope } from '../persistence/catalog-quantity-preparation.ts';
+import { catalogQuantityHandoffForScope } from '../persistence/catalog-quantity-handoff.ts';
 
 const readKey = 'commerce.catalog.api.quantity-preparation';
 const moduleKey = 'commerce.catalog';
@@ -41,7 +41,7 @@ const unavailable = (cause: unknown) => {
 export const readQuantityPreparation = Effect.fn('QuantityPreparationRead.read')(function* readQuantityPreparation(
   input: QuantityPreparationRequest,
   tenantId: string,
-  services: ReturnType<typeof catalogQuantityPreparationForScope>,
+  services: ReturnType<typeof catalogQuantityHandoffForScope>,
 ): Effect.fn.Return<QuantityPreparationResponse, ReadHandlerNotFound | ReadHandlerUnavailable> {
   if (input.selection.productRef.tenantId !== tenantId) {
     return yield* new ReadHandlerNotFound({
@@ -49,12 +49,7 @@ export const readQuantityPreparation = Effect.fn('QuantityPreparationRead.read')
       reason: 'The requested Catalog Product does not exist in the trusted Tenant',
     });
   }
-  const result = yield* services
-    .prepare({ amount: input.amount, phase: 'PREPARE', selection: input.selection })
-    .pipe(Effect.mapError(unavailable));
-  return result.status === 'PREPARED'
-    ? { ...result, sources: { ...result.sources, packageDefinition: result.sources.packageDefinition ?? null } }
-    : result;
+  return yield* services.prepare(input).pipe(Effect.mapError(unavailable));
 });
 
 export const quantityPreparationRead = defineRead(
@@ -80,11 +75,11 @@ export const quantityPreparationRead = defineRead(
   },
   Effect.fn('QuantityPreparationRead.handler')(function* handler(
     input: QuantityPreparationRequest,
-    context: ReadHandlerContext<ReturnType<typeof catalogQuantityPreparationForScope>>,
+    context: ReadHandlerContext<ReturnType<typeof catalogQuantityHandoffForScope>>,
   ) {
     const result = yield* readQuantityPreparation(input, context.scope.tenantId, context.services);
-    return { evidence: { resultCount: result.status === 'PREPARED' ? 1 : 0 }, result };
+    return { evidence: { resultCount: result.status === 'READY' ? 1 : 0 }, result };
   }),
-  (transaction, scope) => Effect.succeed(catalogQuantityPreparationForScope(transaction, scope)),
+  (transaction, scope) => Effect.succeed(catalogQuantityHandoffForScope(transaction, scope)),
   () => ({ kind: 'module', moduleId: moduleKey }),
 );
