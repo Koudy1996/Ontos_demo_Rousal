@@ -43,9 +43,9 @@ const pointersAreCurrent = (pointers: {
   product_brand_mismatch: number;
   product_locale_mismatch: number;
   product_size_usage_mismatch: number;
-  source_override_mismatch: number;
   relationship_mismatch: number;
   set_composition_mismatch: number;
+  source_override_mismatch: number;
   type_mismatch: number;
   unit_rule_mismatch: number;
   variant_axis_integrity_mismatch: number;
@@ -222,9 +222,9 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         product_brand_mismatch: number;
         product_locale_mismatch: number;
         product_size_usage_mismatch: number;
-        source_override_mismatch: number;
         relationship_mismatch: number;
         set_composition_mismatch: number;
+        source_override_mismatch: number;
         type_mismatch: number;
         unit_rule_mismatch: number;
         variant_axis_integrity_mismatch: number;

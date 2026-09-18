@@ -218,7 +218,7 @@ it('retains source assertions and override revisions as immutable evidence behin
     new URL('../../drizzle/20260918185931_flawless_tarantula/migration.sql', import.meta.url),
     'utf-8',
   );
-  expect(migration.match(/FORCE ROW LEVEL SECURITY/g)).toHaveLength(3);
+  expect(migration.match(/FORCE ROW LEVEL SECURITY/gu)).toHaveLength(3);
   expect(migration).toContain('catalog_accepted_source_assertions_append_only');
   expect(migration).toContain('catalog_local_override_revisions_append_only');
   expect(migration).toContain('catalog_local_override_heads_identity_immutable');
