@@ -9,6 +9,7 @@ import { packageContentRevisions, packageDefinitions, productVariants, products 
 import {
   packagePersistenceForScope,
   PackagePersistenceUnavailable,
+  resolveEffectiveRevision,
 } from '../../src/persistence/package-persistence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -76,8 +77,41 @@ const futureDefinitionSelection = () => ({
     }),
   }),
 });
-const priorContentSelection = () => ({
-  where: () => ({ limit: () => Effect.succeed([{ effectiveAt: new Date('2026-01-01T00:00:00.000Z') }]) }),
+const contentSelection = (pending: boolean) => {
+  let reads = 0;
+  return () => ({
+    where: () => ({
+      limit: () => {
+        const isPrior = reads === 0;
+        reads += 1;
+        if (isPrior) {
+          return Effect.succeed([{ effectiveAt: new Date('2026-01-01T00:00:00.000Z') }]);
+        }
+        return Effect.succeed(pending ? [{ effectiveAt: new Date('2099-01-01T00:00:00.000Z'), revision: 2 }] : []);
+      },
+    }),
+  });
+};
+
+const resolved = (revisions: readonly { readonly effectiveAt: Date; readonly revision: number }[], at: Date) =>
+  Match.value(resolveEffectiveRevision(revisions, at)).pipe(
+    Match.tag('resolved', ({ revision }) => revision),
+    Match.orElse(() => 0),
+  );
+
+describe('effective Package content revision', () => {
+  const first = { effectiveAt: new Date('2026-01-01T00:00:00.000Z'), revision: 1 };
+  const next = { effectiveAt: new Date('2099-01-01T00:00:00.000Z'), revision: 2 };
+  it('uses half-open intervals before, at, and after a scheduled successor', () => {
+    expect(resolved([next, first], new Date('2098-12-31T23:59:59.999Z'))).toBe(1);
+    expect(resolved([first, next], new Date('2099-01-01T00:00:00.000Z'))).toBe(2);
+    expect(resolved([first, next], new Date('2100-01-01T00:00:00.000Z'))).toBe(2);
+    expect(resolved([first, next], new Date('2025-01-01T00:00:00.000Z'))).toBe(0);
+  });
+  it('rejects duplicate effectiveness and gaps in revision history', () => {
+    expect(resolved([first, { ...next, effectiveAt: first.effectiveAt }], next.effectiveAt)).toBe(0);
+    expect(resolved([first, { ...next, revision: 3 }], next.effectiveAt)).toBe(0);
+  });
 });
 
 describe('Package persistence', () => {
@@ -225,28 +259,67 @@ describe('Package persistence', () => {
         expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
         reason: payload.reason,
       });
+      const writes: unknown[] = [];
+      const selectContent = contentSelection(false);
       const transaction = {
-        insert: () => {
-          throw new Error('Future content must not be appended as Current');
-        },
+        insert: (table: typeof packageContentRevisions) => ({
+          values: (value: typeof packageContentRevisions.$inferInsert) => {
+            writes.push([table, value]);
+            return Effect.succeed([]);
+          },
+        }),
         select: () => ({
           from: (table: typeof packageDefinitions | typeof packageContentRevisions) =>
-            table === packageDefinitions ? futureDefinitionSelection() : priorContentSelection(),
+            table === packageDefinitions ? futureDefinitionSelection() : selectContent(),
         }),
         update: () => {
           throw new Error('Future content must not advance Current');
         },
       };
-      const basis = { verify: () => Effect.die('Future content must not be verified as Current') };
+      const basis = { verify: () => Effect.succeed(true) };
       // @ts-expect-error Only the exercised Drizzle query chains are mocked.
       const service = packagePersistenceForScope(transaction, scope, basis);
+      const outcome = yield* service.revise({ ...evidence, payload: revisionPayload });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('revised', ({ contentRevision }) => contentRevision.revision),
+          Match.orElse(() => 0),
+        ),
+      ).toBe(2);
+      expect(writes).toEqual([[packageContentRevisions, expect.objectContaining({ revision: 2 })]]);
+    }),
+  );
+
+  it.effect('rejects a conflicting pending schedule without overwriting Current or history', () =>
+    Effect.gen(function* conflictingSchedule() {
+      const selectContent = contentSelection(true);
+      const transaction = {
+        insert: () => {
+          throw new Error('Existing schedule must remain immutable');
+        },
+        select: () => ({
+          from: (table: typeof packageDefinitions | typeof packageContentRevisions) =>
+            table === packageDefinitions ? futureDefinitionSelection() : selectContent(),
+        }),
+        update: () => {
+          throw new Error('Current must remain unchanged');
+        },
+      };
+      const revisionPayload = Schema.decodeUnknownSync(RevisePackageDefinitionPayloadSchema)({
+        content: { ...payload.content, effectiveAt: '2100-01-01T00:00:00.000Z' },
+        evidenceRefs: payload.evidenceRefs,
+        expectedCurrent: { resourceRef: ref('package-definition', packageId), revision: 1 },
+        reason: payload.reason,
+      });
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = packagePersistenceForScope(transaction, scope, { verify: () => Effect.succeed(true) });
       const outcome = yield* service.revise({ ...evidence, payload: revisionPayload });
       expect(
         Match.value(outcome).pipe(
           Match.tag('invalid', ({ reason }) => reason),
           Match.orElse(() => ''),
         ),
-      ).toBe('Future-effective Package content scheduling is not supported');
+      ).toBe('A successor content revision is already scheduled');
     }),
   );
 

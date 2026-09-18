@@ -14,8 +14,35 @@ type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, n
 type Content = typeof PackageDefinitionContentInputSchema.Type;
 type DefinitionRow = typeof packageDefinitions.$inferSelect;
 const packageType = 'commerce.catalog.package-definition';
+const moduleId = 'commerce.catalog';
 const variantType = 'commerce.catalog.variant';
 const invalidReferencesReason = 'Package references or evidence are invalid';
+
+/** A revision owns [effectiveAt, next effectiveAt); a future row never wins an earlier as-of read. */
+export const resolveEffectiveRevision = (
+  revisions: readonly { readonly effectiveAt: Date; readonly revision: number }[],
+  at: Date,
+): { readonly _tag: 'resolved'; readonly revision: number } | { readonly _tag: 'invalid' } => {
+  const atMillis = DateTime.toEpochMillis(DateTime.makeUnsafe(at));
+  if (!Number.isFinite(atMillis)) {
+    return { _tag: 'invalid' };
+  }
+  const ordered = revisions.toSorted((left, right) => left.revision - right.revision);
+  let effective: number | undefined;
+  let previousTime = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < ordered.length; index += 1) {
+    const row = ordered[index];
+    const rowMillis = row === undefined ? Number.NaN : DateTime.toEpochMillis(DateTime.makeUnsafe(row.effectiveAt));
+    if (row === undefined || row.revision !== index + 1 || !Number.isFinite(rowMillis) || rowMillis <= previousTime) {
+      return { _tag: 'invalid' };
+    }
+    previousTime = rowMillis;
+    if (previousTime <= atMillis) {
+      effective = row.revision;
+    }
+  }
+  return effective === undefined ? { _tag: 'invalid' } : { _tag: 'resolved', revision: effective };
+};
 
 export class PackagePersistenceUnavailable extends Schema.TaggedError<PackagePersistenceUnavailable>()(
   'PackagePersistenceUnavailable',
@@ -86,7 +113,7 @@ const result = Effect.fn('PackagePersistence.result')(function* result(
   row: DefinitionRow,
 ) {
   const ref = yield* Schema.decodeEffect(PackageDefinitionRefSchema)({
-    moduleId: 'commerce.catalog',
+    moduleId,
     resourceId: row.packageDefinitionId,
     resourceType: packageType,
     tenantId: row.tenantId,
@@ -163,6 +190,7 @@ export const packagePersistenceForScope = (
     row: DefinitionRow,
     content: Content,
     input: Evidence & { readonly payload: { readonly evidenceRefs: readonly string[]; readonly reason: string } },
+    revision = row.currentRevision,
   ) =>
     transaction
       .insert(packageContentRevisions)
@@ -180,7 +208,7 @@ export const packagePersistenceForScope = (
         packageDefinitionId: row.packageDefinitionId,
         productId: row.productId,
         reason: input.payload.reason,
-        revision: row.currentRevision,
+        revision,
         setCompositionResourceId: content.setComposition?.resourceRef.resourceId ?? null,
         setCompositionRevision: content.setComposition?.revision ?? null,
         tenantId,
@@ -282,15 +310,29 @@ export const packagePersistenceForScope = (
     if (DateTime.toEpochMillis(DateTime.makeUnsafe(content.effectiveAt)) <= prior.effectiveAt.getTime()) {
       return { _tag: 'invalid', reason: 'Successor effectiveness must follow the prior content revision' };
     }
-    // currentRevision is also consumed as the effective Current pointer by Package Option and
-    // activation. Until those readers support an as-of timeline, never publish a future row.
-    if (
-      DateTime.toEpochMillis(DateTime.makeUnsafe(content.effectiveAt)) > DateTime.toEpochMillis(yield* DateTime.now)
-    ) {
-      return { _tag: 'invalid', reason: 'Future-effective Package content scheduling is not supported' };
+    const [pending] = yield* getContent(id, row.currentRevision + 1);
+    if (pending !== undefined) {
+      return { _tag: 'invalid', reason: 'A successor content revision is already scheduled' };
     }
     if (!(yield* verify(content, id))) {
       return { _tag: 'invalid', reason: 'Package content basis is invalid' };
+    }
+    const now = yield* DateTime.now;
+    if (DateTime.toEpochMillis(DateTime.makeUnsafe(content.effectiveAt)) > DateTime.toEpochMillis(now)) {
+      // Definition row is locked above. Keep its effective Current pointer stable; a second
+      // schedule sees the immutable next revision and fails instead of overwriting it.
+      yield* append(row, content, input, row.currentRevision + 1);
+      const ref = yield* Schema.decodeEffect(PackageDefinitionRefSchema)({
+        moduleId,
+        resourceId: id,
+        resourceType: packageType,
+        tenantId,
+      }).pipe(Effect.mapError(unavailable));
+      const contentRevision = yield* Schema.decodeEffect(PackageDefinitionSelectionRevisionSchema)({
+        resourceRef: ref,
+        revision: row.currentRevision + 1,
+      }).pipe(Effect.mapError(unavailable));
+      return { _tag: 'revised', contentRevision, definitionRef: ref };
     }
     const [updated] = yield* transaction
       .update(packageDefinitions)
@@ -341,6 +383,10 @@ export const packagePersistenceForScope = (
     const [prior] = yield* getContent(id, row.currentRevision);
     if (prior === undefined) {
       return yield* unavailable();
+    }
+    const [pending] = yield* getContent(id, row.currentRevision + 1);
+    if (pending !== undefined) {
+      return { _tag: 'invalid', reason: 'Cannot retire while a successor content revision is scheduled' };
     }
     const retiredAt = DateTime.toDateUtc(yield* DateTime.now);
     if (retiredAt.getTime() <= prior.effectiveAt.getTime()) {
