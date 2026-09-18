@@ -116,22 +116,24 @@ const rowsFor = (table: BasisTable, options: BasisOptions): readonly object[] =>
     ];
   }
   if (table === packageContentRevisions) {
+    const content = {
+      amount: '1',
+      configurationKey: null,
+      lifecycleState: 'ACTIVE',
+      lowerCount: null,
+      lowerPackageDefinitionId: null,
+      lowerRevision: null,
+      packageDefinitionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      productId: 'product',
+      setCompositionResourceId: null,
+      setCompositionRevision: null,
+      unitResourceId: unitId,
+      unitResourceType: 'commerce.catalog.product-unit',
+      variantId: 'variant',
+    };
     return [
-      {
-        amount: '1',
-        configurationKey: null,
-        effectiveAt: new Date('2026-09-17T00:00:00.000Z'),
-        lifecycleState: 'ACTIVE',
-        lowerCount: null,
-        lowerPackageDefinitionId: null,
-        lowerRevision: null,
-        productId: 'product',
-        setCompositionResourceId: null,
-        setCompositionRevision: null,
-        unitResourceId: unitId,
-        unitResourceType: 'commerce.catalog.product-unit',
-        variantId: 'variant',
-      },
+      { ...content, effectiveAt: new Date('2026-09-16T00:00:00.000Z'), revision: 1 },
+      { ...content, effectiveAt: new Date('2026-09-17T00:00:00.000Z'), revision: 2 },
     ];
   }
   if (table === packageOptionRoleRevisions) {
@@ -150,15 +152,16 @@ const rowsFor = (table: BasisTable, options: BasisOptions): readonly object[] =>
   }
   throw new Error('Unexpected component basis table');
 };
-const selectedRows = (rows: readonly object[], unavailable: boolean) => ({
-  where: () => ({
-    limit: () => (unavailable ? Effect.fail(new Error('Owner read unavailable')) : Effect.succeed(rows)),
-  }),
-});
+const selectedRows = (table: BasisTable, rows: readonly object[], unavailable: boolean) => {
+  const result = unavailable ? Effect.fail(new Error('Owner read unavailable')) : Effect.succeed(rows);
+  return {
+    where: () => (table === packageContentRevisions ? result : { limit: () => result }),
+  };
+};
 const transactionFor = (options: BasisOptions = {}) => ({
   select: () => ({
     from: (table: BasisTable) =>
-      selectedRows(rowsFor(table, options), table === products && options.unavailableProduct === true),
+      selectedRows(table, rowsFor(table, options), table === products && options.unavailableProduct === true),
   }),
 });
 
