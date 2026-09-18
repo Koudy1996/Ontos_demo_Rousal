@@ -8,7 +8,10 @@ import type {
   CatalogActionResultCodec,
   CatalogActionResultIdentity,
 } from '../persistence/catalog-action-result-snapshot.ts';
-import { catalogActionResultSnapshotForScope } from '../persistence/catalog-action-result-snapshot.ts';
+import {
+  catalogActionResultSnapshotForScope,
+  validCatalogActionResultIdentity,
+} from '../persistence/catalog-action-result-snapshot.ts';
 // oxlint-disable sonarjs/function-name -- Effect.catchTags requires declared error tag keys. owner: Catalog #478; expires: 2027-03-31.
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -28,6 +31,9 @@ export const recoverCatalogActionResult = Effect.fn('CatalogActionResultRecovery
   identity: CatalogActionResultIdentity,
   codec: CatalogActionResultCodec<Result>,
 ) {
+  if (!validCatalogActionResultIdentity(identity)) {
+    return { status: 'absent' } as const;
+  }
   const runtime = yield* ActionRuntime;
   const resolution = yield* runtime
     .resolveActionCommit({ invocationId: identity.actionInvocationId, principal: scope })

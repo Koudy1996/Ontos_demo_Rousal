@@ -39,7 +39,11 @@ const divergentReplay = (): CatalogPersistenceConflict =>
     reason: 'Action invocation already has a different result snapshot',
   });
 
-const validIdentity = ({ actionInvocationId, actionKey, schemaVersion }: CatalogActionResultIdentity): boolean =>
+export const validCatalogActionResultIdentity = ({
+  actionInvocationId,
+  actionKey,
+  schemaVersion,
+}: CatalogActionResultIdentity): boolean =>
   /^[\da-f]{8}-[\da-f]{4}-[1-8][\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/iu.test(actionInvocationId) &&
   actionKey.length > 0 &&
   actionKey.length <= 200 &&
@@ -91,7 +95,7 @@ export const catalogActionResultSnapshotForScope = <Result>(
     row.schemaVersion === identity.schemaVersion;
 
   const read = Effect.fn('CatalogActionResultSnapshot.read')(function* read(identity: CatalogActionResultIdentity) {
-    if (!validIdentity(identity)) {
+    if (!validCatalogActionResultIdentity(identity)) {
       return yield* unavailable();
     }
     const [row] = yield* readRow(identity.actionInvocationId);
@@ -108,7 +112,7 @@ export const catalogActionResultSnapshotForScope = <Result>(
     identity: CatalogActionResultIdentity,
     result: Result,
   ) {
-    if (!validIdentity(identity)) {
+    if (!validCatalogActionResultIdentity(identity)) {
       return yield* unavailable();
     }
     const encoded = yield* codec.encode(result).pipe(Effect.mapError(unavailable));
@@ -144,3 +148,12 @@ export const catalogActionResultSnapshotForScope = <Result>(
 
   return Object.freeze({ insert, read });
 };
+
+/** Call from an Action's decoded-success hook while Core's business transaction is still open. */
+export const captureCatalogActionResult = <Result>(
+  transaction: ScopedTransaction,
+  scope: OperationalScope,
+  identity: CatalogActionResultIdentity,
+  codec: CatalogActionResultCodec<Result>,
+  result: Result,
+) => catalogActionResultSnapshotForScope(transaction, scope, codec).insert(identity, result).pipe(Effect.asVoid);

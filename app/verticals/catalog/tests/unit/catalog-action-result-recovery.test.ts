@@ -89,6 +89,21 @@ const recover = (tx: ReturnType<typeof transaction>, service: ActionRuntimeServi
   ).pipe(Effect.provideService(ActionRuntime, service));
 
 describe('Catalog Action result recovery', () => {
+  it.effect('rejects malformed identity before resolving a Core invocation or reading owner data', () =>
+    Effect.gen(function* malformedIdentity() {
+      const tx = transaction(snapshot());
+      let resolutions = 0;
+      const service = runtime(() => {
+        resolutions += 1;
+        return Effect.fail(committed);
+      });
+      expect(yield* recover(tx, service, { ...identity, actionKey: ' commerce.catalog.create-product' })).toEqual({
+        status: 'absent',
+      });
+      expect(resolutions).toBe(0);
+      expect(tx.reads).toBe(0);
+    }),
+  );
   it.effect('decodes the original snapshot only after Core confirms the commit', () =>
     Effect.gen(function* committedResult() {
       const tx = transaction(snapshot());
