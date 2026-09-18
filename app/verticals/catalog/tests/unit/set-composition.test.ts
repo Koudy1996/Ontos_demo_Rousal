@@ -186,7 +186,7 @@ describe('Set composition', () => {
     expect(
       classifySetCompositionChange(original, {
         ...corrected,
-      predecessor: corrected.reference,
+        predecessor: corrected.reference,
       }),
     ).toBe('MATERIAL_CHANGE');
     expect(

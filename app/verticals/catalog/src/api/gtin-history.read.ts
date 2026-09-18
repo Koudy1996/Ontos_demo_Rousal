@@ -51,22 +51,25 @@ export const gtinHistoryRead = defineRead(
       return yield* notFound();
     }
     const empty: (typeof GtinHistoryResponseSchema.Type)['revisions'][number][] = [];
-    const revisions = yield* Effect.reduce(rows, () => empty, (accumulated, row) =>
-      Schema.decodeUnknownEffect(GtinStateSchema)(row.state).pipe(
-        Effect.mapError(unavailable),
-        Effect.map((state) => [
-          ...accumulated,
-          {
-            attributionEvidenceRef: row.attributionEvidenceRef,
-            effectiveAt: row.effectiveAt.toISOString(),
-            reason: row.reason,
-            recordedAt: row.recordedAt.toISOString(),
-            revision: row.revision,
-            state,
-            target: gtinTargetFromRow(row, context.scope.tenantId),
-          },
-        ]),
-      ),
+    const revisions = yield* Effect.reduce(
+      rows,
+      () => empty,
+      (accumulated, row) =>
+        Schema.decodeUnknownEffect(GtinStateSchema)(row.state).pipe(
+          Effect.mapError(unavailable),
+          Effect.map((state) => [
+            ...accumulated,
+            {
+              attributionEvidenceRef: row.attributionEvidenceRef,
+              effectiveAt: row.effectiveAt.toISOString(),
+              reason: row.reason,
+              recordedAt: row.recordedAt.toISOString(),
+              revision: row.revision,
+              state,
+              target: gtinTargetFromRow(row, context.scope.tenantId),
+            },
+          ]),
+        ),
     );
     return { evidence: { resultCount: revisions.length }, result: { revisions } };
   }),

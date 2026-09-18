@@ -11,19 +11,18 @@ import { mapPublishProductConfigurationActionProblem } from '../../api/publish-p
 import { mapReactivateBrandActionProblem } from '../../api/reactivate-brand-action-problems.ts';
 
 const invocationId = '33333333-3333-4333-8333-333333333333';
-const actions: readonly { readonly mapProblem: (error: ActionCoreError) => object; readonly resolution: string }[] =
-  [
-    {
-      mapProblem: mapGovernProductAttributeApplicabilityActionProblem,
-      resolution: 'RECOVER_GOVERN_PRODUCT_ATTRIBUTE_APPLICABILITY',
-    },
-    { mapProblem: mapGovernVariantAxesActionProblem, resolution: 'RECOVER_GOVERN_VARIANT_AXES' },
-    { mapProblem: mapMarkGtinUnresolvedActionProblem, resolution: 'RECOVER_MARK_GTIN_UNRESOLVED' },
-    { mapProblem: mapMoveProductCategoryActionProblem, resolution: 'RECOVER_MOVE_PRODUCT_CATEGORY' },
-    { mapProblem: mapPromotePackageDefinitionActionProblem, resolution: 'RECOVER_PROMOTE_PACKAGE_DEFINITION' },
-    { mapProblem: mapPublishProductConfigurationActionProblem, resolution: 'RECOVER_PUBLISH_PRODUCT_CONFIGURATION' },
-    { mapProblem: mapReactivateBrandActionProblem, resolution: 'RECOVER_REACTIVATE_BRAND' },
-  ];
+const actions: readonly { readonly mapProblem: (error: ActionCoreError) => object; readonly resolution: string }[] = [
+  {
+    mapProblem: mapGovernProductAttributeApplicabilityActionProblem,
+    resolution: 'RECOVER_GOVERN_PRODUCT_ATTRIBUTE_APPLICABILITY',
+  },
+  { mapProblem: mapGovernVariantAxesActionProblem, resolution: 'RECOVER_GOVERN_VARIANT_AXES' },
+  { mapProblem: mapMarkGtinUnresolvedActionProblem, resolution: 'RECOVER_MARK_GTIN_UNRESOLVED' },
+  { mapProblem: mapMoveProductCategoryActionProblem, resolution: 'RECOVER_MOVE_PRODUCT_CATEGORY' },
+  { mapProblem: mapPromotePackageDefinitionActionProblem, resolution: 'RECOVER_PROMOTE_PACKAGE_DEFINITION' },
+  { mapProblem: mapPublishProductConfigurationActionProblem, resolution: 'RECOVER_PUBLISH_PRODUCT_CONFIGURATION' },
+  { mapProblem: mapReactivateBrandActionProblem, resolution: 'RECOVER_REACTIVATE_BRAND' },
+];
 
 for (const action of actions) {
   describe(action.resolution, () => {

@@ -159,9 +159,7 @@ describe('manufacturer Action contracts', () => {
             .pipe(Effect.flip),
         ],
         { concurrency: 1 },
-      ).pipe(
-        Effect.provideService(ReadRuntime, { runRead: () => Effect.die('Unexpected governed read') }),
-      );
+      ).pipe(Effect.provideService(ReadRuntime, { runRead: () => Effect.die('Unexpected governed read') }));
       for (const failure of failures) {
         expect(failure).toMatchObject({ code: 'action_transaction_failed' });
       }
