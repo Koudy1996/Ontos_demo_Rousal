@@ -12,6 +12,7 @@ import {
 import type { OntosModuleManifestInput } from '@app/core-runtime';
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
+import { activateLocalOverrideAction } from './src/actions/activate-local-override.action.ts';
 import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
 import { ActivatePackageDefinitionRecoveryApi } from './shared/apis/activate-package-definition-recovery.ts';
 import { activatePackageOptionAction } from './src/actions/activate-package-option.action.ts';
@@ -28,9 +29,12 @@ import { attributeDefinitionResourceDescriptor } from './shared/resources/attrib
 import { BrandCurrentApi } from './shared/apis/brand-current.ts';
 import { BrandHistoryApi } from './shared/apis/brand-history.ts';
 import { brandResourceDescriptor } from './shared/resources/brand.ts';
+import { CatalogDocumentCurrentApi } from './shared/apis/catalog-document-current.ts';
 import { CatalogMediaCurrentApi } from './shared/apis/catalog-media-current.ts';
 import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.ts';
+import { CatalogSourceResolutionApi } from './shared/apis/catalog-source-resolution.ts';
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
+import { changeLocalOverrideAction } from './src/actions/change-local-override.action.ts';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
 import { ChangeProductManufacturerRecoveryApi } from './shared/apis/change-product-manufacturer-recovery.ts';
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
@@ -78,6 +82,7 @@ import { CreateVariantRecoveryApi } from './shared/apis/create-variant-recovery.
 import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product-type-unnecessary.action.ts';
 import { DecideProductTypeUnnecessaryRecoveryApi } from './shared/apis/decide-product-type-unnecessary-recovery.ts';
 import { EffectiveAttributeValuesCurrentApi } from './shared/apis/effective-attribute-values-current.ts';
+import { ExternalTargetResolutionApi } from './shared/apis/external-target-resolution.ts';
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
 import { GovernProductAttributeApplicabilityRecoveryApi } from './shared/apis/govern-product-attribute-applicability-recovery.ts';
 import { governVariantAllowedValuesAction } from './src/actions/govern-variant-allowed-values.action.ts';
@@ -86,6 +91,7 @@ import { governVariantAxesAction } from './src/actions/govern-variant-axes.actio
 import { GovernVariantAxesRecoveryApi } from './shared/apis/govern-variant-axes-recovery.ts';
 import { GtinCurrentApi } from './shared/apis/gtin-current.ts';
 import { GtinHistoryApi } from './shared/apis/gtin-history.ts';
+import { importSourceAssertionAction } from './src/actions/import-source-assertion.action.ts';
 import { ListRecordedVariantsApi } from './shared/apis/list-recorded-variants.ts';
 import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
@@ -122,6 +128,7 @@ import { reactivateProductAction } from './src/actions/reactivate-product.action
 import { ReactivateProductRecoveryApi } from './shared/apis/reactivate-product-recovery.ts';
 import { reactivateVariantAction } from './src/actions/reactivate-variant.action.ts';
 import { ReactivateVariantRecoveryApi } from './shared/apis/reactivate-variant-recovery.ts';
+import { releaseLocalOverrideAction } from './src/actions/release-local-override.action.ts';
 import { removeCatalogMediaAction } from './src/actions/remove-catalog-media.action.ts';
 import { RemoveCatalogMediaRecoveryApi } from './shared/apis/remove-catalog-media-recovery.ts';
 import { removeProductAttributeValuesAction } from './src/actions/remove-product-attribute-values.action.ts';
@@ -184,6 +191,7 @@ import { reviseProductUnitAction } from './src/actions/revise-product-unit.actio
 import { ReviseProductUnitRecoveryApi } from './shared/apis/revise-product-unit-recovery.ts';
 import { reviseSetCompositionAction } from './src/actions/revise-set-composition.action.ts';
 import { ReviseSetCompositionRecoveryApi } from './shared/apis/revise-set-composition-recovery.ts';
+import { SelectionEvidenceApi } from './shared/apis/selection-evidence.ts';
 import { SetCompositionCurrentApi } from './shared/apis/set-composition-current.ts';
 import { SetCompositionHistoryApi } from './shared/apis/set-composition-history.ts';
 import { setProductAttributeValuesAction } from './src/actions/set-product-attribute-values.action.ts';
@@ -243,12 +251,14 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
   publicSurface: {
     actions: [
       // <generated-module-manifest-actions>
+      activateLocalOverrideAction,
       activatePackageDefinitionAction,
       activatePackageOptionAction,
       addProductCategoryAssignmentAction,
       assertSizeEquivalenceAction,
       assignCatalogMediaAction,
       assignSkuAction,
+      changeLocalOverrideAction,
       changeProductManufacturerAction,
       changeProductRelationshipAction,
       changeVariantAction,
@@ -273,6 +283,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       governProductAttributeApplicabilityAction,
       governVariantAllowedValuesAction,
       governVariantAxesAction,
+      importSourceAssertionAction,
       markGtinUnresolvedAction,
       moveProductCategoryAction,
       promotePackageDefinitionAction,
@@ -281,6 +292,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       reactivateControlledAttributeValueAction,
       reactivateProductAction,
       reactivateVariantAction,
+      releaseLocalOverrideAction,
       removeCatalogMediaAction,
       removeProductAttributeValuesAction,
       removeProductCategoryAssignmentAction,
@@ -333,7 +345,9 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'assign-sku-recovery': AssignSkuRecoveryApi,
       'brand-current': BrandCurrentApi,
       'brand-history': BrandHistoryApi,
+      'catalog-document-current': CatalogDocumentCurrentApi,
       'catalog-media-current': CatalogMediaCurrentApi,
+      'catalog-source-resolution': CatalogSourceResolutionApi,
       'change-product-manufacturer-recovery': ChangeProductManufacturerRecoveryApi,
       'change-product-relationship-recovery': ChangeProductRelationshipRecoveryApi,
       'change-variant-recovery': ChangeVariantRecoveryApi,
@@ -358,6 +372,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'create-variant-recovery': CreateVariantRecoveryApi,
       'decide-product-type-unnecessary-recovery': DecideProductTypeUnnecessaryRecoveryApi,
       'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
+      'external-target-resolution': ExternalTargetResolutionApi,
       'govern-product-attribute-applicability-recovery': GovernProductAttributeApplicabilityRecoveryApi,
       'govern-variant-allowed-values-recovery': GovernVariantAllowedValuesRecoveryApi,
       'govern-variant-axes-recovery': GovernVariantAxesRecoveryApi,
@@ -417,6 +432,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'revise-product-type-recovery': ReviseProductTypeRecoveryApi,
       'revise-product-unit-recovery': ReviseProductUnitRecoveryApi,
       'revise-set-composition-recovery': ReviseSetCompositionRecoveryApi,
+      'selection-evidence': SelectionEvidenceApi,
       'set-composition-current': SetCompositionCurrentApi,
       'set-composition-history': SetCompositionHistoryApi,
       'set-product-attribute-values-recovery': SetProductAttributeValuesRecoveryApi,

@@ -4,12 +4,14 @@
 import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
 import { catalogManifest } from './vertical.manifest.ts';
 // <generated-module-registration-imports>
+import { activateLocalOverrideAction } from './src/actions/activate-local-override.action.ts';
 import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
 import { activatePackageOptionAction } from './src/actions/activate-package-option.action.ts';
 import { addProductCategoryAssignmentAction } from './src/actions/add-product-category-assignment.action.ts';
 import { assertSizeEquivalenceAction } from './src/actions/assert-size-equivalence.action.ts';
 import { assignCatalogMediaAction } from './src/actions/assign-catalog-media.action.ts';
 import { assignSkuAction } from './src/actions/assign-sku.action.ts';
+import { changeLocalOverrideAction } from './src/actions/change-local-override.action.ts';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
 import { changeVariantAction } from './src/actions/change-variant.action.ts';
@@ -34,6 +36,7 @@ import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
 import { governVariantAllowedValuesAction } from './src/actions/govern-variant-allowed-values.action.ts';
 import { governVariantAxesAction } from './src/actions/govern-variant-axes.action.ts';
+import { importSourceAssertionAction } from './src/actions/import-source-assertion.action.ts';
 import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
 import { promotePackageDefinitionAction } from './src/actions/promote-package-definition.action.ts';
@@ -42,6 +45,7 @@ import { reactivateBrandAction } from './src/actions/reactivate-brand.action.ts'
 import { reactivateControlledAttributeValueAction } from './src/actions/reactivate-controlled-attribute-value.action.ts';
 import { reactivateProductAction } from './src/actions/reactivate-product.action.ts';
 import { reactivateVariantAction } from './src/actions/reactivate-variant.action.ts';
+import { releaseLocalOverrideAction } from './src/actions/release-local-override.action.ts';
 import { removeCatalogMediaAction } from './src/actions/remove-catalog-media.action.ts';
 import { removeProductAttributeValuesAction } from './src/actions/remove-product-attribute-values.action.ts';
 import { removeProductCategoryAssignmentAction } from './src/actions/remove-product-category-assignment.action.ts';
@@ -87,12 +91,14 @@ import { updateProductAction } from './src/actions/update-product.action.ts';
 export const catalogRegistration = defineVerticalRuntimeRegistration({
   actions: [
     // <generated-module-registration-actions>
+    activateLocalOverrideAction,
     activatePackageDefinitionAction,
     activatePackageOptionAction,
     addProductCategoryAssignmentAction,
     assertSizeEquivalenceAction,
     assignCatalogMediaAction,
     assignSkuAction,
+    changeLocalOverrideAction,
     changeProductManufacturerAction,
     changeProductRelationshipAction,
     changeVariantAction,
@@ -117,6 +123,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     governProductAttributeApplicabilityAction,
     governVariantAllowedValuesAction,
     governVariantAxesAction,
+    importSourceAssertionAction,
     markGtinUnresolvedAction,
     moveProductCategoryAction,
     promotePackageDefinitionAction,
@@ -125,6 +132,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     reactivateControlledAttributeValueAction,
     reactivateProductAction,
     reactivateVariantAction,
+    releaseLocalOverrideAction,
     removeCatalogMediaAction,
     removeProductAttributeValuesAction,
     removeProductCategoryAssignmentAction,
@@ -179,7 +187,9 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'assign-sku-recovery': () => import('./src/api/assign-sku-recovery-client.ts'),
       'brand-current': () => import('./src/api/brand-current-client.ts'),
       'brand-history': () => import('./src/api/brand-history-client.ts'),
+      'catalog-document-current': () => import('./src/api/catalog-document-current-client.ts'),
       'catalog-media-current': () => import('./src/api/catalog-media-current-client.ts'),
+      'catalog-source-resolution': () => import('./src/api/catalog-source-resolution-client.ts'),
       'change-product-manufacturer-recovery': () => import('./src/api/change-product-manufacturer-recovery-client.ts'),
       'change-product-relationship-recovery': () => import('./src/api/change-product-relationship-recovery-client.ts'),
       'change-variant-recovery': () => import('./src/api/change-variant-recovery-client.ts'),
@@ -206,6 +216,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'decide-product-type-unnecessary-recovery': () =>
         import('./src/api/decide-product-type-unnecessary-recovery-client.ts'),
       'effective-attribute-values-current': () => import('./src/api/effective-attribute-values-current-client.ts'),
+      'external-target-resolution': () => import('./src/api/external-target-resolution-client.ts'),
       'govern-product-attribute-applicability-recovery': () =>
         import('./src/api/govern-product-attribute-applicability-recovery-client.ts'),
       'govern-variant-allowed-values-recovery': () =>
@@ -276,6 +287,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'revise-product-type-recovery': () => import('./src/api/revise-product-type-recovery-client.ts'),
       'revise-product-unit-recovery': () => import('./src/api/revise-product-unit-recovery-client.ts'),
       'revise-set-composition-recovery': () => import('./src/api/revise-set-composition-recovery-client.ts'),
+      'selection-evidence': () => import('./src/api/selection-evidence-client.ts'),
       'set-composition-current': () => import('./src/api/set-composition-current-client.ts'),
       'set-composition-history': () => import('./src/api/set-composition-history-client.ts'),
       'set-product-attribute-values-recovery': () =>

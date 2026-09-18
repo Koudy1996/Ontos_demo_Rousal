@@ -22,7 +22,9 @@ import { AssignSkuActionApi } from './apis/assign-sku-action.ts';
 import { AssignSkuRecoveryApi } from './apis/assign-sku-recovery.ts';
 import { BrandCurrentApi } from './apis/brand-current.ts';
 import { BrandHistoryApi } from './apis/brand-history.ts';
+import { CatalogDocumentCurrentApi } from './apis/catalog-document-current.ts';
 import { CatalogMediaCurrentApi } from './apis/catalog-media-current.ts';
+import { CatalogSourceResolutionApi } from './apis/catalog-source-resolution.ts';
 import { ChangeProductManufacturerActionApi } from './apis/change-product-manufacturer-action.ts';
 import { ChangeProductManufacturerRecoveryApi } from './apis/change-product-manufacturer-recovery.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
@@ -68,6 +70,7 @@ import { CreateVariantRecoveryApi } from './apis/create-variant-recovery.ts';
 import { DecideProductTypeUnnecessaryActionApi } from './apis/decide-product-type-unnecessary-action.ts';
 import { DecideProductTypeUnnecessaryRecoveryApi } from './apis/decide-product-type-unnecessary-recovery.ts';
 import { EffectiveAttributeValuesCurrentApi } from './apis/effective-attribute-values-current.ts';
+import { ExternalTargetResolutionApi } from './apis/external-target-resolution.ts';
 import { GovernProductAttributeApplicabilityActionApi } from './apis/govern-product-attribute-applicability-action.ts';
 import { GovernProductAttributeApplicabilityRecoveryApi } from './apis/govern-product-attribute-applicability-recovery.ts';
 import { GovernVariantAllowedValuesActionApi } from './apis/govern-variant-allowed-values-action.ts';
@@ -169,6 +172,7 @@ import { ReviseProductUnitActionApi } from './apis/revise-product-unit-action.ts
 import { ReviseProductUnitRecoveryApi } from './apis/revise-product-unit-recovery.ts';
 import { ReviseSetCompositionActionApi } from './apis/revise-set-composition-action.ts';
 import { ReviseSetCompositionRecoveryApi } from './apis/revise-set-composition-recovery.ts';
+import { SelectionEvidenceApi } from './apis/selection-evidence.ts';
 import { SetCompositionCurrentApi } from './apis/set-composition-current.ts';
 import { SetCompositionHistoryApi } from './apis/set-composition-history.ts';
 import { SetProductAttributeValuesActionApi } from './apis/set-product-attribute-values-action.ts';
@@ -229,7 +233,9 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(AssignSkuRecoveryApi)
   .addHttpApi(BrandCurrentApi)
   .addHttpApi(BrandHistoryApi)
+  .addHttpApi(CatalogDocumentCurrentApi)
   .addHttpApi(CatalogMediaCurrentApi)
+  .addHttpApi(CatalogSourceResolutionApi)
   .addHttpApi(ChangeProductManufacturerActionApi)
   .addHttpApi(ChangeProductManufacturerRecoveryApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
@@ -275,6 +281,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(DecideProductTypeUnnecessaryActionApi)
   .addHttpApi(DecideProductTypeUnnecessaryRecoveryApi)
   .addHttpApi(EffectiveAttributeValuesCurrentApi)
+  .addHttpApi(ExternalTargetResolutionApi)
   .addHttpApi(GovernProductAttributeApplicabilityActionApi)
   .addHttpApi(GovernProductAttributeApplicabilityRecoveryApi)
   .addHttpApi(GovernVariantAllowedValuesActionApi)
@@ -376,6 +383,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReviseProductUnitRecoveryApi)
   .addHttpApi(ReviseSetCompositionActionApi)
   .addHttpApi(ReviseSetCompositionRecoveryApi)
+  .addHttpApi(SelectionEvidenceApi)
   .addHttpApi(SetCompositionCurrentApi)
   .addHttpApi(SetCompositionHistoryApi)
   .addHttpApi(SetProductAttributeValuesActionApi)

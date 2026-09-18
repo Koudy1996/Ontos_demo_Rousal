@@ -40,7 +40,9 @@ import { assignSkuActionApiLive } from './assign-sku-action-server.ts';
 import { assignSkuRecoveryReadApiLive } from './assign-sku-recovery-read-server.ts';
 import { brandCurrentReadApiLive } from './brand-current-read-server.ts';
 import { brandHistoryReadApiLive } from './brand-history-read-server.ts';
+import { catalogDocumentCurrentReadApiLive } from './catalog-document-current-read-server.ts';
 import { catalogMediaCurrentReadApiLive } from './catalog-media-current-read-server.ts';
+import { catalogSourceResolutionReadApiLive } from './catalog-source-resolution-read-server.ts';
 import { changeProductManufacturerActionApiLive } from './change-product-manufacturer-action-server.ts';
 import { changeProductManufacturerRecoveryReadApiLive } from './change-product-manufacturer-recovery-read-server.ts';
 import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
@@ -86,6 +88,7 @@ import { createVariantRecoveryReadApiLive } from './create-variant-recovery-read
 import { decideProductTypeUnnecessaryActionApiLive } from './decide-product-type-unnecessary-action-server.ts';
 import { decideProductTypeUnnecessaryRecoveryReadApiLive } from './decide-product-type-unnecessary-recovery-read-server.ts';
 import { effectiveAttributeValuesCurrentReadApiLive } from './effective-attribute-values-current-read-server.ts';
+import { externalTargetResolutionReadApiLive } from './external-target-resolution-read-server.ts';
 import { governProductAttributeApplicabilityActionApiLive } from './govern-product-attribute-applicability-action-server.ts';
 import { governProductAttributeApplicabilityRecoveryReadApiLive } from './govern-product-attribute-applicability-recovery-read-server.ts';
 import { governVariantAllowedValuesActionApiLive } from './govern-variant-allowed-values-action-server.ts';
@@ -187,6 +190,7 @@ import { reviseProductUnitActionApiLive } from './revise-product-unit-action-ser
 import { reviseProductUnitRecoveryReadApiLive } from './revise-product-unit-recovery-read-server.ts';
 import { reviseSetCompositionActionApiLive } from './revise-set-composition-action-server.ts';
 import { reviseSetCompositionRecoveryReadApiLive } from './revise-set-composition-recovery-read-server.ts';
+import { selectionEvidenceReadApiLive } from './selection-evidence-read-server.ts';
 import { setCompositionCurrentReadApiLive } from './set-composition-current-read-server.ts';
 import { setCompositionHistoryReadApiLive } from './set-composition-history-read-server.ts';
 import { setProductAttributeValuesActionApiLive } from './set-product-attribute-values-action-server.ts';
@@ -320,7 +324,9 @@ export const makeCatalogApiRuntime = (
     assignSkuRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     brandCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     brandHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    catalogDocumentCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     catalogMediaCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    catalogSourceResolutionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeProductManufacturerRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -369,6 +375,7 @@ export const makeCatalogApiRuntime = (
     decideProductTypeUnnecessaryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     decideProductTypeUnnecessaryRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     effectiveAttributeValuesCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    externalTargetResolutionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     governProductAttributeApplicabilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     governProductAttributeApplicabilityRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     governVariantAllowedValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -470,6 +477,7 @@ export const makeCatalogApiRuntime = (
     reviseProductUnitRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reviseSetCompositionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseSetCompositionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    selectionEvidenceReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setCompositionCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setCompositionHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     setProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
