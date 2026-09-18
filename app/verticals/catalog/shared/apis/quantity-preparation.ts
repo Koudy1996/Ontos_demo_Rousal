@@ -45,23 +45,24 @@ export const QuantityPreparationInternalProblemSchema = makeProblemDetailsSchema
   500,
 );
 
-export const QuantityPreparationEndpoint = HttpApiEndpoint.post('execute', '/reads/quantity-preparation', {
-  error: [
-    QuantityPreparationInvalidProblemSchema,
-    QuantityPreparationAuthenticationProblemSchema,
-    QuantityPreparationForbiddenProblemSchema,
-    QuantityPreparationNotFoundProblemSchema,
-    QuantityPreparationPolicyConflictProblemSchema,
-    QuantityPreparationPolicyProblemSchema,
-    QuantityPreparationUnavailableProblemSchema,
-    QuantityPreparationInternalProblemSchema,
-  ],
-  headers: {},
-  params: {},
-  payload: QuantityPreparationRequestSchema,
-  query: {},
-  success: QuantityPreparationResponseSchema,
-});
-export const QuantityPreparationGroup = HttpApiGroup.make('quantityPreparation').add(QuantityPreparationEndpoint);
-export const QuantityPreparationApi: HttpApi.HttpApi<'QuantityPreparationApi', typeof QuantityPreparationGroup> =
-  HttpApi.make('QuantityPreparationApi').add(QuantityPreparationGroup);
+export const QuantityPreparationApi = HttpApi.make('QuantityPreparationApi').add(
+  HttpApiGroup.make('quantityPreparation').add(
+    HttpApiEndpoint.post('execute', '/reads/quantity-preparation', {
+      error: [
+        QuantityPreparationInvalidProblemSchema,
+        QuantityPreparationAuthenticationProblemSchema,
+        QuantityPreparationForbiddenProblemSchema,
+        QuantityPreparationNotFoundProblemSchema,
+        QuantityPreparationPolicyConflictProblemSchema,
+        QuantityPreparationPolicyProblemSchema,
+        QuantityPreparationUnavailableProblemSchema,
+        QuantityPreparationInternalProblemSchema,
+      ],
+      headers: {},
+      params: {},
+      payload: QuantityPreparationRequestSchema,
+      query: {},
+      success: QuantityPreparationResponseSchema,
+    }),
+  ),
+);

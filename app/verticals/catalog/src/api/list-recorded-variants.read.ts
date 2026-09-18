@@ -112,7 +112,9 @@ export const listRecordedVariantsRead = defineRead(
     schemaVersion: '1',
   },
   (input: ListRecordedVariantsRequest, context: ReadHandlerContext<VariantAxisPersistence>) =>
-    readListRecordedVariants(input, context.scope.tenantId, context.services),
+    readListRecordedVariants(input, context.scope.tenantId, context.services).pipe(
+      Effect.map(({ result }) => ({ evidence: { resultCount: result.variants.length }, result })),
+    ),
   (transaction, scope) => Effect.succeed(variantAxisPersistenceForScope(transaction, scope)),
   () => ({ kind: 'module', moduleId: catalogueModule }),
 );

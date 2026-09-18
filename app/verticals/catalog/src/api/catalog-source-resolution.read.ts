@@ -140,7 +140,7 @@ export const catalogSourceResolutionRead = defineRead(
     owningModuleKey: moduleKey,
     permissionTarget: 'tenant',
     policies: [],
-    readKey,
+    readKey: 'commerce.catalog.api.catalog-source-resolution',
     resultSchema: CatalogSourceResolutionResponseSchema,
     schemaVersion: '1',
   },

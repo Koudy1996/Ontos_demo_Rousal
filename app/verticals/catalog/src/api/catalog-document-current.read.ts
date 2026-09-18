@@ -112,27 +112,24 @@ export const readCatalogDocumentCurrent = Effect.fn('CatalogDocumentCurrentRead.
 );
 
 /** Documents Center supplies the owner evidence seam; production stays unavailable until it is bound. */
-export const makeCatalogDocumentCurrentRead = (owner: CatalogDocumentOwnerAvailabilityPort = unavailableOwner) =>
-  defineRead(
-    {
-      accessKind: 'detail',
-      entrypoint: catalogDocumentCurrentEntrypoint,
-      evidencePolicy: { captureMode: 'metadata_only', policyKey: `${readKey}.evidence.v1` },
-      inputSchema: CatalogDocumentCurrentRequestSchema,
-      legalEntityScope: 'forbidden',
-      owningModuleKey: moduleKey,
-      permissionTarget: 'tenant',
-      policies: [],
-      readKey,
-      resultSchema: CatalogDocumentCurrentResponseSchema,
-      schemaVersion: '1',
-    },
-    (input, context: ReadHandlerContext<CatalogDocumentCurrentServices>) =>
-      readCatalogDocumentCurrent(input, context.scope.tenantId, context.services).pipe(
-        Effect.map((result) => ({ evidence: { resultCount: result.assignments.length }, result })),
-      ),
-    (transaction, scope) => Effect.succeed(servicesForScope(transaction, scope, owner)),
-    () => ({ kind: 'tenant', permission: 'access' }),
-  );
-
-export const catalogDocumentCurrentRead = makeCatalogDocumentCurrentRead();
+export const catalogDocumentCurrentRead = defineRead(
+  {
+    accessKind: 'detail',
+    entrypoint: catalogDocumentCurrentEntrypoint,
+    evidencePolicy: { captureMode: 'metadata_only', policyKey: `${readKey}.evidence.v1` },
+    inputSchema: CatalogDocumentCurrentRequestSchema,
+    legalEntityScope: 'forbidden',
+    owningModuleKey: moduleKey,
+    permissionTarget: 'tenant',
+    policies: [],
+    readKey: 'commerce.catalog.api.catalog-document-current',
+    resultSchema: CatalogDocumentCurrentResponseSchema,
+    schemaVersion: '1',
+  },
+  (input, context: ReadHandlerContext<CatalogDocumentCurrentServices>) =>
+    readCatalogDocumentCurrent(input, context.scope.tenantId, context.services).pipe(
+      Effect.map((result) => ({ evidence: { resultCount: result.assignments.length }, result })),
+    ),
+  (transaction, scope) => Effect.succeed(servicesForScope(transaction, scope, unavailableOwner)),
+  () => ({ kind: 'tenant', permission: 'access' }),
+);

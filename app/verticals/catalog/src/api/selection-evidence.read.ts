@@ -75,30 +75,25 @@ export const readSelectionEvidence = Effect.fn('SelectionEvidenceRead.read')(fun
   return yield* services.assess(input, ownerEvidence).pipe(Effect.mapError(unavailable));
 });
 
-/** Production is deliberately unbound until Cart publishes the owner read; callers may inject it explicitly. */
-export const makeSelectionEvidenceRead = (
-  ownerEvidence: CatalogSelectionOwnerEvidencePort = unavailableOwnerEvidence,
-) =>
-  defineRead(
-    {
-      accessKind: 'detail',
-      entrypoint: selectionEvidenceEntrypoint,
-      evidencePolicy: { captureMode: 'metadata_only', policyKey: `${readKey}.evidence.v1` },
-      inputSchema: SelectionEvidenceRequestSchema,
-      legalEntityScope: 'forbidden',
-      owningModuleKey: moduleKey,
-      permissionTarget: 'tenant',
-      policies: [],
-      readKey,
-      resultSchema: SelectionEvidenceResponseSchema,
-      schemaVersion: '1',
-    },
-    (input, context: ReadHandlerContext<SelectionEvidenceServices>) =>
-      readSelectionEvidence(input, context.scope.tenantId, context.services).pipe(
-        Effect.map((result) => ({ evidence: { resultCount: 1 }, result })),
-      ),
-    (transaction, scope) => Effect.succeed(selectionEvidenceServices(transaction, scope, ownerEvidence)),
-    () => ({ kind: 'tenant', permission: 'access' }),
-  );
-
-export const selectionEvidenceRead = makeSelectionEvidenceRead();
+/** Production is deliberately unbound until Cart publishes the owner read. */
+export const selectionEvidenceRead = defineRead(
+  {
+    accessKind: 'detail',
+    entrypoint: selectionEvidenceEntrypoint,
+    evidencePolicy: { captureMode: 'metadata_only', policyKey: `${readKey}.evidence.v1` },
+    inputSchema: SelectionEvidenceRequestSchema,
+    legalEntityScope: 'forbidden',
+    owningModuleKey: moduleKey,
+    permissionTarget: 'tenant',
+    policies: [],
+    readKey: 'commerce.catalog.api.selection-evidence',
+    resultSchema: SelectionEvidenceResponseSchema,
+    schemaVersion: '1',
+  },
+  (input, context: ReadHandlerContext<SelectionEvidenceServices>) =>
+    readSelectionEvidence(input, context.scope.tenantId, context.services).pipe(
+      Effect.map((result) => ({ evidence: { resultCount: 1 }, result })),
+    ),
+  (transaction, scope) => Effect.succeed(selectionEvidenceServices(transaction, scope, unavailableOwnerEvidence)),
+  () => ({ kind: 'tenant', permission: 'access' }),
+);

@@ -1,4 +1,3 @@
-import { identity } from 'effect';
 import {
   MicroVerticalBuildMarkerSchema,
   MicroVerticalReadinessSchema,
@@ -424,7 +423,12 @@ type CatalogApiGroups = GroupsOf<
   | typeof UpdateProductRecoveryApi
   | typeof VariantHistoryApi
 >;
-export const catalogApi: HttpApi.HttpApi<'CatalogApi', CatalogApiGroups> = HttpApi.make('CatalogApi')
+
+type CatalogApi = HttpApi.HttpApi<'CatalogApi', CatalogApiGroups>;
+
+const identity: (api: CatalogApi) => CatalogApi = (api) => api;
+
+export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
   .addHttpApi(ActivateLocalOverrideActionApi)

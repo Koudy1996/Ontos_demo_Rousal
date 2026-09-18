@@ -71,27 +71,24 @@ export const readExternalTargetResolution = Effect.fn('ExternalTargetResolutionR
 );
 
 /** Connector Registry and deterministic-rule evidence are deployment bindings; no binding fails closed. */
-export const makeExternalTargetResolutionRead = () =>
-  defineRead(
-    {
-      accessKind: 'detail',
-      entrypoint: externalTargetResolutionEntrypoint,
-      evidencePolicy: { captureMode: 'metadata_only', policyKey: `${readKey}.evidence.v1` },
-      inputSchema: ExternalTargetResolutionRequestSchema,
-      legalEntityScope: 'forbidden',
-      owningModuleKey: moduleKey,
-      permissionTarget: 'tenant',
-      policies: [],
-      readKey,
-      resultSchema: ExternalTargetResolutionResponseSchema,
-      schemaVersion: '1',
-    },
-    (input, context: ReadHandlerContext<void>) =>
-      readExternalTargetResolution(input, context.scope.tenantId).pipe(
-        Effect.map((result) => ({ evidence: { resultCount: result.status === 'RESOLVED' ? 1 : 0 }, result })),
-      ),
-    () => Effect.void,
-    () => ({ kind: 'tenant', permission: 'access' }),
-  );
-
-export const externalTargetResolutionRead = makeExternalTargetResolutionRead();
+export const externalTargetResolutionRead = defineRead(
+  {
+    accessKind: 'detail',
+    entrypoint: externalTargetResolutionEntrypoint,
+    evidencePolicy: { captureMode: 'metadata_only', policyKey: `${readKey}.evidence.v1` },
+    inputSchema: ExternalTargetResolutionRequestSchema,
+    legalEntityScope: 'forbidden',
+    owningModuleKey: moduleKey,
+    permissionTarget: 'tenant',
+    policies: [],
+    readKey: 'commerce.catalog.api.external-target-resolution',
+    resultSchema: ExternalTargetResolutionResponseSchema,
+    schemaVersion: '1',
+  },
+  (input, context: ReadHandlerContext<void>) =>
+    readExternalTargetResolution(input, context.scope.tenantId).pipe(
+      Effect.map((result) => ({ evidence: { resultCount: result.status === 'RESOLVED' ? 1 : 0 }, result })),
+    ),
+  () => Effect.void,
+  () => ({ kind: 'tenant', permission: 'access' }),
+);
