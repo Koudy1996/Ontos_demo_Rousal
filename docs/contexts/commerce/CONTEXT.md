@@ -791,7 +791,7 @@ are alternative backend modes, not simultaneous issuers. Availability does not b
 merely by consuming the evidence. It has owner-scoped idempotency and correlation. Inventory
 preserves exact Catalog Selection and Quantity/Unit meaning; it does not decompose Package/Set
 contents or convert Units. It is not an Order or permanent Availability guarantee; an
-expired/unverifiable confirmation is not Current.
+expired/unverifiable confirmation is not Current. Launch Inventory does not renew an expired Reservation Confirmation for the same Attempt; expiry before Inventory Commitment Protection means that Attempt cannot regain Inventory readiness and a later retry requires a new Attempt + new Reservation after safe closure/reconciliation.
 
 **Payment Authorization** — Payment-owned proof that the required Payment method/amount/currency is
 authorized for one exact Order Commitment Attempt under the resolved Payment Term. It is distinct
@@ -819,7 +819,7 @@ Order Commitment Attempt + its exact Bundle through the commitment boundary. It 
 Revalidation, Assortment Commitment Confirmation, the Reservation Confirmation and Commitment
 Protection for the Attempt's one Inventory Reservation, Payment Authorization or analogous
 attempt-bound proofs. Legitimate renewal may replace an expired proof for the same unchanged Attempt +
-Bundle under the owning contract; that renewal does not change the Bundle hash.
+Bundle under an owning contract that explicitly supports renewal; that renewal does not change the Bundle hash. **Inventory Reservation Confirmation is a Launch exception: it is not renewable within the same Attempt.**
 _Avoid_: Proof Set as prospective purchase identity, proofs from different Attempts unioned together,
 proof renewal used to smuggle changed Bundle meaning into the same Attempt.
 
@@ -834,7 +834,7 @@ be established rather than inferred from an earlier read or an undelivered chang
 occurred, then converges the exact Attempt's proof/preparation state and provisional
 reservation/Payment effects without duplicating Orders or provider operations. Definite pre-commit
 failure may trigger idempotent release/void; a proven committed Order is never erased as false
-rollback. A renewed attempt-bound proof never mutates the Attempt's Bundle identity.
+rollback. A renewed attempt-bound proof never mutates the Attempt's Bundle identity. This generic rule does not create Inventory renewal: an expired Inventory Reservation Confirmation before Commitment Protection closes the Inventory path for that Attempt.
 
 ## History, archive, and repeat purchase
 
@@ -912,7 +912,7 @@ Pricing does not create, merge or split Pricing Lines as a calculation side effe
 aggregation group or bounded quantity/calculation portion is not another Pricing Line. Pricing Line
 does not by itself define Cart/Order line lifecycle.
 
-**Inventory** — Domain owning the one-to-one binding from each exact Catalog Selection to one Stock Item, plus stock facts, Stock Requirements/Allocations, and Inventory-recognized stock obligations within declared authority boundaries. Inventory preserves exact Quantity/Unit meaning; Package/Set contents are not decomposed for stock, and the actual Reservation Authority may be Inventory, an External Business System, or absent.
+**Inventory** — Domain owning the one-to-one binding from each exact Catalog Selection to one Stock Item, plus stock facts, Stock Requirements/Allocations, and Inventory-recognized stock obligations within declared authority boundaries. Inventory preserves exact Quantity/Unit meaning; Package/Set contents are not decomposed for stock. One Customer Configuration / Launch Inventory scope selects exactly one Inventory Backend; that selected backend is the actual Reservation Authority for the supported Reservation lifecycle.
 
 **Availability** — Current promise that an exact Catalog Selection and Quantity can be sold and
 delivered in a Commerce Purchasing Context. It may derive from Inventory or an External Business
