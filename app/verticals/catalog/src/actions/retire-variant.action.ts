@@ -20,8 +20,7 @@ import {
   variantPersistenceForScope,
 } from './variant-action-support.ts';
 
-export { RetireVariantPayloadSchema, RetireVariantResultSchema } from '../../shared/actions/retire-variant.ts';
-export type { RetireVariantPayload, RetireVariantResult } from '../../shared/actions/retire-variant.ts';
+export type { RetireVariantPayload } from '../../shared/actions/retire-variant.ts';
 
 const ACTION_KEY = 'commerce.catalog.retire-variant' as const;
 const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>

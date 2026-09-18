@@ -32,7 +32,6 @@ type RetireGtinServices = GtinServices & {
 };
 
 export { RetireGtinPayloadSchema, RetireGtinResultSchema } from '../../shared/actions/retire-gtin.ts';
-export type { RetireGtinPayload, RetireGtinResult } from '../../shared/actions/retire-gtin.ts';
 
 const handleRetireGtin = Effect.fn('RetireGtinAction.handle')(function* handleRetireGtin(
   payload: RetireGtinPayload,

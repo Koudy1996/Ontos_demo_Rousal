@@ -20,14 +20,7 @@ import type { AttributePersistence } from '../persistence/attribute-persistence.
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 
-export {
-  ReviseAttributeDefinitionPayloadSchema,
-  ReviseAttributeDefinitionResultSchema,
-} from '../../shared/actions/revise-attribute-definition.ts';
-export type {
-  ReviseAttributeDefinitionPayload,
-  ReviseAttributeDefinitionResult,
-} from '../../shared/actions/revise-attribute-definition.ts';
+export type { ReviseAttributeDefinitionPayload } from '../../shared/actions/revise-attribute-definition.ts';
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 const ACTION_KEY = 'commerce.catalog.revise-attribute-definition' as const;

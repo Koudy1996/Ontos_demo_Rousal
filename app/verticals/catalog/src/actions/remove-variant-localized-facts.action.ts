@@ -80,7 +80,6 @@ const captureRemoveVariantLocalizedFactsResult = ({
   };
 }) => services.captureResult(actionInvocationId, result);
 
-export { RemoveVariantLocalizedFactsPayloadSchema } from '../../shared/actions/localized-facts.ts';
 export type { RemoveVariantLocalizedFactsPayload } from '../../shared/actions/localized-facts.ts';
 
 const handleRemoveVariantLocalizedFacts = Effect.fn('RemoveVariantLocalizedFactsAction.handle')(

@@ -18,7 +18,6 @@ import {
   runPackageOptionTransition,
 } from './package-option-action-support.ts';
 
-export { RetirePackageOptionPayloadSchema } from '../../shared/actions/retire-package-option.ts';
 export type { RetirePackageOptionPayload } from '../../shared/actions/retire-package-option.ts';
 
 type RetirePackageOptionServices = PackageOptionPersistence & {

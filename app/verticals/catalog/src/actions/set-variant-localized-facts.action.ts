@@ -80,7 +80,6 @@ const captureSetVariantLocalizedFactsResult = ({
   };
 }) => services.captureResult(actionInvocationId, result);
 
-export { SetVariantLocalizedFactsPayloadSchema } from '../../shared/actions/localized-facts.ts';
 export type { SetVariantLocalizedFactsPayload } from '../../shared/actions/localized-facts.ts';
 
 const handleSetVariantLocalizedFacts = Effect.fn('SetVariantLocalizedFactsAction.handle')(

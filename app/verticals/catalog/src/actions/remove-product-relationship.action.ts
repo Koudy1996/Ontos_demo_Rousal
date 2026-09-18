@@ -22,9 +22,8 @@ import {
   relationshipPersistenceServiceFactory,
 } from './product-relationship-action-support.ts';
 
-export { RemoveProductRelationshipPayloadSchema } from '../../shared/actions/product-relationship-mutations.ts';
 export type { RemoveProductRelationshipPayload } from '../../shared/actions/product-relationship-mutations.ts';
-export const RemoveProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
+const RemoveProductRelationshipResultSchema = ProductRelationshipMutationResultSchema;
 export type RemoveProductRelationshipResult = typeof RemoveProductRelationshipResultSchema.Type;
 const domainEvents = {
   'commerce.catalog.product-relationship-changed.v1': ProductRelationshipChangedEventSchema,
@@ -159,9 +158,4 @@ export const removeProductRelationshipAction = defineAction(
 );
 
 // <generated-outbox-message-exports>
-export { createRemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxMessage } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayloadSchema } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxProducerModuleKey } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxTopic } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
-export type { RemoveProductRelationshipCommerceCatalogProductRelationshipChangedV1OutboxPayload } from './remove-product-relationship-commerce-catalog-product-relationship-changed-v1.outbox-message.ts';
 // </generated-outbox-message-exports>

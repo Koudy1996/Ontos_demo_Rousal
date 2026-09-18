@@ -80,7 +80,6 @@ const captureReorderCatalogMediaResult = ({
   };
 }) => services.captureResult(actionInvocationId, result);
 
-export { ReorderCatalogMediaPayloadSchema } from '../../shared/actions/catalog-media.ts';
 export type { ReorderCatalogMediaPayload } from '../../shared/actions/catalog-media.ts';
 
 const handleReorderCatalogMedia = Effect.fn('ReorderCatalogMediaAction.handle')(

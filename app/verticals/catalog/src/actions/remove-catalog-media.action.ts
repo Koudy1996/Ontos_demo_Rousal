@@ -77,7 +77,6 @@ const captureRemoveCatalogMediaResult = ({
   };
 }) => services.captureResult(actionInvocationId, result);
 
-export { RemoveCatalogMediaPayloadSchema } from '../../shared/actions/catalog-media.ts';
 export type { RemoveCatalogMediaPayload } from '../../shared/actions/catalog-media.ts';
 
 const handleRemoveCatalogMedia = Effect.fn('RemoveCatalogMediaAction.handle')(function* handleRemoveCatalogMediaEffect(

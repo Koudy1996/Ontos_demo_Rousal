@@ -23,14 +23,7 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export {
-  RetireProductCategoryPayloadSchema,
-  RetireProductCategoryResultSchema,
-} from '../../shared/actions/retire-product-category.ts';
-export type {
-  RetireProductCategoryPayload,
-  RetireProductCategoryResult,
-} from '../../shared/actions/retire-product-category.ts';
+export type { RetireProductCategoryPayload } from '../../shared/actions/retire-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-retired.v1': RetireProductCategoryResultSchema } as const;
 

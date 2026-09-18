@@ -25,7 +25,7 @@ import {
 
 const ACTION_KEY = 'commerce.catalog.revise-configuration-unit';
 
-export const handleReviseConfigurationUnit = Effect.fn('ReviseConfigurationUnitAction.handle')(function* handle(
+const handleReviseConfigurationUnit = Effect.fn('ReviseConfigurationUnitAction.handle')(function* handle(
   payload: ReviseConfigurationUnitPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, ConfigurationUnitPersistence>,
 ) {

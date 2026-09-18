@@ -18,14 +18,8 @@ import type { SizeUsagePersistence } from '../persistence/size-usage-persistence
 const catalogModuleKey = 'commerce.catalog';
 const actionKey = 'commerce.catalog.replace-product-sizes';
 
-export {
-  ReplaceProductSizesPayloadSchema,
-  ReplaceProductSizesResultSchema,
-} from '../../shared/actions/replace-product-sizes.ts';
-export type {
-  ReplaceProductSizesPayload,
-  ReplaceProductSizesResult,
-} from '../../shared/actions/replace-product-sizes.ts';
+export { ReplaceProductSizesPayloadSchema } from '../../shared/actions/replace-product-sizes.ts';
+export type { ReplaceProductSizesPayload } from '../../shared/actions/replace-product-sizes.ts';
 
 export const handleReplaceProductSizes = Effect.fn('ReplaceProductSizesAction.handle')(
   function* handleReplaceProductSizes(

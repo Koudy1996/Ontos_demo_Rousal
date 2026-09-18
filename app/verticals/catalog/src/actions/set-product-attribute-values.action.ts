@@ -25,10 +25,6 @@ import {
   catalogOpenSelectionImpactForScope,
 } from '../persistence/catalog-open-selection-impact.ts';
 
-export {
-  SetProductAttributeValuesPayloadSchema,
-  SetProductAttributeValuesResultSchema,
-} from '../../shared/actions/attribute-value-mutations.ts';
 export type { SetProductAttributeValuesPayload } from '../../shared/actions/attribute-value-mutations.ts';
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;

@@ -10,11 +10,7 @@ import {
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 
-export {
-  ReviseProductTypePayloadSchema,
-  ReviseProductTypeResultSchema,
-} from '../../shared/actions/revise-product-type.ts';
-export type { ReviseProductTypePayload, ReviseProductTypeResult } from '../../shared/actions/revise-product-type.ts';
+export { ReviseProductTypePayloadSchema } from '../../shared/actions/revise-product-type.ts';
 
 const ACTION_KEY = 'commerce.catalog.revise-product-type' as const;
 const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
@@ -28,7 +24,6 @@ export const ReviseProductTypeStaleBasisSchema = Schema.TaggedStruct('ReviseProd
   code: Schema.Literal('product_type_stale_basis'),
   reason: Schema.String,
 });
-export type ReviseProductTypeStaleBasis = typeof ReviseProductTypeStaleBasisSchema.Type;
 
 export class ReviseProductTypeNotImplemented extends Schema.TaggedError<ReviseProductTypeNotImplemented>()(
   'ReviseProductTypeNotImplemented',

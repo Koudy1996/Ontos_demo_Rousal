@@ -23,14 +23,7 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export {
-  RenameProductCategoryPayloadSchema,
-  RenameProductCategoryResultSchema,
-} from '../../shared/actions/rename-product-category.ts';
-export type {
-  RenameProductCategoryPayload,
-  RenameProductCategoryResult,
-} from '../../shared/actions/rename-product-category.ts';
+export type { RenameProductCategoryPayload } from '../../shared/actions/rename-product-category.ts';
 
 const domainEvents = { 'commerce.catalog.product-category-renamed.v1': RenameProductCategoryResultSchema } as const;
 

@@ -23,14 +23,7 @@ import {
   recordCategoryEvent,
 } from './product-category-action-support.ts';
 
-export {
-  RemoveProductCategoryAssignmentPayloadSchema,
-  RemoveProductCategoryAssignmentResultSchema,
-} from '../../shared/actions/remove-product-category-assignment.ts';
-export type {
-  RemoveProductCategoryAssignmentPayload,
-  RemoveProductCategoryAssignmentResult,
-} from '../../shared/actions/remove-product-category-assignment.ts';
+export type { RemoveProductCategoryAssignmentPayload } from '../../shared/actions/remove-product-category-assignment.ts';
 
 const domainEvents = {
   'commerce.catalog.product-category-assignment-removed.v1': RemoveProductCategoryAssignmentResultSchema,

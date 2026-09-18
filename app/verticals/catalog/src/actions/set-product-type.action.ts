@@ -15,8 +15,8 @@ import {
 } from '../persistence/product-type-assignment-persistence.ts';
 import type { ProductTypeAssignmentPersistence } from '../persistence/product-type-assignment-persistence.ts';
 
-export { SetProductTypePayloadSchema, SetProductTypeResultSchema } from '../../shared/actions/set-product-type.ts';
-export type { SetProductTypePayload, SetProductTypeResult } from '../../shared/actions/set-product-type.ts';
+export { SetProductTypePayloadSchema } from '../../shared/actions/set-product-type.ts';
+export type { SetProductTypePayload } from '../../shared/actions/set-product-type.ts';
 
 const domainEvents = {} as const;
 const moduleKey = 'commerce.catalog' as const;

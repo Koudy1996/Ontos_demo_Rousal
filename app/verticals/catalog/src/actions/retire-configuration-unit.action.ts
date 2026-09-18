@@ -25,7 +25,7 @@ import {
 
 const ACTION_KEY = 'commerce.catalog.retire-configuration-unit';
 
-export const handleRetireConfigurationUnit = Effect.fn('RetireConfigurationUnitAction.handle')(function* handle(
+const handleRetireConfigurationUnit = Effect.fn('RetireConfigurationUnitAction.handle')(function* handle(
   payload: RetireConfigurationUnitPayload,
   context: ActionHandlerContext<Readonly<Record<string, never>>, ConfigurationUnitPersistence>,
 ) {

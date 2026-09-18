@@ -80,7 +80,6 @@ const captureSetProductLocalizedFactsResult = ({
   };
 }) => services.captureResult(actionInvocationId, result);
 
-export { SetProductLocalizedFactsPayloadSchema } from '../../shared/actions/localized-facts.ts';
 export type { SetProductLocalizedFactsPayload } from '../../shared/actions/localized-facts.ts';
 
 const handleSetProductLocalizedFacts = Effect.fn('SetProductLocalizedFactsAction.handle')(

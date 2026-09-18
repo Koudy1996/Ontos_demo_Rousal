@@ -17,9 +17,6 @@ import {
   setCompositionPersistenceServiceFactory,
 } from './set-composition-action-support.ts';
 
-export { ReviseSetCompositionPayloadSchema } from '../../shared/actions/revise-set-composition.ts';
-export type { ReviseSetCompositionPayload } from '../../shared/actions/revise-set-composition.ts';
-
 type ReviseSetCompositionServices = SetCompositionPersistence & {
   readonly captureResult: (
     actionInvocationId: string,

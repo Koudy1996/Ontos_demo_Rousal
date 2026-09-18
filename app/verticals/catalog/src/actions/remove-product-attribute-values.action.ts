@@ -25,10 +25,6 @@ import {
   catalogOpenSelectionImpactForScope,
 } from '../persistence/catalog-open-selection-impact.ts';
 
-export {
-  RemoveProductAttributeValuesPayloadSchema,
-  RemoveProductAttributeValuesResultSchema,
-} from '../../shared/actions/attribute-value-mutations.ts';
 export type { RemoveProductAttributeValuesPayload } from '../../shared/actions/attribute-value-mutations.ts';
 
 const CATALOG_MODULE_KEY = 'commerce.catalog' as const;

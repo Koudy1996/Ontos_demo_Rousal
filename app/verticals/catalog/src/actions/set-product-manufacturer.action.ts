@@ -20,11 +20,9 @@ import { captureCatalogActionResult } from '../persistence/catalog-action-result
 import { ManufacturerTargetForbidden } from '../persistence/manufacturer-target-forbidden.ts';
 import { manufacturerTargetResolverForCoreRead } from '../persistence/manufacturer-target-resolver.ts';
 
-export { SetProductManufacturerPayloadSchema } from '../../shared/actions/manufacturer-mutations.ts';
 export type { SetProductManufacturerPayload } from '../../shared/actions/manufacturer-mutations.ts';
 
-export const SetProductManufacturerResultSchema = ProductManufacturerMutationResultSchema;
-export type SetProductManufacturerResult = Schema.Schema.Type<typeof SetProductManufacturerResultSchema>;
+const SetProductManufacturerResultSchema = ProductManufacturerMutationResultSchema;
 const CATALOG_MODULE_KEY = 'commerce.catalog';
 
 const ACTION_KEY = 'commerce.catalog.set-product-manufacturer';

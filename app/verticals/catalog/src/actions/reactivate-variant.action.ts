@@ -22,11 +22,7 @@ import {
   variantPersistenceForScope,
 } from './variant-action-support.ts';
 
-export {
-  ReactivateVariantPayloadSchema,
-  ReactivateVariantResultSchema,
-} from '../../shared/actions/reactivate-variant.ts';
-export type { ReactivateVariantPayload, ReactivateVariantResult } from '../../shared/actions/reactivate-variant.ts';
+export type { ReactivateVariantPayload } from '../../shared/actions/reactivate-variant.ts';
 
 const ACTION_KEY = 'commerce.catalog.reactivate-variant' as const;
 const mapCaptureError = (error: CatalogPersistenceConflict | CatalogPersistenceUnavailable): ActionTransactionError =>
