@@ -33,6 +33,8 @@ import { ColorCurrentApi } from './apis/color-current.ts';
 import { ColorHistoryApi } from './apis/color-history.ts';
 import { ConfirmGtinActionApi } from './apis/confirm-gtin-action.ts';
 import { ConfirmGtinRecoveryApi } from './apis/confirm-gtin-recovery.ts';
+import { ConfirmVariantCombinationActionApi } from './apis/confirm-variant-combination-action.ts';
+import { ConfirmVariantCombinationRecoveryApi } from './apis/confirm-variant-combination-recovery.ts';
 import { CorrectGtinActionApi } from './apis/correct-gtin-action.ts';
 import { CorrectGtinRecoveryApi } from './apis/correct-gtin-recovery.ts';
 import { CorrectProductActionApi } from './apis/correct-product-action.ts';
@@ -68,10 +70,13 @@ import { DecideProductTypeUnnecessaryRecoveryApi } from './apis/decide-product-t
 import { EffectiveAttributeValuesCurrentApi } from './apis/effective-attribute-values-current.ts';
 import { GovernProductAttributeApplicabilityActionApi } from './apis/govern-product-attribute-applicability-action.ts';
 import { GovernProductAttributeApplicabilityRecoveryApi } from './apis/govern-product-attribute-applicability-recovery.ts';
+import { GovernVariantAllowedValuesActionApi } from './apis/govern-variant-allowed-values-action.ts';
+import { GovernVariantAllowedValuesRecoveryApi } from './apis/govern-variant-allowed-values-recovery.ts';
 import { GovernVariantAxesActionApi } from './apis/govern-variant-axes-action.ts';
 import { GovernVariantAxesRecoveryApi } from './apis/govern-variant-axes-recovery.ts';
 import { GtinCurrentApi } from './apis/gtin-current.ts';
 import { GtinHistoryApi } from './apis/gtin-history.ts';
+import { ListRecordedVariantsApi } from './apis/list-recorded-variants.ts';
 import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
 import { MarkGtinUnresolvedActionApi } from './apis/mark-gtin-unresolved-action.ts';
@@ -235,6 +240,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ColorHistoryApi)
   .addHttpApi(ConfirmGtinActionApi)
   .addHttpApi(ConfirmGtinRecoveryApi)
+  .addHttpApi(ConfirmVariantCombinationActionApi)
+  .addHttpApi(ConfirmVariantCombinationRecoveryApi)
   .addHttpApi(CorrectGtinActionApi)
   .addHttpApi(CorrectGtinRecoveryApi)
   .addHttpApi(CorrectProductActionApi)
@@ -270,10 +277,13 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(EffectiveAttributeValuesCurrentApi)
   .addHttpApi(GovernProductAttributeApplicabilityActionApi)
   .addHttpApi(GovernProductAttributeApplicabilityRecoveryApi)
+  .addHttpApi(GovernVariantAllowedValuesActionApi)
+  .addHttpApi(GovernVariantAllowedValuesRecoveryApi)
   .addHttpApi(GovernVariantAxesActionApi)
   .addHttpApi(GovernVariantAxesRecoveryApi)
   .addHttpApi(GtinCurrentApi)
   .addHttpApi(GtinHistoryApi)
+  .addHttpApi(ListRecordedVariantsApi)
   .addHttpApi(ManufacturerRelationCurrentApi)
   .addHttpApi(ManufacturerRelationHistoryApi)
   .addHttpApi(MarkGtinUnresolvedActionApi)
@@ -586,6 +596,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.confirm-variant-combination-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.read.confirm-variant-combination-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.correct-gtin-recovery': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'variant',
@@ -730,6 +748,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.api.govern-variant-allowed-values-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.govern-variant-allowed-values-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.api.govern-variant-axes-recovery': {
     authorityBundle: 'CATALOG_READER',
     businessTarget: 'product',
@@ -755,6 +781,14 @@ export const catalogPublicOperationContracts = {
     permissionKind: 'context_permission',
     permissionTarget: 'module',
     resourcePermission: 'read',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.list-recorded-variants': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.read.list-recorded-variants',
+    permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
   },
@@ -1359,6 +1393,14 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.confirm-variant-combination': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'variant',
+    permission: 'commerce.catalog.confirm-variant-combination',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.correct-gtin': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'variant',
@@ -1491,6 +1533,14 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
     permission: 'commerce.catalog.govern-product-attribute-applicability',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.govern-variant-allowed-values': {
+    authorityBundle: 'PRODUCT_EDITOR',
+    businessTarget: 'product',
+    permission: 'commerce.catalog.govern-variant-allowed-values',
     permissionKind: 'action_execution',
     scope: 'tenant',
     version: '1',
@@ -1936,6 +1986,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.correct-product-recovery',
     'commerce.catalog.read.correct-gtin-recovery',
     'commerce.catalog.read.confirm-gtin-recovery',
+    'commerce.catalog.read.confirm-variant-combination-recovery',
     'commerce.catalog.read.change-variant-recovery',
     'commerce.catalog.read.change-product-relationship-recovery',
     'commerce.catalog.read.change-product-manufacturer-recovery',
@@ -1962,6 +2013,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.revise-product-unit-recovery',
     'commerce.catalog.read.revise-set-composition-recovery',
     'commerce.catalog.read.govern-product-attribute-applicability-recovery',
+    'commerce.catalog.read.govern-variant-allowed-values-recovery',
     'commerce.catalog.read.govern-variant-axes-recovery',
     'commerce.catalog.read.mark-gtin-unresolved-recovery',
     'commerce.catalog.read.move-product-category-recovery',
@@ -2022,6 +2074,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.read.product-brand-history',
     'commerce.catalog.read.product-detail',
     'commerce.catalog.read.effective-attribute-values-current',
+    'commerce.catalog.read.list-recorded-variants',
     'commerce.catalog.read.product-history',
     'commerce.catalog.read.variant-history',
     'commerce.catalog.read.package-definition-history',
@@ -2042,6 +2095,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.change-product-relationship',
     'commerce.catalog.change-variant',
     'commerce.catalog.confirm-gtin',
+    'commerce.catalog.confirm-variant-combination',
     'commerce.catalog.correct-gtin',
     'commerce.catalog.create-product',
     'commerce.catalog.create-product-relationship',
@@ -2051,6 +2105,7 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.create-variant',
     'commerce.catalog.decide-product-type-unnecessary',
     'commerce.catalog.govern-product-attribute-applicability',
+    'commerce.catalog.govern-variant-allowed-values',
     'commerce.catalog.govern-variant-axes',
     'commerce.catalog.mark-gtin-unresolved',
     'commerce.catalog.remove-product-attribute-values',

@@ -1,16 +1,23 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
-import { stableCombinationKeyContent, stableParts } from '../../shared/domain/variant-axes.ts';
+import {
+  AttributeDefinitionSchema,
+  AttributeValueSchema,
+  validateAttributeValues,
+} from '../../shared/domain/attribute-values.ts';
+import type { AttributeDefinition, AttributeValue } from '../../shared/domain/attribute-values.ts';
+import { stableCombinationKeyContent, stableParts, valueKey } from '../../shared/domain/variant-axes.ts';
 import {
   attributeDefinitions,
   attributeDefinitionRevisions,
   attributeValueItems,
   attributeValueSets,
+  controlledAttributeValues,
   productTypeAssignments,
   productTypeRevisions,
   productTypeRevisionAttributes,
@@ -18,6 +25,8 @@ import {
   productAttributeApplicability,
   productAttributeApplicabilityRevisions,
   productVariantAxes,
+  productVariantAxisAllowanceEvents,
+  productVariantAxisAllowedValues,
   productVariantAxisEvents,
   productVariants,
   products,
@@ -70,9 +79,18 @@ export interface VariantAxisPersistence {
     { readonly axisRevision: number; readonly changed: boolean },
     CatalogPersistenceUnavailable | VariantAxisWriteConflict
   >;
+  /** Appends an explicit replacement allowed-value snapshot for one axis; never creates a Variant. */
+  readonly governAllowedValues: (
+    input: GovernVariantAllowedValuesInput,
+  ) => Effect.Effect<GovernVariantAllowedValuesOutcome, CatalogPersistenceUnavailable | VariantAxisBasisUnavailable>;
   readonly readCurrent: (
     productRef: ProductRef,
   ) => Effect.Effect<CurrentVariantAxes, CatalogPersistenceUnavailable | VariantAxisBasisUnavailable>;
+  /** The Current Product-specific allowed set for every declared axis; never inferred from vocabulary. */
+  readonly readCurrentAllowedValues: (
+    productRef: ProductRef,
+    axes: CurrentVariantAxes,
+  ) => Effect.Effect<readonly CurrentAxisAllowedValues[], CatalogPersistenceUnavailable | VariantAxisBasisUnavailable>;
   /** Complete source-qualified value rows for the declared Current axes, not allowed-set proof. */
   readonly readEffectiveValues: (
     productRef: ProductRef,
@@ -117,6 +135,51 @@ export interface CurrentVariantAxisValue {
   readonly sourceValueSetRef: { readonly attributeValueSetId: string; readonly tenantId: string } | null;
 }
 
+/** The Current Product-specific allowed-value snapshot for exactly one declared axis. */
+export interface CurrentAxisAllowedValues {
+  readonly allowanceRevision: number;
+  readonly attributeDefinitionId: string;
+  readonly definitionRevision: number;
+  /** Canonical value-identity hashes; display labels never participate. */
+  readonly valueKeys: readonly string[];
+}
+
+export interface GovernVariantAllowedValuesInput {
+  readonly actionInvocationId: string;
+  readonly attributeDefinitionId: string;
+  readonly definitionRevision: number;
+  readonly evidenceRefs: readonly string[];
+  readonly expectedAllowanceRevision: number;
+  readonly expectedAxisRevision: number;
+  readonly principalId: string;
+  readonly productRef: ProductRef;
+  readonly reason: string;
+  readonly values: readonly AttributeValue[];
+}
+
+export const GovernVariantAllowedValuesGovernedSchema = Schema.TaggedStruct('governed', {
+  allowanceRevision: Schema.Int,
+  changed: Schema.Boolean,
+});
+export const GovernVariantAllowedValuesNotFoundSchema = Schema.TaggedStruct('not_found', {});
+export const GovernVariantAllowedValuesRevisionConflictSchema = Schema.TaggedStruct('revision_conflict', {
+  actualAllowanceRevision: Schema.Int,
+});
+export const GovernVariantAllowedValuesAxisConflictSchema = Schema.TaggedStruct('axis_conflict', {
+  actualAxisRevision: Schema.Int,
+});
+export const GovernVariantAllowedValuesInvalidInputSchema = Schema.TaggedStruct('invalid_input', {
+  reason: Schema.String,
+});
+export const GovernVariantAllowedValuesOutcomeSchema = Schema.Union([
+  GovernVariantAllowedValuesGovernedSchema,
+  GovernVariantAllowedValuesNotFoundSchema,
+  GovernVariantAllowedValuesRevisionConflictSchema,
+  GovernVariantAllowedValuesAxisConflictSchema,
+  GovernVariantAllowedValuesInvalidInputSchema,
+]);
+export type GovernVariantAllowedValuesOutcome = typeof GovernVariantAllowedValuesOutcomeSchema.Type;
+
 const controlledValueResourceType = 'commerce.catalog.controlled-attribute-value';
 
 const itemValueKey = (item: typeof attributeValueItems.$inferSelect): string => {
@@ -136,6 +199,52 @@ const itemValueKey = (item: typeof attributeValueItems.$inferSelect): string => 
     return stableParts(['special', item.specialState ?? '']);
   }
   return stableParts(['text', item.textValue ?? '']);
+};
+
+/** Canonical hash of an explicit allowed value; the same encoding as stored effective items. */
+export const allowedValueKeyHash = (value: AttributeValue): string =>
+  createHash('sha256').update(valueKey(value)).digest('hex');
+
+/** Canonical hash of a stored effective value item, matched against governed allowed values. */
+export const effectiveValueItemKeyHash = (item: typeof attributeValueItems.$inferSelect): string =>
+  createHash('sha256').update(itemValueKey(item)).digest('hex');
+
+/** Decodes a retained effective value item into its public, label-independent form. */
+export const effectiveItemToAttributeValue = (
+  item: typeof attributeValueItems.$inferSelect,
+): AttributeValue | undefined => {
+  if (item.valueKind === 'CONTROLLED') {
+    return item.controlledAttributeValueId === null
+      ? undefined
+      : Option.getOrUndefined(
+          Schema.decodeOption(AttributeValueSchema)({
+            kind: 'CONTROLLED',
+            valueRef: {
+              moduleId: catalogModuleId,
+              resourceId: item.controlledAttributeValueId,
+              resourceType: controlledValueResourceType,
+              tenantId: item.tenantId,
+            },
+          }),
+        );
+  }
+  if (item.valueKind === 'MEASUREMENT') {
+    return Option.getOrUndefined(
+      Schema.decodeUnknownOption(AttributeValueSchema)({
+        amount: Number(item.numericValue),
+        kind: 'MEASUREMENT',
+        unit: item.unit,
+      }),
+    );
+  }
+  if (item.valueKind === 'SPECIAL') {
+    return Option.getOrUndefined(
+      Schema.decodeUnknownOption(AttributeValueSchema)({ kind: 'SPECIAL', state: item.specialState }),
+    );
+  }
+  return Option.getOrUndefined(
+    Schema.decodeUnknownOption(AttributeValueSchema)({ kind: 'TEXT', text: item.textValue }),
+  );
 };
 
 /**
@@ -179,6 +288,36 @@ const basisUnavailable = () =>
     reason: 'Current Product axes or allowed values cannot be verified',
   });
 
+const definitionFromRevision = (
+  row: typeof attributeDefinitionRevisions.$inferSelect,
+  definitionRef: AttributeDefinition['ref'],
+): AttributeDefinition | undefined => {
+  const definition = {
+    label: row.name,
+    levels: row.applicableLevels,
+    meaning: row.meaning,
+    multiplicity: row.multiplicity,
+    ref: definitionRef,
+    specialStates: [
+      ...(row.allowsUnknown === 1 ? (['UNKNOWN'] as const) : []),
+      ...(row.allowsNone === 1 ? (['NONE'] as const) : []),
+      ...(row.allowsNotApplicable === 1 ? (['NOT_APPLICABLE'] as const) : []),
+    ],
+    valueKind: row.valueKind,
+  };
+  const measurement = {
+    canonicalUnit: row.canonicalUnit ?? '',
+    decimalPlaces: row.decimalPlaces ?? 0,
+    quantity: row.measuredQuantity ?? '',
+  };
+  const withMaximum = row.maximumValue === null ? measurement : { ...measurement, maximum: Number(row.maximumValue) };
+  const completeMeasurement =
+    row.minimumValue === null ? withMaximum : { ...withMaximum, minimum: Number(row.minimumValue) };
+  const candidate = row.valueKind === 'MEASUREMENT' ? { ...definition, measurement: completeMeasurement } : definition;
+  const decoded = Schema.decodeUnknownOption(AttributeDefinitionSchema)(candidate);
+  return Option.isSome(decoded) ? decoded.value : undefined;
+};
+
 const writeConflict = (kind: VariantAxisWriteConflict['conflict'], reason: string) =>
   new VariantAxisWriteConflict({ code: 'variant_axis_write_conflict', conflict: kind, reason });
 
@@ -191,6 +330,49 @@ const invalidGovernInput = (input: GovernVariantAxesInput, tenantId: string): bo
   input.axes.length > 32 ||
   new Set(input.axes.map((axis) => axis.attributeDefinitionId)).size !== input.axes.length ||
   input.axes.some((axis) => !Number.isSafeInteger(axis.definitionRevision) || axis.definitionRevision < 1);
+
+const validAllowedValuesEvidence = (input: GovernVariantAllowedValuesInput): boolean =>
+  input.reason === input.reason.trim() &&
+  input.reason.length > 0 &&
+  input.reason.length <= 1000 &&
+  input.evidenceRefs.every((ref) => ref === ref.trim() && ref.length > 0 && ref.length <= 300);
+
+const validGovernAllowedValuesInput = (input: GovernVariantAllowedValuesInput, tenantId: string): boolean =>
+  input.productRef.tenantId === tenantId &&
+  input.productRef.moduleId === catalogModuleId &&
+  input.productRef.resourceType === productResourceType &&
+  Number.isSafeInteger(input.expectedAxisRevision) &&
+  input.expectedAxisRevision >= 0 &&
+  Number.isSafeInteger(input.expectedAllowanceRevision) &&
+  input.expectedAllowanceRevision >= 0 &&
+  Number.isSafeInteger(input.definitionRevision) &&
+  input.definitionRevision >= 1 &&
+  input.values.length <= 1000 &&
+  validAllowedValuesEvidence(input);
+
+const validateAllowedValuesSnapshot = (
+  definition: AttributeDefinition,
+  values: readonly AttributeValue[],
+):
+  | { readonly reason: string; readonly valid: false }
+  | {
+      readonly hashes: readonly string[];
+      readonly normalized: readonly AttributeValue[];
+      readonly valid: true;
+    } => {
+  const checked = validateAttributeValues(definition, values);
+  if (!checked.valid || checked.normalized.length !== values.length) {
+    return { reason: checked.reasons.join('; ') || 'Allowed values are not permissible for this axis', valid: false };
+  }
+  const hashes = checked.normalized.map(allowedValueKeyHash);
+  if (new Set(hashes).size !== hashes.length) {
+    return { reason: 'Allowed values repeat the same value identity', valid: false };
+  }
+  if (checked.normalized.some((value) => value.kind === 'SPECIAL' && value.state === 'UNKNOWN')) {
+    return { reason: 'An unknown special state cannot be a permissible Current value', valid: false };
+  }
+  return { hashes, normalized: checked.normalized, valid: true };
+};
 
 const invalidAxisDefinitionPointer = (
   definition: typeof attributeDefinitions.$inferSelect,
@@ -889,5 +1071,315 @@ export const variantAxisPersistenceForScope = (
     return { axisRevision, changed: true };
   });
 
-  return { govern, readCurrent, readEffectiveValues, readRecordedCombinations, readRecordedVariants };
+  const readCurrentAllowedValues: VariantAxisPersistence['readCurrentAllowedValues'] = Effect.fn(
+    'VariantAxisPersistence.readCurrentAllowedValues',
+  )(function* readCurrentAllowedValues(productRef, axes) {
+    if (
+      productRef.tenantId !== tenantId ||
+      productRef.moduleId !== catalogModuleId ||
+      productRef.resourceType !== productResourceType ||
+      axes.productId !== productRef.resourceId ||
+      !Number.isSafeInteger(axes.axisRevision) ||
+      axes.axisRevision < 1
+    ) {
+      return yield* basisUnavailable();
+    }
+    return yield* Effect.forEach(
+      axes.axes,
+      Effect.fn('VariantAxisPersistence.readAxisAllowedValues')(function* readAxisAllowedValues(axis) {
+        const [event] = yield* transaction
+          .select()
+          .from(productVariantAxisAllowanceEvents)
+          .where(
+            and(
+              eq(productVariantAxisAllowanceEvents.tenantId, tenantId),
+              eq(productVariantAxisAllowanceEvents.productId, productRef.resourceId),
+              eq(productVariantAxisAllowanceEvents.attributeDefinitionId, axis.attributeDefinitionId),
+            ),
+          )
+          .orderBy(desc(productVariantAxisAllowanceEvents.allowanceRevision))
+          .limit(1)
+          .pipe(Effect.mapError(unavailable));
+        if (
+          event === undefined ||
+          event.tenantId !== tenantId ||
+          event.productId !== productRef.resourceId ||
+          event.attributeDefinitionId !== axis.attributeDefinitionId ||
+          event.axisRevision !== axes.axisRevision ||
+          event.definitionRevision !== axis.definitionRevision
+        ) {
+          return yield* basisUnavailable();
+        }
+        const values = yield* transaction
+          .select({ valueKey: productVariantAxisAllowedValues.valueKey })
+          .from(productVariantAxisAllowedValues)
+          .where(
+            and(
+              eq(productVariantAxisAllowedValues.tenantId, tenantId),
+              eq(productVariantAxisAllowedValues.productId, productRef.resourceId),
+              eq(productVariantAxisAllowedValues.attributeDefinitionId, axis.attributeDefinitionId),
+              eq(productVariantAxisAllowedValues.allowanceRevision, event.allowanceRevision),
+            ),
+          )
+          .pipe(Effect.mapError(unavailable));
+        const keys = values.map((row) => row.valueKey);
+        if (
+          keys.length !== event.valueCount ||
+          new Set(keys).size !== keys.length ||
+          keys.some((key) => !/^[0-9a-f]{64}$/u.test(key))
+        ) {
+          return yield* basisUnavailable();
+        }
+        return {
+          allowanceRevision: event.allowanceRevision,
+          attributeDefinitionId: axis.attributeDefinitionId,
+          definitionRevision: axis.definitionRevision,
+          valueKeys: keys,
+        } satisfies CurrentAxisAllowedValues;
+      }),
+      { concurrency: 1 },
+    );
+  });
+
+  const lockProduct = Effect.fn('VariantAxisPersistence.lockAllowedValuesProduct')(function* lockProduct(
+    productId: string,
+  ) {
+    const [product] = yield* transaction
+      .select({ lifecycleState: products.lifecycleState, productId: products.productId })
+      .from(products)
+      .where(and(eq(products.tenantId, tenantId), eq(products.productId, productId)))
+      .for('update')
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    return product;
+  });
+
+  const readLatestAllowance = Effect.fn('VariantAxisPersistence.readLatestAllowance')(function* readLatestAllowance(
+    productId: string,
+    attributeDefinitionId: string,
+  ) {
+    const [latest] = yield* transaction
+      .select()
+      .from(productVariantAxisAllowanceEvents)
+      .where(
+        and(
+          eq(productVariantAxisAllowanceEvents.tenantId, tenantId),
+          eq(productVariantAxisAllowanceEvents.productId, productId),
+          eq(productVariantAxisAllowanceEvents.attributeDefinitionId, attributeDefinitionId),
+        ),
+      )
+      .orderBy(desc(productVariantAxisAllowanceEvents.allowanceRevision))
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    return latest;
+  });
+
+  const readAllowanceByInvocation = Effect.fn('VariantAxisPersistence.readAllowanceByInvocation')(
+    function* readAllowanceByInvocation(actionInvocationId: string) {
+      const [invocation] = yield* transaction
+        .select()
+        .from(productVariantAxisAllowanceEvents)
+        .where(
+          and(
+            eq(productVariantAxisAllowanceEvents.tenantId, tenantId),
+            eq(productVariantAxisAllowanceEvents.actionInvocationId, actionInvocationId),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      return invocation;
+    },
+  );
+
+  const readPinnedDefinition = Effect.fn('VariantAxisPersistence.readAllowedValuesDefinition')(
+    function* readPinnedDefinition(attributeDefinitionId: string, definitionRevision: number) {
+      const [revisionRow] = yield* transaction
+        .select()
+        .from(attributeDefinitionRevisions)
+        .where(
+          and(
+            eq(attributeDefinitionRevisions.tenantId, tenantId),
+            eq(attributeDefinitionRevisions.attributeDefinitionId, attributeDefinitionId),
+            eq(attributeDefinitionRevisions.revision, definitionRevision),
+          ),
+        )
+        .limit(1)
+        .pipe(Effect.mapError(unavailable));
+      return revisionRow === undefined
+        ? undefined
+        : definitionFromRevision(revisionRow, {
+            moduleId: catalogModuleId,
+            resourceId: attributeDefinitionId,
+            resourceType: 'commerce.catalog.attribute-definition',
+            tenantId,
+          });
+    },
+  );
+
+  const allControlledValuesActive = Effect.fn('VariantAxisPersistence.allControlledValuesActive')(
+    function* allControlledValuesActive(attributeDefinitionId: string, normalized: readonly AttributeValue[]) {
+      const controlled = normalized.filter(
+        (value): value is Extract<AttributeValue, { readonly kind: 'CONTROLLED' }> => value.kind === 'CONTROLLED',
+      );
+      if (controlled.length === 0) {
+        return true;
+      }
+      const states = yield* Effect.forEach(
+        controlled,
+        (value) =>
+          transaction
+            .select({ lifecycleState: controlledAttributeValues.lifecycleState })
+            .from(controlledAttributeValues)
+            .where(
+              and(
+                eq(controlledAttributeValues.tenantId, tenantId),
+                eq(controlledAttributeValues.attributeDefinitionId, attributeDefinitionId),
+                eq(controlledAttributeValues.controlledAttributeValueId, value.valueRef.resourceId),
+              ),
+            )
+            .limit(1)
+            .pipe(Effect.mapError(unavailable)),
+        { concurrency: 1 },
+      );
+      return states.every((rows) => rows[0]?.lifecycleState === 'ACTIVE');
+    },
+  );
+
+  const allowedSetUnchanged = Effect.fn('VariantAxisPersistence.allowedSetUnchanged')(function* allowedSetUnchanged(
+    productId: string,
+    attributeDefinitionId: string,
+    allowanceRevision: number,
+    hashes: readonly string[],
+  ) {
+    const existing = yield* transaction
+      .select({ valueKey: productVariantAxisAllowedValues.valueKey })
+      .from(productVariantAxisAllowedValues)
+      .where(
+        and(
+          eq(productVariantAxisAllowedValues.tenantId, tenantId),
+          eq(productVariantAxisAllowedValues.productId, productId),
+          eq(productVariantAxisAllowedValues.attributeDefinitionId, attributeDefinitionId),
+          eq(productVariantAxisAllowedValues.allowanceRevision, allowanceRevision),
+        ),
+      )
+      .pipe(Effect.mapError(unavailable));
+    const existingKeys = existing.map((row) => row.valueKey).toSorted();
+    const sorted = hashes.toSorted();
+    return existingKeys.length === sorted.length && existingKeys.every((key, index) => key === sorted[index]);
+  });
+
+  const appendAllowedValuesSnapshot = Effect.fn('VariantAxisPersistence.appendAllowedValuesSnapshot')(
+    function* appendAllowedValuesSnapshot(
+      input: GovernVariantAllowedValuesInput,
+      productId: string,
+      axisRevision: number,
+      allowanceRevision: number,
+      hashes: readonly string[],
+      normalized: readonly AttributeValue[],
+    ) {
+      yield* transaction.insert(productVariantAxisAllowanceEvents).values({
+        actingPrincipalId: input.principalId,
+        actionInvocationId: input.actionInvocationId,
+        allowanceRevision,
+        attributeDefinitionId: input.attributeDefinitionId,
+        axisRevision,
+        definitionRevision: input.definitionRevision,
+        evidenceRefs: [...input.evidenceRefs],
+        productId,
+        reason: input.reason,
+        tenantId,
+        valueCount: hashes.length,
+      });
+      if (normalized.length === 0) {
+        return;
+      }
+      yield* transaction.insert(productVariantAxisAllowedValues).values(
+        normalized.map((value, index) => ({
+          allowanceRevision,
+          attributeDefinitionId: input.attributeDefinitionId,
+          axisRevision,
+          productId,
+          tenantId,
+          valueKey: hashes[index] ?? '',
+          valueSnapshot: value,
+        })),
+      );
+    },
+    Effect.mapError(unavailable),
+  );
+
+  const governAllowedValues: VariantAxisPersistence['governAllowedValues'] = Effect.fn(
+    'VariantAxisPersistence.governAllowedValues',
+    // oxlint-disable-next-line complexity -- Allowed-value governance verifies axis revision, allowance revision, definition pin, value identity, controlled-value lifecycle, and idempotency in one transaction. expires: 2027-03-31.
+  )(function* governAllowedValues(input) {
+    if (!validGovernAllowedValuesInput(input, tenantId)) {
+      return { _tag: 'invalid_input', reason: 'Invalid allowed-value governance input' } as const;
+    }
+    const productId = input.productRef.resourceId;
+    const product = yield* lockProduct(productId);
+    if (product === undefined) {
+      return { _tag: 'not_found' } as const;
+    }
+    if (product.lifecycleState === 'RETIRED') {
+      return { _tag: 'invalid_input', reason: 'Retired Product cannot govern Variant allowed values' } as const;
+    }
+    const current = yield* readCurrent(input.productRef);
+    if (current.axisRevision !== input.expectedAxisRevision) {
+      return { _tag: 'axis_conflict', actualAxisRevision: current.axisRevision } as const;
+    }
+    const axis = current.axes.find((item) => item.attributeDefinitionId === input.attributeDefinitionId);
+    if (axis === undefined || axis.definitionRevision !== input.definitionRevision) {
+      return {
+        _tag: 'invalid_input',
+        reason: 'Allowed values must pin the Current declared axis definition revision',
+      } as const;
+    }
+    const latest = yield* readLatestAllowance(productId, input.attributeDefinitionId);
+    if ((latest?.allowanceRevision ?? 0) !== input.expectedAllowanceRevision) {
+      return { _tag: 'revision_conflict', actualAllowanceRevision: latest?.allowanceRevision ?? 0 } as const;
+    }
+    const invocation = yield* readAllowanceByInvocation(input.actionInvocationId);
+    if (invocation !== undefined) {
+      return { _tag: 'governed', allowanceRevision: invocation.allowanceRevision, changed: false } as const;
+    }
+    const definition = yield* readPinnedDefinition(input.attributeDefinitionId, input.definitionRevision);
+    if (definition === undefined) {
+      return { _tag: 'invalid_input', reason: 'Pinned definition revision cannot be verified' } as const;
+    }
+    const validated = validateAllowedValuesSnapshot(definition, input.values);
+    if (!validated.valid) {
+      return { _tag: 'invalid_input', reason: validated.reason } as const;
+    }
+    if (!(yield* allControlledValuesActive(input.attributeDefinitionId, validated.normalized))) {
+      return { _tag: 'invalid_input', reason: 'Allowed controlled value is not Active in this Tenant' } as const;
+    }
+    if (
+      latest !== undefined &&
+      latest.definitionRevision === input.definitionRevision &&
+      latest.axisRevision === current.axisRevision &&
+      (yield* allowedSetUnchanged(productId, input.attributeDefinitionId, latest.allowanceRevision, validated.hashes))
+    ) {
+      return { _tag: 'governed', allowanceRevision: latest.allowanceRevision, changed: false } as const;
+    }
+    const allowanceRevision = (latest?.allowanceRevision ?? 0) + 1;
+    yield* appendAllowedValuesSnapshot(
+      input,
+      productId,
+      current.axisRevision,
+      allowanceRevision,
+      validated.hashes,
+      validated.normalized,
+    );
+    return { _tag: 'governed', allowanceRevision, changed: true } as const;
+  });
+
+  return {
+    govern,
+    governAllowedValues,
+    readCurrent,
+    readCurrentAllowedValues,
+    readEffectiveValues,
+    readRecordedCombinations,
+    readRecordedVariants,
+  };
 };

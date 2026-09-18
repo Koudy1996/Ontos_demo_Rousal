@@ -3,6 +3,7 @@ import { Effect, Schema } from 'effect';
 
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
+import { VariantCombinationConflict } from './variant-combination-conflict.ts';
 import {
   VariantCurrentBasisUnavailable,
   variantPersistenceForScope as makeVariantPersistence,
@@ -22,6 +23,13 @@ export class VariantActionConflict extends Schema.TaggedError<VariantActionConfl
 
 export const VariantActionErrorSchema = Schema.Union([
   VariantActionConflict,
+  VariantActionNotFound,
+  VariantCurrentBasisUnavailable,
+  CatalogPersistenceUnavailable,
+]);
+
+export const VariantCombinationActionErrorSchema = Schema.Union([
+  VariantCombinationConflict,
   VariantActionNotFound,
   VariantCurrentBasisUnavailable,
   CatalogPersistenceUnavailable,

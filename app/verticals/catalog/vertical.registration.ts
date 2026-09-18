@@ -14,6 +14,7 @@ import { changeProductManufacturerAction } from './src/actions/change-product-ma
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
 import { changeVariantAction } from './src/actions/change-variant.action.ts';
 import { confirmGtinAction } from './src/actions/confirm-gtin.action.ts';
+import { confirmVariantCombinationAction } from './src/actions/confirm-variant-combination.action.ts';
 import { correctGtinAction } from './src/actions/correct-gtin.action.ts';
 import { correctProductAction } from './src/actions/correct-product.action.ts';
 import { correctSkuAction } from './src/actions/correct-sku.action.ts';
@@ -31,6 +32,7 @@ import { createSetCompositionAction } from './src/actions/create-set-composition
 import { createVariantAction } from './src/actions/create-variant.action.ts';
 import { decideProductTypeUnnecessaryAction } from './src/actions/decide-product-type-unnecessary.action.ts';
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
+import { governVariantAllowedValuesAction } from './src/actions/govern-variant-allowed-values.action.ts';
 import { governVariantAxesAction } from './src/actions/govern-variant-axes.action.ts';
 import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
 import { moveProductCategoryAction } from './src/actions/move-product-category.action.ts';
@@ -95,6 +97,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     changeProductRelationshipAction,
     changeVariantAction,
     confirmGtinAction,
+    confirmVariantCombinationAction,
     correctGtinAction,
     correctProductAction,
     correctSkuAction,
@@ -112,6 +115,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     createVariantAction,
     decideProductTypeUnnecessaryAction,
     governProductAttributeApplicabilityAction,
+    governVariantAllowedValuesAction,
     governVariantAxesAction,
     markGtinUnresolvedAction,
     moveProductCategoryAction,
@@ -182,6 +186,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'color-current': () => import('./src/api/color-current-client.ts'),
       'color-history': () => import('./src/api/color-history-client.ts'),
       'confirm-gtin-recovery': () => import('./src/api/confirm-gtin-recovery-client.ts'),
+      'confirm-variant-combination-recovery': () => import('./src/api/confirm-variant-combination-recovery-client.ts'),
       'correct-gtin-recovery': () => import('./src/api/correct-gtin-recovery-client.ts'),
       'correct-product-recovery': () => import('./src/api/correct-product-recovery-client.ts'),
       'correct-sku-recovery': () => import('./src/api/correct-sku-recovery-client.ts'),
@@ -203,9 +208,12 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'effective-attribute-values-current': () => import('./src/api/effective-attribute-values-current-client.ts'),
       'govern-product-attribute-applicability-recovery': () =>
         import('./src/api/govern-product-attribute-applicability-recovery-client.ts'),
+      'govern-variant-allowed-values-recovery': () =>
+        import('./src/api/govern-variant-allowed-values-recovery-client.ts'),
       'govern-variant-axes-recovery': () => import('./src/api/govern-variant-axes-recovery-client.ts'),
       'gtin-current': () => import('./src/api/gtin-current-client.ts'),
       'gtin-history': () => import('./src/api/gtin-history-client.ts'),
+      'list-recorded-variants': () => import('./src/api/list-recorded-variants-client.ts'),
       'manufacturer-relation-current': () => import('./src/api/manufacturer-relation-current-client.ts'),
       'manufacturer-relation-history': () => import('./src/api/manufacturer-relation-history-client.ts'),
       'mark-gtin-unresolved-recovery': () => import('./src/api/mark-gtin-unresolved-recovery-client.ts'),

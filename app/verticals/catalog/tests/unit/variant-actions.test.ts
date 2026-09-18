@@ -38,6 +38,7 @@ const context = (overrides: Partial<VariantPersistence>) => {
   const reads: string[] = [];
   const services: VariantPersistence = {
     change: unexpected,
+    confirm: unexpected,
     create: unexpected,
     reactivate: unexpected,
     recoverCreateVariant: unexpected,

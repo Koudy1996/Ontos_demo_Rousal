@@ -13,10 +13,12 @@ import type { ReactivateVariantPayload, ReactivateVariantResult } from '../../sh
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
+import { variantUseChangePersistenceForScope } from '../persistence/variant-use-change-persistence.ts';
 import {
   checkVariantTenant,
   conflictForOutcome,
   ProductAuditEvidenceSchema,
+  recordVariantAccess,
   VariantActionErrorSchema,
   variantNotFound,
   variantPersistenceForScope,
@@ -51,7 +53,8 @@ export const handleReactivateVariant = Effect.fn('ReactivateVariantAction.handle
     reason: payload.reason,
     variantRef: payload.variantRef,
   });
-  return yield* Match.value(outcome).pipe(
+  const result = yield* Match.value(outcome).pipe(
+    Match.tag('changed', ({ variant }) => Effect.succeed({ variant })),
     Match.tag('not_found', () => Effect.fail(variantNotFound())),
     Match.tag('revision_conflict', () => Effect.fail(conflictForOutcome('revision_conflict'))),
     Match.tag('lifecycle_conflict', () => Effect.fail(conflictForOutcome('lifecycle_conflict'))),
@@ -59,6 +62,9 @@ export const handleReactivateVariant = Effect.fn('ReactivateVariantAction.handle
     Match.tag('invalid_change', () => Effect.fail(conflictForOutcome('invalid_change'))),
     Match.exhaustive,
   );
+  yield* context.recordAuditEvidence({ evidenceRefs: payload.evidenceRefs, reason: payload.reason });
+  yield* recordVariantAccess(context, result.variant.variantRef.resourceId);
+  return result;
 });
 
 export const reactivateVariantAction = defineAction(
@@ -89,7 +95,7 @@ export const reactivateVariantAction = defineAction(
   },
   handleReactivateVariant,
   (transaction, scope) =>
-    variantPersistenceForScope(transaction, scope).pipe(
+    variantPersistenceForScope(transaction, scope, variantUseChangePersistenceForScope(transaction, scope)).pipe(
       Effect.map((services): ReactivateVariantServices => ({
         ...services,
         captureResult: (actionInvocationId, result) =>

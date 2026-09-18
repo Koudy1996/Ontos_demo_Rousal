@@ -77,6 +77,7 @@ export class VariantUseChangeConflict extends Schema.TaggedError<VariantUseChang
       'WRONG_PRODUCT',
       'RETIRED_PARENT_PRODUCT',
       'RETIRED_PACKAGE_OPTION',
+      'OPEN_SELECTION_REVALIDATION_REQUIRED',
     ]),
     reason: Schema.String,
   },

@@ -4,13 +4,18 @@ import { Effect, Schema } from 'effect';
 
 import type {
   VariantReactivationRequiredPackageOption,
-  VariantUseChangeConflict,
   VariantUseChangeDecision,
 } from '../../shared/domain/variant-use-change.ts';
-import { revalidateVariantReactivation } from '../../shared/domain/variant-use-change.ts';
+import { revalidateVariantReactivation, VariantUseChangeConflict } from '../../shared/domain/variant-use-change.ts';
+import type {
+  CartOpenSelectionPopulationPort,
+  CatalogSelectionEvidenceReader,
+} from '../../shared/domain/catalog-open-selection-population.ts';
+import { openSelectionReferencesProduct } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { packageDefinitions, packageOptionRoleRevisions, products } from '../database/schema.ts';
+import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
 import type {
   CurrentVariantAxes,
@@ -51,8 +56,9 @@ export interface VariantReactivationBasisPersistence {
 export interface VariantUseChangePersistence {
   /**
    * Reconstruct a retired Variant's recorded combination from its Current effective values and
-   * compare it with the recorded ACTIVE combinations. A collision is a definite conflict; a
-   * clean identity still requires #479 open-selection revalidation before reactivation.
+   * compare it with the recorded ACTIVE combinations. A collision is a definite conflict. A clean
+   * identity is still confirmed against the injected Cart open-selection owner contract and
+   * Catalog's own #479 Current evidence; without that contract the result stays typed fail-closed.
    */
   readonly assessReactivation: (
     input: VariantReactivationAssessmentInput,
@@ -60,6 +66,16 @@ export interface VariantUseChangePersistence {
     VariantUseChangeDecision,
     CatalogPersistenceUnavailable | VariantUseChangeBasisUnavailable | VariantUseChangeConflict
   >;
+}
+
+/**
+ * The two owner halves of open-selection revalidation: Catalog's own #479 evidence reader and the
+ * injected Cart population contract. Neither is derived from the other, and both must be present
+ * before a reactivation can be called collision-free.
+ */
+export interface VariantReactivationSelectionAuthority {
+  readonly evidence: CatalogSelectionEvidenceReader;
+  readonly openSelections: CartOpenSelectionPopulationPort;
 }
 
 const basisUnavailable = () =>
@@ -76,6 +92,55 @@ const unavailable = (cause: unknown): CatalogPersistenceUnavailable => {
   Object.defineProperty(error, 'cause', { configurable: true, value: cause });
   return error;
 };
+
+const unavailableOwnerAssessment = Schema.Struct({ kind: Schema.Literal('UNAVAILABLE'), reason: Schema.String });
+
+/**
+ * Refine a Catalog-owned reactivation decision with the Cart open-selection population. Without
+ * the injected owner contract the decision stays incomplete; a supplied population is confirmed
+ * against Catalog's own Current evidence, and an open selection for this exact Variant blocks the
+ * reactivation instead of being silently dropped.
+ */
+const revalidateReactivationOpenSelections = Effect.fn(
+  'VariantUseChangePersistence.revalidateReactivationOpenSelections',
+)(function* revalidateReactivationOpenSelections(
+  authority: VariantReactivationSelectionAuthority | undefined,
+  decision: VariantUseChangeDecision,
+  input: VariantReactivationAssessmentInput,
+  tenantId: string,
+) {
+  if (decision.revalidation === 'NOT_REQUIRED') {
+    return decision;
+  }
+  if (authority === undefined) {
+    return yield* basisUnavailable();
+  }
+  const population = yield* authority.openSelections.read.pipe(
+    Effect.catchTag('CartOpenSelectionPopulationUnavailable', () => Effect.fail(basisUnavailable())),
+  );
+  const matching = population.selections.filter(
+    ({ selection }) =>
+      openSelectionReferencesProduct(selection, input.productRef) &&
+      selection.variantRef.tenantId === tenantId &&
+      selection.variantRef.resourceId === input.variantRef.resourceId,
+  );
+  const assessments = yield* Effect.forEach(
+    matching,
+    ({ selection }) => authority.evidence.assess({ purpose: 'PURCHASE_ACCEPTANCE', selection }),
+    { concurrency: 1 },
+  );
+  if (assessments.some(({ evidence }) => Schema.is(unavailableOwnerAssessment)(evidence))) {
+    return yield* basisUnavailable();
+  }
+  if (matching.length > 0) {
+    return yield* new VariantUseChangeConflict({
+      code: 'variant_use_change_conflict',
+      conflict: 'OPEN_SELECTION_REVALIDATION_REQUIRED',
+      reason: 'Open Cart selections still reference this Variant; reactivation requires explicit reselection',
+    });
+  }
+  return { ...decision, revalidation: 'NOT_REQUIRED' as const };
+});
 
 const productLifecycle = (value: string): VariantReactivationBasis['parentProductLifecycle'] | undefined =>
   value === 'ACTIVE' || value === 'DRAFT' || value === 'RETIRED' ? value : undefined;
@@ -189,6 +254,7 @@ export const variantUseChangePersistenceForAxes = (
   axes: VariantAxisPersistence,
   reactivationBasis: VariantReactivationBasisPersistence,
   tenantId: string,
+  selectionAuthority?: VariantReactivationSelectionAuthority,
 ): VariantUseChangePersistence => ({
   assessReactivation: Effect.fn('VariantUseChangePersistence.assessReactivation')(function* assessReactivation(input) {
     if (
@@ -227,22 +293,34 @@ export const variantUseChangePersistenceForAxes = (
     if (values.some((value) => value.source === 'MISSING')) {
       return yield* basisUnavailable();
     }
-    return yield* revalidateVariantReactivation({
+    const decision = yield* revalidateVariantReactivation({
       activeCombinationKeys: active.map((combination) => combination.combinationKey),
       parentProductLifecycle: basis.parentProductLifecycle,
       reactivationCombinationKey: recordedVariantCombinationKey(values, tenantId),
       requiredPackageOptions: basis.requiredPackageOptions,
     });
+    return yield* revalidateReactivationOpenSelections(selectionAuthority, decision, input, tenantId);
   }),
 });
 
-/** Constructed only inside Core's already-scoped Action transaction. */
+/**
+ * Constructed only inside Core's already-scoped Action transaction. Catalog's own #479 evidence
+ * reader is always available; the Cart population port is injected by the composition boundary
+ * and, when absent, keeps the reactivation decision typed fail-closed.
+ */
 export const variantUseChangePersistenceForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
+  openSelections?: CartOpenSelectionPopulationPort,
 ): VariantUseChangePersistence =>
   variantUseChangePersistenceForAxes(
     variantAxisPersistenceForScope(transaction, scope),
     variantReactivationBasisForScope(transaction, scope),
     scope.tenantId,
+    openSelections === undefined
+      ? undefined
+      : {
+          evidence: catalogSelectionEvidenceForScope(transaction, scope),
+          openSelections,
+        },
   );

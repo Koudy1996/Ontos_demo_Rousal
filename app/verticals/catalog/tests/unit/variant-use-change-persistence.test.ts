@@ -8,7 +8,14 @@ import {
 import type {
   VariantReactivationBasis,
   VariantReactivationBasisPersistence,
+  VariantReactivationSelectionAuthority,
 } from '../../src/persistence/variant-use-change-persistence.ts';
+import type { CartOpenSelectionPopulationEvidence } from '../../shared/domain/catalog-open-selection-population.ts';
+import {
+  CartOpenSelectionPopulationEvidenceSchema,
+  CartOpenSelectionPopulationUnavailable,
+} from '../../shared/domain/catalog-open-selection-population.ts';
+import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import type {
   CurrentVariantAxes,
   CurrentVariantAxisValue,
@@ -67,20 +74,37 @@ const unexpected = () => Effect.die('Unexpected axis read');
 const basis = (overrides: Partial<VariantReactivationBasis> = {}): VariantReactivationBasisPersistence => ({
   read: () => Effect.succeed({ parentProductLifecycle: 'ACTIVE', requiredPackageOptions: [], ...overrides }),
 });
+const selection = Schema.decodeUnknownSync(CatalogSelectionSchema)({ productRef, variantRef });
+const decodePopulation = Schema.decodeUnknownSync(CartOpenSelectionPopulationEvidenceSchema);
+const populationWith = (revisionToken: string, selectionIds: readonly string[]): CartOpenSelectionPopulationEvidence =>
+  decodePopulation({
+    complete: true,
+    observedAt: '2026-09-18T12:00:00.000Z',
+    revisionToken,
+    selections: selectionIds.map((selectionId) => ({ selection, selectionId })),
+  });
+const emptyPopulation = populationWith('cart-population-1', []);
+const authority = (population: CartOpenSelectionPopulationEvidence): VariantReactivationSelectionAuthority => ({
+  evidence: { assess: () => Effect.succeed({ evidence: { kind: 'NOT_FOUND', requested: selection } }) },
+  openSelections: { read: Effect.succeed(population) },
+});
 const persistence = (
   overrides: Partial<VariantAxisPersistence>,
   basisOverrides: Partial<VariantReactivationBasis> = {},
+  selectionAuthority: VariantReactivationSelectionAuthority = authority(emptyPopulation),
 ) => {
   const service: VariantAxisPersistence = {
     govern: unexpected,
+    governAllowedValues: unexpected,
     readCurrent: () => Effect.succeed(axes),
+    readCurrentAllowedValues: unexpected,
     readEffectiveValues: () => Effect.succeed([value]),
     readRecordedCombinations: () =>
       Effect.succeed([{ axisRevision: 1, combinationKey: 'a'.repeat(64), variantId: otherVariantId }]),
     readRecordedVariants: unexpected,
     ...overrides,
   };
-  return variantUseChangePersistenceForAxes(service, basis(basisOverrides), tenantId);
+  return variantUseChangePersistenceForAxes(service, basis(basisOverrides), tenantId, selectionAuthority);
 };
 
 describe('Variant use change persistence (#441)', () => {
@@ -97,10 +121,62 @@ describe('Variant use change persistence (#441)', () => {
     }),
   );
 
-  it.effect('requires #479 revalidation when the reconstructed identity is collision-free', () =>
+  it.effect('proves a collision-free reactivation against a complete Cart population and Catalog evidence', () =>
     Effect.gen(function* clean() {
       const decision = yield* persistence({}).assessReactivation({ productRef, variantRef });
-      expect(decision).toEqual({ changeKind: 'CORRECTED', revalidation: 'REQUIRED' });
+      expect(decision).toEqual({ changeKind: 'CORRECTED', revalidation: 'NOT_REQUIRED' });
+    }),
+  );
+
+  it.effect('fails closed without the Cart open-selection owner contract', () =>
+    Effect.gen(function* noAuthority() {
+      const service: VariantAxisPersistence = {
+        govern: unexpected,
+        governAllowedValues: unexpected,
+        readCurrent: () => Effect.succeed(axes),
+        readCurrentAllowedValues: unexpected,
+        readEffectiveValues: () => Effect.succeed([value]),
+        readRecordedCombinations: () =>
+          Effect.succeed([{ axisRevision: 1, combinationKey: 'a'.repeat(64), variantId: otherVariantId }]),
+        readRecordedVariants: unexpected,
+      };
+      const failure = yield* variantUseChangePersistenceForAxes(service, basis(), tenantId)
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeBasisUnavailable)(failure)).toBe(true);
+    }),
+  );
+
+  it.effect('blocks reactivation while an open Cart selection still references the Variant', () =>
+    Effect.gen(function* openSelection() {
+      const failure = yield* persistence({}, {}, authority(populationWith('cart-population-2', ['cart-selection-1'])))
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeConflict)(failure)).toBe(true);
+      expect(failure).toMatchObject({ conflict: 'OPEN_SELECTION_REVALIDATION_REQUIRED' });
+    }),
+  );
+
+  it.effect('fails closed when the injected Cart population read is unavailable', () =>
+    Effect.gen(function* unavailablePopulation() {
+      const failure = yield* persistence(
+        {},
+        {},
+        {
+          evidence: { assess: () => Effect.succeed({ evidence: { kind: 'NOT_FOUND', requested: selection } }) },
+          openSelections: {
+            read: Effect.fail(
+              new CartOpenSelectionPopulationUnavailable({
+                code: 'cart_open_selection_population_unavailable',
+                reason: 'Cart is unavailable',
+              }),
+            ),
+          },
+        },
+      )
+        .assessReactivation({ productRef, variantRef })
+        .pipe(Effect.flip);
+      expect(Schema.is(VariantUseChangeBasisUnavailable)(failure)).toBe(true);
     }),
   );
 
@@ -129,7 +205,9 @@ describe('Variant use change persistence (#441)', () => {
       const failure = yield* variantUseChangePersistenceForAxes(
         {
           govern: unexpected,
+          governAllowedValues: unexpected,
           readCurrent: () => Effect.succeed(axes),
+          readCurrentAllowedValues: unexpected,
           readEffectiveValues: () => Effect.succeed([value]),
           readRecordedCombinations: () =>
             Effect.succeed([{ axisRevision: 1, combinationKey: 'a'.repeat(64), variantId: otherVariantId }]),

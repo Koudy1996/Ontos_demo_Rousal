@@ -3,10 +3,12 @@ import { createHash } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
+import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { ProductTypeImpactRule } from '../../shared/domain/product-type-impact.ts';
 import { previewProductTypeImpact } from '../../shared/domain/product-type-impact.ts';
 import type { AttributeValueSetValidityBasis } from './effective-attribute-value-reads.ts';
 import { effectiveAttributeValueReadsForScope } from './effective-attribute-value-reads.ts';
+import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
 import {
   attributeValueSets,
   productTypeAssignments,
@@ -25,11 +27,11 @@ export class ProductTypeImpactScanIncomplete extends Schema.TaggedError<ProductT
   { code: Schema.Literal('product_type_impact_scan_incomplete'), reason: Schema.String },
 ) {}
 
-interface OpenSelectionBasis {
-  /** Issued by #479's owner-side Current selection reader, never by a browser payload. */
-  readonly complete: true;
-  readonly refs: readonly { readonly productId: string; readonly selectionId: string; readonly variantId: string }[];
-  readonly revisionToken: string;
+/** Owner-issued open-selection identity; Catalog never derives it from its own rows. */
+interface OpenSelectionRef {
+  readonly productId: string;
+  readonly selectionId: string;
+  readonly variantId: string;
 }
 
 interface ProductTypeImpactEvidence {
@@ -51,7 +53,7 @@ interface ProductTypeImpactEvidence {
 export interface ProductTypeImpactSnapshot {
   readonly candidateRules: readonly ProductTypeImpactRule[] | null;
   readonly evidence: readonly ProductTypeImpactEvidence[];
-  readonly openSelectionRefs: OpenSelectionBasis['refs'];
+  readonly openSelectionRefs: readonly OpenSelectionRef[];
   readonly preview: ReturnType<typeof previewProductTypeImpact>;
   readonly productTypeId: string;
   readonly sourceRevision: number;
@@ -314,8 +316,12 @@ export const productTypeImpactScanForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   authoritativeBasis: {
-    /** Must be read inside this same Core-owned transaction; absent until #479 provides a reader. */
-    readonly openSelections?: OpenSelectionBasis;
+    /**
+     * Injected Cart owner contract for the complete open-selection population. Catalog has no
+     * durable population of its own; an absent port stays a typed incomplete result and never
+     * becomes "no open selections".
+     */
+    readonly openSelections?: CartOpenSelectionPopulationPort;
   } = {},
 ) => ({
   scan: Effect.fn('ProductTypeImpactScan.scan')(function* scan(input: {
@@ -323,9 +329,13 @@ export const productTypeImpactScanForScope = (
     readonly expectedCurrentRevision: number;
     readonly productTypeId: string;
   }) {
-    if (authoritativeBasis.openSelections === undefined) {
+    const { openSelections } = authoritativeBasis;
+    if (openSelections === undefined) {
       return yield* incomplete('Authoritative open-selection reader is required');
     }
+    const population = yield* openSelections.read.pipe(
+      Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) => Effect.fail(incomplete(failure.reason))),
+    );
     const { tenantId } = scope;
     const [type] = yield* transaction
       .select({ revision: productTypes.currentRevision })
@@ -404,22 +414,41 @@ export const productTypeImpactScanForScope = (
     if (verifiedValidity === null) {
       return yield* incomplete('Current Attribute Value validity evidence is incomplete or foreign');
     }
-    const selections = authoritativeBasis.openSelections;
-    if (!selections.complete || selections.revisionToken.length === 0) {
+    if (population.revisionToken.length === 0) {
       return yield* incomplete('Open Catalog Selection population is unknown');
     }
     const idSet = new Set(ids);
     const variantOwners = new Map(variants.map((variant) => [variant.variantId, variant.productId]));
+    const openSelectionRefs = population.selections
+      .map(({ selection, selectionId }) => ({
+        productId: selection.productRef.resourceId,
+        selectionId,
+        variantId: selection.variantRef.resourceId,
+      }))
+      .toSorted((a, b) => byId(a.selectionId, b.selectionId));
     if (
-      selections.refs.some((ref) => !idSet.has(ref.productId) || variantOwners.get(ref.variantId) !== ref.productId) ||
-      new Set(selections.refs.map((ref) => ref.selectionId)).size !== selections.refs.length
+      openSelectionRefs.some(
+        (ref) => !idSet.has(ref.productId) || variantOwners.get(ref.variantId) !== ref.productId,
+      ) ||
+      new Set(openSelectionRefs.map((ref) => ref.selectionId)).size !== openSelectionRefs.length
     ) {
       return yield* incomplete('Open Catalog Selection basis contains an unrelated Product');
     }
     if (needsInheritanceEvidence(input.candidateRules)) {
       return yield* incomplete('Variant inheritance requires authoritative #430 effective-value evidence');
     }
-    const { evidence, population } = assemblePopulation({
+    // Catalog owns the deciding Current facts of each supplied open selection; an owner read that
+    // cannot be answered is a typed incomplete result, never an assumed absence of impact.
+    const catalogEvidence = catalogSelectionEvidenceForScope(transaction, scope);
+    const openSelectionEvidence = yield* Effect.forEach(
+      population.selections,
+      ({ selection }) => catalogEvidence.assess({ purpose: 'CART_VALIDATION', selection }),
+      { concurrency: 1 },
+    );
+    if (openSelectionEvidence.some(({ evidence: decision }) => 'kind' in decision && decision.kind === 'UNAVAILABLE')) {
+      return yield* incomplete('Open Catalog Selection Current evidence is unavailable');
+    }
+    const { evidence, population: impactPopulation } = assemblePopulation({
       assignments,
       axes,
       products: productRows,
@@ -428,19 +457,18 @@ export const productTypeImpactScanForScope = (
       validitySources: verifiedValidity.validitySources,
       variants,
     });
-    const openSelectionRefs = selections.refs.toSorted((a, b) => byId(a.selectionId, b.selectionId));
     const base = {
       candidateRules: input.candidateRules,
       evidence,
       openSelectionRefs,
-      preview: previewProductTypeImpact(population, input.candidateRules),
+      preview: previewProductTypeImpact(impactPopulation, input.candidateRules),
       productTypeId: input.productTypeId,
       sourceRevision: type.revision,
       sourceRevisionId: revision.id,
     };
     return {
       ...base,
-      token: productTypeImpactRevisionToken({ ...base, selectionRevisionToken: selections.revisionToken, tenantId }),
+      token: productTypeImpactRevisionToken({ ...base, selectionRevisionToken: population.revisionToken, tenantId }),
     } satisfies ProductTypeImpactSnapshot;
   }),
 });

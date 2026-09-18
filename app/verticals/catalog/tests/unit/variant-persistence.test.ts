@@ -198,6 +198,58 @@ describe('Variant persistence', () => {
     }),
   );
 
+  it.effect('reactivates a documented collision-free Variant once the #441 assessment proves it clear', () =>
+    Effect.gen(function* reactivateVariant() {
+      const revisions: unknown[] = [];
+      const transaction = {
+        insert: (table: typeof productVariantRevisions) => {
+          expect(table).toBe(productVariantRevisions);
+          return {
+            values: (value: typeof productVariantRevisions.$inferInsert) => {
+              revisions.push(value);
+              return Effect.succeed([]);
+            },
+          };
+        },
+        select: () => ({
+          from: (table: typeof products | typeof productVariants) =>
+            lockedRow(
+              table === productVariants
+                ? { ...row, currentRevision: 2, lifecycleState: 'RETIRED' }
+                : { ...row, lifecycleState: 'ACTIVE' },
+            ),
+        }),
+        update: (table: typeof productVariants) => {
+          expect(table).toBe(productVariants);
+          return {
+            set: (values: Partial<typeof productVariants.$inferInsert>) =>
+              returnedRow({ ...row, ...values, lifecycleState: 'ACTIVE' }),
+          };
+        },
+      };
+      // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+      const service = variantPersistenceForScope(transaction, scope, {
+        assessReactivation: () => Effect.succeed({ changeKind: 'CORRECTED', revalidation: 'NOT_REQUIRED' }),
+      });
+      const outcome = yield* service.reactivate({ ...evidence, expectedRevision: 2, variantRef });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('changed', ({ variant }) => variant.lifecycle),
+          Match.orElse(() => 'FAILED'),
+        ),
+      ).toBe('ACTIVE');
+      expect(revisions).toEqual([
+        expect.objectContaining({
+          changeKind: 'LIFECYCLE',
+          lifecycleState: 'ACTIVE',
+          productId,
+          revision: 3,
+          variantId,
+        }),
+      ]);
+    }),
+  );
+
   it.effect('retires the targeted Variant and appends its lifecycle revision', () =>
     Effect.gen(function* retireVariant() {
       const revisions: unknown[] = [];

@@ -7,6 +7,13 @@ import type { ProductVariant } from './product.ts';
 
 type DefinitionRef = AttributeDefinition['ref'];
 
+/** Canonical 64-hex identity of a confirmed Variant combination; owner-branded before use. */
+export const VariantCombinationKeySchema = Schema.String.check(Schema.isPattern(/^[0-9a-f]{64}$/u)).pipe(
+  Schema.brand('CatalogVariantCombinationKey'),
+  Schema.decodeTo(Schema.String),
+);
+export type VariantCombinationKey = typeof VariantCombinationKeySchema.Type;
+
 export interface VariantAxis {
   readonly attributeDefinitionRef: DefinitionRef;
   /** Exact definition rules used to interpret this Product's axis. */

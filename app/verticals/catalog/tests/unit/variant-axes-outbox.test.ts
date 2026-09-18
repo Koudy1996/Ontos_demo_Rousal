@@ -33,7 +33,9 @@ const context = (govern: VariantAxisPersistence['govern']) => {
   const outbox: { event: object; message: { payloadJson: unknown; producerModuleKey: string; topic: string } }[] = [];
   const services: VariantAxisPersistence = {
     govern,
+    governAllowedValues: unexpected,
     readCurrent: unexpected,
+    readCurrentAllowedValues: unexpected,
     readEffectiveValues: unexpected,
     readRecordedCombinations: unexpected,
     readRecordedVariants: unexpected,

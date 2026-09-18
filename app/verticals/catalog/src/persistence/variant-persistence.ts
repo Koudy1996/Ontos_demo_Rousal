@@ -7,12 +7,22 @@ import { CreateVariantResultSchema } from '../../shared/actions/create-variant.t
 import type { CreateVariantResult } from '../../shared/actions/create-variant.ts';
 import { ProductVariantSchema } from '../../shared/domain/product.ts';
 import type { ProductVariant } from '../../shared/domain/product.ts';
+import { VariantCombinationKeySchema } from '../../shared/domain/variant-axes.ts';
+import { AttributeDefinitionRefSchema } from '../../shared/resources/attribute-definition.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { manufacturerRelations, productVariantRevisions, productVariants, products } from '../database/schema.ts';
 import { recoverCatalogActionResult } from '../api/catalog-action-result-recovery.ts';
 import type { CatalogActionRecovery } from '../api/catalog-action-result-recovery.ts';
+import type { VariantUseChangePersistence } from './variant-use-change-persistence.ts';
 import { CatalogPersistenceUnavailable } from './errors.ts';
+import { axisFreeCombinationKey } from './variant-current-basis.ts';
+import {
+  VariantAxisBasisUnavailable,
+  effectiveValueItemKeyHash,
+  recordedVariantCombinationKey,
+  variantAxisPersistenceForScope,
+} from './variant-axis-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 type VariantRow = typeof productVariants.$inferSelect;
@@ -48,6 +58,54 @@ interface VariantLifecyclePersistenceInput extends ChangeEvidence {
   readonly variantRef: VariantRef;
 }
 
+export interface ConfirmVariantCombinationPersistenceInput extends ChangeEvidence {
+  readonly expectedAxisRevision: number;
+  readonly expectedVariantRevision: number;
+  readonly productRef: ProductRef;
+  readonly variantRef: VariantRef;
+}
+
+/**
+ * Typed confirmation outcomes. Duplicate, missing axis, impermissible value, and stale basis
+ * stay distinct so a caller can tell a real duplicate from an unverifiable basis (#440 R7).
+ * An unavailable basis is raised as {@link VariantCurrentBasisUnavailable}, never as success.
+ */
+export const ConfirmedVariantCombinationSchema = Schema.TaggedStruct('confirmed', {
+  combinationAxisRevision: Schema.Int,
+  combinationKey: VariantCombinationKeySchema,
+  revision: Schema.Int,
+  variant: ProductVariantSchema,
+});
+export const DuplicateVariantCombinationSchema = Schema.TaggedStruct('duplicate_combination', {});
+export const ImpermissibleVariantCombinationSchema = Schema.TaggedStruct('impermissible_value', {
+  attributeDefinitionId: AttributeDefinitionRefSchema.fields.resourceId,
+});
+export const InvalidVariantCombinationChangeSchema = Schema.TaggedStruct('invalid_change', {});
+export const LifecycleVariantCombinationConflictSchema = Schema.TaggedStruct('lifecycle_conflict', {});
+export const MissingVariantCombinationAxisSchema = Schema.TaggedStruct('missing_axis', {
+  attributeDefinitionId: AttributeDefinitionRefSchema.fields.resourceId,
+});
+export const VariantCombinationNotFoundSchema = Schema.TaggedStruct('not_found', {});
+export const VariantCombinationRevisionConflictSchema = Schema.TaggedStruct('revision_conflict', {
+  actualRevision: Schema.Int,
+});
+export const VariantCombinationStaleBasisSchema = Schema.TaggedStruct('stale_basis', {
+  actualAxisRevision: Schema.Int,
+  expectedAxisRevision: Schema.Int,
+});
+export const ConfirmVariantCombinationOutcomeSchema = Schema.Union([
+  ConfirmedVariantCombinationSchema,
+  DuplicateVariantCombinationSchema,
+  ImpermissibleVariantCombinationSchema,
+  InvalidVariantCombinationChangeSchema,
+  LifecycleVariantCombinationConflictSchema,
+  MissingVariantCombinationAxisSchema,
+  VariantCombinationNotFoundSchema,
+  VariantCombinationRevisionConflictSchema,
+  VariantCombinationStaleBasisSchema,
+]);
+export type ConfirmVariantCombinationOutcome = typeof ConfirmVariantCombinationOutcomeSchema.Type;
+
 const FailureOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('not_found', {}),
   Schema.TaggedStruct('lifecycle_conflict', {}),
@@ -70,12 +128,18 @@ export interface VariantPersistence {
     FailureOutcome | SuccessOutcome<'changed'>,
     CatalogPersistenceUnavailable | VariantCurrentBasisUnavailable
   >;
+  readonly confirm: (
+    input: ConfirmVariantCombinationPersistenceInput,
+  ) => Effect.Effect<ConfirmVariantCombinationOutcome, CatalogPersistenceUnavailable | VariantCurrentBasisUnavailable>;
   readonly create: (
     input: CreateVariantPersistenceInput,
   ) => Effect.Effect<FailureOutcome | SuccessOutcome<'created'>, CatalogPersistenceUnavailable>;
   readonly reactivate: (
     input: VariantLifecyclePersistenceInput,
-  ) => Effect.Effect<FailureOutcome, CatalogPersistenceUnavailable | VariantCurrentBasisUnavailable>;
+  ) => Effect.Effect<
+    FailureOutcome | SuccessOutcome<'changed'>,
+    CatalogPersistenceUnavailable | VariantCurrentBasisUnavailable
+  >;
   readonly recoverCreateVariant: (
     invocationId: string,
   ) => Effect.Effect<CatalogActionRecovery<CreateVariantResult>, never, ActionRuntime>;
@@ -168,10 +232,30 @@ const mapInsertError = (
   return Option.isSome(matched) ? { _tag: 'VariantIdentityConflict' } : unavailable(error);
 };
 
-/** The owner service uses only Core's already-scoped transaction; no caller can supply an axis signature. */
+const CombinationDuplicateSignalSchema = Schema.TaggedStruct('CombinationDuplicateSignal', {});
+const mapCombinationError = (
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Core classifies an opaque PostgreSQL driver cause. expires: 2027-03-31.
+  error: unknown,
+): typeof CombinationDuplicateSignalSchema.Type | CatalogPersistenceUnavailable => {
+  const uniqueViolation = ['23', '505'].join('');
+  const matched = findPostgresFailure(
+    error,
+    ({ code, constraint }) =>
+      code === uniqueViolation && constraint === 'catalog_product_variants_active_combination_uk',
+  );
+  return Option.isSome(matched) ? { _tag: 'CombinationDuplicateSignal' } : unavailable(error);
+};
+
+/**
+ * The owner service uses only Core's already-scoped transaction; no caller can supply an axis
+ * signature. Reactivation additionally consumes the #441 assessment, which itself resolves the
+ * Catalog-owned Current facts and the injected Cart open-selection owner contract; without it the
+ * reactivation stays typed fail-closed.
+ */
 export const variantPersistenceForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
+  reactivation?: VariantUseChangePersistence,
 ): VariantPersistence => {
   const { tenantId } = scope;
   const recoverCreateVariant: VariantPersistence['recoverCreateVariant'] = (invocationId) =>
@@ -386,8 +470,190 @@ export const variantPersistenceForScope = (
       if (parent.lifecycleState === 'RETIRED') {
         return { _tag: 'lifecycle_conflict' };
       }
-      return yield* basisUnavailable();
+      if (reactivation === undefined) {
+        return yield* basisUnavailable();
+      }
+      const conflictOutcome = yield* reactivation
+        .assessReactivation({
+          productRef: {
+            moduleId: CATALOG_MODULE,
+            resourceId: row.productId,
+            resourceType: PRODUCT_RESOURCE,
+            tenantId,
+          },
+          variantRef: input.variantRef,
+        })
+        .pipe(
+          Effect.map(() => 'PROVEN' as const),
+          Effect.catchTags({
+            // oxlint-disable sonarjs/function-name -- Effect catchTags keys are schema-owned error tags; #441 reactivation integration. expires: 2027-03-31.
+            VariantUseChangeBasisUnavailable: () => Effect.fail(basisUnavailable()),
+            VariantUseChangeConflict: (failure) =>
+              Effect.succeed(
+                failure.conflict === 'DUPLICATE_COMBINATION' ? ('IDENTITY' as const) : ('LIFECYCLE' as const),
+              ),
+            // oxlint-enable sonarjs/function-name
+          }),
+        );
+      if (conflictOutcome !== 'PROVEN') {
+        return { _tag: conflictOutcome === 'IDENTITY' ? 'identity_conflict' : 'lifecycle_conflict' };
+      }
+      const [updated] = yield* transaction
+        .update(productVariants)
+        .set({
+          currentRevision: row.currentRevision + 1,
+          lifecycleState: 'ACTIVE',
+          updatedAt: DateTime.toDateUtc(yield* DateTime.now),
+        })
+        .where(
+          and(
+            eq(productVariants.tenantId, tenantId),
+            eq(productVariants.variantId, row.variantId),
+            eq(productVariants.currentRevision, row.currentRevision),
+          ),
+        )
+        .returning()
+        .pipe(Effect.mapError(unavailable));
+      if (updated === undefined) {
+        return yield* unavailable();
+      }
+      yield* revision(updated, input, 'LIFECYCLE');
+      return { _tag: 'changed', revision: updated.currentRevision, variant: variant(updated) };
     },
   );
-  return { change, create, reactivate, recoverCreateVariant, retire };
+  // oxlint-disable-next-line complexity -- Confirmation enumerates the complete typed outcome set (duplicate, missing axis, impermissible, stale basis, unverifiable) in one owner-local transaction. expires: 2027-03-31.
+  const confirm: VariantPersistence['confirm'] = Effect.fn('VariantPersistence.confirm')(function* confirm(input) {
+    if (
+      !isRef(input.productRef, tenantId, PRODUCT_RESOURCE) ||
+      !isRef(input.variantRef, tenantId, VARIANT_RESOURCE) ||
+      !Number.isSafeInteger(input.expectedAxisRevision) ||
+      input.expectedAxisRevision < 0 ||
+      !validEvidence(input)
+    ) {
+      return { _tag: 'invalid_change' };
+    }
+    const [parent] = yield* getProduct(input.productRef.resourceId);
+    if (parent === undefined) {
+      return { _tag: 'not_found' };
+    }
+    if (parent.lifecycleState === 'RETIRED') {
+      return { _tag: 'lifecycle_conflict' };
+    }
+    const [row] = yield* getVariant(input.variantRef.resourceId);
+    if (row === undefined || row.productId !== parent.productId || row.tenantId !== tenantId) {
+      return { _tag: 'not_found' };
+    }
+    if (row.currentRevision !== input.expectedVariantRevision) {
+      return { _tag: 'revision_conflict', actualRevision: row.currentRevision };
+    }
+
+    const axisReader = variantAxisPersistenceForScope(transaction, scope);
+    const mapAxisBasisError = (
+      error: CatalogPersistenceUnavailable | VariantAxisBasisUnavailable,
+    ): CatalogPersistenceUnavailable | VariantCurrentBasisUnavailable =>
+      Schema.is(VariantAxisBasisUnavailable)(error) ? basisUnavailable() : error;
+    const axisBasis = <A, R>(
+      effect: Effect.Effect<A, CatalogPersistenceUnavailable | VariantAxisBasisUnavailable, R>,
+    ) => effect.pipe(Effect.mapError(mapAxisBasisError));
+    const current = yield* axisBasis(axisReader.readCurrent(input.productRef));
+    if (!Number.isSafeInteger(current.axisRevision) || current.axisRevision < 1) {
+      return yield* basisUnavailable();
+    }
+    if (current.axisRevision !== input.expectedAxisRevision) {
+      return {
+        _tag: 'stale_basis',
+        actualAxisRevision: current.axisRevision,
+        expectedAxisRevision: input.expectedAxisRevision,
+      };
+    }
+
+    let combinationKey: string;
+    if (current.axes.length === 0) {
+      combinationKey = axisFreeCombinationKey();
+    } else {
+      const allowed = yield* axisBasis(axisReader.readCurrentAllowedValues(input.productRef, current));
+      const allowedByAxis = new Map(allowed.map((item) => [item.attributeDefinitionId, new Set(item.valueKeys)]));
+      const values = yield* axisBasis(axisReader.readEffectiveValues(input.productRef, input.variantRef, current));
+      const valuesByAxis = new Map(values.map((item) => [item.attributeDefinitionId, item]));
+      for (const axis of current.axes) {
+        const value = valuesByAxis.get(axis.attributeDefinitionId);
+        if (value === undefined || value.source === 'MISSING' || value.items.length === 0) {
+          return { _tag: 'missing_axis', attributeDefinitionId: axis.attributeDefinitionId };
+        }
+        const allowedKeys = allowedByAxis.get(axis.attributeDefinitionId);
+        if (allowedKeys === undefined) {
+          return yield* basisUnavailable();
+        }
+        if (value.items.some((item) => !allowedKeys.has(effectiveValueItemKeyHash(item)))) {
+          return { _tag: 'impermissible_value', attributeDefinitionId: axis.attributeDefinitionId };
+        }
+      }
+      combinationKey = recordedVariantCombinationKey(values, tenantId);
+    }
+
+    const conflicts = yield* transaction
+      .select({ variantId: productVariants.variantId })
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.tenantId, tenantId),
+          eq(productVariants.productId, parent.productId),
+          eq(productVariants.lifecycleState, 'ACTIVE'),
+          eq(productVariants.combinationKey, combinationKey),
+        ),
+      )
+      .pipe(Effect.mapError(unavailable));
+    if (conflicts.some((item) => item.variantId !== row.variantId)) {
+      return { _tag: 'duplicate_combination' };
+    }
+    if (
+      row.lifecycleState === 'ACTIVE' &&
+      row.combinationKey === combinationKey &&
+      row.combinationAxisRevision === current.axisRevision
+    ) {
+      return {
+        _tag: 'confirmed',
+        combinationAxisRevision: current.axisRevision,
+        combinationKey,
+        revision: row.currentRevision,
+        variant: variant(row),
+      };
+    }
+
+    const updated = yield* transaction
+      .update(productVariants)
+      .set({
+        combinationAxisRevision: current.axisRevision,
+        combinationKey,
+        currentRevision: row.currentRevision + 1,
+        lifecycleState: 'ACTIVE',
+        updatedAt: DateTime.toDateUtc(yield* DateTime.now),
+      })
+      .where(
+        and(
+          eq(productVariants.tenantId, tenantId),
+          eq(productVariants.variantId, row.variantId),
+          eq(productVariants.currentRevision, row.currentRevision),
+        ),
+      )
+      .returning()
+      .pipe(
+        Effect.mapError(mapCombinationError),
+        Effect.catchTag('CombinationDuplicateSignal', () => Effect.succeed<VariantRow[]>([])),
+      );
+    const [written] = updated;
+    if (written === undefined) {
+      return { _tag: 'duplicate_combination' };
+    }
+    yield* revision(written, input, 'LIFECYCLE');
+    return {
+      _tag: 'confirmed',
+      combinationAxisRevision: written.combinationAxisRevision ?? current.axisRevision,
+      combinationKey: written.combinationKey ?? combinationKey,
+      revision: written.currentRevision,
+      variant: variant(written),
+    };
+  });
+
+  return { change, confirm, create, reactivate, recoverCreateVariant, retire };
 };

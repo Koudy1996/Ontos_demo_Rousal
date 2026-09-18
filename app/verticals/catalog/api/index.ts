@@ -51,6 +51,8 @@ import { colorCurrentReadApiLive } from './color-current-read-server.ts';
 import { colorHistoryReadApiLive } from './color-history-read-server.ts';
 import { confirmGtinActionApiLive } from './confirm-gtin-action-server.ts';
 import { confirmGtinRecoveryReadApiLive } from './confirm-gtin-recovery-read-server.ts';
+import { confirmVariantCombinationActionApiLive } from './confirm-variant-combination-action-server.ts';
+import { confirmVariantCombinationRecoveryReadApiLive } from './confirm-variant-combination-recovery-read-server.ts';
 import { correctGtinActionApiLive } from './correct-gtin-action-server.ts';
 import { correctGtinRecoveryReadApiLive } from './correct-gtin-recovery-read-server.ts';
 import { correctProductActionApiLive } from './correct-product-action-server.ts';
@@ -86,10 +88,13 @@ import { decideProductTypeUnnecessaryRecoveryReadApiLive } from './decide-produc
 import { effectiveAttributeValuesCurrentReadApiLive } from './effective-attribute-values-current-read-server.ts';
 import { governProductAttributeApplicabilityActionApiLive } from './govern-product-attribute-applicability-action-server.ts';
 import { governProductAttributeApplicabilityRecoveryReadApiLive } from './govern-product-attribute-applicability-recovery-read-server.ts';
+import { governVariantAllowedValuesActionApiLive } from './govern-variant-allowed-values-action-server.ts';
+import { governVariantAllowedValuesRecoveryReadApiLive } from './govern-variant-allowed-values-recovery-read-server.ts';
 import { governVariantAxesActionApiLive } from './govern-variant-axes-action-server.ts';
 import { governVariantAxesRecoveryReadApiLive } from './govern-variant-axes-recovery-read-server.ts';
 import { gtinCurrentReadApiLive } from './gtin-current-read-server.ts';
 import { gtinHistoryReadApiLive } from './gtin-history-read-server.ts';
+import { listRecordedVariantsReadApiLive } from './list-recorded-variants-read-server.ts';
 import { manufacturerRelationCurrentReadApiLive } from './manufacturer-relation-current-read-server.ts';
 import { manufacturerRelationHistoryReadApiLive } from './manufacturer-relation-history-read-server.ts';
 import { markGtinUnresolvedActionApiLive } from './mark-gtin-unresolved-action-server.ts';
@@ -326,6 +331,8 @@ export const makeCatalogApiRuntime = (
     colorHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     confirmGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     confirmGtinRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    confirmVariantCombinationActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    confirmVariantCombinationRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     correctGtinActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     correctGtinRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     correctProductActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -364,10 +371,13 @@ export const makeCatalogApiRuntime = (
     effectiveAttributeValuesCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     governProductAttributeApplicabilityActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     governProductAttributeApplicabilityRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    governVariantAllowedValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    governVariantAllowedValuesRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     governVariantAxesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     governVariantAxesRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     gtinCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     gtinHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    listRecordedVariantsReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     markGtinUnresolvedActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

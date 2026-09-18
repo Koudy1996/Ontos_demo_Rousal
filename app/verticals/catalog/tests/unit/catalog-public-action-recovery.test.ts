@@ -53,6 +53,7 @@ describe('typed public Catalog Action recovery', () => {
       Effect.gen(function* recoverVariant() {
         const services: VariantPersistence = {
           change: () => Effect.die('unused'),
+          confirm: () => Effect.die('unused'),
           create: () => Effect.die('unused'),
           reactivate: () => Effect.die('unused'),
           recoverCreateVariant: () => Effect.succeed({ status }),

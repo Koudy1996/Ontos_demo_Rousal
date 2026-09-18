@@ -108,6 +108,7 @@ describe('Catalog permission boundaries (#477)', () => {
       };
       const services: VariantPersistence = {
         change: unexpected,
+        confirm: unexpected,
         create: unexpected,
         reactivate: unexpected,
         recoverCreateVariant: unexpected,

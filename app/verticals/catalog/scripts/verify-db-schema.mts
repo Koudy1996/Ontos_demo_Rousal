@@ -135,7 +135,17 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     (count, table) => count + getTableConfig(table).foreignKeys.length,
     0,
   );
-  const expectedInfrastructure = [CATALOG_TABLES.length, 1, expectedPolicyCount, 1, 76, 1, expectedForeignKeyCount];
+  // 76 baseline triggers plus the two append-only guards on the product_variant_axis allowance tables.
+  const expectedTriggerCount = 78;
+  const expectedInfrastructure = [
+    CATALOG_TABLES.length,
+    1,
+    expectedPolicyCount,
+    1,
+    expectedTriggerCount,
+    1,
+    expectedForeignKeyCount,
+  ];
   const actualInfrastructure =
     row === undefined
       ? undefined

@@ -42,6 +42,8 @@ import { ColorHistoryApi } from './shared/apis/color-history.ts';
 import { configurationUnitResourceDescriptor } from './shared/resources/configuration-unit.ts';
 import { confirmGtinAction } from './src/actions/confirm-gtin.action.ts';
 import { ConfirmGtinRecoveryApi } from './shared/apis/confirm-gtin-recovery.ts';
+import { confirmVariantCombinationAction } from './src/actions/confirm-variant-combination.action.ts';
+import { ConfirmVariantCombinationRecoveryApi } from './shared/apis/confirm-variant-combination-recovery.ts';
 import { controlledAttributeValueResourceDescriptor } from './shared/resources/controlled-attribute-value.ts';
 import { correctGtinAction } from './src/actions/correct-gtin.action.ts';
 import { CorrectGtinRecoveryApi } from './shared/apis/correct-gtin-recovery.ts';
@@ -78,10 +80,13 @@ import { DecideProductTypeUnnecessaryRecoveryApi } from './shared/apis/decide-pr
 import { EffectiveAttributeValuesCurrentApi } from './shared/apis/effective-attribute-values-current.ts';
 import { governProductAttributeApplicabilityAction } from './src/actions/govern-product-attribute-applicability.action.ts';
 import { GovernProductAttributeApplicabilityRecoveryApi } from './shared/apis/govern-product-attribute-applicability-recovery.ts';
+import { governVariantAllowedValuesAction } from './src/actions/govern-variant-allowed-values.action.ts';
+import { GovernVariantAllowedValuesRecoveryApi } from './shared/apis/govern-variant-allowed-values-recovery.ts';
 import { governVariantAxesAction } from './src/actions/govern-variant-axes.action.ts';
 import { GovernVariantAxesRecoveryApi } from './shared/apis/govern-variant-axes-recovery.ts';
 import { GtinCurrentApi } from './shared/apis/gtin-current.ts';
 import { GtinHistoryApi } from './shared/apis/gtin-history.ts';
+import { ListRecordedVariantsApi } from './shared/apis/list-recorded-variants.ts';
 import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
 import { markGtinUnresolvedAction } from './src/actions/mark-gtin-unresolved.action.ts';
@@ -248,6 +253,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       changeProductRelationshipAction,
       changeVariantAction,
       confirmGtinAction,
+      confirmVariantCombinationAction,
       correctGtinAction,
       correctProductAction,
       correctSkuAction,
@@ -265,6 +271,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       createVariantAction,
       decideProductTypeUnnecessaryAction,
       governProductAttributeApplicabilityAction,
+      governVariantAllowedValuesAction,
       governVariantAxesAction,
       markGtinUnresolvedAction,
       moveProductCategoryAction,
@@ -333,6 +340,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'color-current': ColorCurrentApi,
       'color-history': ColorHistoryApi,
       'confirm-gtin-recovery': ConfirmGtinRecoveryApi,
+      'confirm-variant-combination-recovery': ConfirmVariantCombinationRecoveryApi,
       'correct-gtin-recovery': CorrectGtinRecoveryApi,
       'correct-product-recovery': CorrectProductRecoveryApi,
       'correct-sku-recovery': CorrectSkuRecoveryApi,
@@ -351,9 +359,11 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'decide-product-type-unnecessary-recovery': DecideProductTypeUnnecessaryRecoveryApi,
       'effective-attribute-values-current': EffectiveAttributeValuesCurrentApi,
       'govern-product-attribute-applicability-recovery': GovernProductAttributeApplicabilityRecoveryApi,
+      'govern-variant-allowed-values-recovery': GovernVariantAllowedValuesRecoveryApi,
       'govern-variant-axes-recovery': GovernVariantAxesRecoveryApi,
       'gtin-current': GtinCurrentApi,
       'gtin-history': GtinHistoryApi,
+      'list-recorded-variants': ListRecordedVariantsApi,
       'manufacturer-relation-current': ManufacturerRelationCurrentApi,
       'manufacturer-relation-history': ManufacturerRelationHistoryApi,
       'mark-gtin-unresolved-recovery': MarkGtinUnresolvedRecoveryApi,

@@ -12,6 +12,7 @@ import { changeProductManufacturerRecoveryRead } from '../../src/api/change-prod
 import { changeProductRelationshipRecoveryRead } from '../../src/api/change-product-relationship-recovery.read.ts';
 import { changeVariantRecoveryRead } from '../../src/api/change-variant-recovery.read.ts';
 import { confirmGtinRecoveryRead } from '../../src/api/confirm-gtin-recovery.read.ts';
+import { confirmVariantCombinationRecoveryRead } from '../../src/api/confirm-variant-combination-recovery.read.ts';
 import { correctGtinRecoveryRead } from '../../src/api/correct-gtin-recovery.read.ts';
 import { correctProductRecoveryRead } from '../../src/api/correct-product-recovery.read.ts';
 import { correctSkuRecoveryRead } from '../../src/api/correct-sku-recovery.read.ts';
@@ -36,6 +37,7 @@ import { reviseProductUnitRecoveryRead } from '../../src/api/revise-product-unit
 import { reviseSetCompositionRecoveryRead } from '../../src/api/revise-set-composition-recovery.read.ts';
 import { retireBrandRecoveryRead } from '../../src/api/retire-brand-recovery.read.ts';
 import { governProductAttributeApplicabilityRecoveryRead } from '../../src/api/govern-product-attribute-applicability-recovery.read.ts';
+import { governVariantAllowedValuesRecoveryRead } from '../../src/api/govern-variant-allowed-values-recovery.read.ts';
 import { governVariantAxesRecoveryRead } from '../../src/api/govern-variant-axes-recovery.read.ts';
 import { markGtinUnresolvedRecoveryRead } from '../../src/api/mark-gtin-unresolved-recovery.read.ts';
 import { moveProductCategoryRecoveryRead } from '../../src/api/move-product-category-recovery.read.ts';
@@ -67,6 +69,7 @@ import { createProductRecoveryRead } from '../../src/api/create-product-recovery
 import { effectiveAttributeValuesCurrentRead } from '../../src/api/effective-attribute-values-current.read.ts';
 import { gtinCurrentRead } from '../../src/api/gtin-current.read.ts';
 import { gtinHistoryRead } from '../../src/api/gtin-history.read.ts';
+import { listRecordedVariantsRead } from '../../src/api/list-recorded-variants.read.ts';
 import { manufacturerRelationCurrentRead } from '../../src/api/manufacturer-relation-current.read.ts';
 import { manufacturerRelationHistoryRead } from '../../src/api/manufacturer-relation-history.read.ts';
 import { productCategoryClassificationRead } from '../../src/api/product-category-classification.read.ts';
@@ -116,6 +119,7 @@ const reads = [
   changeProductRelationshipRecoveryRead,
   changeVariantRecoveryRead,
   confirmGtinRecoveryRead,
+  confirmVariantCombinationRecoveryRead,
   correctGtinRecoveryRead,
   correctProductRecoveryRead,
   correctSkuRecoveryRead,
@@ -140,6 +144,7 @@ const reads = [
   reviseSetCompositionRecoveryRead,
   retireBrandRecoveryRead,
   governProductAttributeApplicabilityRecoveryRead,
+  governVariantAllowedValuesRecoveryRead,
   governVariantAxesRecoveryRead,
   markGtinUnresolvedRecoveryRead,
   moveProductCategoryRecoveryRead,
@@ -171,6 +176,7 @@ const reads = [
   effectiveAttributeValuesCurrentRead,
   gtinCurrentRead,
   gtinHistoryRead,
+  listRecordedVariantsRead,
   manufacturerRelationCurrentRead,
   manufacturerRelationHistoryRead,
   productCategoryClassificationRead,
@@ -230,6 +236,7 @@ const expectedPermissionTarget = (readKey: string) => {
     readKey === 'commerce.catalog.api.effective-attribute-values-current' ||
     readKey === 'commerce.catalog.api.gtin-current' ||
     readKey === 'commerce.catalog.api.gtin-history' ||
+    readKey === 'commerce.catalog.api.list-recorded-variants' ||
     readKey === 'commerce.catalog.api.sku-lookup'
   ) {
     return 'module';

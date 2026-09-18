@@ -58,6 +58,14 @@ const mockFrom = (table: ImpactTable) => ({
   },
 });
 const emptyPopulationTransaction = { select: () => ({ from: mockFrom }) };
+const emptyOpenSelectionPort = {
+  read: Effect.succeed({
+    complete: true as const,
+    observedAt: '2026-09-18T12:00:00.000Z',
+    revisionToken: 'selection-empty-1',
+    selections: [],
+  }),
+};
 
 describe('Product Type impact scan basis', () => {
   it('binds direct Product, Variant, and open selection revisions deterministically', () => {
@@ -119,7 +127,7 @@ describe('Product Type impact scan basis', () => {
       const scope = { tenantId: 'tenant-1' };
       // @ts-expect-error The mock provides only the queried scoped transaction methods.
       const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope, {
-        openSelections: { complete: true, refs: [], revisionToken: 'selection-empty-1' },
+        openSelections: emptyOpenSelectionPort,
       });
       const failure = yield* Effect.flip(
         scan.scan({
@@ -175,7 +183,7 @@ describe('Product Type impact scan basis', () => {
       const scope = { tenantId: 'tenant-1' };
       // @ts-expect-error The mock provides only the queried scoped transaction methods.
       const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope, {
-        openSelections: { complete: true, refs: [], revisionToken: 'selection-empty-1' },
+        openSelections: emptyOpenSelectionPort,
       });
       const result = yield* scan.scan({ candidateRules: [], expectedCurrentRevision: 1, productTypeId: 'type-1' });
       expect(result.preview).toEqual({ affectedProductIds: [], requiresExplicitRemediation: false, subjects: [] });
