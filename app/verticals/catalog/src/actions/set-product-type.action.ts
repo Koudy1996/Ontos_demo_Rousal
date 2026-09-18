@@ -6,6 +6,7 @@ import { Effect, Schema } from 'effect';
 import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { SetProductTypePayloadSchema, SetProductTypeResultSchema } from '../../shared/actions/set-product-type.ts';
 import type { SetProductTypePayload } from '../../shared/actions/set-product-type.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { CatalogPersistenceUnavailable } from '../persistence/errors.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
@@ -94,42 +95,43 @@ export const setProductTypeAction = defineAction(
     schemaVersion: '1',
   },
   handleSetProductType,
-  (transaction, scope) =>
-    productTypeAssignmentPersistenceForScope(transaction, scope).pipe(
-      Effect.map(
-        (
-          services,
-        ): ProductTypeAssignmentPersistence & {
-          captureResult: (
-            actionInvocationId: string,
-            result: typeof SetProductTypeResultSchema.Type,
-          ) => Effect.Effect<void, ActionTransactionError>;
-        } => ({
-          ...services,
-          captureResult: (actionInvocationId: string, result: typeof SetProductTypeResultSchema.Type) =>
-            captureCatalogActionResult(
-              transaction,
-              scope,
-              { actionInvocationId, actionKey, schemaVersion: 1 },
-              {
-                decode: Schema.decodeUnknownEffect(SetProductTypeResultSchema),
-                encode: Schema.encodeEffect(SetProductTypeResultSchema),
-              },
-              result,
-            ).pipe(
-              Effect.mapError((cause) =>
-                Object.assign(
-                  new ActionTransactionError({
-                    code: 'action_transaction_failed',
-                    reason: 'Catalog result capture failed',
-                  }),
-                  { cause },
-                ),
-              ),
+  Effect.fn('SetProductTypeAction.makeServices')(function* makeSetProductTypeServices(transaction, scope) {
+    const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+    const services = yield* productTypeAssignmentPersistenceForScope(
+      transaction,
+      scope,
+      openSelections === undefined ? {} : { openSelections },
+    );
+    return {
+      ...services,
+      captureResult: (actionInvocationId: string, result: typeof SetProductTypeResultSchema.Type) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey, schemaVersion: 1 },
+          {
+            decode: Schema.decodeUnknownEffect(SetProductTypeResultSchema),
+            encode: Schema.encodeEffect(SetProductTypeResultSchema),
+          },
+          result,
+        ).pipe(
+          Effect.mapError((cause) =>
+            Object.assign(
+              new ActionTransactionError({
+                code: 'action_transaction_failed',
+                reason: 'Catalog result capture failed',
+              }),
+              { cause },
             ),
-        }),
-      ),
-    ),
+          ),
+        ),
+    } satisfies ProductTypeAssignmentPersistence & {
+      readonly captureResult: (
+        actionInvocationId: string,
+        result: typeof SetProductTypeResultSchema.Type,
+      ) => Effect.Effect<void, ActionTransactionError>;
+    };
+  }),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

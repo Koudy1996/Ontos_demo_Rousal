@@ -7,6 +7,10 @@ import type {
   CartOpenSelectionPopulationPort,
   CatalogSelectionEvidenceReader,
 } from '../../shared/domain/catalog-open-selection-population.ts';
+import {
+  cartOpenSelectionPopulationFromEnvironment,
+  readCartOpenSelectionPopulation,
+} from '../../shared/domain/catalog-open-selection-population.ts';
 import type { ProductTypeImpactRule } from '../../shared/domain/product-type-impact.ts';
 import { previewProductTypeImpact } from '../../shared/domain/product-type-impact.ts';
 import type { AttributeValueSetValidityBasis } from './effective-attribute-value-reads.ts';
@@ -332,14 +336,16 @@ export const productTypeImpactScanForScope = (
     readonly expectedCurrentRevision: number;
     readonly productTypeId: string;
   }) {
-    const { openSelections } = authoritativeBasis;
+    const openSelections = authoritativeBasis.openSelections ?? (yield* cartOpenSelectionPopulationFromEnvironment);
     if (openSelections === undefined) {
       return yield* incomplete('Authoritative open-selection reader is required');
     }
-    const population = yield* openSelections.read.pipe(
+    const { tenantId } = scope;
+    const population = yield* readCartOpenSelectionPopulation(openSelections, tenantId).pipe(
       Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) => Effect.fail(incomplete(failure.reason))),
     );
-    const { tenantId } = scope;
+    // Preserve owner-first ordering so an invalid foreign attestation cannot trigger Catalog scans.
+    // oxlint-disable-next-line effect-native/no-sequential-independent-yields -- Security boundary ordering is deliberate.
     const [type] = yield* transaction
       .select({ revision: productTypes.currentRevision })
       .from(productTypes)
@@ -422,7 +428,14 @@ export const productTypeImpactScanForScope = (
     }
     const idSet = new Set(ids);
     const variantOwners = new Map(variants.map((variant) => [variant.variantId, variant.productId]));
-    const openSelectionRefs = population.selections
+    const relevantSelections = population.selections.filter(
+      ({ selection }) =>
+        selection.productRef.moduleId === 'commerce.catalog' &&
+        selection.productRef.resourceType === 'commerce.catalog.product' &&
+        selection.productRef.tenantId === tenantId &&
+        idSet.has(selection.productRef.resourceId),
+    );
+    const openSelectionRefs = relevantSelections
       .map(({ selection, selectionId }) => ({
         productId: selection.productRef.resourceId,
         selectionId,
@@ -430,9 +443,7 @@ export const productTypeImpactScanForScope = (
       }))
       .toSorted((a, b) => byId(a.selectionId, b.selectionId));
     if (
-      openSelectionRefs.some(
-        (ref) => !idSet.has(ref.productId) || variantOwners.get(ref.variantId) !== ref.productId,
-      ) ||
+      openSelectionRefs.some((ref) => variantOwners.get(ref.variantId) !== ref.productId) ||
       new Set(openSelectionRefs.map((ref) => ref.selectionId)).size !== openSelectionRefs.length
     ) {
       return yield* incomplete('Open Catalog Selection basis contains an unrelated Product');
@@ -444,7 +455,7 @@ export const productTypeImpactScanForScope = (
     // cannot be answered is a typed incomplete result, never an assumed absence of impact.
     const catalogEvidence: CatalogSelectionEvidenceReader = catalogSelectionEvidenceForScope(transaction, scope);
     const openSelectionEvidence = yield* Effect.forEach(
-      population.selections,
+      relevantSelections,
       ({ selection }) => catalogEvidence.assess({ purpose: 'CART_VALIDATION', selection }),
       { concurrency: 1 },
     );

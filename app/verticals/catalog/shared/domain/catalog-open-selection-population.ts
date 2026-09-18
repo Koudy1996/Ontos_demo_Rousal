@@ -1,12 +1,14 @@
-/* eslint-disable effect-native/require-context-service-for-service-interface -- This structural port is injected by the Catalog composition boundary rather than a global Context service; owner: #479; tracking: #398; remove when the Cart open-selection owner contract is provisioned as a Core service. expires: 2027-03-31. */
-import type { Effect } from 'effect';
-import { Schema } from 'effect';
+/* eslint-disable effect-native/require-context-service-for-service-interface -- The public Context service is declared in cart-open-selection-population-service.ts to satisfy the one-class-per-file rule; owner: Catalog #479; tracking: #398; expires: 2027-03-31. */
+import { Effect, Option, Schema } from 'effect';
 
-import { CatalogRevisionInstantSchema } from './catalog-revision-reference.ts';
+import { CatalogRevisionInstantSchema, CatalogRevisionTenantIdSchema } from './catalog-revision-reference.ts';
 import type { CatalogSelectionOwnerAssessmentResult } from './catalog-selection-owner-contract.ts';
 import type { CatalogSelectionPurpose } from './catalog-selection-purpose.ts';
 import { CatalogSelectionSchema } from './catalog-selection-evidence.ts';
 import type { CatalogSelection } from './catalog-selection-evidence.ts';
+import { CartOpenSelectionPopulationService } from './cart-open-selection-population-service.ts';
+
+export { CartOpenSelectionPopulationService } from './cart-open-selection-population-service.ts';
 
 const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed());
 const cartSelectionIdSchema = nonEmptyText.pipe(Schema.brand('CartOpenSelectionId'));
@@ -32,6 +34,7 @@ export const CartOpenSelectionPopulationEvidenceSchema = Schema.Struct({
   observedAt: CatalogRevisionInstantSchema,
   revisionToken: nonEmptyText,
   selections: Schema.Array(CartOpenSelectionReferenceSchema),
+  tenantId: CatalogRevisionTenantIdSchema,
 });
 export type CartOpenSelectionPopulationEvidence = typeof CartOpenSelectionPopulationEvidenceSchema.Type;
 
@@ -47,8 +50,43 @@ export class CartOpenSelectionPopulationUnavailable extends Schema.TaggedError<C
  * absent port or a failing read is a typed unavailable outcome, never an empty population.
  */
 export interface CartOpenSelectionPopulationPort {
-  readonly read: Effect.Effect<CartOpenSelectionPopulationEvidence, CartOpenSelectionPopulationUnavailable>;
+  readonly read: (input: {
+    readonly tenantId: string;
+  }) => Effect.Effect<unknown, CartOpenSelectionPopulationUnavailable>;
 }
+
+/**
+ * Resolve the deployment-provided Cart owner port while preserving absence as `undefined`. An
+ * unbound deployment remains fail-closed instead of manufacturing an empty population.
+ */
+export const cartOpenSelectionPopulationFromEnvironment: Effect.Effect<CartOpenSelectionPopulationPort | undefined> =
+  Effect.serviceOption(CartOpenSelectionPopulationService).pipe(Effect.map(Option.getOrUndefined));
+
+/** Decode and scope-check the foreign owner response before Catalog trusts its completeness claim. */
+export const readCartOpenSelectionPopulation = Effect.fn('CartOpenSelectionPopulationPort.read')(function* read(
+  port: CartOpenSelectionPopulationPort,
+  tenantId: string,
+) {
+  const raw = yield* port.read({ tenantId });
+  const population = yield* Schema.decodeUnknownEffect(CartOpenSelectionPopulationEvidenceSchema)(raw).pipe(
+    Effect.mapError((cause) =>
+      Object.assign(
+        new CartOpenSelectionPopulationUnavailable({
+          code: 'cart_open_selection_population_unavailable',
+          reason: 'Cart returned an invalid open-selection population attestation',
+        }),
+        { cause },
+      ),
+    ),
+  );
+  if (population.tenantId !== tenantId) {
+    return yield* new CartOpenSelectionPopulationUnavailable({
+      code: 'cart_open_selection_population_unavailable',
+      reason: 'Cart returned an open-selection population for a different Tenant',
+    });
+  }
+  return population;
+});
 
 /**
  * Catalog's own #479 evidence reader. It is the Catalog-owned half of any open-selection

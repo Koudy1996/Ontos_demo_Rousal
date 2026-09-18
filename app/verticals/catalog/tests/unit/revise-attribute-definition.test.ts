@@ -1,6 +1,6 @@
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Exit, Schema } from 'effect';
+import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { ReviseAttributeDefinitionPayloadSchema } from '../../shared/actions/revise-attribute-definition.ts';
@@ -91,21 +91,6 @@ describe('revise Attribute Definition Action', () => {
         }),
       );
       expect(yield* handleReviseAttributeDefinition(payload, context)).toMatchObject({ changed: false, revision: 2 });
-    }),
-  );
-
-  it.effect('fails closed when complete open-selection impact is unavailable', () =>
-    Effect.gen(function* openSelectionProof() {
-      const context = contextWith((input) =>
-        input.checkOpenSelections.pipe(
-          Effect.as({ attributeDefinitionRef: definitionRef, changed: true, revision: 3 }),
-        ),
-      );
-      const exit = yield* Effect.exit(handleReviseAttributeDefinition(payload, context));
-      expect(Exit.isFailure(exit)).toBe(true);
-      if (Exit.isFailure(exit)) {
-        expect(String(exit.cause)).toContain('CatalogPersistenceUnavailable');
-      }
     }),
   );
 

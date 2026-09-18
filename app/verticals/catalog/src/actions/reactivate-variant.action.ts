@@ -10,6 +10,7 @@ import {
   ReactivateVariantResultSchema,
 } from '../../shared/actions/reactivate-variant.ts';
 import type { ReactivateVariantPayload, ReactivateVariantResult } from '../../shared/actions/reactivate-variant.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { VariantPersistence } from '../persistence/variant-persistence.ts';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import type { CatalogPersistenceConflict, CatalogPersistenceUnavailable } from '../persistence/errors.ts';
@@ -97,23 +98,28 @@ export const reactivateVariantAction = defineAction(
     schemaVersion: '1',
   },
   handleReactivateVariant,
-  (transaction, scope) =>
-    variantPersistenceForScope(transaction, scope, variantUseChangePersistenceForScope(transaction, scope)).pipe(
-      Effect.map((services): ReactivateVariantServices => ({
-        ...services,
-        captureResult: (actionInvocationId, result) =>
-          captureCatalogActionResult(
-            transaction,
-            scope,
-            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
-            {
-              decode: Schema.decodeUnknownEffect(ReactivateVariantResultSchema),
-              encode: Schema.encodeEffect(ReactivateVariantResultSchema),
-            },
-            result,
-          ).pipe(Effect.mapError(mapCaptureError)),
-      })),
-    ),
+  Effect.fn('ReactivateVariantAction.makeServices')(function* makeReactivateVariantServices(transaction, scope) {
+    const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+    const services = yield* variantPersistenceForScope(
+      transaction,
+      scope,
+      variantUseChangePersistenceForScope(transaction, scope, openSelections),
+    );
+    return {
+      ...services,
+      captureResult: (actionInvocationId, result) =>
+        captureCatalogActionResult(
+          transaction,
+          scope,
+          { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+          {
+            decode: Schema.decodeUnknownEffect(ReactivateVariantResultSchema),
+            encode: Schema.encodeEffect(ReactivateVariantResultSchema),
+          },
+          result,
+        ).pipe(Effect.mapError(mapCaptureError)),
+    } satisfies ReactivateVariantServices;
+  }),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

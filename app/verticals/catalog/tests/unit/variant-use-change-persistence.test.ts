@@ -99,11 +99,12 @@ const populationWith = (revisionToken: string, selectionIds: readonly string[]):
     observedAt: '2026-09-18T12:00:00.000Z',
     revisionToken,
     selections: selectionIds.map((selectionId) => ({ selection, selectionId })),
+    tenantId,
   });
 const emptyPopulation = populationWith('cart-population-1', []);
 const authority = (population: CartOpenSelectionPopulationEvidence): VariantReactivationSelectionAuthority => ({
   evidence: { assess: () => Effect.succeed({ evidence: { kind: 'NOT_FOUND', requested: selection } }) },
-  openSelections: { read: Effect.succeed(population) },
+  openSelections: { read: () => Effect.succeed(population) },
 });
 const persistence = (
   overrides: Partial<VariantAxisPersistence>,
@@ -216,12 +217,13 @@ describe('Variant use change persistence (#441)', () => {
         {
           evidence: { assess: () => Effect.succeed({ evidence: { kind: 'NOT_FOUND', requested: selection } }) },
           openSelections: {
-            read: Effect.fail(
-              new CartOpenSelectionPopulationUnavailable({
-                code: 'cart_open_selection_population_unavailable',
-                reason: 'Cart is unavailable',
-              }),
-            ),
+            read: () =>
+              Effect.fail(
+                new CartOpenSelectionPopulationUnavailable({
+                  code: 'cart_open_selection_population_unavailable',
+                  reason: 'Cart is unavailable',
+                }),
+              ),
           },
         },
       )

@@ -286,6 +286,7 @@ const populationWith = (selectionIds: readonly string[]): CartOpenSelectionPopul
       selection: { productRef, variantRef },
       selectionId,
     })),
+    tenantId,
   });
 
 type FixtureTable =
@@ -387,14 +388,12 @@ const buildTransaction = (stores: RevisionStores) => {
 
 const revisionInput = (
   options: {
-    readonly checkOpenSelections?: Effect.Effect<boolean, CatalogPersistenceUnavailable>;
     readonly expectedRevision?: number;
     readonly proposed?: AttributeRuleProposal;
   } = {},
 ) => ({
   actionInvocationId: invocationId,
   attributeDefinitionRef: definitionRef,
-  checkOpenSelections: options.checkOpenSelections ?? Effect.succeed(true),
   effectiveAt: new Date('2026-09-18T00:00:00.000Z'),
   evidence: 'Rule change reviewed',
   evidenceRefs: ['Rule change reviewed'],
@@ -422,7 +421,7 @@ const revisionScenario = (options: RevisionScenarioOptions = {}) =>
         ? undefined
         : {
             openSelections: {
-              read: options.populationRead ?? Effect.succeed(populationWith([])),
+              read: () => options.populationRead ?? Effect.succeed(populationWith([])),
             } satisfies CartOpenSelectionPopulationPort,
           };
     // @ts-expect-error Only the exercised Drizzle query chains are mocked.
@@ -545,18 +544,6 @@ describe('Attribute rule revision value migration (#434)', () => {
       const failure = yield* persistence.reviseDefinitionRules(revisionInput()).pipe(Effect.flip);
       expect(Schema.is(AttributePersistenceConflict)(failure)).toBe(true);
       expect(failure).toMatchObject({ conflict: 'OPEN_SELECTION_IMPACT_UNAVAILABLE' });
-    }),
-  );
-
-  it.effect('fails closed when the owner cannot confirm open selections are clear', () =>
-    Effect.gen(function* unprovenClear() {
-      const { persistence, stores } = yield* revisionScenario();
-      const failure = yield* persistence
-        .reviseDefinitionRules(revisionInput({ checkOpenSelections: Effect.succeed(false) }))
-        .pipe(Effect.flip);
-      expect(Schema.is(AttributePersistenceConflict)(failure)).toBe(true);
-      expect(failure).toMatchObject({ conflict: 'INVALID_STATE' });
-      expect(stores.definitionRevisions).toEqual([]);
     }),
   );
 });

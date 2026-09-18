@@ -125,12 +125,14 @@ const assessInvalid = (): Effect.Effect<CatalogSelectionEvidenceServiceResult> =
   Effect.succeed({ evidence: { kind: 'NOT_FOUND', requested: selection }, missingRoles: [] });
 
 const population = (selections: readonly CartOpenSelectionReference[]): CartOpenSelectionPopulationPort => ({
-  read: Effect.succeed({
-    complete: true,
-    observedAt: assessedAt,
-    revisionToken: 'cart-population-1',
-    selections,
-  }),
+  read: () =>
+    Effect.succeed({
+      complete: true,
+      observedAt: assessedAt,
+      revisionToken: 'cart-population-1',
+      selections,
+      tenantId,
+    }),
 });
 const reference = (selectionId: string, value: CatalogSelection = selection): CartOpenSelectionReference =>
   Schema.decodeUnknownSync(CartOpenSelectionReferenceSchema)({ selection: value, selectionId });
@@ -291,12 +293,13 @@ describe('Catalog open-selection population impact (#479 wiring)', () => {
   it.effect('propagates a failing Cart owner read as a typed owner error', () =>
     Effect.gen(function* failingOwnerRead() {
       const failing: CartOpenSelectionPopulationPort = {
-        read: Effect.fail(
-          new CartOpenSelectionPopulationUnavailable({
-            code: 'cart_open_selection_population_unavailable',
-            reason: 'Cart is unavailable',
-          }),
-        ),
+        read: () =>
+          Effect.fail(
+            new CartOpenSelectionPopulationUnavailable({
+              code: 'cart_open_selection_population_unavailable',
+              reason: 'Cart is unavailable',
+            }),
+          ),
       };
       const impact = catalogSelectionOpenPopulationImpactForScope(transaction, scope, failing);
       const failure = yield* Effect.flip(impact.assess({ purpose: 'PURCHASE_ACCEPTANCE' }));
@@ -309,7 +312,13 @@ describe('Catalog open-selection population impact (#479 wiring)', () => {
       const snapshot = yield* assessCatalogOpenSelectionSnapshot({
         assess: assessInvalid,
         purpose: 'PURCHASE_ACCEPTANCE',
-        snapshot: { complete: true, observedAt: assessedAt, revisionToken: 'cart-population-empty', selections: [] },
+        snapshot: {
+          complete: true,
+          observedAt: assessedAt,
+          revisionToken: 'cart-population-empty',
+          selections: [],
+          tenantId,
+        },
       });
       expect(snapshot).toEqual({ evidence: [], kind: 'PROVEN' });
     }),
@@ -325,6 +334,7 @@ describe('Catalog open-selection population impact (#479 wiring)', () => {
           observedAt: assessedAt,
           revisionToken: 'cart-population-1',
           selections: [reference('cart-open-1')],
+          tenantId,
         },
       });
       expect(snapshot).toMatchObject({ kind: 'NOT_PROVEN' });
@@ -341,6 +351,7 @@ describe('Catalog open-selection population impact (#479 wiring)', () => {
           observedAt: assessedAt,
           revisionToken: 'cart-population-1',
           selections: [reference('cart-open-1')],
+          tenantId,
         },
       });
       expect(snapshot.kind).toBe('PROVEN');

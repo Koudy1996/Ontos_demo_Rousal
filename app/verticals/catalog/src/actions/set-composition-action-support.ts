@@ -10,7 +10,7 @@ import type {
 } from '../persistence/set-composition-persistence.ts';
 import { setCompositionPersistenceForScope } from '../persistence/set-composition-persistence.ts';
 import { setCompositionComponentCurrentBasisForScope } from '../persistence/set-composition-component-current-basis.ts';
-import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { setCompositionSelectionImpactForScope } from '../persistence/catalog-selection-change-impact.ts';
 
 type ScopedTransaction = Parameters<typeof setCompositionPersistenceForScope>[0];
@@ -27,19 +27,17 @@ export const setCompositionBasisForScope = (transaction: ScopedTransaction, scop
   };
 };
 
-export const setCompositionPersistenceServiceFactory = (
-  transaction: ScopedTransaction,
-  scope: Scope,
-  population?: CartOpenSelectionPopulationPort,
-) =>
-  Effect.succeed(
-    setCompositionPersistenceForScope(
+export const setCompositionPersistenceServiceFactory = Effect.fn('SetCompositionActionSupport.makePersistence')(
+  function* makeSetCompositionPersistence(transaction: ScopedTransaction, scope: Scope) {
+    const configuredPopulation = yield* cartOpenSelectionPopulationFromEnvironment;
+    return setCompositionPersistenceForScope(
       transaction,
       scope,
       setCompositionBasisForScope(transaction, scope),
-      setCompositionSelectionImpactForScope(transaction, scope, population),
-    ),
-  );
+      setCompositionSelectionImpactForScope(transaction, scope, configuredPopulation),
+    );
+  },
+);
 
 export const handleSetCompositionMutation = Effect.fn('SetCompositionAction.handleMutation')(
   function* handleSetCompositionMutation(

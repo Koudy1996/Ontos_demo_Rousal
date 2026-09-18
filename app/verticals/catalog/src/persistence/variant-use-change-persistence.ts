@@ -11,7 +11,10 @@ import type {
   CartOpenSelectionPopulationPort,
   CatalogSelectionEvidenceReader,
 } from '../../shared/domain/catalog-open-selection-population.ts';
-import { openSelectionReferencesProduct } from '../../shared/domain/catalog-open-selection-population.ts';
+import {
+  openSelectionReferencesProduct,
+  readCartOpenSelectionPopulation,
+} from '../../shared/domain/catalog-open-selection-population.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
 import type { VariantRef } from '../../shared/resources/variant.ts';
 import { packageDefinitions, packageOptionRoleRevisions, products } from '../database/schema.ts';
@@ -134,7 +137,7 @@ const revalidateReactivationOpenSelections = Effect.fn(
   if (authority === undefined) {
     return yield* basisUnavailable();
   }
-  const population = yield* authority.openSelections.read.pipe(
+  const population = yield* readCartOpenSelectionPopulation(authority.openSelections, tenantId).pipe(
     Effect.catchTag('CartOpenSelectionPopulationUnavailable', () => Effect.fail(basisUnavailable())),
   );
   const matching = population.selections.filter(

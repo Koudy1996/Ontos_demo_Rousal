@@ -8,6 +8,7 @@ import type {
   CartOpenSelectionReference,
   CatalogSelectionEvidenceReader,
 } from '../../shared/domain/catalog-open-selection-population.ts';
+import { readCartOpenSelectionPopulation } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { CatalogSelectionEvidence } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelectionPurpose } from '../../shared/domain/catalog-selection-purpose.ts';
 import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
@@ -63,6 +64,7 @@ export interface CatalogOpenSelectionImpactRequest {
   readonly affected?: (reference: CartOpenSelectionReference) => boolean;
   readonly population?: CartOpenSelectionPopulationPort | undefined;
   readonly purpose: CatalogSelectionPurpose;
+  readonly tenantId: string;
 }
 
 /**
@@ -80,7 +82,7 @@ export const assessCatalogOpenSelectionImpact = Effect.fn('CatalogSelectionOpenP
         reason: 'Owner-confirmed Cart/checkout open-selection population is unavailable',
       };
     }
-    const snapshot = yield* input.population.read;
+    const snapshot = yield* readCartOpenSelectionPopulation(input.population, input.tenantId);
     return yield* assessCatalogOpenSelectionSnapshot({ ...input, snapshot });
   },
 );
@@ -92,10 +94,11 @@ export const catalogSelectionOpenPopulationImpactForScope = (
   population?: CartOpenSelectionPopulationPort,
   assess?: CatalogSelectionEvidenceReader['assess'],
 ) => ({
-  assess: (input: Omit<CatalogOpenSelectionImpactRequest, 'assess'>) =>
+  assess: (input: Omit<CatalogOpenSelectionImpactRequest, 'assess' | 'tenantId'>) =>
     assessCatalogOpenSelectionImpact({
       ...input,
       assess: assess ?? ((request) => catalogSelectionEvidenceForScope(transaction, scope).assess(request)),
       population,
+      tenantId: scope.tenantId,
     }),
 });

@@ -17,6 +17,7 @@ import type {
 } from '../../shared/domain/attribute-unit-change.ts';
 import { assessAttributeUnitChange } from '../../shared/domain/attribute-unit-change.ts';
 import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { readCartOpenSelectionPopulation } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { CatalogResourceRefInput } from '../../shared/domain/catalog-revision-reference.ts';
 import type { ColorDetails } from '../../shared/domain/color.ts';
 import { ColorDetailsSchema } from '../../shared/domain/color.ts';
@@ -154,7 +155,6 @@ export interface RenameAttributeDefinitionInput extends ChangeMetadata {
 /** The open-selection check must be an authoritative owner-local read in this same transaction. */
 export interface ReviseAttributeDefinitionRulesInput extends ChangeMetadata {
   readonly attributeDefinitionRef: AttributeDefinitionRef;
-  readonly checkOpenSelections: Effect.Effect<boolean, CatalogPersistenceUnavailable>;
   readonly evidence: string;
   readonly expectedRevision: number;
   readonly proposed: AttributeRuleProposal;
@@ -980,16 +980,15 @@ export const attributePersistenceForScope = (
         'Owner-confirmed Cart open-selection population is unavailable; Attribute Definition rules cannot change',
       );
     }
-    const population = yield* openSelections.read.pipe(
+    const population = yield* readCartOpenSelectionPopulation(openSelections, tenantId).pipe(
       Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) =>
         Effect.fail(
           conflict('OPEN_SELECTION_IMPACT_UNAVAILABLE', `Open-selection population is unavailable: ${failure.reason}`),
         ),
       ),
     );
-    if (!(yield* input.checkOpenSelections)) {
-      return yield* conflict('INVALID_STATE', 'Open selection impact is not proven clear');
-    }
+    // Preserve owner-first ordering so an invalid foreign attestation cannot trigger Catalog scans.
+    // oxlint-disable-next-line effect-native/no-sequential-independent-yields -- Security boundary ordering is deliberate.
     const impact = yield* inspectAttributeImpactForScope(transaction, scope, input.attributeDefinitionRef);
     const impactedProducts = new Set(impact.directProducts);
     const impactedVariants = new Set([...impact.directVariants, ...impact.inheritedVariants]);

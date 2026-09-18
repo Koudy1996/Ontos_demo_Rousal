@@ -13,6 +13,7 @@ import {
   requireVariantAttributeChange,
 } from '../../shared/actions/attribute-value-mutations.ts';
 import type { RemoveVariantAttributeOverridePayload } from '../../shared/actions/attribute-value-mutations.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import { OutboxPayloadSchema as SelectionSourceChangedEventSchema } from '../../shared/outbox/commerce-catalog-selection-source-changed-v1.ts';
 import {
@@ -164,33 +165,32 @@ export const removeVariantAttributeOverrideAction = defineAction(
     schemaVersion: '1',
   },
   handleRemoveVariantAttributeOverride,
-  (transaction, scope) =>
-    attributeValuesPersistenceForScope(transaction, scope).pipe(
-      Effect.map(
-        (
-          services,
-        ): VariantAttributeServices & {
-          captureResult: (
-            actionInvocationId: string,
-            result: typeof RemoveVariantAttributeOverrideResultSchema.Type,
-          ) => Effect.Effect<void, ActionTransactionError>;
-        } => ({
-          ...services,
-          assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope).assess,
-          captureResult: (actionInvocationId: string, result: typeof RemoveVariantAttributeOverrideResultSchema.Type) =>
-            captureCatalogActionResult(
-              transaction,
-              scope,
-              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
-              {
-                decode: Schema.decodeUnknownEffect(RemoveVariantAttributeOverrideResultSchema),
-                encode: Schema.encodeEffect(RemoveVariantAttributeOverrideResultSchema),
-              },
-              result,
-            ).pipe(Effect.mapError(toSnapshotFailure)),
-        }),
-      ),
-    ),
+  Effect.fn('RemoveVariantAttributeOverrideAction.makeServices')(
+    function* makeRemoveVariantAttributeOverrideServices(transaction, scope) {
+      const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+      const services = yield* attributeValuesPersistenceForScope(transaction, scope);
+      return {
+        ...services,
+        assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope, openSelections).assess,
+        captureResult: (actionInvocationId: string, result: typeof RemoveVariantAttributeOverrideResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RemoveVariantAttributeOverrideResultSchema),
+              encode: Schema.encodeEffect(RemoveVariantAttributeOverrideResultSchema),
+            },
+            result,
+          ).pipe(Effect.mapError(toSnapshotFailure)),
+      } satisfies VariantAttributeServices & {
+        readonly captureResult: (
+          actionInvocationId: string,
+          result: typeof RemoveVariantAttributeOverrideResultSchema.Type,
+        ) => Effect.Effect<void, ActionTransactionError>;
+      };
+    },
+  ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

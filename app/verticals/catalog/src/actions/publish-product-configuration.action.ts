@@ -10,7 +10,7 @@ import {
 } from '../../shared/actions/publish-product-configuration.ts';
 import { productConfigurationPersistenceForScope } from '../persistence/product-configuration-persistence.ts';
 import type { ProductConfigurationPersistence } from '../persistence/product-configuration-persistence.ts';
-import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { productConfigurationSelectionImpactForScope } from '../persistence/catalog-selection-change-impact.ts';
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
@@ -22,18 +22,19 @@ const MODULE_KEY = 'commerce.catalog' as const;
 const CONFIGURATION_PUBLISHED_EVENT_TYPE = 'commerce.catalog.product-configuration-published.v1' as const;
 const domainEvents = { [CONFIGURATION_PUBLISHED_EVENT_TYPE]: OutboxPayloadSchema } as const;
 
-export const publishProductConfigurationPersistenceServiceFactory = (
+export const publishProductConfigurationPersistenceServiceFactory = Effect.fn(
+  'PublishProductConfigurationAction.makePersistence',
+)(function* makeProductConfigurationPersistence(
   transaction: Parameters<typeof productConfigurationPersistenceForScope>[0],
   scope: Parameters<typeof productConfigurationPersistenceForScope>[1],
-  population?: CartOpenSelectionPopulationPort,
-) =>
-  Effect.succeed(
-    productConfigurationPersistenceForScope(
-      transaction,
-      scope,
-      productConfigurationSelectionImpactForScope(transaction, scope, population),
-    ),
+) {
+  const configuredPopulation = yield* cartOpenSelectionPopulationFromEnvironment;
+  return productConfigurationPersistenceForScope(
+    transaction,
+    scope,
+    productConfigurationSelectionImpactForScope(transaction, scope, configuredPopulation),
   );
+});
 
 const error = (
   code:

@@ -42,6 +42,7 @@ export const catalogOpenSelectionImpactForScope = (
         assessOpenSelection ?? ((request) => catalogSelectionEvidenceForScope(transaction, scope).assess(request)),
       population,
       purpose: 'CART_VALIDATION',
+      tenantId: scope.tenantId,
     }).pipe(
       Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) => Effect.fail(unavailable(failure.reason))),
     );

@@ -13,6 +13,7 @@ import {
   requireProductAttributeCorrection,
 } from '../../shared/actions/attribute-value-mutations.ts';
 import type { RemoveProductAttributeValuesPayload } from '../../shared/actions/attribute-value-mutations.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   AttributeValuesConflict,
@@ -110,33 +111,32 @@ export const removeProductAttributeValuesAction = defineAction(
     schemaVersion: '1',
   },
   handleRemoveProductAttributeValues,
-  (transaction, scope) =>
-    attributeValuesPersistenceForScope(transaction, scope).pipe(
-      Effect.map(
-        (
-          services,
-        ): ProductAttributeServices & {
-          captureResult: (
-            actionInvocationId: string,
-            result: typeof RemoveProductAttributeValuesResultSchema.Type,
-          ) => Effect.Effect<void, ActionTransactionError>;
-        } => ({
-          ...services,
-          assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope).assess,
-          captureResult: (actionInvocationId: string, result: typeof RemoveProductAttributeValuesResultSchema.Type) =>
-            captureCatalogActionResult(
-              transaction,
-              scope,
-              { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
-              {
-                decode: Schema.decodeUnknownEffect(RemoveProductAttributeValuesResultSchema),
-                encode: Schema.encodeEffect(RemoveProductAttributeValuesResultSchema),
-              },
-              result,
-            ).pipe(Effect.mapError(toSnapshotFailure)),
-        }),
-      ),
-    ),
+  Effect.fn('RemoveProductAttributeValuesAction.makeServices')(
+    function* makeRemoveProductAttributeValuesServices(transaction, scope) {
+      const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+      const services = yield* attributeValuesPersistenceForScope(transaction, scope);
+      return {
+        ...services,
+        assessOpenSelectionImpact: catalogOpenSelectionImpactForScope(transaction, scope, openSelections).assess,
+        captureResult: (actionInvocationId: string, result: typeof RemoveProductAttributeValuesResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: ACTION_KEY, schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RemoveProductAttributeValuesResultSchema),
+              encode: Schema.encodeEffect(RemoveProductAttributeValuesResultSchema),
+            },
+            result,
+          ).pipe(Effect.mapError(toSnapshotFailure)),
+      } satisfies ProductAttributeServices & {
+        readonly captureResult: (
+          actionInvocationId: string,
+          result: typeof RemoveProductAttributeValuesResultSchema.Type,
+        ) => Effect.Effect<void, ActionTransactionError>;
+      };
+    },
+  ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Effect, Schema } from 'effect';
+import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 
 import type { productTypeAssignments } from '../../src/database/schema.ts';
 import { productTypeRevisions, productTypes } from '../../src/database/schema.ts';
@@ -58,14 +59,32 @@ const mockFrom = (table: ImpactTable) => ({
   },
 });
 const emptyPopulationTransaction = { select: () => ({ from: mockFrom }) };
+const catalogTenantId = '11111111-1111-4111-8111-111111111111';
 const emptyOpenSelectionPort = {
-  read: Effect.succeed({
-    complete: true as const,
-    observedAt: '2026-09-18T12:00:00.000Z',
-    revisionToken: 'selection-empty-1',
-    selections: [],
-  }),
+  read: () =>
+    Effect.succeed({
+      complete: true as const,
+      observedAt: '2026-09-18T12:00:00.000Z',
+      revisionToken: 'selection-empty-1',
+      selections: [],
+      tenantId: catalogTenantId,
+    }),
 };
+
+const unrelatedSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+  productRef: {
+    moduleId: 'commerce.catalog',
+    resourceId: '22222222-2222-4222-8222-222222222222',
+    resourceType: 'commerce.catalog.product',
+    tenantId: catalogTenantId,
+  },
+  variantRef: {
+    moduleId: 'commerce.catalog',
+    resourceId: '33333333-3333-4333-8333-333333333333',
+    resourceType: 'commerce.catalog.variant',
+    tenantId: catalogTenantId,
+  },
+});
 
 describe('Product Type impact scan basis', () => {
   it('binds direct Product, Variant, and open selection revisions deterministically', () => {
@@ -110,7 +129,7 @@ describe('Product Type impact scan basis', () => {
 
   it.effect('fails closed when no owner-confirmed #479 open-selection evidence is injected', () =>
     Effect.gen(function* missingOpenSelectionEvidence() {
-      const scope = { tenantId: 'tenant-1' };
+      const scope = { tenantId: catalogTenantId };
       // @ts-expect-error The mock provides only the queried scoped transaction methods.
       const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope);
       const failure = yield* Effect.flip(
@@ -124,7 +143,7 @@ describe('Product Type impact scan basis', () => {
 
   it.effect('fails closed when a Variant may inherit a changed Product-level requirement', () =>
     Effect.gen(function* unprovenInheritance() {
-      const scope = { tenantId: 'tenant-1' };
+      const scope = { tenantId: catalogTenantId };
       // @ts-expect-error The mock provides only the queried scoped transaction methods.
       const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope, {
         openSelections: emptyOpenSelectionPort,
@@ -180,13 +199,34 @@ describe('Product Type impact scan basis', () => {
 
   it.effect('obtains an empty complete value inventory from the owner reader in the same transaction', () =>
     Effect.gen(function* emptyPopulation() {
-      const scope = { tenantId: 'tenant-1' };
+      const scope = { tenantId: catalogTenantId };
       // @ts-expect-error The mock provides only the queried scoped transaction methods.
       const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope, {
         openSelections: emptyOpenSelectionPort,
       });
       const result = yield* scan.scan({ candidateRules: [], expectedCurrentRevision: 1, productTypeId: 'type-1' });
       expect(result.preview).toEqual({ affectedProductIds: [], requiresExplicitRemediation: false, subjects: [] });
+      expect(result.token).toMatch(/^[0-9a-f]{64}$/u);
+    }),
+  );
+
+  it.effect('ignores tenant Cart selections for Products outside the revised Product Type population', () =>
+    Effect.gen(function* unrelatedCartSelection() {
+      const scope = { tenantId: catalogTenantId };
+      const openSelections = {
+        read: () =>
+          Effect.succeed({
+            complete: true as const,
+            observedAt: '2026-09-18T12:00:00.000Z',
+            revisionToken: 'selection-with-unrelated-product',
+            selections: [{ selection: unrelatedSelection, selectionId: 'unrelated-selection' }],
+            tenantId: catalogTenantId,
+          }),
+      };
+      // @ts-expect-error The mock provides only the queried scoped transaction methods.
+      const scan = productTypeImpactScanForScope(emptyPopulationTransaction, scope, { openSelections });
+      const result = yield* scan.scan({ candidateRules: [], expectedCurrentRevision: 1, productTypeId: 'type-1' });
+      expect(result.openSelectionRefs).toEqual([]);
       expect(result.token).toMatch(/^[0-9a-f]{64}$/u);
     }),
   );

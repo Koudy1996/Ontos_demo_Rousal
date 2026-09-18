@@ -2,6 +2,7 @@ import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 
 import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { readCartOpenSelectionPopulation } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { SetProductTypeResult } from '../../shared/actions/set-product-type.ts';
 import type { ProductTypeRef } from '../../shared/resources/product-type.ts';
 
@@ -41,7 +42,7 @@ export interface ProductTypeAssignmentPersistence {
  */
 export const productTypeAssignmentPersistenceForScope = (
   _transaction: ScopedTransaction,
-  _scope: OperationalScope,
+  scope: OperationalScope,
   authoritativeBasis: {
     /** Injected Cart owner contract; absent means Catalog cannot attest the population. */
     readonly openSelections?: CartOpenSelectionPopulationPort;
@@ -55,7 +56,7 @@ export const productTypeAssignmentPersistenceForScope = (
           reason: 'A governed impact preview and Current selection basis are required',
         });
       }
-      const population = yield* authoritativeBasis.openSelections.read.pipe(
+      const population = yield* readCartOpenSelectionPopulation(authoritativeBasis.openSelections, scope.tenantId).pipe(
         Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) =>
           Effect.fail(
             new ProductTypeAssignmentRejected({

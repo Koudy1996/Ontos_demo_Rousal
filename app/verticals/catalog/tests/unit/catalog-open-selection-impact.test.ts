@@ -1,12 +1,16 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
+import { getActionServiceFactory } from '../../../../packages/core-runtime/src/actions/definition.ts';
 
 import {
   CartOpenSelectionPopulationEvidenceSchema,
+  CartOpenSelectionPopulationService,
   CartOpenSelectionPopulationUnavailable,
+  cartOpenSelectionPopulationFromEnvironment,
 } from '../../shared/domain/catalog-open-selection-population.ts';
 import { CatalogSelectionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
+import { setProductAttributeValuesAction } from '../../src/actions/set-product-attribute-values.action.ts';
 import { catalogOpenSelectionImpactForScope } from '../../src/persistence/catalog-open-selection-impact.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -34,14 +38,16 @@ const variantRef = {
 const selection = Schema.decodeUnknownSync(CatalogSelectionSchema)({ productRef, variantRef });
 const decodePopulation = Schema.decodeUnknownSync(CartOpenSelectionPopulationEvidenceSchema);
 const population = (selections: readonly { readonly selection: typeof selection; readonly selectionId: string }[]) => ({
-  read: Effect.succeed(
-    decodePopulation({
-      complete: true,
-      observedAt: '2026-09-18T12:00:00.000Z',
-      revisionToken: 'cart-population-1',
-      selections,
-    }),
-  ),
+  read: () =>
+    Effect.succeed(
+      decodePopulation({
+        complete: true,
+        observedAt: '2026-09-18T12:00:00.000Z',
+        revisionToken: 'cart-population-1',
+        selections,
+        tenantId,
+      }),
+    ),
 });
 const untouchedTransaction = {
   select: () => {
@@ -50,6 +56,18 @@ const untouchedTransaction = {
 };
 
 describe('Catalog open-selection impact', () => {
+  it.effect('resolves the exact deployment-provided Cart port and preserves an absent binding', () =>
+    Effect.gen(function* deploymentBinding() {
+      const port = population([]);
+      expect(yield* cartOpenSelectionPopulationFromEnvironment).toBeUndefined();
+      expect(
+        yield* cartOpenSelectionPopulationFromEnvironment.pipe(
+          Effect.provideService(CartOpenSelectionPopulationService, port),
+        ),
+      ).toBe(port);
+    }),
+  );
+
   it.effect('fails closed without a durable complete population source', () =>
     Effect.gen(function* rejectUnprovenPopulation() {
       // @ts-expect-error The deliberately unused transaction has no full Drizzle methods.
@@ -65,6 +83,40 @@ describe('Catalog open-selection impact', () => {
       const service = catalogOpenSelectionImpactForScope(untouchedTransaction, scope, population([]));
       const result = yield* service.assess(productRef);
       expect(result).toBeUndefined();
+    }),
+  );
+
+  it.effect('injects the public Cart service into an affected Attribute Action factory', () =>
+    Effect.gen(function* actionFactoryBinding() {
+      const port = population([]);
+      const services = yield* getActionServiceFactory(setProductAttributeValuesAction)(
+        // @ts-expect-error The impact check over an empty population never reads Catalog persistence.
+        untouchedTransaction,
+        scope,
+      ).pipe(Effect.provideService(CartOpenSelectionPopulationService, port));
+      expect(yield* services.assessOpenSelectionImpact(productRef)).toBeUndefined();
+    }),
+  );
+
+  it.effect('rejects a Cart population attested for another Tenant', () =>
+    Effect.gen(function* wrongTenantPopulation() {
+      const service = catalogOpenSelectionImpactForScope(
+        // @ts-expect-error The transaction is never reached when the owner attestation is foreign.
+        untouchedTransaction,
+        scope,
+        {
+          read: ({ tenantId: requestedTenantId }) =>
+            Effect.succeed({
+              complete: true,
+              observedAt: '2026-09-18T12:00:00.000Z',
+              revisionToken: `cart-population-for-${requestedTenantId}`,
+              selections: [],
+              tenantId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            }),
+        },
+      );
+      const failure = yield* service.assess(productRef).pipe(Effect.flip);
+      expect(failure.reason).toContain('different Tenant');
     }),
   );
 
@@ -90,12 +142,13 @@ describe('Catalog open-selection impact', () => {
         untouchedTransaction,
         scope,
         {
-          read: Effect.fail(
-            new CartOpenSelectionPopulationUnavailable({
-              code: 'cart_open_selection_population_unavailable',
-              reason: 'Cart is unavailable',
-            }),
-          ),
+          read: () =>
+            Effect.fail(
+              new CartOpenSelectionPopulationUnavailable({
+                code: 'cart_open_selection_population_unavailable',
+                reason: 'Cart is unavailable',
+              }),
+            ),
         },
       );
       const result = yield* Effect.flip(service.assess(productRef));

@@ -20,7 +20,7 @@ import { PackageDefinitionSelectionRevisionSchema } from '../../shared/domain/ca
 import { PackageDefinitionRefSchema } from '../../shared/resources/package-definition.ts';
 import { packageActivationPersistenceForScope } from '../persistence/package-activation-persistence.ts';
 import type { PackageActivationPersistence } from '../persistence/package-activation-persistence.ts';
-import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { packageActivationSelectionImpactForScope } from '../persistence/catalog-selection-change-impact.ts';
 import { packageContentBasisForTransaction } from './package-definition-action-support.ts';
 
@@ -95,19 +95,20 @@ export const handleActivatePackageDefinition = Effect.fn('ActivatePackageDefinit
   },
 );
 
-export const activatePackageDefinitionPersistenceServiceFactory = (
+export const activatePackageDefinitionPersistenceServiceFactory = Effect.fn(
+  'ActivatePackageDefinitionAction.makePersistence',
+)(function* makePackageActivationPersistence(
   transaction: Parameters<typeof packageActivationPersistenceForScope>[0],
   scope: Parameters<typeof packageActivationPersistenceForScope>[1],
-  population?: CartOpenSelectionPopulationPort,
-) =>
-  Effect.succeed(
-    packageActivationPersistenceForScope(
-      transaction,
-      scope,
-      packageContentBasisForTransaction(transaction, scope),
-      packageActivationSelectionImpactForScope(transaction, scope, population),
-    ),
+) {
+  const configuredPopulation = yield* cartOpenSelectionPopulationFromEnvironment;
+  return packageActivationPersistenceForScope(
+    transaction,
+    scope,
+    packageContentBasisForTransaction(transaction, scope),
+    packageActivationSelectionImpactForScope(transaction, scope, configuredPopulation),
   );
+});
 
 const ACTION_KEY = 'commerce.catalog.activate-package-definition' as const;
 

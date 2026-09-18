@@ -10,6 +10,7 @@ import {
   ReviseAttributeDefinitionResultSchema,
 } from '../../shared/actions/revise-attribute-definition.ts';
 import type { ReviseAttributeDefinitionPayload } from '../../shared/actions/revise-attribute-definition.ts';
+import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
 import { ProductAuditEvidenceSchema } from '../../shared/domain/product.ts';
 import {
   AttributePersistenceConflict,
@@ -26,12 +27,6 @@ const CATALOG_MODULE_KEY = 'commerce.catalog' as const;
 const ACTION_KEY = 'commerce.catalog.revise-attribute-definition' as const;
 const domainEvents = {} as const;
 
-const openSelectionsUnavailable = () =>
-  new CatalogPersistenceUnavailable({
-    code: 'catalog_persistence_unavailable',
-    reason: 'Authoritative open-selection impact is unavailable; Attribute Definition rules cannot change',
-  });
-
 export const handleReviseAttributeDefinition = Effect.fn('ReviseAttributeDefinitionAction.handle')(
   function* handleReviseAttributeDefinition(
     payload: ReviseAttributeDefinitionPayload,
@@ -47,7 +42,6 @@ export const handleReviseAttributeDefinition = Effect.fn('ReviseAttributeDefinit
     const result = yield* context.services.reviseDefinitionRules({
       actionInvocationId: context.actionInvocationId,
       attributeDefinitionRef: payload.attributeDefinitionRef,
-      checkOpenSelections: Effect.fail(openSelectionsUnavailable()),
       effectiveAt: yield* DateTime.nowAsDate,
       evidence: payload.evidence,
       evidenceRefs: [payload.evidence],
@@ -111,9 +105,15 @@ export const reviseAttributeDefinitionAction = defineAction(
     schemaVersion: '1',
   },
   handleReviseAttributeDefinition,
-  (transaction, scope) =>
-    attributePersistenceForScope(transaction, scope).pipe(
-      Effect.map((services) => ({
+  Effect.fn('ReviseAttributeDefinitionAction.makeServices')(
+    function* makeReviseAttributeDefinitionServices(transaction, scope) {
+      const openSelections = yield* cartOpenSelectionPopulationFromEnvironment;
+      const services = yield* attributePersistenceForScope(
+        transaction,
+        scope,
+        openSelections === undefined ? {} : { openSelections },
+      );
+      return {
         ...services,
         captureResult: (actionInvocationId: string, result: typeof ReviseAttributeDefinitionResultSchema.Type) =>
           captureCatalogActionResult(
@@ -135,8 +135,9 @@ export const reviseAttributeDefinitionAction = defineAction(
               return failure;
             }),
           ),
-      })),
-    ),
+      };
+    },
+  ),
   ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 

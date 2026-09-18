@@ -6,6 +6,7 @@ import type {
   CartOpenSelectionReference,
   CatalogSelectionEvidenceReader,
 } from '../../shared/domain/catalog-open-selection-population.ts';
+import { readCartOpenSelectionPopulation } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { CatalogSelection, CatalogSelectionRevision } from '../../shared/domain/catalog-selection-evidence.ts';
 import { CatalogSelectionRevisionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import type {
@@ -323,7 +324,7 @@ export const productConfigurationSelectionImpactForScope = (
     if (population === undefined) {
       return yield* configurationUnavailable('Owner-confirmed Cart/checkout open-selection population is unavailable');
     }
-    const snapshot = yield* population.read.pipe(
+    const snapshot = yield* readCartOpenSelectionPopulation(population, scope.tenantId).pipe(
       Effect.mapError((failure) => configurationUnavailable(failure.reason)),
     );
     const affected = snapshot.selections.filter(configurationAffected(input));
