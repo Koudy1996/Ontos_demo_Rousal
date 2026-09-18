@@ -3,7 +3,9 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
+import { ProductInstantSchema } from '../domain/product.ts';
 import { PackageDefinitionRefSchema } from '../resources/package-definition.ts';
+
 const uuid = Schema.String.check(Schema.isUUID());
 /** Package content history is sequence-addressed; retained rows do not issue revision IDs. */
 export const PackageDefinitionHistoryReferenceSchema = Schema.Struct({
@@ -17,27 +19,27 @@ export const PackageDefinitionHistoryRequestSchema = Schema.Struct({
 });
 export type PackageDefinitionHistoryRequest = typeof PackageDefinitionHistoryRequestSchema.Type;
 export const PackageDefinitionHistoryResponseSchema = Schema.Struct({
-  historical: Schema.Literal(true),
-  reference: PackageDefinitionHistoryReferenceSchema,
-  productId: uuid,
-  variantId: uuid,
-  lifecycle: Schema.String,
+  actionInvocationId: uuid,
   amount: Schema.String,
-  unitResourceType: Schema.String,
-  unitResourceId: uuid,
+  changeKind: Schema.String,
   configurationKey: Schema.NullOr(Schema.String),
+  effectiveAt: ProductInstantSchema,
+  evidenceRefs: Schema.Array(Schema.String),
+  historical: Schema.Literal(true),
+  lifecycle: Schema.String,
+  lowerCount: Schema.NullOr(Schema.String),
   lowerPackageDefinitionId: Schema.NullOr(uuid),
   lowerRevision: Schema.NullOr(Schema.Int),
-  lowerCount: Schema.NullOr(Schema.String),
+  priorErrorExplanation: Schema.NullOr(Schema.String),
+  productId: uuid,
+  reason: Schema.String,
+  recordedAt: ProductInstantSchema,
+  reference: PackageDefinitionHistoryReferenceSchema,
   setCompositionResourceId: Schema.NullOr(uuid),
   setCompositionRevision: Schema.NullOr(Schema.Int),
-  changeKind: Schema.String,
-  priorErrorExplanation: Schema.NullOr(Schema.String),
-  reason: Schema.String,
-  evidenceRefs: Schema.Array(Schema.String),
-  effectiveAt: Schema.String,
-  recordedAt: Schema.String,
-  actionInvocationId: uuid,
+  unitResourceId: uuid,
+  unitResourceType: Schema.String,
+  variantId: uuid,
 });
 export type PackageDefinitionHistoryResponse = typeof PackageDefinitionHistoryResponseSchema.Type;
 
