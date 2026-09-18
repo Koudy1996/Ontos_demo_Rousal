@@ -1,16 +1,18 @@
 import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
-import { Effect, Option } from 'effect';
+import { Effect, Option, Result, Schema } from 'effect';
 
 import type {
   CartOpenSelectionPopulationPort,
   CartOpenSelectionReference,
+  CatalogSelectionEvidenceReader,
 } from '../../shared/domain/catalog-open-selection-population.ts';
-import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
+import type { CatalogSelection, CatalogSelectionRevision } from '../../shared/domain/catalog-selection-evidence.ts';
+import { CatalogSelectionRevisionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import type {
   ProductConfiguration,
   ProductConfigurationDefinitionRevision,
+  ProductConfigurationRevisionEquivalenceAttestation,
 } from '../../shared/domain/product-configuration.ts';
-import type { CatalogSelectionEvidenceAssessor } from './catalog-selection-open-population.ts';
 import {
   assessCatalogOpenSelectionSnapshot,
   catalogSelectionOpenPopulationImpactForScope,
@@ -27,6 +29,7 @@ import { evaluateCurrentProductConfiguration } from './product-configuration-cur
 import type {
   ConfigurationSelectionImpact,
   CurrentConfigurationRevision,
+  ProductConfigurationPersistence,
 } from './product-configuration-persistence.ts';
 import {
   ProductConfigurationPersistenceUnavailable,
@@ -97,14 +100,44 @@ const productConfigurationFromSelection = (selection: CatalogSelection): Product
     : { ...base, packageOptionRef: selection.packageOption.optionRef };
 };
 
-const definitionFromCurrent = (
-  revision: CurrentConfigurationRevision,
+/** Re-express the exact selected values at another Definition revision without selecting anything new. */
+const reexpressSelection = (
+  selection: ProductConfiguration,
+  reference: CatalogSelectionRevision,
+): ProductConfiguration => {
+  const candidate: ProductConfiguration = {
+    definition: reference,
+    productRef: selection.productRef,
+    values: selection.values,
+    variantRef: selection.variantRef,
+  };
+  return selection.packageOptionRef === undefined
+    ? candidate
+    : { ...candidate, packageOptionRef: selection.packageOptionRef };
+};
+
+const proposedDefinitionReference = (
   selection: CatalogSelection,
-): ProductConfigurationDefinitionRevision | undefined => {
+  proposedRevision: number,
+): CatalogSelectionRevision | undefined => {
   const { configuration } = selection;
   if (configuration === undefined) {
     return undefined;
   }
+  // A publication creates the next revision; it must not inherit the earlier revision's optional
+  // owner-issued revision ID. Only the sequence is carried.
+  const decoded = Schema.decodeResult(CatalogSelectionRevisionSchema)({
+    resourceRef: configuration.definition.resourceRef,
+    revision: proposedRevision,
+  });
+  return Result.isSuccess(decoded) ? decoded.success : undefined;
+};
+
+const definitionFromRevision = (
+  revision: CurrentConfigurationRevision,
+  selection: CatalogSelection,
+  reference: CatalogSelectionRevision,
+): ProductConfigurationDefinitionRevision | undefined => {
   const units = new Map(revision.units.map((unit) => [unit.ref.resourceId, unit.ref]));
   const choices: ProductConfigurationDefinitionRevision['choices'][number][] = [];
   for (const choice of revision.choices) {
@@ -130,52 +163,148 @@ const definitionFromCurrent = (
       unitRef,
     });
   }
-  return { choices, productRef: selection.productRef, reference: configuration.definition };
+  return { choices, productRef: selection.productRef, reference };
 };
 
-const reassessOpenConfiguration = Effect.fn('CatalogSelectionChangeImpact.reassessOpenConfiguration')(
-  function* reassessOpenConfigurationStep(
-    transaction: ScopedTransaction,
-    scope: OperationalScope,
-    revisionToken: string,
-    input: Parameters<ConfigurationSelectionImpact['verify']>[0],
-    reference: CartOpenSelectionReference,
-  ): Effect.fn.Return<boolean> {
-    const { selection } = reference;
-    const configuration = productConfigurationFromSelection(selection);
-    const target = configurationTarget(selection);
-    if (configuration === undefined || target === undefined) {
-      return true;
+/**
+ * Present the proposed snapshot as the owner-issued Current revision it will become. Exact Unit
+ * revisions are carried from the committed Current read (the same trusted Unit source the
+ * publication pins); an absent committed read is handled by the caller.
+ */
+const proposedCurrentRevision = (
+  committed: CurrentConfigurationRevision,
+  input: ConfigurationSelectionChange,
+): CurrentConfigurationRevision => {
+  const unitRevisions = new Map(committed.choices.map((choice) => [choice.choiceKey, choice.unitRevision]));
+  const choices = input.proposed.choices.map((choice) => {
+    if (choice.unitRevision !== undefined || choice.unitId === undefined) {
+      return choice;
     }
-    const persistence = productConfigurationPersistenceForScope(transaction, scope);
-    const at = input.effectiveFrom;
-    const sideInput: CurrentConfigurationAssessmentInput = { at, target, values: configurationValues(selection) };
-    const [assessment, current] = yield* Effect.all(
-      [
-        evaluateCurrentProductConfiguration(persistence, sideInput).pipe(Effect.option),
-        persistence
-          .readCurrent({ at, definitionId: input.definitionId, productId: input.productId })
-          .pipe(Effect.orElseSucceed(() => Option.none())),
-      ] as const,
-      { concurrency: 1 },
-    );
-    if (Option.isNone(assessment) || assessment.value.status !== 'VALID' || Option.isNone(current)) {
-      return true;
-    }
-    const definition = definitionFromCurrent(current.value, selection);
-    if (definition === undefined) {
-      return true;
-    }
-    const side: ProductConfigurationAssessmentSide = { assessment: assessment.value, definition, input: sideInput };
-    const result = reassessProductConfigurationChange({
-      authority: { complete: true, observedAt: at, revisionToken, selectionId: reference.selectionId },
-      current: side,
-      earlier: side,
-      selection: configuration,
-    });
-    return result.status !== 'INVALIDATED';
-  },
-);
+    const unitRevision = unitRevisions.get(choice.choiceKey);
+    return unitRevision === undefined ? choice : { ...choice, unitRevision };
+  });
+  return {
+    choices,
+    compatibilityRules: input.proposed.compatibilityRules,
+    definitionEvidenceRefs: committed.definitionEvidenceRefs,
+    definitionId: input.definitionId,
+    effectiveFrom: input.effectiveFrom,
+    measuredRules: input.proposed.measuredRules,
+    optionAllowances: input.proposed.optionAllowances,
+    productId: input.productId,
+    revision: input.proposedRevision,
+    ruleCombination: committed.ruleCombination,
+    units: committed.units,
+  };
+};
+
+/** Injectable owner-issued #460 equivalence decision; absent means no proof and a closed gate. */
+export interface ConfigurationChangeAssurance {
+  readonly current: ProductConfigurationAssessmentSide;
+  readonly earlier: ProductConfigurationAssessmentSide;
+  readonly proposedSelection: ProductConfiguration;
+  readonly selection: ProductConfiguration;
+}
+export type ConfigurationChangeAssuranceProvider = (
+  request: ConfigurationChangeAssurance,
+) => ProductConfigurationRevisionEquivalenceAttestation | undefined;
+
+/** The proposed Definition publication an open selection is reassessed against. */
+export interface ConfigurationSelectionChange {
+  readonly definitionId: string;
+  readonly effectiveFrom: Date;
+  readonly previousRevision: number;
+  readonly productId: string;
+  readonly proposed: Pick<
+    CurrentConfigurationRevision,
+    'choices' | 'compatibilityRules' | 'measuredRules' | 'optionAllowances'
+  >;
+  readonly proposedRevision: number;
+  readonly tenantId: string;
+}
+
+const revisionReader = (
+  revision: CurrentConfigurationRevision,
+): Pick<ProductConfigurationPersistence, 'readCurrent'> => ({
+  readCurrent: () => Effect.succeedSome(revision),
+});
+
+/**
+ * Decide whether a Definition publication preserves every open selection pinned to the revision it
+ * supersedes. The earlier side is the exact committed revision the selection is pinned to and the
+ * current side is the proposed snapshot. A material change invalidates, a display-only change is
+ * Current only with an owner-issued equivalence decision, and any unverifiable comparison fails
+ * closed instead of treating absent evidence as safe.
+ */
+export const reassessOpenConfiguration: (
+  persistence: ProductConfigurationPersistence,
+  revisionToken: string,
+  input: ConfigurationSelectionChange,
+  reference: CartOpenSelectionReference,
+  assurance?: ConfigurationChangeAssuranceProvider,
+) => Effect.Effect<boolean, ProductConfigurationPersistenceUnavailable> = Effect.fn(
+  'CatalogSelectionChangeImpact.reassessOpenConfiguration',
+)(function* reassessOpenConfigurationStep(persistence, revisionToken, input, reference, assurance): Effect.fn.Return<
+  boolean,
+  ProductConfigurationPersistenceUnavailable
+> {
+  const { selection } = reference;
+  const configuration = productConfigurationFromSelection(selection);
+  const target = configurationTarget(selection);
+  const proposedReference = proposedDefinitionReference(selection, input.proposedRevision);
+  if (configuration === undefined || target === undefined || proposedReference === undefined) {
+    return false;
+  }
+  const at = input.effectiveFrom;
+  const sideInput: CurrentConfigurationAssessmentInput = { at, target, values: configurationValues(selection) };
+  const committed = yield* persistence
+    .readCurrent({ at, definitionId: input.definitionId, productId: input.productId })
+    .pipe(Effect.orElseSucceed(() => Option.none()));
+  if (Option.isNone(committed) || committed.value.revision !== configuration.definition.revision) {
+    return false;
+  }
+  const earlierAssessment = yield* evaluateCurrentProductConfiguration(revisionReader(committed.value), sideInput);
+  const earlierDefinition = definitionFromRevision(committed.value, selection, configuration.definition);
+  const proposed = proposedCurrentRevision(committed.value, input);
+  const proposedDefinition = definitionFromRevision(proposed, selection, proposedReference);
+  if (earlierAssessment.status !== 'VALID' || earlierDefinition === undefined || proposedDefinition === undefined) {
+    return false;
+  }
+  const currentAssessment = yield* evaluateCurrentProductConfiguration(revisionReader(proposed), sideInput);
+  const earlier: ProductConfigurationAssessmentSide = {
+    assessment: earlierAssessment,
+    definition: earlierDefinition,
+    input: sideInput,
+  };
+  const current: ProductConfigurationAssessmentSide = {
+    assessment: currentAssessment,
+    definition: proposedDefinition,
+    input: sideInput,
+  };
+  const attestation = assurance?.({
+    current,
+    earlier,
+    proposedSelection: reexpressSelection(configuration, proposedDefinition.reference),
+    selection: configuration,
+  });
+  const result = reassessProductConfigurationChange(
+    attestation === undefined
+      ? {
+          authority: { complete: true, observedAt: at, revisionToken, selectionId: reference.selectionId },
+          current,
+          earlier,
+          selection: configuration,
+        }
+      : {
+          attestation,
+          authority: { complete: true, observedAt: at, revisionToken, selectionId: reference.selectionId },
+          current,
+          earlier,
+          selection: configuration,
+        },
+  );
+  return result.status === 'CURRENT';
+});
 
 const configurationAffected =
   (input: Parameters<ConfigurationSelectionImpact['verify']>[0]) =>
@@ -189,7 +318,8 @@ export const productConfigurationSelectionImpactForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   population?: CartOpenSelectionPopulationPort,
-  assess?: CatalogSelectionEvidenceAssessor,
+  assess?: CatalogSelectionEvidenceReader['assess'],
+  assurance?: ConfigurationChangeAssuranceProvider,
 ): ConfigurationSelectionImpact => ({
   verify: Effect.fn('ProductConfigurationSelectionImpact.verify')(function* verifyConfigurationImpact(
     input: Parameters<ConfigurationSelectionImpact['verify']>[0],
@@ -210,9 +340,10 @@ export const productConfigurationSelectionImpactForScope = (
     if (impacted.kind !== 'PROVEN') {
       return false;
     }
+    const persistence = productConfigurationPersistenceForScope(transaction, scope);
     const reassessments = yield* Effect.forEach(
       affected,
-      (reference) => reassessOpenConfiguration(transaction, scope, snapshot.revisionToken, input, reference),
+      (reference) => reassessOpenConfiguration(persistence, snapshot.revisionToken, input, reference, assurance),
       { concurrency: 1 },
     );
     return reassessments.every(Boolean);
@@ -224,7 +355,7 @@ export const packageActivationSelectionImpactForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   population?: CartOpenSelectionPopulationPort,
-  assess?: CatalogSelectionEvidenceAssessor,
+  assess?: CatalogSelectionEvidenceReader['assess'],
 ): PackageActivationSelectionImpact => ({
   verify: Effect.fn('PackageActivationSelectionImpact.verify')(function* verifyPackageActivationImpact(
     input: Parameters<PackageActivationSelectionImpact['verify']>[0],
@@ -258,7 +389,7 @@ export const setCompositionSelectionImpactForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   population?: CartOpenSelectionPopulationPort,
-  assess?: CatalogSelectionEvidenceAssessor,
+  assess?: CatalogSelectionEvidenceReader['assess'],
 ): SetCompositionSelectionImpact => ({
   verify: Effect.fn('SetCompositionSelectionImpact.verify')(function* verifySetCorrectionImpact(
     input: Parameters<SetCompositionSelectionImpact['verify']>[0],

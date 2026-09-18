@@ -6,19 +6,13 @@ import type {
   CartOpenSelectionPopulationPort,
   CartOpenSelectionPopulationUnavailable,
   CartOpenSelectionReference,
+  CatalogSelectionEvidenceReader,
 } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { CatalogSelectionEvidence } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelectionPurpose } from '../../shared/domain/catalog-selection-purpose.ts';
-import type { CatalogSelectionEvidenceServiceResult } from './catalog-selection-evidence-service.ts';
 import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
-
-/** The #479 owner-assessment seam; injectable so an owner Current read can be substituted in tests. */
-export type CatalogSelectionEvidenceAssessor = (input: {
-  readonly purpose: CatalogSelectionPurpose;
-  readonly selection: CartOpenSelectionReference['selection'];
-}) => Effect.Effect<CatalogSelectionEvidenceServiceResult>;
 
 export type CatalogOpenSelectionImpact =
   | { readonly evidence: readonly CatalogSelectionEvidence[]; readonly kind: 'PROVEN' }
@@ -28,7 +22,7 @@ export type CatalogOpenSelectionImpact =
 export interface CatalogOpenSelectionSnapshotRequest {
   /** Only Cart open selections Catalog judges to be affected by the change under review. */
   readonly affected?: (reference: CartOpenSelectionReference) => boolean;
-  readonly assess: CatalogSelectionEvidenceAssessor;
+  readonly assess: CatalogSelectionEvidenceReader['assess'];
   readonly purpose: CatalogSelectionPurpose;
   readonly snapshot: CartOpenSelectionPopulationEvidence;
 }
@@ -78,7 +72,7 @@ export interface CatalogOpenSelectionImpactRequest {
  */
 export const assessCatalogOpenSelectionImpact = Effect.fn('CatalogSelectionOpenPopulation.assessImpact')(
   function* assessOpenSelectionImpact(
-    input: CatalogOpenSelectionImpactRequest & { readonly assess: CatalogSelectionEvidenceAssessor },
+    input: CatalogOpenSelectionImpactRequest & { readonly assess: CatalogSelectionEvidenceReader['assess'] },
   ): Effect.fn.Return<CatalogOpenSelectionImpact, CartOpenSelectionPopulationUnavailable> {
     if (input.population === undefined) {
       return {
@@ -96,7 +90,7 @@ export const catalogSelectionOpenPopulationImpactForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   population?: CartOpenSelectionPopulationPort,
-  assess?: CatalogSelectionEvidenceAssessor,
+  assess?: CatalogSelectionEvidenceReader['assess'],
 ) => ({
   assess: (input: Omit<CatalogOpenSelectionImpactRequest, 'assess'>) =>
     assessCatalogOpenSelectionImpact({

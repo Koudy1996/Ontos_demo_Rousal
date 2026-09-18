@@ -1,5 +1,5 @@
 import { TrustedPrincipalContextSchema } from '@app/core-runtime';
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import type {
@@ -10,6 +10,7 @@ import {
   CartOpenSelectionPopulationUnavailable,
   CartOpenSelectionReferenceSchema,
 } from '../../shared/domain/catalog-open-selection-population.ts';
+import { CatalogResourceRefSchema } from '../../shared/domain/catalog-revision-reference.ts';
 import type { CatalogSelectionCurrentFacts } from '../../shared/domain/catalog-selection-assessment.ts';
 import {
   CatalogSelectionBasisSchema,
@@ -17,17 +18,28 @@ import {
   CatalogSelectionSchema,
 } from '../../shared/domain/catalog-selection-evidence.ts';
 import type { CatalogSelection } from '../../shared/domain/catalog-selection-evidence.ts';
+import type { ProductConfigurationRevisionEquivalenceAttestation } from '../../shared/domain/product-configuration.ts';
+import type { ProductConfigurationAssessmentSide } from '../../src/domain/product-configuration-reassessment.ts';
 import { assembleCatalogSelectionEvidence } from '../../src/persistence/catalog-selection-evidence-service.ts';
 import type { CatalogSelectionEvidenceServiceResult } from '../../src/persistence/catalog-selection-evidence-service.ts';
 import {
   assessCatalogOpenSelectionSnapshot,
   catalogSelectionOpenPopulationImpactForScope,
 } from '../../src/persistence/catalog-selection-open-population.ts';
+import type {
+  ConfigurationChangeAssurance,
+  ConfigurationSelectionChange,
+} from '../../src/persistence/catalog-selection-change-impact.ts';
 import {
   packageActivationSelectionImpactForScope,
   productConfigurationSelectionImpactForScope,
+  reassessOpenConfiguration,
   setCompositionSelectionImpactForScope,
 } from '../../src/persistence/catalog-selection-change-impact.ts';
+import type {
+  CurrentConfigurationRevision,
+  ProductConfigurationPersistence,
+} from '../../src/persistence/product-configuration-persistence.ts';
 import { PackageActivationUnavailable } from '../../src/persistence/package-activation-persistence.ts';
 import { ProductConfigurationPersistenceUnavailable } from '../../src/persistence/product-configuration-persistence.ts';
 import { SetCompositionPersistenceUnavailable } from '../../src/persistence/set-composition-persistence.ts';
@@ -152,6 +164,152 @@ const setImpactInput = {
   tenantId,
 };
 
+const configurationDefinitionId = '99999999-9999-4999-8999-999999999999';
+const configurationUnitId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const configurationDefinitionRef = ref('commerce.catalog.configuration-definition', configurationDefinitionId);
+const configurationUnitRef = Schema.decodeUnknownSync(CatalogResourceRefSchema)(
+  ref('commerce.catalog.unit', configurationUnitId),
+);
+const configurationSelection = decodeSelection({
+  configuration: {
+    choices: [
+      { choiceKey: 'mount', value: 'A' },
+      { choiceKey: 'length', unit: { resourceRef: configurationUnitRef, revision: 1 }, value: '83' },
+    ],
+    definition: { resourceRef: configurationDefinitionRef, revision: 1 },
+    productRef,
+    variantRef,
+  },
+  productRef,
+  variantRef,
+});
+const configurationReference = reference('cart-open-configuration', configurationSelection);
+const configurationEffectiveFrom = new Date('2026-09-01T00:00:00.000Z');
+const reassessmentAt = new Date('2026-09-18T00:00:00.000Z');
+const configurationChoices = (
+  mountOptions: readonly { readonly label: string; readonly meaning: string; readonly optionKey: string }[],
+): CurrentConfigurationRevision['choices'] => [
+  {
+    choiceKey: 'mount',
+    kind: 'SINGLE_CHOICE',
+    label: 'Mount',
+    meaning: 'Mounting type',
+    options: mountOptions,
+    required: true,
+  },
+  {
+    choiceKey: 'length',
+    kind: 'MEASURED_VALUE',
+    label: 'Length',
+    meaning: 'Cut length',
+    required: true,
+    unitId: configurationUnitId,
+    unitRevision: 1,
+  },
+];
+const committedConfiguration: CurrentConfigurationRevision = {
+  choices: configurationChoices([
+    { label: 'A', meaning: 'A mounting part', optionKey: 'A' },
+    { label: 'B', meaning: 'B mounting part', optionKey: 'B' },
+  ]),
+  compatibilityRules: [],
+  definitionEvidenceRefs: ['owner:configuration-definition:1'],
+  definitionId: configurationDefinitionId,
+  effectiveFrom: configurationEffectiveFrom,
+  measuredRules: [
+    {
+      choiceKey: 'length',
+      evidenceRefs: ['owner:measured-rule:1'],
+      maximum: '120',
+      maximumInclusive: true,
+      minimum: '0',
+      minimumInclusive: false,
+    },
+  ],
+  optionAllowances: [
+    { allowed: true, choiceKey: 'mount', evidenceRefs: ['owner:allowance:1'], optionKey: 'A' },
+    { allowed: false, choiceKey: 'mount', evidenceRefs: ['owner:allowance:1'], optionKey: 'B' },
+  ],
+  productId,
+  revision: 1,
+  ruleCombination: 'CONJUNCTION_ONLY',
+  units: [
+    {
+      dimension: 'length',
+      effectiveFrom: configurationEffectiveFrom,
+      evidenceRefs: ['owner:unit:1'],
+      lifecycleState: 'ACTIVE',
+      meaning: 'Centimetre',
+      ref: configurationUnitRef,
+      revision: 1,
+    },
+  ],
+};
+const changeInput = (proposedChoices: CurrentConfigurationRevision['choices']): ConfigurationSelectionChange => ({
+  definitionId: configurationDefinitionId,
+  effectiveFrom: reassessmentAt,
+  previousRevision: 1,
+  productId,
+  proposed: {
+    choices: proposedChoices,
+    compatibilityRules: committedConfiguration.compatibilityRules,
+    measuredRules: committedConfiguration.measuredRules,
+    optionAllowances: committedConfiguration.optionAllowances,
+  },
+  proposedRevision: 2,
+  tenantId,
+});
+const materialConfigurationChange = changeInput(
+  configurationChoices([{ label: 'B', meaning: 'B mounting part', optionKey: 'B' }]),
+);
+const displayOnlyConfigurationChange = changeInput(
+  configurationChoices([
+    { label: 'A (display only)', meaning: 'A mounting part', optionKey: 'A' },
+    { label: 'B (display only)', meaning: 'B mounting part', optionKey: 'B' },
+  ]),
+);
+const configurationPersistence = (
+  revision: CurrentConfigurationRevision | undefined,
+): ProductConfigurationPersistence => ({
+  publish: () => Effect.die('configuration impact must not publish'),
+  readCurrent: () => Effect.succeed(revision === undefined ? Option.none() : Option.some(revision)),
+});
+const absentConfiguration: ProductConfigurationPersistence = {
+  publish: () => Effect.die('configuration impact must not publish'),
+  readCurrent: () => Effect.succeed(Option.none()),
+};
+const sideRuleRevisions = (side: ProductConfigurationAssessmentSide) => {
+  const { definition } = side;
+  if (definition === undefined) {
+    return [];
+  }
+  return (side.assessment?.rules ?? []).map((rule) => ({
+    definitionRevision: definition.reference,
+    kind: rule.kind ?? 'MEASURED',
+    ownerModuleId: 'commerce.catalog' as const,
+    revision: rule.revision,
+    ruleId: rule.ruleId,
+  }));
+};
+const ownerEquivalence = (
+  request: ConfigurationChangeAssurance,
+): ProductConfigurationRevisionEquivalenceAttestation => ({
+  admissibility: {
+    completeCurrentRuleBasis: true,
+    left: 'ADMISSIBLE',
+    leftRuleRevisions: sideRuleRevisions(request.earlier),
+    right: 'ADMISSIBLE',
+    rightRuleRevisions: sideRuleRevisions(request.current),
+  },
+  attestationId: 'owner-equivalence-change-impact-1',
+  leftSelection: request.selection,
+  meaning: { choicesAndValues: 'SAME', units: 'SAME' },
+  ownerModuleId: 'commerce.catalog',
+  rightSelection: request.proposedSelection,
+  source: 'CATALOG_OWNER_EQUIVALENCE_ASSESSMENT',
+  status: 'CONFIRMED',
+});
+
 describe('Catalog open-selection population impact (#479 wiring)', () => {
   it.effect('fails closed when the Cart owner population port is absent', () =>
     Effect.gen(function* absentPort() {
@@ -275,4 +433,81 @@ describe('Catalog open-selection population impact (#479 wiring)', () => {
     expect(port).toHaveProperty('read');
     expect(catalogSelectionOpenPopulationImpactForScope).toBeDefined();
   });
+});
+
+describe('Catalog configuration change impact (#479 wiring)', () => {
+  it.effect('invalidates an open selection when the proposed revision removes its chosen option', () =>
+    Effect.gen(function* materialConfigurationRevision() {
+      expect(
+        yield* reassessOpenConfiguration(
+          configurationPersistence(committedConfiguration),
+          'cart-population-1',
+          materialConfigurationChange,
+          configurationReference,
+        ),
+      ).toBe(false);
+    }),
+  );
+
+  it.effect('keeps a display-only configuration revision Current with owner equivalence evidence', () =>
+    Effect.gen(function* displayOnlyConfigurationRevision() {
+      expect(
+        yield* reassessOpenConfiguration(
+          configurationPersistence(committedConfiguration),
+          'cart-population-1',
+          displayOnlyConfigurationChange,
+          configurationReference,
+          ownerEquivalence,
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('fails closed on a cross-revision configuration comparison without owner evidence', () =>
+    Effect.gen(function* unprovenConfigurationRevision() {
+      expect(
+        yield* reassessOpenConfiguration(
+          configurationPersistence(committedConfiguration),
+          'cart-population-1',
+          displayOnlyConfigurationChange,
+          configurationReference,
+        ),
+      ).toBe(false);
+    }),
+  );
+
+  it.effect('fails closed when the committed Configuration revision is absent or not the pinned revision', () =>
+    Effect.gen(function* unavailableConfigurationRevision() {
+      expect(
+        yield* reassessOpenConfiguration(
+          absentConfiguration,
+          'cart-population-1',
+          displayOnlyConfigurationChange,
+          configurationReference,
+          ownerEquivalence,
+        ),
+      ).toBe(false);
+      expect(
+        yield* reassessOpenConfiguration(
+          configurationPersistence({ ...committedConfiguration, revision: 2 }),
+          'cart-population-1',
+          displayOnlyConfigurationChange,
+          configurationReference,
+          ownerEquivalence,
+        ),
+      ).toBe(false);
+    }),
+  );
+
+  it.effect('blocks an affected configuration publication when Catalog evidence is not VALID', () =>
+    Effect.gen(function* blockedConfigurationEvidence() {
+      const impact = productConfigurationSelectionImpactForScope(
+        transaction,
+        scope,
+        population([configurationReference]),
+        assessInvalid,
+      );
+      expect(yield* impact.verify(displayOnlyConfigurationChange)).toBe(false);
+    }),
+  );
 });

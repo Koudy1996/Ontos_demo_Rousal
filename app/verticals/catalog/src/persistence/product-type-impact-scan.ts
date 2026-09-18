@@ -3,7 +3,10 @@ import { createHash } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
-import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import type {
+  CartOpenSelectionPopulationPort,
+  CatalogSelectionEvidenceReader,
+} from '../../shared/domain/catalog-open-selection-population.ts';
 import type { ProductTypeImpactRule } from '../../shared/domain/product-type-impact.ts';
 import { previewProductTypeImpact } from '../../shared/domain/product-type-impact.ts';
 import type { AttributeValueSetValidityBasis } from './effective-attribute-value-reads.ts';
@@ -439,7 +442,7 @@ export const productTypeImpactScanForScope = (
     }
     // Catalog owns the deciding Current facts of each supplied open selection; an owner read that
     // cannot be answered is a typed incomplete result, never an assumed absence of impact.
-    const catalogEvidence = catalogSelectionEvidenceForScope(transaction, scope);
+    const catalogEvidence: CatalogSelectionEvidenceReader = catalogSelectionEvidenceForScope(transaction, scope);
     const openSelectionEvidence = yield* Effect.forEach(
       population.selections,
       ({ selection }) => catalogEvidence.assess({ purpose: 'CART_VALIDATION', selection }),

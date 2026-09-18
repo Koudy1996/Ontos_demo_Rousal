@@ -7,6 +7,7 @@ import type {
 } from '../../shared/domain/catalog-open-selection-population.ts';
 import { openSelectionReferencesProduct } from '../../shared/domain/catalog-open-selection-population.ts';
 import type { ProductRef } from '../../shared/resources/product.ts';
+import { assessCatalogOpenSelectionImpact } from './catalog-selection-open-population.ts';
 import { catalogSelectionEvidenceForScope } from './catalog-selection-evidence-service.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
@@ -21,10 +22,12 @@ const unavailable = (reason: string) =>
 
 /**
  * Catalog has no durable registry of open Cart/checkout selections. A positive path exists only
- * when the Cart owner injects a complete population port: Catalog then confirms the population is
- * genuinely complete, finds no open selection for the Product, and reads its own #479 evidence for
- * any selection it does find. An absent or unverifiable owner contract stays a visible typed
- * failure; an absent local row can never attest an empty population or authorize an impact write.
+ * when the Cart owner injects a complete population port and Catalog reads a Current-VALID #479
+ * assessment for it. This is a thin action-facing adapter over the one canonical
+ * {@link assessCatalogOpenSelectionImpact} engine: an absent or failing owner contract and any
+ * affected-but-unproven selection stay a visible typed failure, and an attribute-value write is
+ * still blocked by any open selection that references the Product. An absent local row can never
+ * attest an empty population or authorize an impact write.
  */
 export const catalogOpenSelectionImpactForScope = (
   transaction: ScopedTransaction,
@@ -33,30 +36,27 @@ export const catalogOpenSelectionImpactForScope = (
   assessOpenSelection?: CatalogSelectionEvidenceReader['assess'],
 ) => ({
   assess: Effect.fn('CatalogOpenSelectionImpact.assess')(function* assess(productRef: ProductRef) {
-    if (population === undefined) {
-      return yield* unavailable('Complete durable open-selection population is not available to Catalog');
-    }
-    const snapshot = yield* population.read.pipe(
+    const impacted = yield* assessCatalogOpenSelectionImpact({
+      affected: ({ selection }) => openSelectionReferencesProduct(selection, productRef),
+      assess:
+        assessOpenSelection ?? ((request) => catalogSelectionEvidenceForScope(transaction, scope).assess(request)),
+      population,
+      purpose: 'CART_VALIDATION',
+    }).pipe(
       Effect.catchTag('CartOpenSelectionPopulationUnavailable', (failure) => Effect.fail(unavailable(failure.reason))),
     );
-    const matching = snapshot.selections.filter(({ selection }) =>
-      openSelectionReferencesProduct(selection, productRef),
-    );
-    if (matching.length === 0) {
+    if (impacted.kind === 'POPULATION_UNAVAILABLE') {
+      return yield* unavailable(impacted.reason);
+    }
+    if (impacted.kind === 'NOT_PROVEN') {
+      return yield* unavailable(`An affected open Catalog selection is not Current-VALID: ${impacted.reason}`);
+    }
+    if (impacted.evidence.length === 0) {
       return yield* Effect.void;
     }
-    // Catalog still reads its own Current evidence for the open selections it can see; a failed
-    // owner read is a typed unavailable outcome, never an assumed absence of impact.
-    const assessSelection =
-      assessOpenSelection ?? ((request) => catalogSelectionEvidenceForScope(transaction, scope).assess(request));
-    const assessments = yield* Effect.forEach(
-      matching,
-      ({ selection }) => assessSelection({ purpose: 'CART_VALIDATION', selection }),
-      { concurrency: 1 },
-    );
     return yield* unavailable(
-      `Product is referenced by ${matching.length} open Catalog selection(s): ${assessments
-        .map(({ evidence: decision }) => ('status' in decision ? decision.status : decision.kind))
+      `Product is referenced by ${impacted.evidence.length} open Catalog selection(s): ${impacted.evidence
+        .map((decision) => decision.status)
         .join(', ')}`,
     );
   }),
