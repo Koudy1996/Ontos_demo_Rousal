@@ -17,7 +17,7 @@ const ref = (resourceType: string, resourceId: string) =>
 const productRef = ref('commerce.catalog.product', '22222222-2222-4222-8222-222222222222');
 const shelfProduct = ref('commerce.catalog.product', '33333333-3333-4333-8333-333333333333');
 const bracketProduct = ref('commerce.catalog.product', '44444444-4444-4444-8444-444444444444');
-const unitRef = ref('commerce.catalog.unit', '55555555-5555-4555-8555-555555555555');
+const unitRef = ref('commerce.catalog.product-unit', '55555555-5555-4555-8555-555555555555');
 const revision = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
   components: [
     {
