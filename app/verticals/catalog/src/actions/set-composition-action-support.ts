@@ -10,6 +10,8 @@ import type {
 } from '../persistence/set-composition-persistence.ts';
 import { setCompositionPersistenceForScope } from '../persistence/set-composition-persistence.ts';
 import { setCompositionComponentCurrentBasisForScope } from '../persistence/set-composition-component-current-basis.ts';
+import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { setCompositionSelectionImpactForScope } from '../persistence/catalog-selection-change-impact.ts';
 
 type ScopedTransaction = Parameters<typeof setCompositionPersistenceForScope>[0];
 type Scope = Parameters<typeof setCompositionPersistenceForScope>[1];
@@ -25,9 +27,18 @@ export const setCompositionBasisForScope = (transaction: ScopedTransaction, scop
   };
 };
 
-export const setCompositionPersistenceServiceFactory = (transaction: ScopedTransaction, scope: Scope) =>
+export const setCompositionPersistenceServiceFactory = (
+  transaction: ScopedTransaction,
+  scope: Scope,
+  population?: CartOpenSelectionPopulationPort,
+) =>
   Effect.succeed(
-    setCompositionPersistenceForScope(transaction, scope, setCompositionBasisForScope(transaction, scope)),
+    setCompositionPersistenceForScope(
+      transaction,
+      scope,
+      setCompositionBasisForScope(transaction, scope),
+      setCompositionSelectionImpactForScope(transaction, scope, population),
+    ),
   );
 
 export const handleSetCompositionMutation = Effect.fn('SetCompositionAction.handleMutation')(

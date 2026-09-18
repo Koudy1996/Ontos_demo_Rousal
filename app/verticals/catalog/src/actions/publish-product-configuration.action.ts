@@ -8,14 +8,10 @@ import {
   PublishProductConfigurationResultSchema,
   PublishProductConfigurationError,
 } from '../../shared/actions/publish-product-configuration.ts';
-import {
-  productConfigurationPersistenceForScope,
-  ProductConfigurationPersistenceUnavailable,
-} from '../persistence/product-configuration-persistence.ts';
-import type {
-  ConfigurationSelectionImpact,
-  ProductConfigurationPersistence,
-} from '../persistence/product-configuration-persistence.ts';
+import { productConfigurationPersistenceForScope } from '../persistence/product-configuration-persistence.ts';
+import type { ProductConfigurationPersistence } from '../persistence/product-configuration-persistence.ts';
+import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { productConfigurationSelectionImpactForScope } from '../persistence/catalog-selection-change-impact.ts';
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import { OutboxPayloadSchema } from '../../shared/outbox/commerce-catalog-product-configuration-published-v1.ts';
@@ -26,16 +22,18 @@ const MODULE_KEY = 'commerce.catalog' as const;
 const CONFIGURATION_PUBLISHED_EVENT_TYPE = 'commerce.catalog.product-configuration-published.v1' as const;
 const domainEvents = { [CONFIGURATION_PUBLISHED_EVENT_TYPE]: OutboxPayloadSchema } as const;
 
-const unavailable = () =>
-  new ProductConfigurationPersistenceUnavailable({
-    code: 'product_configuration_persistence_unavailable',
-    reason: 'Selection-impact proof is unavailable',
-  });
-const selectionImpact: ConfigurationSelectionImpact = { verify: () => Effect.fail(unavailable()) };
-const publishProductConfigurationPersistenceServiceFactory = (
+export const publishProductConfigurationPersistenceServiceFactory = (
   transaction: Parameters<typeof productConfigurationPersistenceForScope>[0],
   scope: Parameters<typeof productConfigurationPersistenceForScope>[1],
-) => Effect.succeed(productConfigurationPersistenceForScope(transaction, scope, selectionImpact));
+  population?: CartOpenSelectionPopulationPort,
+) =>
+  Effect.succeed(
+    productConfigurationPersistenceForScope(
+      transaction,
+      scope,
+      productConfigurationSelectionImpactForScope(transaction, scope, population),
+    ),
+  );
 
 const error = (
   code:

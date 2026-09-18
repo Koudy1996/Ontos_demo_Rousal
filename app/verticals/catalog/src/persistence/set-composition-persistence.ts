@@ -54,6 +54,20 @@ export interface SetCompositionBasis {
   }) => Effect.Effect<boolean, SetCompositionPersistenceUnavailable>;
 }
 
+/**
+ * #479 open-selection impact authority for an original-data-error correction. It must prove the
+ * complete owner-confirmed open-selection population and its Catalog Current evidence; absent
+ * owner evidence is a typed failure, never an assumed-empty population.
+ */
+export interface SetCompositionSelectionImpact {
+  readonly verify: (input: {
+    readonly at: Date;
+    readonly compositionId: string;
+    readonly previousRevision: number;
+    readonly tenantId: string;
+  }) => Effect.Effect<boolean, SetCompositionPersistenceUnavailable>;
+}
+
 export interface PublishSetCompositionInput {
   readonly actingPrincipalId: string;
   readonly actionInvocationId: string;
@@ -119,18 +133,48 @@ const validEvidence = (values: readonly string[]) =>
   values.length > 0 && values.every((value) => value.length > 0 && value.length <= 300 && value.trim() === value);
 const classificationFailure = (previous: SetCompositionRevision, next: SetCompositionRevision): string | undefined => {
   const changed = classifySetCompositionChange(previous, next);
-  if (
-    (changed === 'MATERIAL_CHANGE' && next.provenance.changeKind !== 'MATERIAL_CHANGE') ||
+  return (changed === 'MATERIAL_CHANGE' && next.provenance.changeKind !== 'MATERIAL_CHANGE') ||
     (changed === 'SAME_CONTENT' && next.provenance.changeKind !== 'EVIDENCE_CORRECTION')
-  ) {
-    return 'Change kind does not match exact component content';
-  }
-  // #479 must authoritatively assess already-open selections before the
-  // corrected Current basis can be published. Never silently move them.
-  return changed === 'EVIDENCE_CORRECTION'
-    ? 'Original-data-error correction requires open-selection impact authority'
+    ? 'Change kind does not match exact component content'
     : undefined;
 };
+/**
+ * #479 must authoritatively assess already-open selections before an original-data-error
+ * correction can advance Current. An absent authority fails closed; never assume an empty set.
+ */
+const correctionImpactOutcome = Effect.fn('SetCompositionPersistence.correctionImpactOutcome')(
+  function* correctionImpact(
+    classification: ReturnType<typeof classifySetCompositionChange> | undefined,
+    input: PublishSetCompositionInput,
+    tenantId: string,
+    selectionImpact: SetCompositionSelectionImpact | undefined,
+  ): Effect.fn.Return<Option.Option<PublishSetCompositionOutcome>, SetCompositionPersistenceUnavailable> {
+    if (classification !== 'EVIDENCE_CORRECTION') {
+      return Option.none();
+    }
+    if (selectionImpact === undefined) {
+      return Option.some({
+        _tag: 'invalid',
+        reason: 'Original-data-error correction requires open-selection impact authority',
+      } as const);
+    }
+    const preserved = yield* selectionImpact
+      .verify({
+        at: input.effectiveFrom,
+        compositionId: input.revision.reference.resourceRef.resourceId,
+        previousRevision: input.expectedRevision,
+        tenantId,
+      })
+      .pipe(Effect.mapError(unavailable));
+    return preserved
+      ? Option.none()
+      : Option.some({
+          _tag: 'invalid',
+          reason: 'Original-data-error correction requires open-selection impact authority',
+        } as const);
+  },
+);
+
 const validPublishLineage = (input: PublishSetCompositionInput): boolean => {
   const { revision } = input;
   return (
@@ -168,6 +212,7 @@ export const setCompositionPersistenceForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   basis?: SetCompositionBasis,
+  selectionImpact?: SetCompositionSelectionImpact,
 ): SetCompositionPersistence => {
   const { tenantId } = scope;
   const load = Effect.fn('SetCompositionPersistence.load')(function* load(compositionId: string, revision: number) {
@@ -337,11 +382,13 @@ export const setCompositionPersistenceForScope = (
         outcome: { _tag: 'stale', actualRevision: existing.currentRevision } satisfies PublishSetCompositionOutcome,
       };
     }
+    let classification: ReturnType<typeof classifySetCompositionChange> | undefined;
     if (existing !== undefined) {
       const previous = yield* load(compositionId, input.expectedRevision);
       if (Option.isNone(previous)) {
         return yield* unavailable();
       }
+      classification = classifySetCompositionChange(previous.value.revision, revision);
       const failure = classificationFailure(previous.value.revision, revision);
       if (failure !== undefined) {
         return {
@@ -360,7 +407,7 @@ export const setCompositionPersistenceForScope = (
         };
       }
     }
-    return { existing };
+    return { classification, existing };
   });
 
   const publish: SetCompositionPersistence['publish'] = Effect.fn('SetCompositionPersistence.publish')(
@@ -410,10 +457,14 @@ export const setCompositionPersistenceForScope = (
         return { _tag: 'published', revision: priorInvocation.revision };
       }
       const inspected = yield* inspectTarget(input);
-      if (inspected.outcome !== undefined) {
+      if ('outcome' in inspected) {
         return inspected.outcome;
       }
-      const { existing } = inspected;
+      const { classification, existing } = inspected;
+      const impactOutcome = yield* correctionImpactOutcome(classification, input, tenantId, selectionImpact);
+      if (Option.isSome(impactOutcome)) {
+        return impactOutcome.value;
+      }
       if (
         !(yield* basis.verify({
           at: input.effectiveFrom,

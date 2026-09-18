@@ -18,14 +18,10 @@ import {
 } from '../../shared/actions/package-definition-contract.ts';
 import { PackageDefinitionSelectionRevisionSchema } from '../../shared/domain/catalog-selection-evidence.ts';
 import { PackageDefinitionRefSchema } from '../../shared/resources/package-definition.ts';
-import {
-  packageActivationPersistenceForScope,
-  PackageActivationUnavailable,
-} from '../persistence/package-activation-persistence.ts';
-import type {
-  PackageActivationPersistence,
-  PackageActivationSelectionImpact,
-} from '../persistence/package-activation-persistence.ts';
+import { packageActivationPersistenceForScope } from '../persistence/package-activation-persistence.ts';
+import type { PackageActivationPersistence } from '../persistence/package-activation-persistence.ts';
+import type { CartOpenSelectionPopulationPort } from '../../shared/domain/catalog-open-selection-population.ts';
+import { packageActivationSelectionImpactForScope } from '../persistence/catalog-selection-change-impact.ts';
 import { packageContentBasisForTransaction } from './package-definition-action-support.ts';
 
 export type { ActivatePackageDefinitionPayload } from '../../shared/actions/activate-package-definition.ts';
@@ -36,16 +32,6 @@ const domainError = (
 ) => new PackageDefinitionActionError({ code, reason });
 const resultUnavailableReason = 'Package activation result is unavailable';
 const moduleId = 'commerce.catalog';
-/** #479 has not issued an open-selection impact authority; publication remains unavailable. */
-const unprovenSelectionImpact: PackageActivationSelectionImpact = {
-  verify: () =>
-    Effect.fail(
-      new PackageActivationUnavailable({
-        code: 'package_activation_unavailable',
-        reason: 'Open-selection impact proof is unavailable',
-      }),
-    ),
-};
 const unavailableError = (cause: unknown, reason: string) => {
   const failure = domainError('package_definition_unavailable', reason);
   Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
@@ -109,16 +95,17 @@ export const handleActivatePackageDefinition = Effect.fn('ActivatePackageDefinit
   },
 );
 
-const activatePackageDefinitionPersistenceServiceFactory = (
+export const activatePackageDefinitionPersistenceServiceFactory = (
   transaction: Parameters<typeof packageActivationPersistenceForScope>[0],
   scope: Parameters<typeof packageActivationPersistenceForScope>[1],
+  population?: CartOpenSelectionPopulationPort,
 ) =>
   Effect.succeed(
     packageActivationPersistenceForScope(
       transaction,
       scope,
       packageContentBasisForTransaction(transaction, scope),
-      unprovenSelectionImpact,
+      packageActivationSelectionImpactForScope(transaction, scope, population),
     ),
   );
 
