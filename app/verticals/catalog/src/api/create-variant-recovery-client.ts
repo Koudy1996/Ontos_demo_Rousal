@@ -20,7 +20,7 @@ type CreateVariantRecoveryOperationInvocation = readonly [
   options?: CreateVariantRecoveryClientOptions,
 ];
 
-const createVariantRecoveryClient = (
+const variantRecoveryClient = (
   credential: Redacted.Redacted,
   requestCorrelation: string,
   options: CreateVariantRecoveryClientOptions,
@@ -39,7 +39,7 @@ export const executeCreateVariantRecoveryWithAuthorization = (
   payload: CreateVariantRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateVariantRecoveryAuthorizedInvocation
 ) =>
-  createVariantRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
+  variantRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) => client.createVariantRecovery.execute({ headers: {}, params: {}, payload, query: {} })),
   );
 
