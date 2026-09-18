@@ -807,3 +807,262 @@ describe('Catalog Selection Current basis', () => {
     }),
   );
 });
+
+it.effect('reassesses an unchanged Set selection against component Current facts', () =>
+  Effect.gen(function* componentChanges() {
+    const compositionId = '88888888-8888-4888-8888-888888888888';
+    const componentProductId = '99999999-9999-4999-8999-999999999999';
+    const componentVariantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab';
+    const unitId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const typeId = '77777777-7777-4777-8777-777777777777';
+    const typeRevisionId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const packageId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const state = {
+      componentLifecycle: 'ACTIVE',
+      componentVariantLifecycle: 'ACTIVE',
+      nested: false,
+      ownerUnavailable: false,
+      packageLifecycle: 'ACTIVE',
+      quantityStep: '1',
+      unitLifecycle: 'ACTIVE',
+    };
+    const setSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+      ...selection,
+      setComposition: {
+        resourceRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: compositionId,
+          resourceType: 'commerce.catalog.set-composition',
+          tenantId,
+        },
+        revision: 1,
+      },
+    });
+    const component = (componentId: string, packaged: boolean) => ({
+      componentId,
+      componentProductId,
+      componentVariantId,
+      configuration: null,
+      packageContentRevision: packaged ? 1 : null,
+      packageDefinitionId: packaged ? packageId : null,
+      quantityAmount: '2',
+      quantityUnitId: unitId,
+    });
+    const readCounts = new Map<unknown, number>();
+    const transaction = {
+      select: () => ({
+        from: (table: BareSetTable) => {
+          const count = readCounts.get(table) ?? 0;
+          readCounts.set(table, count + 1);
+          if (state.ownerUnavailable && table === productVariants && count > 0) {
+            return unavailableSetRows;
+          }
+          const rows = new Map<unknown, readonly object[]>([
+            [
+              products,
+              [
+                {
+                  currentRevision: 1,
+                  lifecycleState: state.componentLifecycle,
+                  productId: componentProductId,
+                  revision: 1,
+                  tenantId,
+                },
+              ],
+            ],
+            [
+              productVariants,
+              [
+                {
+                  currentRevision: 1,
+                  lifecycleState: state.componentVariantLifecycle,
+                  productId: componentProductId,
+                  revision: 1,
+                  tenantId,
+                  variantId: componentVariantId,
+                },
+              ],
+            ],
+            [setCompositions, [{ compositionId, currentRevision: 1, productId, variantId }]],
+            [
+              setCompositionRevisions,
+              [
+                {
+                  changeKind: 'INITIAL',
+                  effectiveFrom: new Date('1960-01-01'),
+                  effectiveTo: null,
+                  evidenceRefs: ['owner'],
+                  lifecycleState: 'ACTIVE',
+                  predecessorRevision: null,
+                  productId,
+                  reason: 'initial',
+                  revision: 1,
+                  variantId,
+                },
+              ],
+            ],
+            [
+              setCompositionComponents,
+              [
+                component('cccccccc-cccc-4ccc-8ccc-cccccccccccc', false),
+                component('dddddddd-dddd-4ddd-8ddd-dddddddddddd', true),
+              ],
+            ],
+            [productTypeAssignments, [{ assignmentRevision: 1, productId, productTypeId: typeId, tenantId }]],
+            [productTypes, [{ currentRevision: 2, productTypeId: typeId, tenantId }]],
+            [
+              productTypeRevisions,
+              [
+                {
+                  effectiveAt: new Date('1960-01-01'),
+                  productTypeId: typeId,
+                  productTypeRevisionId: typeRevisionId,
+                  revision: 2,
+                  tenantId,
+                },
+              ],
+            ],
+            [productTypeRevisionAttributes, []],
+            [productVariantAxes, []],
+            [
+              productVariantAxisEvents,
+              [
+                {
+                  attributeDefinitionIds: [],
+                  attributeDefinitionRevisions: [],
+                  axisRevision: 3,
+                  productId,
+                  tenantId,
+                },
+              ],
+            ],
+            [variantUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
+            [packageUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
+            [productUnits, [{ currentRuleRevision: 2, lifecycleState: state.unitLifecycle, unitId }]],
+            [
+              productUnitRuleRevisions,
+              [{ lifecycleState: 'ACTIVE', revision: 2, rounding: 'UP', step: state.quantityStep }],
+            ],
+            [
+              packageDefinitions,
+              [
+                {
+                  currentOptionRevision: 1,
+                  currentRevision: 1,
+                  lifecycleState: state.packageLifecycle,
+                  optionState: 'ACTIVE',
+                  packageDefinitionId: packageId,
+                  productId: componentProductId,
+                  variantId: componentVariantId,
+                },
+              ],
+            ],
+            [
+              packageContentRevisions,
+              [
+                {
+                  amount: '1',
+                  configurationKey: null,
+                  effectiveAt: new Date('1960-01-01'),
+                  lifecycleState: 'ACTIVE',
+                  lowerCount: null,
+                  lowerPackageDefinitionId: null,
+                  lowerRevision: null,
+                  packageDefinitionId: packageId,
+                  productId: componentProductId,
+                  revision: 1,
+                  setCompositionResourceId: null,
+                  setCompositionRevision: null,
+                  unitResourceId: unitId,
+                  unitResourceType: 'commerce.catalog.product-unit',
+                  variantId: componentVariantId,
+                },
+              ],
+            ],
+            [
+              packageOptionRoleRevisions,
+              [
+                {
+                  contentRevision: 1,
+                  effectiveAt: new Date('1960-01-01'),
+                  independentlyRequested: true,
+                  looseUnitsSubstitutable: false,
+                  productId: componentProductId,
+                  revision: 1,
+                  state: 'ACTIVE',
+                  variantId: componentVariantId,
+                },
+              ],
+            ],
+          ]);
+          if (table === products && (count === 0 || count >= 5)) {
+            rows.set(products, [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId, revision: 4, tenantId }]);
+          }
+          if (table === productVariants && (count === 0 || count >= 5)) {
+            rows.set(productVariants, [
+              { currentRevision: 7, lifecycleState: 'ACTIVE', productId, revision: 7, tenantId, variantId },
+            ]);
+          }
+          if (table === setCompositions && count > 1 && count < 4) {
+            rows.set(
+              setCompositions,
+              state.nested
+                ? [
+                    {
+                      compositionId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+                      currentRevision: 1,
+                      productId: componentProductId,
+                      variantId: componentVariantId,
+                    },
+                  ]
+                : [],
+            );
+          }
+          return selectedWithOrder(rows.get(table) ?? []);
+        },
+      }),
+    };
+    // @ts-expect-error The stateful fixture implements the exercised owner read chains only.
+    const reader = catalogSelectionCurrentBasisForScope(transaction, scope);
+    const assess = () => {
+      readCounts.clear();
+      return reader.read({ purpose: 'PURCHASE_ACCEPTANCE', selection: setSelection });
+    };
+    const before = yield* assess();
+    expect(before.status).toBe('OBSERVED');
+    expect(
+      assessCatalogSelection({
+        assessedAt: before.assessedAt,
+        current: before,
+        purpose: 'PURCHASE_ACCEPTANCE',
+        selection: setSelection,
+      }).status,
+    ).toBe('VALID');
+    for (const [change, expected] of [
+      ['componentLifecycle', 'Set component Current proof: CURRENT_COMPONENT_UNVERIFIABLE'],
+      ['componentVariantLifecycle', 'Set component Current proof: CURRENT_COMPONENT_UNVERIFIABLE'],
+      ['packageLifecycle', 'Set component Current proof: CURRENT_COMPONENT_UNVERIFIABLE'],
+      ['nested', 'Set component Current proof: NESTED_SET'],
+      ['quantityStep', 'Set component Current proof: COMPONENT_QUANTITY_RULE_VIOLATION'],
+      ['unitLifecycle', 'Set component Current proof: CURRENT_COMPONENT_UNVERIFIABLE'],
+    ] as const) {
+      const previous = state[change];
+      let changedValue: boolean | string = 'RETIRED';
+      if (change === 'nested') {
+        changedValue = true;
+      } else if (change === 'quantityStep') {
+        changedValue = '3';
+      }
+      Object.assign(state, { [change]: changedValue });
+      const after = yield* assess();
+      expect(after.status).toBe('INVALID');
+      expect(after.basis.some(({ role }) => role === 'SET_COMPOSITION')).toBe(false);
+      expect(after.status === 'OBSERVED' ? '' : after.reason).toContain(expected);
+      Object.assign(state, { [change]: previous });
+    }
+    state.ownerUnavailable = true;
+    const unavailable = yield* assess();
+    expect(unavailable.status).toBe('INDETERMINATE');
+    expect(unavailable.basis.some(({ role }) => role === 'SET_COMPOSITION')).toBe(false);
+  }),
+);
