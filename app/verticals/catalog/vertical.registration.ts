@@ -61,6 +61,7 @@ import { retireProductAction } from './src/actions/retire-product.action.ts';
 import { retireProductCategoryAction } from './src/actions/retire-product-category.action.ts';
 import { retireProductUnitAction } from './src/actions/retire-product-unit.action.ts';
 import { retireVariantAction } from './src/actions/retire-variant.action.ts';
+import { reviseAttributeDefinitionAction } from './src/actions/revise-attribute-definition.action.ts';
 import { reviseConfigurationUnitAction } from './src/actions/revise-configuration-unit.action.ts';
 import { revisePackageDefinitionAction } from './src/actions/revise-package-definition.action.ts';
 import { reviseProductTypeAction } from './src/actions/revise-product-type.action.ts';
@@ -137,6 +138,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
     retireProductCategoryAction,
     retireProductUnitAction,
     retireVariantAction,
+    reviseAttributeDefinitionAction,
     reviseConfigurationUnitAction,
     revisePackageDefinitionAction,
     reviseProductTypeAction,

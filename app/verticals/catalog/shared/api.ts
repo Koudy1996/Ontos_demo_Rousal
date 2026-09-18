@@ -81,6 +81,7 @@ import { RetireProductActionApi } from './apis/retire-product-action.ts';
 import { RetireProductCategoryActionApi } from './apis/retire-product-category-action.ts';
 import { RetireProductUnitActionApi } from './apis/retire-product-unit-action.ts';
 import { RetireVariantActionApi } from './apis/retire-variant-action.ts';
+import { ReviseAttributeDefinitionActionApi } from './apis/revise-attribute-definition-action.ts';
 import { ReviseConfigurationUnitActionApi } from './apis/revise-configuration-unit-action.ts';
 import { RevisePackageDefinitionActionApi } from './apis/revise-package-definition-action.ts';
 import { ReviseProductTypeActionApi } from './apis/revise-product-type-action.ts';
@@ -193,6 +194,7 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(RetireProductCategoryActionApi)
   .addHttpApi(RetireProductUnitActionApi)
   .addHttpApi(RetireVariantActionApi)
+  .addHttpApi(ReviseAttributeDefinitionActionApi)
   .addHttpApi(ReviseConfigurationUnitActionApi)
   .addHttpApi(RevisePackageDefinitionActionApi)
   .addHttpApi(ReviseProductTypeActionApi)

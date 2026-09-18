@@ -127,9 +127,21 @@ export interface ReviseAttributeDefinitionRulesInput extends ChangeMetadata {
   readonly checkOpenSelections: Effect.Effect<boolean, CatalogPersistenceUnavailable>;
   readonly evidence: string;
   readonly expectedRevision: number;
-  readonly proposed: AttributeDefinition;
+  readonly proposed: AttributeRuleProposal;
   readonly sameMeaning: true;
 }
+
+export type AttributeRuleProposal = Pick<
+  AttributeDefinition,
+  'levels' | 'measurement' | 'multiplicity' | 'specialStates'
+>;
+
+const AttributeRuleProposalSchema = Schema.Struct({
+  levels: AttributeDefinitionSchema.fields.levels,
+  measurement: AttributeDefinitionSchema.fields.measurement,
+  multiplicity: AttributeDefinitionSchema.fields.multiplicity,
+  specialStates: AttributeDefinitionSchema.fields.specialStates,
+});
 
 export interface CreateControlledAttributeValueInput extends ChangeMetadata {
   readonly attributeDefinitionRef: AttributeDefinitionRef;
@@ -200,7 +212,7 @@ const hasAttributeImpact = (impact: AttributeImpactSnapshot): boolean =>
     impact.variantAxisProducts.length >
   0;
 
-const proposedRuleSnapshot = (proposed: AttributeDefinition) => ({
+const proposedRuleSnapshot = (proposed: AttributeRuleProposal) => ({
   allowsNone: proposed.specialStates.includes('NONE') ? 1 : 0,
   allowsNotApplicable: proposed.specialStates.includes('NOT_APPLICABLE') ? 1 : 0,
   allowsUnknown: proposed.specialStates.includes('UNKNOWN') ? 1 : 0,
@@ -228,22 +240,17 @@ const currentRuleSnapshot = (current: typeof attributeDefinitions.$inferSelect) 
 
 const validRuleRevisionInput = (input: ReviseAttributeDefinitionRulesInput, tenantId: string): boolean =>
   validDefinitionRef(input.attributeDefinitionRef, tenantId) &&
-  Schema.is(AttributeDefinitionSchema)(input.proposed) &&
-  input.proposed.ref.resourceId === input.attributeDefinitionRef.resourceId &&
-  input.proposed.ref.tenantId === tenantId &&
+  Schema.is(AttributeRuleProposalSchema)(input.proposed) &&
   input.sameMeaning &&
   validText(input.evidence, 1000) &&
   validText(input.reason, 1000);
 
 const preservesDefinitionMeaning = (
   current: typeof attributeDefinitions.$inferSelect,
-  proposed: AttributeDefinition,
+  proposed: AttributeRuleProposal,
 ): boolean =>
-  proposed.meaning === current.meaning &&
-  proposed.valueKind === current.valueKind &&
-  proposed.label === current.name &&
   proposed.measurement?.quantity === (current.measuredQuantity ?? undefined) &&
-  (current.valueKind !== 'CONTROLLED' || current.controlledValueKind !== null);
+  (current.valueKind === 'MEASUREMENT') === (proposed.measurement !== undefined);
 
 interface ImpactRows {
   readonly axisProductIds: readonly string[];
@@ -591,7 +598,16 @@ export const attributePersistenceForScope = (transaction: ScopedTransaction, sco
       return yield* conflict('REVISION', 'Attribute definition revision changed');
     }
     const { proposed } = input;
-    if (!preservesDefinitionMeaning(current, proposed)) {
+    if (
+      !preservesDefinitionMeaning(current, proposed) ||
+      !Schema.is(AttributeDefinitionSchema)({
+        ...proposed,
+        label: current.name,
+        meaning: current.meaning,
+        ref: input.attributeDefinitionRef,
+        valueKind: current.valueKind,
+      })
+    ) {
       return yield* conflict('INVALID_INPUT', 'Changed meaning or value kind requires a new definition');
     }
     const proposedRules = proposedRuleSnapshot(proposed);

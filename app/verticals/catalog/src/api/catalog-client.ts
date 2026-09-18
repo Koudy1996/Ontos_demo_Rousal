@@ -70,6 +70,7 @@ export * from './retire-product-action-client.ts';
 export * from './retire-product-category-action-client.ts';
 export * from './retire-product-unit-action-client.ts';
 export * from './retire-variant-action-client.ts';
+export * from './revise-attribute-definition-action-client.ts';
 export * from './revise-configuration-unit-action-client.ts';
 export * from './revise-package-definition-action-client.ts';
 export * from './revise-product-type-action-client.ts';

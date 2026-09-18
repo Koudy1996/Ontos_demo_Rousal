@@ -99,6 +99,7 @@ import { retireProductActionApiLive } from './retire-product-action-server.ts';
 import { retireProductCategoryActionApiLive } from './retire-product-category-action-server.ts';
 import { retireProductUnitActionApiLive } from './retire-product-unit-action-server.ts';
 import { retireVariantActionApiLive } from './retire-variant-action-server.ts';
+import { reviseAttributeDefinitionActionApiLive } from './revise-attribute-definition-action-server.ts';
 import { reviseConfigurationUnitActionApiLive } from './revise-configuration-unit-action-server.ts';
 import { revisePackageDefinitionActionApiLive } from './revise-package-definition-action-server.ts';
 import { reviseProductTypeActionApiLive } from './revise-product-type-action-server.ts';
@@ -287,6 +288,7 @@ export const makeCatalogApiRuntime = (
     retireProductCategoryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireProductUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retireVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reviseAttributeDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseConfigurationUnitActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     revisePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reviseProductTypeActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
