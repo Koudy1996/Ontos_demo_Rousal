@@ -81,7 +81,7 @@ export const RemoveProductRelationshipActionAlreadyCommittedProblemSchema = make
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_REMOVE_PRODUCT_RELATIONSHIP'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -90,7 +90,7 @@ export const RemoveProductRelationshipActionCommitIndeterminateProblemSchema = m
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_REMOVE_PRODUCT_RELATIONSHIP'),
     retryCommand: Schema.Literal(false),
   },
 );

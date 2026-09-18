@@ -69,7 +69,7 @@ export const RenameBrandActionAlreadyCommittedProblemSchema = makeProblemDetails
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_RENAME_BRAND'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -78,7 +78,7 @@ export const RenameBrandActionCommitIndeterminateProblemSchema = makeProblemDeta
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_RENAME_BRAND'),
     retryCommand: Schema.Literal(false),
   },
 );

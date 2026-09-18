@@ -83,7 +83,7 @@ export const RemoveVariantAttributeOverrideActionAlreadyCommittedProblemSchema =
   {
     code: Schema.Literal('action_already_committed'),
     invocationId: Schema.String,
-    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    resolution: Schema.Literal('RECOVER_REMOVE_VARIANT_ATTRIBUTE_OVERRIDE'),
     retryCommand: Schema.Literal(false),
   },
 );
@@ -92,7 +92,7 @@ export const RemoveVariantAttributeOverrideActionCommitIndeterminateProblemSchem
   503,
   {
     invocationId: Schema.String,
-    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    resolution: Schema.Literal('RECOVER_REMOVE_VARIANT_ATTRIBUTE_OVERRIDE'),
     retryCommand: Schema.Literal(false),
   },
 );
