@@ -2,8 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug revise-package-definition
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { Effect } from 'effect';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Schema } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import {
   RevisePackageDefinitionPayloadSchema,
   RevisePackageDefinitionResultSchema,
@@ -14,6 +14,7 @@ import {
   PackageDefinitionActionError,
   PackageDefinitionAuditEvidenceSchema,
 } from '../../shared/actions/package-definition-contract.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import type { PackagePersistence } from '../persistence/package-persistence.ts';
 import {
   mapPackagePersistenceError,
@@ -82,7 +83,32 @@ export const revisePackageDefinitionAction = defineAction(
     schemaVersion: '1',
   },
   handleRevisePackageDefinition,
-  packageDefinitionPersistenceServiceFactory,
+  (transaction, scope) =>
+    packageDefinitionPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof RevisePackageDefinitionResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.revise-package-definition', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RevisePackageDefinitionResultSchema),
+              encode: Schema.encodeEffect(RevisePackageDefinitionResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>

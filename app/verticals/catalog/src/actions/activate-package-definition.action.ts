@@ -2,8 +2,9 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug activate-package-definition
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { Effect, Match, Schema } from 'effect';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 
 import {
   ActivatePackageDefinitionPayloadSchema,
@@ -148,7 +149,32 @@ export const activatePackageDefinitionAction = defineAction(
     schemaVersion: '1',
   },
   handleActivatePackageDefinition,
-  activatePackageDefinitionPersistenceServiceFactory,
+  (transaction, scope) =>
+    activatePackageDefinitionPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof ActivatePackageDefinitionResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.activate-package-definition', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(ActivatePackageDefinitionResultSchema),
+              encode: Schema.encodeEffect(ActivatePackageDefinitionResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
