@@ -49,24 +49,3 @@ export class ProductPersistenceConflict extends Schema.TaggedError<ProductPersis
     reason: Schema.String,
   },
 ) {}
-
-export class ProductPersistenceUnavailable extends Schema.TaggedError<ProductPersistenceUnavailable>()(
-  'ProductPersistenceUnavailable',
-  {
-    code: Schema.Literal('product_persistence_unavailable'),
-    reason: Schema.String,
-  },
-) {}
-
-export const ProductMutationErrorSchema = Schema.Union([
-  ProductNotFound,
-  ProductRevisionConflict,
-  ProductLifecycleConflict,
-  ProductNotCatalogReady,
-  ProductCorrectionRequired,
-  ProductPersistenceConflict,
-  ProductPersistenceUnavailable,
-]);
-export type ProductMutationError = typeof ProductMutationErrorSchema.Type;
-
-export const ProductReadErrorSchema = Schema.Union([ProductNotFound, ProductPersistenceUnavailable]);

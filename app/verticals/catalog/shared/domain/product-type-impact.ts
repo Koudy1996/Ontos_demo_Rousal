@@ -5,13 +5,13 @@ export interface ProductTypeImpactRule {
   readonly required: boolean;
 }
 
-export interface ProductTypeImpactValue {
+interface ProductTypeImpactValue {
   readonly attributeDefinitionId: string;
   /** Value validity is established by #402, not inferred from presence. */
   readonly valid: boolean;
 }
 
-export interface ProductTypeImpactVariant {
+interface ProductTypeImpactVariant {
   readonly values: readonly ProductTypeImpactValue[];
   readonly variantId: string;
 }
@@ -23,7 +23,7 @@ export interface ProductTypeImpactProduct {
   readonly variants: readonly ProductTypeImpactVariant[];
 }
 
-export interface ProductTypeImpactSubject {
+interface ProductTypeImpactSubject {
   readonly affectedVariantAxes: readonly string[];
   readonly catalogReadyForAffectedUse: boolean;
   readonly disallowedCurrentValues: readonly string[];

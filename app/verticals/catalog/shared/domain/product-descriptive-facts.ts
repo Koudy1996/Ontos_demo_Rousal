@@ -13,12 +13,12 @@ export type CatalogLocale = typeof CatalogLocaleSchema.Type;
 
 const FactualDescriptionSchema = Schema.Trim.check(Schema.isMinLength(1), Schema.isMaxLength(4000));
 
-export const ProductLocalizedFactsSchema = Schema.Struct({
+const ProductLocalizedFactsSchema = Schema.Struct({
   description: Schema.optionalKey(FactualDescriptionSchema),
   locale: CatalogLocaleSchema,
   name: ProductNameSchema,
 });
-export type ProductLocalizedFacts = typeof ProductLocalizedFactsSchema.Type;
+type ProductLocalizedFacts = typeof ProductLocalizedFactsSchema.Type;
 
 /** Drafts may have no translations; completion requires at least one usable name. */
 export const ProductDescriptiveFactsSchema = Schema.Struct({

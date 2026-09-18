@@ -52,7 +52,6 @@ export const ProductTypeRulesRevisionSchema = Schema.Struct({
   revision: CatalogRevisionNumberSchema,
   rules: Schema.Array(ProductTypeAttributeRuleSchema),
 }).check(Schema.makeFilter(({ productTypeRef, rules }) => validateRules(productTypeRef, rules)));
-export type ProductTypeRulesRevision = typeof ProductTypeRulesRevisionSchema.Type;
 
 /** Persisted, immutable revision identity used for Current evaluation. */
 export const ProductTypeCurrentRulesRevisionSchema = Schema.Struct({
@@ -64,20 +63,19 @@ export const ProductTypeCurrentRulesRevisionSchema = Schema.Struct({
 }).check(Schema.makeFilter(({ productTypeRef, rules }) => validateRules(productTypeRef, rules)));
 export type ProductTypeCurrentRulesRevision = typeof ProductTypeCurrentRulesRevisionSchema.Type;
 
-export const ProductTypeCurrentValueSchema = Schema.Struct({
+const ProductTypeCurrentValueSchema = Schema.Struct({
   attributeDefinitionRef: AttributeDefinitionRefSchema,
   /** #402 validates shape, unit and business values; an invalid optional value still fails. */
   valid: Schema.Boolean,
 });
 export type ProductTypeCurrentValue = typeof ProductTypeCurrentValueSchema.Type;
 
-export const ProductTypeVariantValuesSchema = Schema.Struct({
+const ProductTypeVariantValuesSchema = Schema.Struct({
   /** Inheritance is included here only after #429/#430 explicitly permit and validate it. */
   effectiveValues: Schema.Array(ProductTypeCurrentValueSchema),
   productRef: ProductRefSchema,
   variantRef: VariantRefSchema,
 });
-export type ProductTypeVariantValues = typeof ProductTypeVariantValuesSchema.Type;
 
 export const ProductTypeSubjectSchema = Schema.Struct({
   currentProductTypeRef: Schema.optionalKey(ProductTypeRefSchema),
@@ -134,7 +132,7 @@ export const ProductTypeCurrentBasisSchema = Schema.Struct({
 );
 export type ProductTypeCurrentBasis = typeof ProductTypeCurrentBasisSchema.Type;
 
-export interface ProductTypeViolation {
+interface ProductTypeViolation {
   readonly attributeDefinitionId: string;
   readonly kind: 'DISALLOWED' | 'INVALID' | 'MISSING_REQUIRED';
   readonly level: 'PRODUCT' | 'VARIANT';

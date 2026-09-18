@@ -6,7 +6,6 @@ import { ProductEvidenceReferenceSchema, ProductInstantSchema, ProductReasonSche
 
 /** The meaning is closed; a note cannot introduce an unreviewed relationship type. */
 export const ProductRelationshipTypeSchema = Schema.Literals(['ACCESSORY_FOR', 'RELATED_PRODUCT', 'SUCCESSOR']);
-export type ProductRelationshipType = typeof ProductRelationshipTypeSchema.Type;
 
 /** Either endpoint names a stable, Tenant-qualified Catalog resource, never a SKU or selection. */
 export const ProductRelationshipEndpointSchema = Schema.Union([ProductRefSchema, VariantRefSchema]);
@@ -23,7 +22,6 @@ export const ProductRelationshipEffectivePeriodSchema = Schema.Struct({
       : 'Effective end must be after effective start',
   ),
 );
-export type ProductRelationshipEffectivePeriod = typeof ProductRelationshipEffectivePeriodSchema.Type;
 
 /** Source and target are assertion roles, not an unordered pair. */
 export const ProductRelationshipSchema = Schema.Struct({

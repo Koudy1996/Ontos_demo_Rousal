@@ -5,7 +5,7 @@ import type { ProductRef } from '../resources/product.ts';
 import type { VariantRef } from '../resources/variant.ts';
 
 /** Stable keys are issued by Catalog; labels and presentation order are not identity. */
-export interface ConfigurationSingleChoiceDefinition {
+interface ConfigurationSingleChoiceDefinition {
   readonly choiceKey: string;
   readonly kind: 'SINGLE_CHOICE';
   readonly meaning: string;
@@ -21,7 +21,7 @@ export interface ConfigurationMeasuredValueDefinition {
   readonly unitRef: CatalogResourceRef;
 }
 
-export type ConfigurationChoiceDefinition = ConfigurationSingleChoiceDefinition | ConfigurationMeasuredValueDefinition;
+type ConfigurationChoiceDefinition = ConfigurationSingleChoiceDefinition | ConfigurationMeasuredValueDefinition;
 
 /** This is an owner-qualified, exact revision of a Product-level Resource. */
 export interface ProductConfigurationDefinitionRevision {
@@ -52,7 +52,7 @@ export interface ProductConfigurationCurrentActivation {
   readonly status: 'CONFIRMED';
 }
 
-export interface ConfigurationSingleChoiceValue {
+interface ConfigurationSingleChoiceValue {
   readonly choiceKey: string;
   readonly kind: 'SINGLE_CHOICE';
   readonly optionKey: string;
@@ -65,7 +65,7 @@ export interface ConfigurationMeasuredValue {
   readonly unitRef: CatalogResourceRef;
 }
 
-export type ConfigurationChosenValue = ConfigurationSingleChoiceValue | ConfigurationMeasuredValue;
+type ConfigurationChosenValue = ConfigurationSingleChoiceValue | ConfigurationMeasuredValue;
 
 /** A configuration is a value at an exact Catalog target, never a new Variant or SKU. */
 export interface ProductConfiguration {

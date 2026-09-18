@@ -16,7 +16,7 @@ const positiveAmount = Schema.String.check(
 );
 
 /** One stable need in one Set, not an optional or customer-selected alternative. */
-export const SetComponentSchema = Schema.Struct({
+const SetComponentSchema = Schema.Struct({
   componentId,
   quantity: Schema.Struct({ amount: positiveAmount, unitRef: ProductUnitRefSchema }),
   selection: CatalogSelectionSchema,

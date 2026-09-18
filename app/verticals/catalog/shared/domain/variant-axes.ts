@@ -29,7 +29,7 @@ export interface VariantAxisCandidate {
   readonly variant: ProductVariant;
 }
 
-export const VariantAxisIssueKindSchema = Schema.Literals([
+const VariantAxisIssueKindSchema = Schema.Literals([
   'DUPLICATE_AXIS',
   'DISALLOWED_AXIS',
   'MISSING_DEFINITION',
@@ -43,9 +43,9 @@ export const VariantAxisIssueKindSchema = Schema.Literals([
   'DUPLICATE_COMBINATION',
   'WRONG_PRODUCT',
 ]);
-export type VariantAxisIssueKind = typeof VariantAxisIssueKindSchema.Type;
+type VariantAxisIssueKind = typeof VariantAxisIssueKindSchema.Type;
 
-export interface VariantAxisIssue {
+interface VariantAxisIssue {
   readonly attributeDefinitionId?: string;
   readonly conflictingVariantId?: string;
   readonly kind: VariantAxisIssueKind;

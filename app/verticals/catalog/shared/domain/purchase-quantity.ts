@@ -17,7 +17,7 @@ export interface PurchaseQuantityRequest {
   readonly unitId: string;
 }
 
-export const QuantityPhaseSchema = Schema.Literals(['PREPARE', 'APPROVED', 'COMMITTING']);
+const QuantityPhaseSchema = Schema.Literals(['PREPARE', 'APPROVED', 'COMMITTING']);
 export type QuantityPhase = typeof QuantityPhaseSchema.Type;
 
 export type QuantityNormalization =

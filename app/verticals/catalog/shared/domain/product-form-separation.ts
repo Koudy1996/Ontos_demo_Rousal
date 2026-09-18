@@ -46,7 +46,6 @@ export const PackageDefinitionReferenceSchema = Schema.Struct({
   tenantId: catalogTenantId,
 });
 export type PackageDefinitionReference = typeof PackageDefinitionReferenceSchema.Type;
-export const PackageDefinitionRefSchema = PackageDefinitionReferenceSchema;
 
 /** A Product-level Resource describing supported configuration choices. */
 export const ProductConfigurationDefinitionReferenceSchema = Schema.Struct({
@@ -56,7 +55,6 @@ export const ProductConfigurationDefinitionReferenceSchema = Schema.Struct({
   tenantId: catalogTenantId,
 });
 export type ProductConfigurationDefinitionReference = typeof ProductConfigurationDefinitionReferenceSchema.Type;
-export const ProductConfigurationDefinitionRefSchema = ProductConfigurationDefinitionReferenceSchema;
 
 /**
  * A Package Option is a selectable role of one Package Definition for one Variant.
@@ -74,7 +72,6 @@ export const PackageOptionReferenceSchema = Schema.Struct({
   ),
 );
 export type PackageOptionReference = typeof PackageOptionReferenceSchema.Type;
-export const PackageOptionRefSchema = PackageOptionReferenceSchema;
 
 /** One of the two stable predefined targets to which an SKU can point. */
 export const VariantTargetReferenceSchema = Schema.Struct({
@@ -109,7 +106,6 @@ export const SkuReferenceSchema = Schema.Struct({
   target: CatalogSelectionTargetReferenceSchema,
 });
 export type SkuReference = typeof SkuReferenceSchema.Type;
-export const SkuRefSchema = SkuReferenceSchema;
 
 /** An owner-qualified immutable revision; a bare number or implicit "latest" is not a reference. */
 export { CatalogRevisionReferenceSchema } from './catalog-revision-reference.ts';
@@ -145,7 +141,6 @@ export const ProductConfigurationSchema = Schema.Struct({
   values: Schema.Record(Schema.String, Schema.Json),
 });
 export type ProductConfiguration = typeof ProductConfigurationSchema.Type;
-export const ProductConfigurationReferenceSchema = ProductConfigurationSchema;
 
 /**
  * A Set is a normal Product whose selected Variant carries an exact composition
@@ -166,7 +161,6 @@ export const SetReferenceSchema = Schema.Struct({
   ),
 );
 export type SetReference = typeof SetReferenceSchema.Type;
-export const SetProductReferenceSchema = SetReferenceSchema;
 
 /** Explicitly tagged vocabulary when a consumer needs to carry one product-form reference. */
 export const ProductFormReferenceSchema = Schema.Union([
