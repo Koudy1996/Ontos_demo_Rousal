@@ -15,6 +15,9 @@ import {
   attributeValueSets,
   brandRevisions,
   brands,
+  catalogAcceptedSourceAssertions,
+  catalogLocalOverrideHeads,
+  catalogLocalOverrideRevisions,
   commercialGtinAssignmentRevisions,
   commercialGtinAssignments,
   commercialSkuAssignmentRevisions,
@@ -84,7 +87,7 @@ import {
   variantLocalizedFacts,
 } from '../../src/database/schema.ts';
 
-it('owns seventy-seven tenant-scoped Catalog tables with RLS and immutable history', () => {
+it('owns eighty tenant-scoped Catalog tables with RLS and immutable history', () => {
   const qualifiedNames = EffectArray.sort(
     CATALOG_TABLES.map((table) => {
       const config = getTableConfig(table);
@@ -102,6 +105,9 @@ it('owns seventy-seven tenant-scoped Catalog tables with RLS and immutable histo
     'attribute_value_sets',
     'brand_revisions',
     'brands',
+    'catalog_accepted_source_assertions',
+    'catalog_local_override_heads',
+    'catalog_local_override_revisions',
     'catalog_media_assignment_revisions',
     'catalog_media_assignment_set_revisions',
     'catalog_media_assignment_sets',
@@ -181,6 +187,42 @@ it('owns seventy-seven tenant-scoped Catalog tables with RLS and immutable histo
     expect(config.policies.map((policy) => policy.for)).toEqual(['select', 'insert', 'update', 'delete']);
     expect(config.policies.every((policy) => policy.to === 'ontos_runtime')).toBe(true);
   }
+});
+
+it('retains source assertions and override revisions as immutable evidence behind one CAS head', () => {
+  const accepted = getTableConfig(catalogAcceptedSourceAssertions);
+  const heads = getTableConfig(catalogLocalOverrideHeads);
+  const revisions = getTableConfig(catalogLocalOverrideRevisions);
+  expect(accepted.primaryKeys.map((key) => key.getName())).toContain('catalog_source_assertions_pk');
+  expect(accepted.uniqueConstraints.map((key) => key.name)).toEqual(
+    expect.arrayContaining(['catalog_source_assertions_source_revision_uk', 'catalog_source_assertions_invocation_uk']),
+  );
+  expect(accepted.columns.map((column) => column.name)).toEqual(
+    expect.arrayContaining([
+      'source_issuer_kind',
+      'source_record_namespace',
+      'correlation_capture_status',
+      'authority_issuer_system_id',
+      'accepted_at',
+      'recorded_at',
+    ]),
+  );
+  expect(revisions.primaryKeys.map((key) => key.getName())).toContain('catalog_local_override_revisions_pk');
+  expect(revisions.columns.map((column) => column.name)).toEqual(
+    expect.arrayContaining(['decided_at', 'recorded_at', 'evidence_ref', 'action_invocation_id']),
+  );
+  expect(heads.primaryKeys.map((key) => key.getName())).toContain('catalog_local_override_heads_pk');
+  expect(heads.indexes.map((index) => index.config.name)).toContain('catalog_local_override_heads_one_active_uk');
+
+  const migration = readFileSync(
+    new URL('../../drizzle/20260918185931_flawless_tarantula/migration.sql', import.meta.url),
+    'utf-8',
+  );
+  expect(migration.match(/FORCE ROW LEVEL SECURITY/g)).toHaveLength(3);
+  expect(migration).toContain('catalog_accepted_source_assertions_append_only');
+  expect(migration).toContain('catalog_local_override_revisions_append_only');
+  expect(migration).toContain('catalog_local_override_heads_identity_immutable');
+  expect(migration).not.toContain('catalog_local_override_revisions_one_active');
 });
 
 it('keeps Product-local Attribute applicability distinct from Type permission and values', () => {

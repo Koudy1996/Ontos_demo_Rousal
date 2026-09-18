@@ -43,6 +43,7 @@ const pointersAreCurrent = (pointers: {
   product_brand_mismatch: number;
   product_locale_mismatch: number;
   product_size_usage_mismatch: number;
+  source_override_mismatch: number;
   relationship_mismatch: number;
   set_composition_mismatch: number;
   type_mismatch: number;
@@ -135,8 +136,8 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
     (count, table) => count + getTableConfig(table).foreignKeys.length,
     0,
   );
-  // 76 baseline triggers plus the two append-only guards on the product_variant_axis allowance tables.
-  const expectedTriggerCount = 78;
+  // 78 existing triggers plus accepted-source and override-ledger guards and the mutable-head identity guard.
+  const expectedTriggerCount = 81;
   const expectedInfrastructure = [
     CATALOG_TABLES.length,
     1,
@@ -221,6 +222,7 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
         product_brand_mismatch: number;
         product_locale_mismatch: number;
         product_size_usage_mismatch: number;
+        source_override_mismatch: number;
         relationship_mismatch: number;
         set_composition_mismatch: number;
         type_mismatch: number;
@@ -437,6 +439,19 @@ const verification = Effect.gen(function* verifyCatalogDatabase() {
             and r.unit_id=d.unit_id and r.divisible=d.divisible)
           or d.current_revision <> (select max(r.revision) from catalog.variant_unit_divisibility_revisions r
             where r.tenant_id=d.tenant_id and r.variant_id=d.variant_id)) variant_unit_mismatch,
+      (select count(*)::integer from catalog.catalog_local_override_heads h
+        where not exists (select 1 from catalog.catalog_local_override_revisions r
+          where r.tenant_id=h.tenant_id and r.target_kind=h.target_kind and r.target_id=h.target_id
+            and r.fact_key=h.fact_key and r.revision=h.latest_revision and r.lifecycle=h.lifecycle)
+          or h.latest_revision <> (select max(r.revision) from catalog.catalog_local_override_revisions r
+            where r.tenant_id=h.tenant_id and r.target_kind=h.target_kind and r.target_id=h.target_id
+              and r.fact_key=h.fact_key)
+          or (h.lifecycle='ACTIVE' and h.active_revision is distinct from h.latest_revision)
+          or (h.lifecycle='RELEASED' and h.active_revision is not null))
+      + (select count(*)::integer from catalog.catalog_local_override_revisions r
+        where not exists (select 1 from catalog.catalog_local_override_heads h
+          where h.tenant_id=r.tenant_id and h.target_kind=r.target_kind and h.target_id=r.target_id
+            and h.fact_key=r.fact_key)) source_override_mismatch,
       (select count(*)::integer from catalog.package_unit_divisibility d
         where not exists (select 1 from catalog.package_unit_divisibility_revisions r
           where r.tenant_id=d.tenant_id and r.package_definition_id=d.package_definition_id

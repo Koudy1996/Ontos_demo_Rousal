@@ -3,6 +3,7 @@ import { tenantRlsPolicies } from '@app/core-runtime';
 import { defineRelations, sql } from 'drizzle-orm';
 import {
   boolean,
+  bigint,
   check,
   foreignKey,
   index,
@@ -29,6 +30,9 @@ export const CATALOG_TABLE_INVENTORY = [
   'attribute_value_sets',
   'brand_revisions',
   'brands',
+  'catalog_accepted_source_assertions',
+  'catalog_local_override_heads',
+  'catalog_local_override_revisions',
   'catalog_media_assignment_revisions',
   'catalog_media_assignment_set_revisions',
   'catalog_media_assignment_sets',
@@ -129,6 +133,163 @@ export const catalogResultSnapshots = catalogSchema.table.withRLS(
       sql`octet_length(${table.encodedResult}::text) between 2 and 65536`,
     ),
     ...tenantRlsPolicies('catalog_result_snapshots_tenant', table.tenantId),
+  ],
+);
+
+/** Immutable accepted authoritative base assertions with complete source and authority evidence. */
+export const catalogAcceptedSourceAssertions = catalogSchema.table.withRLS(
+  'catalog_accepted_source_assertions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    assertionId: uuid('assertion_id').notNull(),
+    targetKind: text('target_kind').notNull(),
+    targetId: uuid('target_id').notNull(),
+    factKey: text('fact_key').notNull(),
+    issuerSystemId: text('issuer_system_id').notNull(),
+    sourceIssuerKind: text('source_issuer_kind').notNull(),
+    sourceIssuerId: text('source_issuer_id').notNull(),
+    sourceRecordNamespace: text('source_record_namespace').notNull(),
+    sourceRecordId: text('source_record_id').notNull(),
+    sourceRevision: bigint('source_revision', { mode: 'bigint' }).notNull(),
+    evidencedAt: timestamp('evidenced_at', { withTimezone: true }).notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    value: jsonb('value').notNull(),
+    valueFingerprint: text('value_fingerprint').notNull(),
+    targetResolutionSource: text('target_resolution_source').notNull(),
+    correlationRef: text('correlation_ref'),
+    deterministicRuleId: text('deterministic_rule_id'),
+    correlationCaptureStatus: text('correlation_capture_status').notNull(),
+    authorityIssuerSystemId: text('authority_issuer_system_id').notNull(),
+    authorityTargetKind: text('authority_target_kind').notNull(),
+    authorityFactKey: text('authority_fact_key').notNull(),
+    authorityStatus: text('authority_status').notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    actingPrincipalId: uuid('acting_principal_id').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.assertionId], name: 'catalog_source_assertions_pk' }),
+    unique('catalog_source_assertions_source_revision_uk').on(
+      table.tenantId,
+      table.targetKind,
+      table.targetId,
+      table.factKey,
+      table.sourceIssuerKind,
+      table.sourceIssuerId,
+      table.sourceRecordNamespace,
+      table.sourceRecordId,
+      table.sourceRevision,
+    ),
+    unique('catalog_source_assertions_invocation_uk').on(table.tenantId, table.actionInvocationId, table.assertionId),
+    index('catalog_source_assertions_scope_idx').on(table.tenantId, table.targetKind, table.targetId, table.factKey),
+    check(
+      'catalog_source_assertions_target_kind_ck',
+      sql`${table.targetKind} in ('PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION')`,
+    ),
+    check(
+      'catalog_source_assertions_source_kind_ck',
+      sql`${table.sourceIssuerKind} in ('EXTERNAL_BUSINESS_SYSTEM', 'EXTERNAL_EVIDENCE_PROVIDER')`,
+    ),
+    check('catalog_source_assertions_revision_ck', sql`${table.sourceRevision} >= 0`),
+    check(
+      'catalog_source_assertions_period_ck',
+      sql`${table.effectiveTo} is null or ${table.effectiveTo} > ${table.effectiveFrom}`,
+    ),
+    check('catalog_source_assertions_fingerprint_ck', sql`${table.valueFingerprint} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'catalog_source_assertions_issuer_ck',
+      sql`${table.issuerSystemId} = ${table.sourceIssuerId} and ${table.authorityIssuerSystemId} = ${table.issuerSystemId}`,
+    ),
+    check(
+      'catalog_source_assertions_authority_ck',
+      sql`${table.authorityStatus} = 'VERIFIED' and ${table.authorityTargetKind} = ${table.targetKind} and ${table.authorityFactKey} = ${table.factKey}`,
+    ),
+    check(
+      'catalog_source_assertions_resolution_ck',
+      sql`(${table.targetResolutionSource} = 'OWNER_CORRELATION' and ${table.correlationRef} is not null and ${table.deterministicRuleId} is null and ${table.correlationCaptureStatus} = 'ALREADY_OWNER_CONFIRMED') or (${table.targetResolutionSource} = 'PRE_APPROVED_RULE' and ${table.correlationRef} is null and ${table.deterministicRuleId} is not null and ${table.correlationCaptureStatus} = 'CONFIRMED_BEFORE_ACCEPTANCE')`,
+    ),
+    check('catalog_source_assertions_fact_key_ck', sql`length(btrim(${table.factKey})) between 1 and 200`),
+    check('catalog_source_assertions_value_size_ck', sql`octet_length(${table.value}::text) between 1 and 65536`),
+    ...tenantRlsPolicies('catalog_source_assertions_tenant', table.tenantId),
+  ],
+);
+
+/** Immutable Local Override decisions. Release repeats the accepted value for complete evidence. */
+export const catalogLocalOverrideRevisions = catalogSchema.table.withRLS(
+  'catalog_local_override_revisions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    targetKind: text('target_kind').notNull(),
+    targetId: uuid('target_id').notNull(),
+    factKey: text('fact_key').notNull(),
+    revision: bigint('revision', { mode: 'bigint' }).notNull(),
+    lifecycle: text('lifecycle').notNull(),
+    value: jsonb('value').notNull(),
+    actorPrincipalId: uuid('actor_principal_id').notNull(),
+    reason: text('reason').notNull(),
+    evidenceRef: text('evidence_ref').notNull(),
+    actionInvocationId: uuid('action_invocation_id').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+    recordedAt: recordedAt(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.targetKind, table.targetId, table.factKey, table.revision],
+      name: 'catalog_local_override_revisions_pk',
+    }),
+    unique('catalog_local_override_revisions_invocation_uk').on(table.tenantId, table.actionInvocationId),
+    check(
+      'catalog_local_override_revisions_target_kind_ck',
+      sql`${table.targetKind} in ('PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION')`,
+    ),
+    check('catalog_local_override_revisions_revision_ck', sql`${table.revision} > 0`),
+    check('catalog_local_override_revisions_lifecycle_ck', sql`${table.lifecycle} in ('ACTIVE', 'RELEASED')`),
+    check('catalog_local_override_revisions_reason_ck', sql`length(btrim(${table.reason})) between 1 and 1000`),
+    check('catalog_local_override_revisions_evidence_ck', sql`length(btrim(${table.evidenceRef})) between 1 and 1000`),
+    check(
+      'catalog_local_override_revisions_value_size_ck',
+      sql`octet_length(${table.value}::text) between 1 and 65536`,
+    ),
+    ...tenantRlsPolicies('catalog_local_override_revisions_tenant', table.tenantId),
+  ],
+);
+
+/** One CAS projection per exact scope; history remains solely in the immutable revision ledger. */
+export const catalogLocalOverrideHeads = catalogSchema.table.withRLS(
+  'catalog_local_override_heads',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    targetKind: text('target_kind').notNull(),
+    targetId: uuid('target_id').notNull(),
+    factKey: text('fact_key').notNull(),
+    latestRevision: bigint('latest_revision', { mode: 'bigint' }).notNull(),
+    activeRevision: bigint('active_revision', { mode: 'bigint' }),
+    lifecycle: text('lifecycle').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.tenantId, table.targetKind, table.targetId, table.factKey],
+      name: 'catalog_local_override_heads_pk',
+    }),
+    uniqueIndex('catalog_local_override_heads_one_active_uk')
+      .on(table.tenantId, table.targetKind, table.targetId, table.factKey)
+      .where(sql`${table.activeRevision} is not null`),
+    check(
+      'catalog_local_override_heads_target_kind_ck',
+      sql`${table.targetKind} in ('PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION')`,
+    ),
+    check(
+      'catalog_local_override_heads_revision_ck',
+      sql`${table.latestRevision} > 0 and (${table.activeRevision} is null or ${table.activeRevision} = ${table.latestRevision})`,
+    ),
+    check(
+      'catalog_local_override_heads_lifecycle_ck',
+      sql`(${table.lifecycle} = 'ACTIVE' and ${table.activeRevision} = ${table.latestRevision}) or (${table.lifecycle} = 'RELEASED' and ${table.activeRevision} is null)`,
+    ),
+    ...tenantRlsPolicies('catalog_local_override_heads_tenant', table.tenantId),
   ],
 );
 
@@ -3771,6 +3932,9 @@ export const productConfigurationContinuityDecisions = catalogSchema.table.withR
 );
 
 const catalogDatabaseSchema = {
+  catalogAcceptedSourceAssertions,
+  catalogLocalOverrideHeads,
+  catalogLocalOverrideRevisions,
   catalogResultSnapshots,
   commercialGtinAssignmentRevisions,
   commercialGtinAssignments,
@@ -3851,6 +4015,9 @@ const catalogDatabaseSchema = {
 } as const;
 
 export const CATALOG_TABLES = [
+  catalogAcceptedSourceAssertions,
+  catalogLocalOverrideHeads,
+  catalogLocalOverrideRevisions,
   catalogResultSnapshots,
   commercialGtinAssignmentRevisions,
   commercialGtinAssignments,

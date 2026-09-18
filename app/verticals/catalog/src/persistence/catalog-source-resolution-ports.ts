@@ -2,6 +2,8 @@ import type { Effect, Option } from 'effect';
 import { Schema } from 'effect';
 
 import type { CatalogLocalOverrideOperation } from '../domain/catalog-local-override.ts';
+import type { CatalogExternalSourceRecordRef } from '../../shared/domain/external-identifier-boundary.ts';
+import type { CatalogResolvedExternalTarget } from '../../shared/domain/external-target-resolution.ts';
 import type { CatalogSourceAuthorityRequest } from '../domain/catalog-source-authority.ts';
 import type {
   CatalogCurrentResolution,
@@ -28,9 +30,13 @@ type CatalogOverrideAppendOutcome =
 
 /** Immutable accepted-base evidence and the append-only Local Override revision history. */
 export interface CatalogSourceResolutionPorts<Value> {
-  readonly appendAcceptedBase: (
-    assertion: CatalogSourceAssertion<Value>,
-  ) => Effect.Effect<CatalogAssertionAppendOutcome, CatalogSourceResolutionUnavailable>;
+  readonly appendAcceptedBase: (input: {
+    readonly assertion: CatalogSourceAssertion<Value>;
+    readonly authority: CatalogSourceAuthority;
+    readonly captureConfirmed: boolean;
+    readonly sourceRecord: CatalogExternalSourceRecordRef;
+    readonly targetResolution: CatalogResolvedExternalTarget;
+  }) => Effect.Effect<CatalogAssertionAppendOutcome, CatalogSourceResolutionUnavailable>;
   readonly appendOverrideRevision: (input: {
     readonly expectedRevision: bigint | null;
     readonly override: CatalogLocalOverride<Value>;
@@ -80,6 +86,20 @@ const CatalogResolvedCurrentChangeCauseSchema = Schema.Literals([
 ]);
 export type CatalogResolvedCurrentChangeCause = typeof CatalogResolvedCurrentChangeCauseSchema.Type;
 
+export type CatalogResolvedCurrentSourceRevision =
+  | {
+      readonly assertionId: string;
+      readonly issuerSystemId: string;
+      readonly kind: 'ACCEPTED_BASE';
+      readonly sourceRecordId: string;
+      readonly sourceRevision: bigint;
+    }
+  | {
+      readonly evidenceRef: string;
+      readonly kind: 'LOCAL_OVERRIDE';
+      readonly revision: bigint;
+    };
+
 /**
  * The #480 seam. A committed operation announces a resolved-Current change only when the owner can
  * prove both the previous and the next resolved Current; the emitter must never be called for a
@@ -91,5 +111,6 @@ export interface CatalogResolvedCurrentEventPorts<Value> {
     readonly next: CatalogCurrentResolution<Value>;
     readonly previous: CatalogCurrentResolution<Value>;
     readonly scope: CatalogFactScope;
+    readonly sourceRevision: CatalogResolvedCurrentSourceRevision;
   }) => Effect.Effect<void, CatalogSourceResolutionUnavailable>;
 }

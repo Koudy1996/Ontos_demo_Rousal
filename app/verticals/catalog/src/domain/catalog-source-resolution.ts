@@ -46,6 +46,7 @@ export interface CatalogLocalOverride<Value> {
  * The pure decision never infers any of these from an assertion or override record itself.
  */
 export interface CatalogFactAdmission {
+  readonly assertionAdmission: 'EXTERNAL_SOURCE' | 'NONE';
   readonly factOwnership: 'CATALOG_LOCAL' | 'EXTERNAL_SOURCE' | 'UNKNOWN';
   readonly overridePermitted: boolean;
   readonly overrideValueValid: boolean;
@@ -196,7 +197,14 @@ const assessOverrideAdmission = (admission: CatalogFactAdmission | null): Catalo
 const assessSourceAuthority = (
   assertion: CatalogSourceAssertion<unknown>,
   authority: CatalogSourceAuthority | null,
+  admission: CatalogFactAdmission | null,
 ): CatalogDecisionFailure | null => {
+  if (admission === null) {
+    return { reason: 'Catalog fact admission is unavailable', status: 'INDETERMINATE' };
+  }
+  if (admission.assertionAdmission !== 'EXTERNAL_SOURCE') {
+    return { reason: 'This Catalog fact does not admit external source assertions', status: 'NO_AUTHORITY' };
+  }
   if (
     authority === null ||
     authority.status !== 'VERIFIED' ||
@@ -244,7 +252,7 @@ export const assessCatalogSourceAssertion = <Value>(input: {
   if (!input.targetVerified) {
     return { reason: 'Exact Catalog target is not verified', status: 'INDETERMINATE' };
   }
-  const authorityFailure = assessSourceAuthority(input.assertion, input.authority);
+  const authorityFailure = assessSourceAuthority(input.assertion, input.authority, input.admission);
   if (authorityFailure !== null) {
     return authorityFailure;
   }
