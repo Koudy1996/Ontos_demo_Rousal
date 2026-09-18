@@ -48,6 +48,23 @@ describe('Variant exact form foundation', () => {
     }
   });
 
+  it('keeps a retired Variant exactly addressable for historical references', () => {
+    const retiredVariant = decodeVariant({
+      lifecycle: 'RETIRED',
+      productRef,
+      variantId: variantRef.resourceId,
+      variantRef,
+    });
+    const resolved = resolveVariantExactForm(
+      { productRef: retiredVariant.productRef, variants: [retiredVariant] },
+      retiredVariant.variantRef,
+    );
+    expect(Option.isSome(resolved)).toBe(true);
+    if (Option.isSome(resolved)) {
+      expect(resolved.value).toEqual({ productRef, variantRef });
+    }
+  });
+
   it('does not invent a form or accept a Variant recorded under another Product', () => {
     const product = { productRef: recordedVariant.productRef, variants: [recordedVariant] };
     expect(

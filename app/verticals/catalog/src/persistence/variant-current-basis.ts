@@ -14,7 +14,7 @@ type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, n
 /** A diagnostic basis only. No result from this service authorizes Current activation. */
 export type VariantCurrentBasis =
   | {
-      readonly reason: 'WRONG_SCOPE' | 'MISSING_PRODUCT' | 'WRONG_PRODUCT' | 'DUPLICATE_COMBINATION';
+      readonly reason: 'WRONG_SCOPE' | 'MISSING_PRODUCT' | 'WRONG_PRODUCT' | 'NOT_CURRENT' | 'DUPLICATE_COMBINATION';
       readonly status: 'INVALID';
     }
   | {
@@ -79,6 +79,11 @@ export const variantCurrentBasisForScope = (transaction: ScopedTransaction, scop
     const candidate = variants.find((row) => row.variantId === variantRef.resourceId);
     if (candidate === undefined || candidate.productId !== productRef.resourceId) {
       return { reason: 'WRONG_PRODUCT', status: 'INVALID' } as const;
+    }
+    // A recorded draft or retired form remains addressable as history, but cannot
+    // be promoted to a new Current selection even when its axis basis is unknown.
+    if (candidate.lifecycleState !== 'ACTIVE') {
+      return { reason: 'NOT_CURRENT', status: 'INVALID' } as const;
     }
 
     const axisBasis = yield* variantAxisPersistenceForScope(transaction, scope)

@@ -66,4 +66,24 @@ describe('Variant Current basis', () => {
       expect(yield* basis.inspect(productRef, variantRef)).toEqual({ reason: 'WRONG_PRODUCT', status: 'INVALID' });
     }),
   );
+
+  it.effect('keeps recorded draft and retired forms separate from Current selection', () =>
+    Effect.gen(function* rejectNonCurrentForms() {
+      for (const lifecycleState of ['WORK_IN_PROGRESS', 'RETIRED']) {
+        const transaction = {
+          select: () => ({
+            from: (table: typeof products | typeof productVariants) =>
+              selectedRows(
+                table === products
+                  ? [{ productId: productRef.resourceId }]
+                  : [{ lifecycleState, productId: productRef.resourceId, variantId: variantRef.resourceId }],
+              ),
+          }),
+        };
+        // @ts-expect-error Only the exercised Drizzle query chains are mocked.
+        const basis = variantCurrentBasisForScope(transaction, scope);
+        expect(yield* basis.inspect(productRef, variantRef)).toEqual({ reason: 'NOT_CURRENT', status: 'INVALID' });
+      }
+    }),
+  );
 });
