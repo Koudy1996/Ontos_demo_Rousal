@@ -21,7 +21,10 @@ const OverrideReferenceSchema = Schema.Struct({
 export const CatalogSourceResolutionResponseSchema = Schema.Union([
   Schema.Struct({ source: AcceptedBaseReferenceSchema, status: Schema.Literal('CURRENT'), value: Schema.Json }),
   Schema.Struct({ source: OverrideReferenceSchema, status: Schema.Literal('CURRENT'), value: Schema.Json }),
-  Schema.Struct({ reason: Schema.String, status: Schema.Literals(['ABSENT', 'INVALID', 'NO_AUTHORITY', 'INDETERMINATE']) }),
+  Schema.Struct({
+    reason: Schema.String,
+    status: Schema.Literals(['ABSENT', 'INVALID', 'NO_AUTHORITY', 'INDETERMINATE']),
+  }),
 ]);
 export type CatalogSourceResolutionResponse = typeof CatalogSourceResolutionResponseSchema.Type;
 

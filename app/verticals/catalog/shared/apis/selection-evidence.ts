@@ -3,7 +3,11 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { CatalogSelectionSchema, CatalogSelectionBasisRoles } from '../domain/catalog-selection-evidence.ts';
-import { CatalogSelectionOwnerAssessmentResultSchema, CatalogSelectionInjectedOwnerEvidenceSchema, CatalogSelectionUnverifiableOwnerEvidenceSchema } from '../domain/catalog-selection-owner-contract.ts';
+import {
+  CatalogSelectionOwnerAssessmentResultSchema,
+  CatalogSelectionInjectedOwnerEvidenceSchema,
+  CatalogSelectionUnverifiableOwnerEvidenceSchema,
+} from '../domain/catalog-selection-owner-contract.ts';
 import { CatalogSelectionPurposeSchema } from '../domain/catalog-selection-purpose.ts';
 import { CatalogSelectionValidityAttestationSchema } from '../domain/catalog-selection-validity.ts';
 
@@ -15,7 +19,9 @@ export type SelectionEvidenceRequest = typeof SelectionEvidenceRequestSchema.Typ
 export const SelectionEvidenceResponseSchema = Schema.Struct({
   evidence: CatalogSelectionOwnerAssessmentResultSchema,
   missingRoles: Schema.Array(Schema.Literals([...CatalogSelectionBasisRoles])),
-  ownerEvidence: Schema.optionalKey(Schema.Union([CatalogSelectionInjectedOwnerEvidenceSchema, CatalogSelectionUnverifiableOwnerEvidenceSchema])),
+  ownerEvidence: Schema.optionalKey(
+    Schema.Union([CatalogSelectionInjectedOwnerEvidenceSchema, CatalogSelectionUnverifiableOwnerEvidenceSchema]),
+  ),
   validity: Schema.optionalKey(CatalogSelectionValidityAttestationSchema),
 });
 export type SelectionEvidenceResponse = typeof SelectionEvidenceResponseSchema.Type;

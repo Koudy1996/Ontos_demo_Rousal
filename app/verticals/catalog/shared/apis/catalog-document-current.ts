@@ -2,22 +2,37 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { CatalogDocumentOwnerRevisionSchema, CatalogDocumentResourceRefSchema, CatalogMediaAssignmentSchema } from '../domain/catalog-media-assignment.ts';
+import {
+  CatalogDocumentOwnerRevisionSchema,
+  CatalogDocumentResourceRefSchema,
+  CatalogMediaAssignmentSchema,
+} from '../domain/catalog-media-assignment.ts';
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
-export const CatalogDocumentCurrentRequestSchema = Schema.Struct({ target: Schema.Union([ProductRefSchema, VariantRefSchema]) });
+export const CatalogDocumentCurrentRequestSchema = Schema.Struct({
+  target: Schema.Union([ProductRefSchema, VariantRefSchema]),
+});
 export type CatalogDocumentCurrentRequest = typeof CatalogDocumentCurrentRequestSchema.Type;
 const DocumentUseSchema = Schema.Union([
-  Schema.Struct({ assignment: CatalogMediaAssignmentSchema, current: CatalogDocumentOwnerRevisionSchema, kind: Schema.Literal('AVAILABLE') }),
-  Schema.Struct({ assignment: CatalogMediaAssignmentSchema, kind: Schema.Literals(['ABSENT', 'CURRENT_UNVERIFIED', 'FORBIDDEN', 'RESOURCE_MISMATCH', 'UNAVAILABLE']) }),
+  Schema.Struct({
+    assignment: CatalogMediaAssignmentSchema,
+    current: CatalogDocumentOwnerRevisionSchema,
+    kind: Schema.Literal('AVAILABLE'),
+  }),
+  Schema.Struct({
+    assignment: CatalogMediaAssignmentSchema,
+    kind: Schema.Literals(['ABSENT', 'CURRENT_UNVERIFIED', 'FORBIDDEN', 'RESOURCE_MISMATCH', 'UNAVAILABLE']),
+  }),
 ]);
 export const CatalogDocumentCurrentResponseSchema = Schema.Struct({
   assignments: Schema.Array(DocumentUseSchema),
   setRevision: Schema.Int,
 });
 export type CatalogDocumentCurrentResponse = typeof CatalogDocumentCurrentResponseSchema.Type;
-export const CatalogDocumentOwnerAvailabilityRequestSchema = Schema.Struct({ resources: Schema.Array(CatalogDocumentResourceRefSchema) });
+export const CatalogDocumentOwnerAvailabilityRequestSchema = Schema.Struct({
+  resources: Schema.Array(CatalogDocumentResourceRefSchema),
+});
 
 export const CatalogDocumentCurrentAuthenticationProblemSchema = makeProblemDetailsSchema(
   'CatalogDocumentCurrentAuthenticationProblem',

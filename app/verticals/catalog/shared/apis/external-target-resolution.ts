@@ -2,7 +2,10 @@
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
-import { CatalogExternalTargetRequestSchema, CatalogExternalTargetKindSchema } from '../domain/external-target-resolution.ts';
+import {
+  CatalogExternalTargetRequestSchema,
+  CatalogExternalTargetKindSchema,
+} from '../domain/external-target-resolution.ts';
 import { CatalogResourceRefSchema } from '../domain/catalog-revision-reference.ts';
 
 export const ExternalTargetResolutionRequestSchema = CatalogExternalTargetRequestSchema;
@@ -14,10 +17,27 @@ const ResolvedTargetBaseSchema = {
   targetKind: CatalogExternalTargetKindSchema,
 };
 export const ExternalTargetResolutionResponseSchema = Schema.Union([
-  Schema.Struct({ ...ResolvedTargetBaseSchema, capture: Schema.Literal('ALREADY_OWNER_CONFIRMED'), correlationRef: Schema.String, source: Schema.Literal('OWNER_CORRELATION') }),
-  Schema.Struct({ ...ResolvedTargetBaseSchema, capture: Schema.Literal('REQUIRED_BEFORE_ACCEPTANCE'), ruleId: Schema.String, source: Schema.Literal('PRE_APPROVED_RULE') }),
-  Schema.Struct({ reason: Schema.String, status: Schema.Literals(['MISSING_LINK', 'TARGET_TYPE_MISMATCH', 'INVALID']) }),
-  Schema.Struct({ candidates: Schema.Array(CatalogResourceRefSchema), reason: Schema.String, status: Schema.Literal('AMBIGUOUS') }),
+  Schema.Struct({
+    ...ResolvedTargetBaseSchema,
+    capture: Schema.Literal('ALREADY_OWNER_CONFIRMED'),
+    correlationRef: Schema.String,
+    source: Schema.Literal('OWNER_CORRELATION'),
+  }),
+  Schema.Struct({
+    ...ResolvedTargetBaseSchema,
+    capture: Schema.Literal('REQUIRED_BEFORE_ACCEPTANCE'),
+    ruleId: Schema.String,
+    source: Schema.Literal('PRE_APPROVED_RULE'),
+  }),
+  Schema.Struct({
+    reason: Schema.String,
+    status: Schema.Literals(['MISSING_LINK', 'TARGET_TYPE_MISMATCH', 'INVALID']),
+  }),
+  Schema.Struct({
+    candidates: Schema.Array(CatalogResourceRefSchema),
+    reason: Schema.String,
+    status: Schema.Literal('AMBIGUOUS'),
+  }),
 ]);
 export type ExternalTargetResolutionResponse = typeof ExternalTargetResolutionResponseSchema.Type;
 

@@ -1,7 +1,10 @@
 import { Schema } from 'effect';
 
 import { CatalogExternalSourceRecordRefSchema } from '../domain/external-identifier-boundary.ts';
-import { CosmeticProductCorrectionSchema, ProductChangeClassificationSchema } from '../domain/product-change-classification.ts';
+import {
+  CosmeticProductCorrectionSchema,
+  ProductChangeClassificationSchema,
+} from '../domain/product-change-classification.ts';
 
 const checkedUuid = Schema.String.check(Schema.isUUID(), Schema.isTrimmed());
 const boundedText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
@@ -114,7 +117,10 @@ export type ReleaseLocalOverridePayload = typeof ReleaseLocalOverridePayloadSche
 
 const CurrentResolutionSchema = Schema.Union([
   Schema.Struct({ source: Schema.Literals(['BASE', 'LOCAL_OVERRIDE']), status: Schema.Literal('CURRENT') }),
-  Schema.Struct({ reason: boundedText, status: Schema.Literals(['ABSENT', 'INVALID', 'NO_AUTHORITY', 'INDETERMINATE']) }),
+  Schema.Struct({
+    reason: boundedText,
+    status: Schema.Literals(['ABSENT', 'INVALID', 'NO_AUTHORITY', 'INDETERMINATE']),
+  }),
 ]);
 const AppliedOverrideResultSchema = Schema.Struct({
   classification: Schema.optionalKey(CosmeticProductCorrectionSchema),
