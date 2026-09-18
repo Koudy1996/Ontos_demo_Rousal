@@ -1,5 +1,6 @@
 import type { ActionHandlerContext, DomainEventContractMap } from '@app/core-runtime';
-import { TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { ActionTransactionError, TrustedPrincipalContextSchema } from '@app/core-runtime';
+import { bindActionTestServices, makeActionTestHarness } from '@app/core-runtime/testing/actions';
 import { Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
@@ -115,6 +116,79 @@ const removeContext = (overrides: Partial<CategoryPersistence>) =>
   context(overrides, removeProductCategoryAssignmentAction.descriptor.domainEvents);
 
 describe('Catalog Product Category Actions', () => {
+  it.effect('captures the decoded category result before the Action commit and does not rerun it on replay', () =>
+    Effect.gen(function* categoryCaptureTest() {
+      const captured: Array<{ actionInvocationId: string; result: unknown }> = [];
+      const harness = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [
+          bindActionTestServices(createProductCategoryAction, {
+            ...defaultServices,
+            createCategory: () => Effect.succeed({ _tag: 'created', category, changed: true, hierarchyRevision: 1 }),
+            captureResult: (actionInvocationId, result) =>
+              Effect.sync(() => {
+                captured.push({ actionInvocationId, result });
+              }),
+          }),
+        ],
+      });
+      const request = {
+        payload: { name: 'Wall shelves', reason: 'New classification' },
+        principal: {
+          authBindingId: '77777777-7777-4777-8777-777777777777',
+          authContextRef: 'better-auth-session:category-capture',
+          authMethod: 'session' as const,
+          principalId: scope.principalId,
+          tenantId,
+        },
+        registration: createProductCategoryAction,
+        transport: { correlationId: 'category-capture', idempotencyKey: 'category-capture-once' },
+      };
+      const result = yield* harness.runtime.runAction(request);
+      expect(captured).toEqual([{ actionInvocationId: expect.any(String), result }]);
+      expect(harness.snapshot().committed).toHaveLength(1);
+      yield* harness.runtime.runAction(request).pipe(Effect.flip);
+      expect(captured).toHaveLength(1);
+    }),
+  );
+
+  it.effect('does not commit a category Action when result capture fails', () =>
+    Effect.gen(function* categoryCaptureFailureTest() {
+      const harness = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [
+          bindActionTestServices(createProductCategoryAction, {
+            ...defaultServices,
+            createCategory: () => Effect.succeed({ _tag: 'created', category, changed: true, hierarchyRevision: 1 }),
+            captureResult: () =>
+              Effect.fail(
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+              ),
+          }),
+        ],
+      });
+      const failure = yield* harness.runtime
+        .runAction({
+          payload: { name: 'Wall shelves', reason: 'New classification' },
+          principal: {
+            authBindingId: '77777777-7777-4777-8777-777777777777',
+            authContextRef: 'better-auth-session:category-capture',
+            authMethod: 'session',
+            principalId: scope.principalId,
+            tenantId,
+          },
+          registration: createProductCategoryAction,
+          transport: { correlationId: 'category-capture', idempotencyKey: 'category-capture-failure' },
+        })
+        .pipe(Effect.flip);
+      expect(failure).toMatchObject({ code: 'action_transaction_failed' });
+      expect(harness.snapshot().committed).toHaveLength(0);
+    }),
+  );
+
   it('keeps six exact tenant Actions idempotent and legal-entity independent', () => {
     for (const action of [
       createProductCategoryAction,

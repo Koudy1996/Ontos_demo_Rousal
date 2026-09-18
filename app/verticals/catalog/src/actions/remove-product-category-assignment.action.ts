@@ -2,8 +2,8 @@
 // @ontos-action-owner commerce.catalog
 // @ontos-action-slug remove-product-category-assignment
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Match } from 'effect';
+import { ActionTransactionError, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { Effect, Match, Schema } from 'effect';
 
 import {
   RemoveProductCategoryAssignmentPayloadSchema,
@@ -11,6 +11,7 @@ import {
 } from '../../shared/actions/remove-product-category-assignment.ts';
 import type { RemoveProductCategoryAssignmentPayload } from '../../shared/actions/remove-product-category-assignment.ts';
 import type { CategoryPersistence } from '../persistence/category-persistence.ts';
+import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
 import {
   CategoryActionErrorSchema,
   CategoryAuditEvidenceSchema,
@@ -108,7 +109,32 @@ export const removeProductCategoryAssignmentAction = defineAction(
     schemaVersion: '1',
   },
   handleRemoveProductCategoryAssignment,
-  categoryPersistenceServiceFactory,
+  (transaction, scope) =>
+    categoryPersistenceServiceFactory(transaction, scope).pipe(
+      Effect.map((services) => ({
+        ...services,
+        captureResult: (actionInvocationId: string, result: typeof RemoveProductCategoryAssignmentResultSchema.Type) =>
+          captureCatalogActionResult(
+            transaction,
+            scope,
+            { actionInvocationId, actionKey: 'commerce.catalog.remove-product-category-assignment', schemaVersion: 1 },
+            {
+              decode: Schema.decodeUnknownEffect(RemoveProductCategoryAssignmentResultSchema),
+              encode: Schema.encodeEffect(RemoveProductCategoryAssignmentResultSchema),
+            },
+            result,
+          ).pipe(
+            Effect.mapError(
+              () =>
+                new ActionTransactionError({
+                  code: 'action_transaction_failed',
+                  reason: 'Catalog result capture failed',
+                }),
+            ),
+          ),
+      })),
+    ),
+  ({ actionInvocationId, result, services }) => services.captureResult(actionInvocationId, result),
 );
 
 // <generated-outbox-message-exports>
