@@ -7,7 +7,7 @@ import type { SetComponentCurrentProof, SetComponentValidation } from '../../sha
 import { validateSetComponents } from '../../shared/domain/set-component-validation.ts';
 import type { CatalogRevisionInstant } from '../../shared/domain/catalog-revision-reference.ts';
 import type { SetComponent, SetCompositionRevision } from '../../shared/domain/set-composition.ts';
-import { setCompositions } from '../database/schema.ts';
+import { productVariants, products, setCompositions } from '../database/schema.ts';
 import { catalogSelectionPackageUnitBasisForScope } from './catalog-selection-package-unit-basis.ts';
 import { SetCompositionPersistenceUnavailable } from './set-composition-persistence.ts';
 
@@ -62,6 +62,30 @@ const readComponent = Effect.fn('SetCompositionComponentCurrentBasis.readCompone
   }
   if (selection.setComposition !== undefined || componentProductId === revision.productRef.resourceId) {
     return { code: 'NESTED_SET', componentId, status: 'INVALID' as const };
+  }
+  // These tenant-qualified owner reads distinguish a confirmed missing target
+  // from a failed read. A query failure stays in the typed unavailable channel.
+  const [product] = yield* transaction
+    .select({ productId: products.productId })
+    .from(products)
+    .where(and(eq(products.tenantId, scope.tenantId), eq(products.productId, componentProductId)))
+    .limit(1);
+  if (product === undefined) {
+    return { code: 'COMPONENT_PRODUCT_MISSING', componentId, status: 'INVALID' as const };
+  }
+  const [variant] = yield* transaction
+    .select({ variantId: productVariants.variantId })
+    .from(productVariants)
+    .where(
+      and(
+        eq(productVariants.tenantId, scope.tenantId),
+        eq(productVariants.productId, componentProductId),
+        eq(productVariants.variantId, selection.variantRef.resourceId),
+      ),
+    )
+    .limit(1);
+  if (variant === undefined) {
+    return { code: 'COMPONENT_VARIANT_MISSING', componentId, status: 'INVALID' as const };
   }
   const [nested] = yield* transaction
     .select({ compositionId: setCompositions.compositionId })

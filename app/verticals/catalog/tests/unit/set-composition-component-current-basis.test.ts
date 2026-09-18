@@ -14,6 +14,7 @@ import {
   variantUnitDivisibility,
 } from '../../src/database/schema.ts';
 import { setCompositionComponentCurrentBasisForScope } from '../../src/persistence/set-composition-component-current-basis.ts';
+import { SetCompositionPersistenceUnavailable } from '../../src/persistence/set-composition-persistence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const setProductId = '22222222-2222-4222-8222-222222222222';
@@ -52,8 +53,11 @@ const scope = { tenantId };
 const at = new Date('2026-09-18T00:00:00.000Z');
 
 interface BasisOptions {
+  readonly absentProduct?: boolean;
+  readonly absentVariant?: boolean;
   readonly nested?: boolean;
   readonly retired?: boolean;
+  readonly unavailableProduct?: boolean;
   readonly unitId?: string;
 }
 type BasisTable =
@@ -71,11 +75,17 @@ const rowsFor = (table: BasisTable, options: BasisOptions): readonly object[] =>
     return options.nested === true ? [{ compositionId: 'nested' }] : [];
   }
   if (table === products) {
+    if (options.absentProduct === true) {
+      return [];
+    }
     return [
       { currentRevision: 3, lifecycleState: options.retired === true ? 'RETIRED' : 'ACTIVE', productId: 'product' },
     ];
   }
   if (table === productVariants) {
+    if (options.absentVariant === true) {
+      return [];
+    }
     return [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId: 'product', variantId: 'variant' }];
   }
   if (table === variantUnitDivisibility) {
@@ -135,9 +145,16 @@ const rowsFor = (table: BasisTable, options: BasisOptions): readonly object[] =>
   }
   throw new Error('Unexpected component basis table');
 };
-const selectedRows = (rows: readonly object[]) => ({ where: () => ({ limit: () => Effect.succeed(rows) }) });
+const selectedRows = (rows: readonly object[], unavailable: boolean) => ({
+  where: () => ({
+    limit: () => (unavailable ? Effect.fail(new Error('Owner read unavailable')) : Effect.succeed(rows)),
+  }),
+});
 const transactionFor = (options: BasisOptions = {}) => ({
-  select: () => ({ from: (table: BasisTable) => selectedRows(rowsFor(table, options)) }),
+  select: () => ({
+    from: (table: BasisTable) =>
+      selectedRows(rowsFor(table, options), table === products && options.unavailableProduct === true),
+  }),
 });
 
 const read = (options?: Parameters<typeof transactionFor>[0], candidate = revision) => {
@@ -165,6 +182,46 @@ describe('Set composition component Current basis', () => {
     Effect.gen(function* invalidComponents() {
       expect(yield* read({ nested: true })).toMatchObject({ code: 'NESTED_SET', status: 'INVALID' });
       expect(yield* read({ retired: true })).toMatchObject({ status: 'INVALID' });
+    }),
+  );
+
+  it.effect('rejects a Set Product even when the component selection hides it behind a Package Option', () =>
+    Effect.gen(function* nestedPackage() {
+      const candidate = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+        ...revision,
+        components: [
+          {
+            ...revision.components[0],
+            selection: {
+              ...revision.components[0]?.selection,
+              packageOption: {
+                contentRevision: {
+                  resourceRef: ref('package-definition', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
+                  revision: 1,
+                },
+                optionRef: ref('package-definition', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'),
+              },
+            },
+          },
+          revision.components[1],
+        ],
+      });
+      expect(yield* read({ nested: true }, candidate)).toMatchObject({ code: 'NESTED_SET', status: 'INVALID' });
+    }),
+  );
+
+  it.effect('distinguishes confirmed missing Product or Variant from an unavailable owner read', () =>
+    Effect.gen(function* missingOrUnavailable() {
+      expect(yield* read({ absentProduct: true })).toMatchObject({
+        code: 'COMPONENT_PRODUCT_MISSING',
+        status: 'INVALID',
+      });
+      expect(yield* read({ absentVariant: true })).toMatchObject({
+        code: 'COMPONENT_VARIANT_MISSING',
+        status: 'INVALID',
+      });
+      const error = yield* read({ unavailableProduct: true }).pipe(Effect.flip);
+      expect(Schema.is(SetCompositionPersistenceUnavailable)(error)).toBe(true);
     }),
   );
 
