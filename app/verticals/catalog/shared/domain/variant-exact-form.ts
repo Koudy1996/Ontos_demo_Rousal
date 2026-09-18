@@ -40,3 +40,29 @@ export const resolveVariantExactForm = (
     ? Option.none()
     : Option.some({ productRef: product.productRef, variantRef: match.variantRef });
 };
+
+export type ProductOnlyVariantResolution =
+  | { readonly exactForm: VariantExactForm; readonly status: 'RESOLVED' }
+  | { readonly status: 'AMBIGUOUS' | 'NO_ELIGIBLE_VARIANT' };
+
+/** Resolve identity only; this is not proof that a Catalog Selection is Current or VALID. */
+export const resolveProductOnlyVariant = (
+  product: Pick<Product, 'productRef' | 'variants'>,
+): ProductOnlyVariantResolution => {
+  let exactForm: VariantExactForm | undefined;
+  for (const variant of product.variants) {
+    if (
+      variant.lifecycle !== 'ACTIVE' ||
+      !sameCatalogRef(variant.productRef, product.productRef) ||
+      variant.variantRef.tenantId !== product.productRef.tenantId ||
+      variant.variantId !== variant.variantRef.resourceId
+    ) {
+      continue;
+    }
+    if (exactForm !== undefined) {
+      return { status: 'AMBIGUOUS' };
+    }
+    exactForm = { productRef: product.productRef, variantRef: variant.variantRef };
+  }
+  return exactForm === undefined ? { status: 'NO_ELIGIBLE_VARIANT' } : { exactForm, status: 'RESOLVED' };
+};

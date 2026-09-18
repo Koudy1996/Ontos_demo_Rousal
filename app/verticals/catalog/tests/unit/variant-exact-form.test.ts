@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'effect-rstest';
 import { Option, Schema } from 'effect';
 
-import { resolveVariantExactForm, VariantExactFormSchema } from '../../shared/domain/variant-exact-form.ts';
+import {
+  resolveProductOnlyVariant,
+  resolveVariantExactForm,
+  VariantExactFormSchema,
+} from '../../shared/domain/variant-exact-form.ts';
 import { ProductVariantSchema } from '../../shared/domain/product.ts';
 import { ProductRefSchema } from '../../shared/resources/product.ts';
 import { VariantRefSchema } from '../../shared/resources/variant.ts';
@@ -29,6 +33,37 @@ const recordedVariant = decodeVariant({
 });
 
 describe('Variant exact form foundation', () => {
+  it('resolves only one Active Variant, never a draft or retired sole Variant', () => {
+    const product = { productRef: recordedVariant.productRef, variants: [recordedVariant] };
+    expect(resolveProductOnlyVariant(product)).toEqual({ status: 'NO_ELIGIBLE_VARIANT' });
+    expect(resolveProductOnlyVariant({ ...product, variants: [{ ...recordedVariant, lifecycle: 'RETIRED' }] })).toEqual(
+      {
+        status: 'NO_ELIGIBLE_VARIANT',
+      },
+    );
+    expect(resolveProductOnlyVariant({ ...product, variants: [{ ...recordedVariant, lifecycle: 'ACTIVE' }] })).toEqual({
+      exactForm: { productRef, variantRef },
+      status: 'RESOLVED',
+    });
+  });
+
+  it('requires a more precise choice when a second Active Variant appears', () => {
+    const anotherVariantRef = Schema.decodeUnknownSync(VariantRefSchema)({
+      ...variantRef,
+      resourceId: '44444444-4444-4444-8444-444444444444',
+    });
+    const first = { ...recordedVariant, lifecycle: 'ACTIVE' as const };
+    const second = { ...first, variantId: anotherVariantRef.resourceId, variantRef: anotherVariantRef };
+    expect(resolveProductOnlyVariant({ productRef: recordedVariant.productRef, variants: [first, second] })).toEqual({
+      status: 'AMBIGUOUS',
+    });
+    expect(resolveProductOnlyVariant({ productRef: recordedVariant.productRef, variants: [second, first] })).toEqual({
+      status: 'AMBIGUOUS',
+    });
+    expect(
+      resolveVariantExactForm({ productRef: recordedVariant.productRef, variants: [first, second] }, variantRef),
+    ).toEqual(Option.some({ productRef, variantRef }));
+  });
   it('requires Product and Variant ResourceRefs from one Tenant', () => {
     const decode = Schema.decodeUnknownSync(VariantExactFormSchema, { onExcessProperty: 'error' });
     expect(decode({ productRef, variantRef })).toEqual({ productRef, variantRef });
