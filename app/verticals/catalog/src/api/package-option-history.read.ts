@@ -89,7 +89,7 @@ export const packageOptionHistoryRead = defineRead(
     schemaVersion: '1',
   },
   (input: PackageOptionHistoryRequest, context: ReadHandlerContext<ReturnType<typeof packageOptionHistoryForScope>>) =>
-    readPackageOptionHistory(input, context.scope.tenantId, context.services),
+    Effect.suspend(() => readPackageOptionHistory(input, context.scope.tenantId, context.services)),
   (transaction, scope) => Effect.succeed(packageOptionHistoryForScope(transaction, scope)),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

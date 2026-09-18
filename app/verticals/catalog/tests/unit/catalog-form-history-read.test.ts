@@ -35,6 +35,8 @@ const variantId = '33333333-3333-4333-8333-333333333333';
 const definitionId = '44444444-4444-4444-8444-444444444444';
 const invocationId = '55555555-5555-4555-8555-555555555555';
 const date = new Date('2026-09-16T12:00:00.000Z');
+const absentText = (): string | null => null;
+const absentRevision = (): number | null => null;
 const variantRef = {
   moduleId: 'commerce.catalog',
   resourceId: variantId,
@@ -61,8 +63,8 @@ const variantRow = {
   actingPrincipalId: productId,
   actionInvocationId: invocationId,
   changeKind: 'CREATED',
-  combinationAxisRevision: null,
-  combinationKey: null,
+  combinationAxisRevision: absentRevision(),
+  combinationKey: absentText(),
   evidenceRefs: ['evidence:variant-r1'],
   lifecycleState: 'WORK_IN_PROGRESS',
   productId,
@@ -77,21 +79,21 @@ const contentRow = {
   actionInvocationId: invocationId,
   amount: '6',
   changeKind: 'MATERIAL_CHANGE',
-  configurationKey: null,
+  configurationKey: absentText(),
   effectiveAt: date,
   evidenceRefs: ['evidence:content-r1'],
   lifecycleState: 'ACTIVE',
-  lowerCount: null,
-  lowerPackageDefinitionId: null,
-  lowerRevision: null,
+  lowerCount: absentText(),
+  lowerPackageDefinitionId: absentText(),
+  lowerRevision: absentRevision(),
   packageDefinitionId: definitionId,
-  priorErrorExplanation: null,
+  priorErrorExplanation: absentText(),
   productId,
   reason: 'Original six-pack',
   recordedAt: date,
   revision: 1,
-  setCompositionResourceId: null,
-  setCompositionRevision: null,
+  setCompositionResourceId: absentText(),
+  setCompositionRevision: absentRevision(),
   tenantId,
   unitResourceId: productId,
   unitResourceType: 'commerce.catalog.unit',
@@ -140,6 +142,8 @@ describe('exact Catalog form history reads', () => {
       });
       expect(response.result.reference).toEqual(variantRequest.reference);
       expect(Schema.encodeSync(VariantHistoryResponseSchema)(response.result)).toMatchObject({
+        combinationAxisRevision: null,
+        combinationKey: null,
         recordedAt: date.toISOString(),
       });
     }),
@@ -156,11 +160,58 @@ describe('exact Catalog form history reads', () => {
         amount: '6',
         evidenceRefs: ['evidence:content-r1'],
         historical: true,
-        lowerRevision: null,
-        setCompositionRevision: null,
+        lowerRevision: Option.none(),
+        setCompositionRevision: Option.none(),
       });
       expect(response.result.reference).toEqual(contentRequest.reference);
-      expect(() => Schema.encodeSync(PackageDefinitionHistoryResponseSchema)(response.result)).not.toThrow();
+      expect(Schema.encodeSync(PackageDefinitionHistoryResponseSchema)(response.result)).toMatchObject({
+        configurationKey: null,
+        lowerCount: null,
+        lowerPackageDefinitionId: null,
+        lowerRevision: null,
+        priorErrorExplanation: null,
+        setCompositionResourceId: null,
+        setCompositionRevision: null,
+      });
+    }),
+  );
+
+  it.effect('retains populated optional history values on the wire', () =>
+    Effect.gen(function* preservesPopulatedOptionals() {
+      const variant = yield* readVariantHistory(
+        variantRequest,
+        tenantId,
+        variantServices(Option.some({ ...variantRow, combinationAxisRevision: 2, combinationKey: 'size=large' })),
+      );
+      expect(Schema.encodeSync(VariantHistoryResponseSchema)(variant.result)).toMatchObject({
+        combinationAxisRevision: 2,
+        combinationKey: 'size=large',
+      });
+      const content = yield* readPackageDefinitionHistory(
+        contentRequest,
+        tenantId,
+        contentServices(
+          Option.some({
+            ...contentRow,
+            configurationKey: 'color=red',
+            lowerCount: '6',
+            lowerPackageDefinitionId: definitionId,
+            lowerRevision: 2,
+            priorErrorExplanation: 'Corrected count',
+            setCompositionResourceId: variantId,
+            setCompositionRevision: 3,
+          }),
+        ),
+      );
+      expect(Schema.encodeSync(PackageDefinitionHistoryResponseSchema)(content.result)).toMatchObject({
+        configurationKey: 'color=red',
+        lowerCount: '6',
+        lowerPackageDefinitionId: definitionId,
+        lowerRevision: 2,
+        priorErrorExplanation: 'Corrected count',
+        setCompositionResourceId: variantId,
+        setCompositionRevision: 3,
+      });
     }),
   );
 

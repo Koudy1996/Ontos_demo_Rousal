@@ -3,10 +3,11 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
-import { ProductInstantSchema } from '../domain/product.ts';
+import { ProductActionInvocationIdSchema, ProductInstantSchema, ProductVariantIdSchema } from '../domain/product.ts';
+import { ProductRefSchema } from '../resources/product.ts';
+import { ProductUnitRefSchema } from '../resources/product-unit.ts';
 import { PackageDefinitionRefSchema } from '../resources/package-definition.ts';
 
-const uuid = Schema.String.check(Schema.isUUID());
 /** Package content history is sequence-addressed; retained rows do not issue revision IDs. */
 export const PackageDefinitionHistoryReferenceSchema = Schema.Struct({
   resourceRef: PackageDefinitionRefSchema,
@@ -19,27 +20,27 @@ export const PackageDefinitionHistoryRequestSchema = Schema.Struct({
 });
 export type PackageDefinitionHistoryRequest = typeof PackageDefinitionHistoryRequestSchema.Type;
 export const PackageDefinitionHistoryResponseSchema = Schema.Struct({
-  actionInvocationId: uuid,
+  actionInvocationId: ProductActionInvocationIdSchema,
   amount: Schema.String,
   changeKind: Schema.String,
-  configurationKey: Schema.NullOr(Schema.String),
+  configurationKey: Schema.OptionFromNullOr(Schema.String),
   effectiveAt: ProductInstantSchema,
   evidenceRefs: Schema.Array(Schema.String),
   historical: Schema.Literal(true),
   lifecycle: Schema.String,
-  lowerCount: Schema.NullOr(Schema.String),
-  lowerPackageDefinitionId: Schema.NullOr(uuid),
-  lowerRevision: Schema.NullOr(Schema.Int),
-  priorErrorExplanation: Schema.NullOr(Schema.String),
-  productId: uuid,
+  lowerCount: Schema.OptionFromNullOr(Schema.String),
+  lowerPackageDefinitionId: Schema.OptionFromNullOr(PackageDefinitionRefSchema.fields.resourceId),
+  lowerRevision: Schema.OptionFromNullOr(Schema.Int),
+  priorErrorExplanation: Schema.OptionFromNullOr(Schema.String),
+  productId: ProductRefSchema.fields.resourceId,
   reason: Schema.String,
   recordedAt: ProductInstantSchema,
   reference: PackageDefinitionHistoryReferenceSchema,
-  setCompositionResourceId: Schema.NullOr(uuid),
-  setCompositionRevision: Schema.NullOr(Schema.Int),
-  unitResourceId: uuid,
+  setCompositionResourceId: Schema.OptionFromNullOr(ProductVariantIdSchema),
+  setCompositionRevision: Schema.OptionFromNullOr(Schema.Int),
+  unitResourceId: ProductUnitRefSchema.fields.resourceId,
   unitResourceType: Schema.String,
-  variantId: uuid,
+  variantId: ProductVariantIdSchema,
 });
 export type PackageDefinitionHistoryResponse = typeof PackageDefinitionHistoryResponseSchema.Type;
 

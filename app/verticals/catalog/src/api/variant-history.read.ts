@@ -51,8 +51,8 @@ export const readVariantHistory = Effect.fn('VariantHistoryRead.readVariantHisto
     result: {
       actionInvocationId: revision.actionInvocationId,
       changeKind: revision.changeKind,
-      combinationAxisRevision: revision.combinationAxisRevision,
-      combinationKey: revision.combinationKey,
+      combinationAxisRevision: Option.fromNullOr(revision.combinationAxisRevision),
+      combinationKey: Option.fromNullOr(revision.combinationKey),
       evidenceRefs: revision.evidenceRefs,
       historical: true as const,
       lifecycle: revision.lifecycleState,
@@ -82,7 +82,7 @@ export const variantHistoryRead = defineRead(
     schemaVersion: '1',
   },
   (input: VariantHistoryRequest, context: ReadHandlerContext<ReturnType<typeof variantHistoryForScope>>) =>
-    readVariantHistory(input, context.scope.tenantId, context.services),
+    Effect.suspend(() => readVariantHistory(input, context.scope.tenantId, context.services)),
   (transaction, scope) => Effect.succeed(variantHistoryForScope(transaction, scope)),
   () => ({ kind: 'tenant', permission: 'access' }),
 );

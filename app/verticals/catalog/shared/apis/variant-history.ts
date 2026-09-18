@@ -3,10 +3,10 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
-import { ProductInstantSchema } from '../domain/product.ts';
+import { ProductActionInvocationIdSchema, ProductInstantSchema } from '../domain/product.ts';
+import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
 
-const uuid = Schema.String.check(Schema.isUUID());
 /** Variant history is sequence-addressed; retained rows do not issue revision IDs. */
 export const VariantHistoryReferenceSchema = Schema.Struct({
   resourceRef: VariantRefSchema,
@@ -17,14 +17,14 @@ export const VariantHistoryReferenceSchema = Schema.Struct({
 export const VariantHistoryRequestSchema = Schema.Struct({ reference: VariantHistoryReferenceSchema });
 export type VariantHistoryRequest = typeof VariantHistoryRequestSchema.Type;
 export const VariantHistoryResponseSchema = Schema.Struct({
-  actionInvocationId: uuid,
+  actionInvocationId: ProductActionInvocationIdSchema,
   changeKind: Schema.String,
-  combinationAxisRevision: Schema.NullOr(Schema.Int),
-  combinationKey: Schema.NullOr(Schema.String),
+  combinationAxisRevision: Schema.OptionFromNullOr(Schema.Int),
+  combinationKey: Schema.OptionFromNullOr(Schema.String),
   evidenceRefs: Schema.Array(Schema.String),
   historical: Schema.Literal(true),
   lifecycle: Schema.String,
-  productId: uuid,
+  productId: ProductRefSchema.fields.resourceId,
   reason: Schema.String,
   recordedAt: ProductInstantSchema,
   reference: VariantHistoryReferenceSchema,

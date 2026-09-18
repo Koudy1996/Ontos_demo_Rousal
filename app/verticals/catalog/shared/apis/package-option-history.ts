@@ -3,10 +3,10 @@ import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@ap
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
 import { CatalogRevisionNumberSchema } from '../domain/catalog-revision-reference.ts';
-import { ProductInstantSchema } from '../domain/product.ts';
+import { ProductActionInvocationIdSchema, ProductInstantSchema, ProductVariantIdSchema } from '../domain/product.ts';
+import { ProductRefSchema } from '../resources/product.ts';
 import { PackageDefinitionRefSchema } from '../resources/package-definition.ts';
 
-const uuid = Schema.String.check(Schema.isUUID());
 /** Option role revision is independent of the pinned Package content revision. */
 export const PackageOptionHistoryReferenceSchema = Schema.Struct({
   resourceRef: PackageDefinitionRefSchema,
@@ -17,19 +17,19 @@ export const PackageOptionHistoryReferenceSchema = Schema.Struct({
 export const PackageOptionHistoryRequestSchema = Schema.Struct({ reference: PackageOptionHistoryReferenceSchema });
 export type PackageOptionHistoryRequest = typeof PackageOptionHistoryRequestSchema.Type;
 export const PackageOptionHistoryResponseSchema = Schema.Struct({
-  actionInvocationId: uuid,
+  actionInvocationId: ProductActionInvocationIdSchema,
   contentRevision: Schema.Int,
   effectiveAt: ProductInstantSchema,
   evidenceRefs: Schema.Array(Schema.String),
   historical: Schema.Literal(true),
   independentlyRequested: Schema.Boolean,
   looseUnitsSubstitutable: Schema.Boolean,
-  productId: uuid,
+  productId: ProductRefSchema.fields.resourceId,
   recordedAt: ProductInstantSchema,
   reference: PackageOptionHistoryReferenceSchema,
   state: Schema.String,
   validationReason: Schema.String,
-  variantId: uuid,
+  variantId: ProductVariantIdSchema,
 });
 export type PackageOptionHistoryResponse = typeof PackageOptionHistoryResponseSchema.Type;
 
