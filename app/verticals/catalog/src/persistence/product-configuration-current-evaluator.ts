@@ -1,5 +1,6 @@
 import { DateTime, Effect, Option } from 'effect';
 
+import type { ConfigurationUnitRevision } from '../../shared/domain/configuration-unit.ts';
 import { evaluateMeasuredConstraint } from '../../shared/domain/configuration-constraints.ts';
 import type { ConstraintDecision, MeasuredConstraint } from '../../shared/domain/configuration-constraints.ts';
 import type {
@@ -47,6 +48,7 @@ export interface CurrentConfigurationChoiceEvidence {
   readonly required: boolean;
   readonly revision: number;
   readonly unitId?: string;
+  readonly unitRevision?: number;
 }
 
 export type CurrentConfigurationAssessment = {
@@ -57,6 +59,8 @@ export type CurrentConfigurationAssessment = {
   readonly effectiveFrom?: Date;
   readonly effectiveTo?: Date;
   readonly rules: readonly CurrentConfigurationRuleEvidence[];
+  readonly target: TrustedConfigurationTarget;
+  readonly unitRevisions: readonly ConfigurationUnitRevision[];
 } & (
   | { readonly status: 'VALID' }
   | { readonly code: string; readonly ruleIds: readonly string[]; readonly status: 'INVALID' | 'INDETERMINATE' }
@@ -287,6 +291,26 @@ const currentAt = (revision: CurrentConfigurationRevision, input: CurrentConfigu
   );
 };
 
+const unitEvidenceCurrent = (revision: CurrentConfigurationRevision, at: Date): boolean =>
+  revision.choices.every((choice) => {
+    if (choice.kind !== 'MEASURED_VALUE') {
+      return true;
+    }
+    const unit = revision.units.find((item) => item.ref.resourceId === choice.unitId);
+    return (
+      choice.unitId !== undefined &&
+      choice.unitRevision !== undefined &&
+      unit !== undefined &&
+      unit.ref.moduleId === 'commerce.catalog' &&
+      unit.ref.resourceType === 'commerce.catalog.unit' &&
+      unit.revision === choice.unitRevision &&
+      unit.lifecycleState === 'ACTIVE' &&
+      unit.evidenceRefs.length > 0 &&
+      unit.effectiveFrom <= at &&
+      (unit.effectiveTo === undefined || at < unit.effectiveTo)
+    );
+  });
+
 /** Reads one owner-confirmed Current revision; no Selection proof or purchase permission is issued. */
 export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurationCurrentEvaluator.evaluate')(
   function* evaluateCurrentProductConfiguration(
@@ -317,11 +341,16 @@ export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurati
           if (choice.unitId !== undefined) {
             Object.assign(attested, { unitId: choice.unitId });
           }
+          if (choice.unitRevision !== undefined) {
+            Object.assign(attested, { unitRevision: choice.unitRevision });
+          }
           return attested;
         }) ?? [],
       definitionId: input.target.definitionId,
       rules: matching?.evidence ?? [],
       status: 'VALID',
+      target: input.target,
+      unitRevisions: revision?.units ?? [],
     };
     if (revision !== undefined) {
       Object.assign(evidence, { definitionRevision: revision.revision, effectiveFrom: revision.effectiveFrom });
@@ -352,6 +381,9 @@ export const evaluateCurrentProductConfiguration = Effect.fn('ProductConfigurati
     }
     if (revision.definitionEvidenceRefs.length === 0) {
       return unknown('CHOICE_REVISION_UNVERIFIED');
+    }
+    if (!unitEvidenceCurrent(revision, input.at)) {
+      return unknown('CONFIGURATION_UNIT_REVISION_UNVERIFIED');
     }
     const decision = assess(revision, matching, input.values);
     if (decision?.status === 'INVALID') {

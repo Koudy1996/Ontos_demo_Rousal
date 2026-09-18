@@ -4,6 +4,8 @@ import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { and, eq } from 'drizzle-orm';
 import { DateTime, Effect, Option, Schema } from 'effect';
 
+import type { ConfigurationUnitRevision } from '../../shared/domain/configuration-unit.ts';
+
 import {
   productConfigurationChoiceOptions,
   productConfigurationChoices,
@@ -15,6 +17,8 @@ import {
   productConfigurationRevisionActivations,
   products,
 } from '../database/schema.ts';
+import { configurationUnitPersistenceForScope } from './configuration-unit-persistence.ts';
+import type { ConfigurationUnitPersistence } from './configuration-unit-persistence.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
 
@@ -47,6 +51,8 @@ interface ConfigurationChoiceInput {
   readonly options?: readonly { readonly label: string; readonly meaning: string; readonly optionKey: string }[];
   readonly required: boolean;
   readonly unitId?: string;
+  /** Only populated by the owner read; publication derives this from its trusted Unit source. */
+  readonly unitRevision?: number;
 }
 
 export interface ConfigurationTargetInput {
@@ -125,6 +131,7 @@ export interface CurrentConfigurationRevision {
   readonly productId: string;
   readonly revision: number;
   readonly ruleCombination: 'CONJUNCTION_ONLY';
+  readonly units: readonly ConfigurationUnitRevision[];
 }
 
 export interface ProductConfigurationPersistence {
@@ -346,6 +353,7 @@ const persistChoice = Effect.fn('ProductConfigurationPersistence.persistChoice')
   definitionId: string,
   revision: number,
   choice: ConfigurationChoiceInput,
+  unitRevision: number | undefined,
 ) {
   yield* transaction.insert(productConfigurationChoices).values({
     choiceKey: choice.choiceKey,
@@ -356,6 +364,7 @@ const persistChoice = Effect.fn('ProductConfigurationPersistence.persistChoice')
     revision,
     tenantId,
     unitId: choice.unitId ?? null,
+    unitRevision: unitRevision ?? null,
     valueKind: choice.kind,
   });
   if (choice.options !== undefined && choice.options.length > 0) {
@@ -473,11 +482,63 @@ const inspectDefinitionVersion = (
   return null;
 };
 
+const publishUnitRevisions = Effect.fn('ProductConfigurationPersistence.publishUnitRevisions')(
+  function* publishUnitRevisions(
+    choices: readonly ConfigurationChoiceInput[],
+    effectiveFrom: Date,
+    unitSource: Pick<ConfigurationUnitPersistence, 'readCurrent'>,
+  ) {
+    const measured = choices.filter((choice) => choice.kind === 'MEASURED_VALUE' && choice.unitId !== undefined);
+    const current = yield* Effect.forEach(
+      measured,
+      (choice) => unitSource.readCurrent(choice.unitId ?? '', effectiveFrom).pipe(Effect.mapError(unavailable)),
+      { concurrency: 1 },
+    );
+    if (current.some((unit) => unit.status !== 'CONFIRMED')) {
+      return yield* unavailable();
+    }
+    return new Map(
+      measured.flatMap((choice, index) => {
+        const unit = current[index];
+        return unit?.status === 'CONFIRMED' ? [[choice.choiceKey, unit.revision.revision] as const] : [];
+      }),
+    );
+  },
+);
+
+const readPinnedUnits = Effect.fn('ProductConfigurationPersistence.readPinnedUnits')(function* readPinnedUnits(
+  choices: readonly (typeof productConfigurationChoices.$inferSelect)[],
+  at: Date,
+  unitSource: Pick<ConfigurationUnitPersistence, 'readCurrent'>,
+) {
+  const measured = choices.filter((choice) => choice.valueKind === 'MEASURED_VALUE');
+  if (measured.some((choice) => choice.unitId === null || choice.unitRevision === null)) {
+    return yield* unavailable();
+  }
+  const current = yield* Effect.forEach(
+    measured,
+    (choice) => unitSource.readCurrent(choice.unitId ?? '', at).pipe(Effect.mapError(unavailable)),
+    { concurrency: 1 },
+  );
+  if (
+    current.some(
+      (unit, index) => unit.status !== 'CONFIRMED' || unit.revision.revision !== measured[index]?.unitRevision,
+    )
+  ) {
+    return yield* unavailable();
+  }
+  return current.flatMap((unit) => (unit.status === 'CONFIRMED' ? [unit.revision] : []));
+});
+
 /** Core owns the scoped transaction and its rollback; no private row escapes another Tenant. */
 export const productConfigurationPersistenceForScope = (
   transaction: ScopedTransaction,
   scope: OperationalScope,
   selectionImpact?: ConfigurationSelectionImpact,
+  unitSource: Pick<ConfigurationUnitPersistence, 'readCurrent'> = configurationUnitPersistenceForScope(
+    transaction,
+    scope,
+  ),
 ): ProductConfigurationPersistence => {
   const { tenantId } = scope;
   let readCurrent: ProductConfigurationPersistence['readCurrent'] = (_input) => Effect.fail(unavailable());
@@ -569,6 +630,7 @@ export const productConfigurationPersistenceForScope = (
         return { _tag: 'invalid', reason: 'Effective time must follow the preceding activation' };
       }
       const revision = input.expectedRevision + 1;
+      const unitRevisions = yield* publishUnitRevisions(input.choices, input.effectiveFrom, unitSource);
       if (selectionImpact === undefined) {
         return yield* unavailable();
       }
@@ -643,7 +705,15 @@ export const productConfigurationPersistenceForScope = (
         .pipe(Effect.mapError(unavailable));
       yield* Effect.forEach(
         input.choices,
-        (choice) => persistChoice(transaction, tenantId, input.definitionId, revision, choice),
+        (choice) =>
+          persistChoice(
+            transaction,
+            tenantId,
+            input.definitionId,
+            revision,
+            choice,
+            unitRevisions.get(choice.choiceKey),
+          ),
         { concurrency: 1 },
       );
       yield* Effect.forEach(
@@ -855,6 +925,7 @@ export const productConfigurationPersistenceForScope = (
     if (compatibilityRows.some((rule) => rule.kind !== 'FORBIDDEN_PAIR' && rule.kind !== 'CONDITIONAL_MAXIMUM')) {
       return yield* unavailable();
     }
+    const units: ConfigurationUnitRevision[] = yield* readPinnedUnits(choiceRows, input.at, unitSource);
     const choices: ConfigurationChoiceInput[] = choiceRows.map((choice) => {
       const base = {
         choiceKey: choice.choiceKey,
@@ -871,7 +942,11 @@ export const productConfigurationPersistenceForScope = (
         return { ...base, kind: 'SINGLE_CHOICE', options };
       }
       if (choice.valueKind === 'MEASURED_VALUE' && choice.unitId !== null) {
-        return { ...base, kind: 'MEASURED_VALUE', unitId: choice.unitId };
+        const measured: ConfigurationChoiceInput = { ...base, kind: 'MEASURED_VALUE', unitId: choice.unitId };
+        if (choice.unitRevision !== null) {
+          Object.assign(measured, { unitRevision: choice.unitRevision });
+        }
+        return measured;
       }
       return { ...base, kind: 'SINGLE_CHOICE', options: [] };
     });
@@ -962,6 +1037,7 @@ export const productConfigurationPersistenceForScope = (
       productId: input.productId,
       revision: activation.revision,
       ruleCombination: 'CONJUNCTION_ONLY',
+      units,
     };
     if (nextActivation !== undefined) {
       Object.assign(current, { effectiveTo: nextActivation.effectiveAt });

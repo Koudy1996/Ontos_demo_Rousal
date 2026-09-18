@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Effect, Option } from 'effect';
+import { Effect, Option, Schema } from 'effect';
+
+import { CatalogResourceRefSchema } from '../../shared/domain/catalog-revision-reference.ts';
 
 import type {
   CurrentConfigurationRevision,
@@ -12,6 +14,7 @@ import type {
 } from '../../src/persistence/product-configuration-current-evaluator.ts';
 
 const at = new Date('2026-09-17T10:00:00.000Z');
+const unitId = '55555555-5555-4555-8555-555555555555';
 const revision: CurrentConfigurationRevision = {
   choices: [
     {
@@ -25,7 +28,15 @@ const revision: CurrentConfigurationRevision = {
       ],
       required: true,
     },
-    { choiceKey: 'length', kind: 'MEASURED_VALUE', label: 'Length', meaning: 'Length', required: true, unitId: 'cm' },
+    {
+      choiceKey: 'length',
+      kind: 'MEASURED_VALUE',
+      label: 'Length',
+      meaning: 'Length',
+      required: true,
+      unitId,
+      unitRevision: 3,
+    },
   ],
   compatibilityRules: [
     {
@@ -69,9 +80,25 @@ const revision: CurrentConfigurationRevision = {
   productId: 'product',
   revision: 2,
   ruleCombination: 'CONJUNCTION_ONLY',
+  units: [
+    {
+      dimension: 'length',
+      effectiveFrom: new Date('2026-09-17T09:00:00.000Z'),
+      evidenceRefs: ['owner:unit:3'],
+      lifecycleState: 'ACTIVE',
+      meaning: 'centimetre',
+      ref: Schema.decodeUnknownSync(CatalogResourceRefSchema)({
+        moduleId: 'commerce.catalog',
+        resourceId: unitId,
+        resourceType: 'commerce.catalog.unit',
+        tenantId: '11111111-1111-4111-8111-111111111111',
+      }),
+      revision: 3,
+    },
+  ],
 };
 const mount: CurrentConfigurationValue = { choiceKey: 'mount', kind: 'SINGLE_CHOICE', optionKey: 'A' };
-const length: CurrentConfigurationValue = { amount: '83', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' };
+const length: CurrentConfigurationValue = { amount: '83', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId };
 const values: readonly CurrentConfigurationValue[] = [mount, length];
 const target: TrustedConfigurationTarget = { definitionId: 'definition', productId: 'product', variantId: 'black' };
 const source = (value: CurrentConfigurationRevision | null): Pick<ProductConfigurationPersistence, 'readCurrent'> => ({
@@ -97,7 +124,7 @@ describe('Current Product Configuration evaluator', () => {
             ownerModuleId: 'commerce.catalog',
             revision: 2,
           }),
-          expect.objectContaining({ choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' }),
+          expect.objectContaining({ choiceKey: 'length', kind: 'MEASURED_VALUE', unitId, unitRevision: 3 }),
         ]),
         definitionRevision: 2,
         rules: expect.arrayContaining([
@@ -107,6 +134,8 @@ describe('Current Product Configuration evaluator', () => {
           expect.objectContaining({ evidenceRefs: ['variant narrow'], ruleId: 'measured:length:black:all-packages' }),
         ]),
         status: 'VALID',
+        target,
+        unitRevisions: expect.arrayContaining([expect.objectContaining({ meaning: 'centimetre', revision: 3 })]),
       });
       expect(JSON.stringify(values)).toBe(before);
     }),
@@ -133,10 +162,7 @@ describe('Current Product Configuration evaluator', () => {
   it.effect('checks exact boundaries, steps, and compatibility without altering the measurement', () =>
     Effect.gen(function* checksConstraints() {
       expect(
-        yield* evaluate(revision, [
-          mount,
-          { amount: '110', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' },
-        ]),
+        yield* evaluate(revision, [mount, { amount: '110', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId }]),
       ).toMatchObject({
         code: 'INCOMPATIBLE_COMBINATION',
         ruleIds: ['a-max'],
@@ -147,7 +173,7 @@ describe('Current Product Configuration evaluator', () => {
           revision,
           [
             { choiceKey: 'mount', kind: 'SINGLE_CHOICE', optionKey: 'B' },
-            { amount: '110', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' },
+            { amount: '110', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId },
           ],
           { ...target, variantId: 'white' },
         )).status,
@@ -157,16 +183,13 @@ describe('Current Product Configuration evaluator', () => {
           revision,
           [
             { choiceKey: 'mount', kind: 'SINGLE_CHOICE', optionKey: 'B' },
-            { amount: '120', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' },
+            { amount: '120', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId },
           ],
           { ...target, variantId: 'white' },
         )).status,
       ).toBe('VALID');
       expect(
-        yield* evaluate(revision, [
-          mount,
-          { amount: '83.5', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' },
-        ]),
+        yield* evaluate(revision, [mount, { amount: '83.5', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId }]),
       ).toMatchObject({
         code: 'OFF_STEP',
         status: 'INVALID',
@@ -200,6 +223,28 @@ describe('Current Product Configuration evaluator', () => {
     }),
   );
 
+  it.effect('rejects stale or retired Configuration Unit evidence without substituting a later revision', () =>
+    Effect.gen(function* checksUnitRevision() {
+      const [unit] = revision.units;
+      expect(unit).toBeDefined();
+      if (unit === undefined) {
+        return;
+      }
+      expect(yield* evaluate({ ...revision, units: [{ ...unit, revision: 4 }] })).toMatchObject({
+        code: 'CONFIGURATION_UNIT_REVISION_UNVERIFIED',
+        status: 'INDETERMINATE',
+      });
+      expect(yield* evaluate({ ...revision, units: [{ ...unit, lifecycleState: 'RETIRED' }] })).toMatchObject({
+        code: 'CONFIGURATION_UNIT_REVISION_UNVERIFIED',
+        status: 'INDETERMINATE',
+      });
+      expect(yield* evaluate({ ...revision, units: [{ ...unit, effectiveTo: at }] })).toMatchObject({
+        code: 'CONFIGURATION_UNIT_REVISION_UNVERIFIED',
+        status: 'INDETERMINATE',
+      });
+    }),
+  );
+
   it.effect('applies Package restrictions and lets a proven violation outrank an unknown rule', () =>
     Effect.gen(function* checksPackageAndUncertainty() {
       const packageRevision: CurrentConfigurationRevision = {
@@ -226,10 +271,7 @@ describe('Current Product Configuration evaluator', () => {
         optionAllowances: revision.optionAllowances.filter((rule) => rule.optionKey !== 'A'),
       };
       expect(
-        yield* evaluate(uncertain, [
-          mount,
-          { amount: '83.5', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId: 'cm' },
-        ]),
+        yield* evaluate(uncertain, [mount, { amount: '83.5', choiceKey: 'length', kind: 'MEASURED_VALUE', unitId }]),
       ).toMatchObject({
         code: 'OFF_STEP',
         status: 'INVALID',

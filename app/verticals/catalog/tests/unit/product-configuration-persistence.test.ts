@@ -3,6 +3,9 @@ import type { SQL } from 'drizzle-orm';
 import { Effect, Exit, Option, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
+import { CatalogResourceRefSchema } from '../../shared/domain/catalog-revision-reference.ts';
+import type { ConfigurationUnitPersistence } from '../../src/persistence/configuration-unit-persistence.ts';
+
 import {
   productConfigurationChoiceOptions,
   productConfigurationChoices,
@@ -167,6 +170,28 @@ const scope = {
   correlationId: 'configuration-test',
 };
 
+const confirmedUnit: Pick<ConfigurationUnitPersistence, 'readCurrent'> = {
+  readCurrent: (unitId, assessedAt) =>
+    Effect.succeed({
+      assessedAt,
+      revision: {
+        dimension: 'length',
+        effectiveFrom: new Date('2026-09-01T00:00:00Z'),
+        evidenceRefs: ['owner:unit:1'],
+        lifecycleState: 'ACTIVE',
+        meaning: 'Centimetre',
+        ref: Schema.decodeUnknownSync(CatalogResourceRefSchema)({
+          moduleId: 'commerce.catalog',
+          resourceId: unitId,
+          resourceType: 'commerce.catalog.unit',
+          tenantId: scope.tenantId,
+        }),
+        revision: 1,
+      },
+      status: 'CONFIRMED',
+    }),
+};
+
 type Table =
   | typeof productConfigurationChoiceOptions
   | typeof productConfigurationChoices
@@ -211,10 +236,13 @@ describe('Product Configuration private publication', () => {
       expect(Exit.isFailure(failed)).toBe(true);
       expect(writes).toEqual([]);
 
-      // @ts-expect-error Mock covers this scoped Drizzle chain.
-      const withProof = productConfigurationPersistenceForScope(fixture(writes), scope, {
-        verify: () => Effect.succeed(true),
-      });
+      const withProof = productConfigurationPersistenceForScope(
+        // @ts-expect-error Mock covers this scoped Drizzle chain.
+        fixture(writes),
+        scope,
+        { verify: () => Effect.succeed(true) },
+        confirmedUnit,
+      );
       const forged = yield* withProof.publish({ ...input, principalId: scope.tenantId });
       expect('reason' in forged ? forged.reason : null).toContain('trusted operation scope');
       expect(writes).toEqual([]);
@@ -266,7 +294,12 @@ const statefulFixture = () => {
     const candidates = table === products ? [{ lifecycleState: 'ACTIVE' }] : (rows.get(table) ?? []);
     const values = boundValues(condition);
     return Effect.succeed(
-      candidates.filter((row) => table === products || values.every((value) => Object.values(row).includes(value))),
+      candidates.filter(
+        (row) =>
+          table === products ||
+          (values.every((value) => Object.values(row).includes(value)) &&
+            (table !== productConfigurationChoices || ('revision' in row && row.revision === values[2]))),
+      ),
     );
   };
   const filter = (table: Table, condition: SQL) =>
@@ -299,10 +332,15 @@ describe('Product Configuration effectiveness timeline', () => {
   it.effect('keeps a future publication non-Current until inclusive effectiveFrom and replays exactly', () =>
     Effect.gen(function* futureAndReplay() {
       const state = statefulFixture();
-      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
-      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
-        verify: () => Effect.succeed(true),
-      });
+      const service = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        state.transaction,
+        scope,
+        {
+          verify: () => Effect.succeed(true),
+        },
+        confirmedUnit,
+      );
       const first = yield* service.publish(input);
       expect('revision' in first ? first.revision : null).toBe(1);
       const before = yield* service.readCurrent({
@@ -334,10 +372,15 @@ describe('Product Configuration effectiveness timeline', () => {
   it.effect('supersedes at the next effective instant while preserving earlier replay', () =>
     Effect.gen(function* supersession() {
       const state = statefulFixture();
-      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
-      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
-        verify: () => Effect.succeed(true),
-      });
+      const service = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        state.transaction,
+        scope,
+        {
+          verify: () => Effect.succeed(true),
+        },
+        confirmedUnit,
+      );
       yield* service.publish(input);
       const second = {
         ...input,
@@ -379,10 +422,15 @@ describe('Product Configuration effectiveness timeline', () => {
   it.effect('fails closed on mismatched activation evidence and missing impact proof', () =>
     Effect.gen(function* corruptedHistory() {
       const state = statefulFixture();
-      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
-      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
-        verify: () => Effect.succeed(true),
-      });
+      const service = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        state.transaction,
+        scope,
+        {
+          verify: () => Effect.succeed(true),
+        },
+        confirmedUnit,
+      );
       yield* service.publish(input);
       const activations = state.rows.get(productConfigurationRevisionActivations);
       expect(activations).toHaveLength(1);
@@ -402,6 +450,7 @@ describe('Product Configuration effectiveness timeline', () => {
         state.transaction,
         scope,
         { verify: () => Effect.succeed(false) },
+        confirmedUnit,
       );
       const result = yield* noProof.publish({
         ...input,
@@ -417,10 +466,15 @@ describe('Product Configuration effectiveness timeline', () => {
   it.effect('does not issue Current choice evidence from a retired Definition revision', () =>
     Effect.gen(function* retiredRevision() {
       const state = statefulFixture();
-      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
-      const service = productConfigurationPersistenceForScope(state.transaction, scope, {
-        verify: () => Effect.succeed(true),
-      });
+      const service = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        state.transaction,
+        scope,
+        {
+          verify: () => Effect.succeed(true),
+        },
+        confirmedUnit,
+      );
       yield* service.publish(input);
       const rows = state.rows.get(productConfigurationDefinitionRevisions);
       const published = rows?.[0];
@@ -432,6 +486,69 @@ describe('Product Configuration effectiveness timeline', () => {
         service.readCurrent({ at: input.effectiveFrom, definitionId: input.definitionId, productId: input.productId }),
       );
       expect(Exit.isFailure(result)).toBe(true);
+    }),
+  );
+
+  it.effect('pins the published Unit revision and fails closed after its Current meaning changes', () =>
+    Effect.gen(function* pinnedUnit() {
+      const state = statefulFixture();
+      const service = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        state.transaction,
+        scope,
+        {
+          verify: () => Effect.succeed(true),
+        },
+        confirmedUnit,
+      );
+      yield* service.publish(input);
+      const storedChoice = state.rows
+        .get(productConfigurationChoices)
+        ?.find((row) => 'choiceKey' in row && row.choiceKey === 'length');
+      expect(storedChoice).toMatchObject({ unitId: input.choices[1]?.unitId, unitRevision: 1 });
+
+      const changedUnit: Pick<ConfigurationUnitPersistence, 'readCurrent'> = {
+        readCurrent: (unitId, at) =>
+          confirmedUnit
+            .readCurrent(unitId, at)
+            .pipe(
+              Effect.map((current) =>
+                current.status === 'CONFIRMED'
+                  ? { ...current, revision: { ...current.revision, meaning: 'New meaning', revision: 2 } }
+                  : current,
+              ),
+            ),
+      };
+      // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+      const stale = productConfigurationPersistenceForScope(state.transaction, scope, undefined, changedUnit);
+      expect(
+        Exit.isFailure(
+          yield* Effect.exit(
+            stale.readCurrent({
+              at: input.effectiveFrom,
+              definitionId: input.definitionId,
+              productId: input.productId,
+            }),
+          ),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('does not publish against a retired Configuration Unit', () =>
+    Effect.gen(function* retiredUnit() {
+      const writes: object[] = [];
+      const service = productConfigurationPersistenceForScope(
+        // @ts-expect-error Fixture implements the exercised owner-scoped Drizzle operations.
+        fixture(writes),
+        scope,
+        {
+          verify: () => Effect.succeed(true),
+        },
+        { readCurrent: () => Effect.succeed({ status: 'RETIRED' }) },
+      );
+      expect(Exit.isFailure(yield* Effect.exit(service.publish(input)))).toBe(true);
+      expect(writes).toEqual([]);
     }),
   );
 });
