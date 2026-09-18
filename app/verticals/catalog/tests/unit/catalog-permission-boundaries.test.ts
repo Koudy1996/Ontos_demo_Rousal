@@ -14,7 +14,7 @@ const grantedPermissions = (...bundles: (keyof typeof catalogAuthorityBundles)[]
   new Set<string>(bundles.flatMap((bundle) => catalogAuthorityBundles[bundle]));
 
 describe('Catalog permission boundaries (#477)', () => {
-  it('does not infer Catalog authority from membership, purchasing, importer, or Storefront identity', () => {
+  it('does not infer Catalog authority from membership, purchasing, or Storefront identity', () => {
     const catalogPermissions = new Set<string>(
       Object.values(catalogPublicOperationContracts).map(({ permission }) => permission),
     );
@@ -22,7 +22,6 @@ describe('Catalog permission boundaries (#477)', () => {
       'tenant.member',
       'commerce.counterparty.buyer',
       'commerce.purchase.submit',
-      'commerce.catalog.import-source-assertion',
       'commerce.storefront.client',
       'admin',
       'manage',
@@ -32,15 +31,18 @@ describe('Catalog permission boundaries (#477)', () => {
         Object.values(catalogAuthorityBundles).some((permissions) => new Set<string>(permissions).has(unrelatedGrant)),
       ).toBe(false);
     }
-    expect(catalogPermissions.has('commerce.catalog.activate-local-override')).toBe(false);
+    expect(catalogPermissions.has('commerce.catalog.import-source-assertion')).toBe(true);
+    expect(catalogPermissions.has('commerce.catalog.activate-local-override')).toBe(true);
     expect(catalogPermissions.has('commerce.catalog.read.storefront')).toBe(false);
   });
 
-  it('keeps Reader, Product Editor, Definition Manager, and Lifecycle Manager separate', () => {
+  it('keeps Reader, importer, override, product, definition, and lifecycle authority separate', () => {
     const reader = grantedPermissions('CATALOG_READER');
     const editor = grantedPermissions('PRODUCT_EDITOR');
     const definitionManager = grantedPermissions('CATALOG_DEFINITION_MANAGER');
     const lifecycleManager = grantedPermissions('CATALOG_LIFECYCLE_MANAGER');
+    const importer = grantedPermissions('CATALOG_IMPORTER');
+    const overrideManager = grantedPermissions('CATALOG_OVERRIDE_MANAGER');
 
     expect(reader.has('commerce.catalog.create-product')).toBe(false);
     expect(editor.has('commerce.catalog.read.product-detail')).toBe(false);
@@ -51,6 +53,10 @@ describe('Catalog permission boundaries (#477)', () => {
     expect(definitionManager.has('commerce.catalog.retire-product')).toBe(false);
     expect(lifecycleManager.has('commerce.catalog.rename-attribute-definition')).toBe(false);
     expect(lifecycleManager.has('commerce.catalog.correct-product')).toBe(false);
+    expect(importer.has('commerce.catalog.activate-local-override')).toBe(false);
+    expect(importer.has('commerce.catalog.change-local-override')).toBe(false);
+    expect(overrideManager.has('commerce.catalog.import-source-assertion')).toBe(false);
+    expect(overrideManager.has('commerce.catalog.correct-product')).toBe(false);
 
     for (const [leftName, leftPermissions] of Object.entries(catalogAuthorityBundles)) {
       for (const [rightName, rightPermissions] of Object.entries(catalogAuthorityBundles)) {
@@ -74,11 +80,13 @@ describe('Catalog permission boundaries (#477)', () => {
       'PRODUCT_EDITOR',
       'CATALOG_DEFINITION_MANAGER',
       'CATALOG_LIFECYCLE_MANAGER',
+      'CATALOG_IMPORTER',
+      'CATALOG_OVERRIDE_MANAGER',
     );
     expect(allBundles).toEqual(
       new Set(Object.values(catalogPublicOperationContracts).map(({ permission }) => permission)),
     );
-    expect(allBundles.has('commerce.catalog.activate-local-override')).toBe(false);
+    expect(allBundles.has('commerce.catalog.activate-local-override')).toBe(true);
     expect(allBundles.has('commerce.catalog.future-action')).toBe(false);
   });
 

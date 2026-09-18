@@ -26,6 +26,8 @@ import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLiv
 // </generated-governed-http-handler-support-imports>
 
 // <generated-governed-http-handler-imports>
+import { activateLocalOverrideActionApiLive } from './activate-local-override-action-server.ts';
+import { activateLocalOverrideRecoveryReadApiLive } from './activate-local-override-recovery-read-server.ts';
 import { activatePackageDefinitionActionApiLive } from './activate-package-definition-action-server.ts';
 import { activatePackageDefinitionRecoveryReadApiLive } from './activate-package-definition-recovery-read-server.ts';
 import { activatePackageOptionActionApiLive } from './activate-package-option-action-server.ts';
@@ -43,6 +45,8 @@ import { brandHistoryReadApiLive } from './brand-history-read-server.ts';
 import { catalogDocumentCurrentReadApiLive } from './catalog-document-current-read-server.ts';
 import { catalogMediaCurrentReadApiLive } from './catalog-media-current-read-server.ts';
 import { catalogSourceResolutionReadApiLive } from './catalog-source-resolution-read-server.ts';
+import { changeLocalOverrideActionApiLive } from './change-local-override-action-server.ts';
+import { changeLocalOverrideRecoveryReadApiLive } from './change-local-override-recovery-read-server.ts';
 import { changeProductManufacturerActionApiLive } from './change-product-manufacturer-action-server.ts';
 import { changeProductManufacturerRecoveryReadApiLive } from './change-product-manufacturer-recovery-read-server.ts';
 import { changeProductRelationshipActionApiLive } from './change-product-relationship-action-server.ts';
@@ -97,6 +101,8 @@ import { governVariantAxesActionApiLive } from './govern-variant-axes-action-ser
 import { governVariantAxesRecoveryReadApiLive } from './govern-variant-axes-recovery-read-server.ts';
 import { gtinCurrentReadApiLive } from './gtin-current-read-server.ts';
 import { gtinHistoryReadApiLive } from './gtin-history-read-server.ts';
+import { importSourceAssertionActionApiLive } from './import-source-assertion-action-server.ts';
+import { importSourceAssertionRecoveryReadApiLive } from './import-source-assertion-recovery-read-server.ts';
 import { listRecordedVariantsReadApiLive } from './list-recorded-variants-read-server.ts';
 import { manufacturerRelationCurrentReadApiLive } from './manufacturer-relation-current-read-server.ts';
 import { manufacturerRelationHistoryReadApiLive } from './manufacturer-relation-history-read-server.ts';
@@ -128,6 +134,8 @@ import { reactivateProductActionApiLive } from './reactivate-product-action-serv
 import { reactivateProductRecoveryReadApiLive } from './reactivate-product-recovery-read-server.ts';
 import { reactivateVariantActionApiLive } from './reactivate-variant-action-server.ts';
 import { reactivateVariantRecoveryReadApiLive } from './reactivate-variant-recovery-read-server.ts';
+import { releaseLocalOverrideActionApiLive } from './release-local-override-action-server.ts';
+import { releaseLocalOverrideRecoveryReadApiLive } from './release-local-override-recovery-read-server.ts';
 import { removeCatalogMediaActionApiLive } from './remove-catalog-media-action-server.ts';
 import { removeCatalogMediaRecoveryReadApiLive } from './remove-catalog-media-recovery-read-server.ts';
 import { removeProductAttributeValuesActionApiLive } from './remove-product-attribute-values-action-server.ts';
@@ -310,6 +318,8 @@ export const makeCatalogApiRuntime = (
   const apiHandlersLive = Layer.mergeAll(
     catalogReadinessLayer,
     // <generated-governed-http-handler-layers>
+    activateLocalOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    activateLocalOverrideRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     activatePackageDefinitionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     activatePackageDefinitionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     activatePackageOptionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -327,6 +337,8 @@ export const makeCatalogApiRuntime = (
     catalogDocumentCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     catalogMediaCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     catalogSourceResolutionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    changeLocalOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    changeLocalOverrideRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductManufacturerActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     changeProductManufacturerRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     changeProductRelationshipActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -384,6 +396,8 @@ export const makeCatalogApiRuntime = (
     governVariantAxesRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     gtinCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     gtinHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    importSourceAssertionActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    importSourceAssertionRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     listRecordedVariantsReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     manufacturerRelationHistoryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
@@ -415,6 +429,8 @@ export const makeCatalogApiRuntime = (
     reactivateProductRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     reactivateVariantActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reactivateVariantRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    releaseLocalOverrideActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    releaseLocalOverrideRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     removeCatalogMediaActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     removeCatalogMediaRecoveryReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     removeProductAttributeValuesActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

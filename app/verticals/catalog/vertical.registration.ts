@@ -178,6 +178,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
   entrypoints: {
     api: {
       // <generated-module-registration-apis>
+      'activate-local-override-recovery': () => import('./src/api/activate-local-override-recovery-client.ts'),
       'activate-package-definition-recovery': () => import('./src/api/activate-package-definition-recovery-client.ts'),
       'activate-package-option-recovery': () => import('./src/api/activate-package-option-recovery-client.ts'),
       'add-product-category-assignment-recovery': () =>
@@ -190,6 +191,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'catalog-document-current': () => import('./src/api/catalog-document-current-client.ts'),
       'catalog-media-current': () => import('./src/api/catalog-media-current-client.ts'),
       'catalog-source-resolution': () => import('./src/api/catalog-source-resolution-client.ts'),
+      'change-local-override-recovery': () => import('./src/api/change-local-override-recovery-client.ts'),
       'change-product-manufacturer-recovery': () => import('./src/api/change-product-manufacturer-recovery-client.ts'),
       'change-product-relationship-recovery': () => import('./src/api/change-product-relationship-recovery-client.ts'),
       'change-variant-recovery': () => import('./src/api/change-variant-recovery-client.ts'),
@@ -224,6 +226,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
       'govern-variant-axes-recovery': () => import('./src/api/govern-variant-axes-recovery-client.ts'),
       'gtin-current': () => import('./src/api/gtin-current-client.ts'),
       'gtin-history': () => import('./src/api/gtin-history-client.ts'),
+      'import-source-assertion-recovery': () => import('./src/api/import-source-assertion-recovery-client.ts'),
       'list-recorded-variants': () => import('./src/api/list-recorded-variants-client.ts'),
       'manufacturer-relation-current': () => import('./src/api/manufacturer-relation-current-client.ts'),
       'manufacturer-relation-history': () => import('./src/api/manufacturer-relation-history-client.ts'),
@@ -249,6 +252,7 @@ export const catalogRegistration = defineVerticalRuntimeRegistration({
         import('./src/api/reactivate-controlled-attribute-value-recovery-client.ts'),
       'reactivate-product-recovery': () => import('./src/api/reactivate-product-recovery-client.ts'),
       'reactivate-variant-recovery': () => import('./src/api/reactivate-variant-recovery-client.ts'),
+      'release-local-override-recovery': () => import('./src/api/release-local-override-recovery-client.ts'),
       'remove-catalog-media-recovery': () => import('./src/api/remove-catalog-media-recovery-client.ts'),
       'remove-product-attribute-values-recovery': () =>
         import('./src/api/remove-product-attribute-values-recovery-client.ts'),

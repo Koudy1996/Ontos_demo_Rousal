@@ -8,6 +8,8 @@ import type { MicroVerticalOperationContext } from '@modern-js/bff-effect/microv
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
 
 // <generated-governed-http-api-imports>
+import { ActivateLocalOverrideActionApi } from './apis/activate-local-override-action.ts';
+import { ActivateLocalOverrideRecoveryApi } from './apis/activate-local-override-recovery.ts';
 import { ActivatePackageDefinitionActionApi } from './apis/activate-package-definition-action.ts';
 import { ActivatePackageDefinitionRecoveryApi } from './apis/activate-package-definition-recovery.ts';
 import { ActivatePackageOptionActionApi } from './apis/activate-package-option-action.ts';
@@ -25,6 +27,8 @@ import { BrandHistoryApi } from './apis/brand-history.ts';
 import { CatalogDocumentCurrentApi } from './apis/catalog-document-current.ts';
 import { CatalogMediaCurrentApi } from './apis/catalog-media-current.ts';
 import { CatalogSourceResolutionApi } from './apis/catalog-source-resolution.ts';
+import { ChangeLocalOverrideActionApi } from './apis/change-local-override-action.ts';
+import { ChangeLocalOverrideRecoveryApi } from './apis/change-local-override-recovery.ts';
 import { ChangeProductManufacturerActionApi } from './apis/change-product-manufacturer-action.ts';
 import { ChangeProductManufacturerRecoveryApi } from './apis/change-product-manufacturer-recovery.ts';
 import { ChangeProductRelationshipActionApi } from './apis/change-product-relationship-action.ts';
@@ -79,6 +83,8 @@ import { GovernVariantAxesActionApi } from './apis/govern-variant-axes-action.ts
 import { GovernVariantAxesRecoveryApi } from './apis/govern-variant-axes-recovery.ts';
 import { GtinCurrentApi } from './apis/gtin-current.ts';
 import { GtinHistoryApi } from './apis/gtin-history.ts';
+import { ImportSourceAssertionActionApi } from './apis/import-source-assertion-action.ts';
+import { ImportSourceAssertionRecoveryApi } from './apis/import-source-assertion-recovery.ts';
 import { ListRecordedVariantsApi } from './apis/list-recorded-variants.ts';
 import { ManufacturerRelationCurrentApi } from './apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './apis/manufacturer-relation-history.ts';
@@ -110,6 +116,8 @@ import { ReactivateProductActionApi } from './apis/reactivate-product-action.ts'
 import { ReactivateProductRecoveryApi } from './apis/reactivate-product-recovery.ts';
 import { ReactivateVariantActionApi } from './apis/reactivate-variant-action.ts';
 import { ReactivateVariantRecoveryApi } from './apis/reactivate-variant-recovery.ts';
+import { ReleaseLocalOverrideActionApi } from './apis/release-local-override-action.ts';
+import { ReleaseLocalOverrideRecoveryApi } from './apis/release-local-override-recovery.ts';
 import { RemoveCatalogMediaActionApi } from './apis/remove-catalog-media-action.ts';
 import { RemoveCatalogMediaRecoveryApi } from './apis/remove-catalog-media-recovery.ts';
 import { RemoveProductAttributeValuesActionApi } from './apis/remove-product-attribute-values-action.ts';
@@ -219,6 +227,8 @@ export const catalogFoundationApi = HttpApi.make('CatalogApiFoundation').add(
 export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(catalogFoundationApi)
   // <generated-governed-http-api-additions>
+  .addHttpApi(ActivateLocalOverrideActionApi)
+  .addHttpApi(ActivateLocalOverrideRecoveryApi)
   .addHttpApi(ActivatePackageDefinitionActionApi)
   .addHttpApi(ActivatePackageDefinitionRecoveryApi)
   .addHttpApi(ActivatePackageOptionActionApi)
@@ -236,6 +246,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(CatalogDocumentCurrentApi)
   .addHttpApi(CatalogMediaCurrentApi)
   .addHttpApi(CatalogSourceResolutionApi)
+  .addHttpApi(ChangeLocalOverrideActionApi)
+  .addHttpApi(ChangeLocalOverrideRecoveryApi)
   .addHttpApi(ChangeProductManufacturerActionApi)
   .addHttpApi(ChangeProductManufacturerRecoveryApi)
   .addHttpApi(ChangeProductRelationshipActionApi)
@@ -290,6 +302,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(GovernVariantAxesRecoveryApi)
   .addHttpApi(GtinCurrentApi)
   .addHttpApi(GtinHistoryApi)
+  .addHttpApi(ImportSourceAssertionActionApi)
+  .addHttpApi(ImportSourceAssertionRecoveryApi)
   .addHttpApi(ListRecordedVariantsApi)
   .addHttpApi(ManufacturerRelationCurrentApi)
   .addHttpApi(ManufacturerRelationHistoryApi)
@@ -321,6 +335,8 @@ export const catalogApi = HttpApi.make('CatalogApi')
   .addHttpApi(ReactivateProductRecoveryApi)
   .addHttpApi(ReactivateVariantActionApi)
   .addHttpApi(ReactivateVariantRecoveryApi)
+  .addHttpApi(ReleaseLocalOverrideActionApi)
+  .addHttpApi(ReleaseLocalOverrideRecoveryApi)
   .addHttpApi(RemoveCatalogMediaActionApi)
   .addHttpApi(RemoveCatalogMediaRecoveryApi)
   .addHttpApi(RemoveProductAttributeValuesActionApi)
@@ -434,8 +450,8 @@ export const catalogApiContract = {
  * may additionally declare a module permission target or resource check.
  * `businessTarget: 'product'` does not imply a per-Product SpiceDB grant.
  * Owner-local tenant guards still apply.
- * Importer and override operations remain deferred to #411B/#481 and are
- * deliberately absent from this inventory.
+ * Import and Local Override permissions remain separate so deployments can grant source ingestion
+ * without granting authority to replace Catalog Current facts.
  */
 const productCategoryBusinessTarget = 'product-category';
 const attributeDefinitionBusinessTarget = 'attribute-definition';
@@ -448,8 +464,17 @@ const brandBusinessTarget = 'brand';
 const manufacturerRelationBusinessTarget = 'manufacturer-relation';
 const productTypeBusinessTarget = 'product-type';
 const setCompositionBusinessTarget = 'set-composition';
+const catalogSourceBusinessTarget = 'catalog-source';
 
 export const catalogPublicOperationContracts = {
+  'commerce.catalog.activate-local-override': {
+    authorityBundle: 'CATALOG_OVERRIDE_MANAGER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.activate-local-override',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.activate-package-definition': {
     authorityBundle: 'CATALOG_DEFINITION_MANAGER',
     businessTarget: packageDefinitionBusinessTarget,
@@ -478,6 +503,38 @@ export const catalogPublicOperationContracts = {
     authorityBundle: 'CATALOG_READER',
     businessTarget: packageDefinitionBusinessTarget,
     permission: 'commerce.catalog.read.activate-package-definition-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.activate-local-override-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.activate-local-override-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.change-local-override-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.change-local-override-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.import-source-assertion-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.import-source-assertion-recovery',
+    permissionKind: 'context_permission',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.api.release-local-override-recovery': {
+    authorityBundle: 'CATALOG_READER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.read.release-local-override-recovery',
     permissionKind: 'context_permission',
     scope: 'tenant',
     version: '1',
@@ -1889,6 +1946,30 @@ export const catalogPublicOperationContracts = {
     scope: 'tenant',
     version: '1',
   },
+  'commerce.catalog.change-local-override': {
+    authorityBundle: 'CATALOG_OVERRIDE_MANAGER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.change-local-override',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.import-source-assertion': {
+    authorityBundle: 'CATALOG_IMPORTER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.import-source-assertion',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
+  'commerce.catalog.release-local-override': {
+    authorityBundle: 'CATALOG_OVERRIDE_MANAGER',
+    businessTarget: catalogSourceBusinessTarget,
+    permission: 'commerce.catalog.release-local-override',
+    permissionKind: 'action_execution',
+    scope: 'tenant',
+    version: '1',
+  },
   'commerce.catalog.set-product-localized-facts': {
     authorityBundle: 'PRODUCT_EDITOR',
     businessTarget: 'product',
@@ -1988,7 +2069,17 @@ export const catalogAuthorityBundles = {
     'commerce.catalog.retire-product',
     'commerce.catalog.retire-variant',
   ],
+  CATALOG_IMPORTER: ['commerce.catalog.import-source-assertion'],
+  CATALOG_OVERRIDE_MANAGER: [
+    'commerce.catalog.activate-local-override',
+    'commerce.catalog.change-local-override',
+    'commerce.catalog.release-local-override',
+  ],
   CATALOG_READER: [
+    'commerce.catalog.read.activate-local-override-recovery',
+    'commerce.catalog.read.change-local-override-recovery',
+    'commerce.catalog.read.import-source-assertion-recovery',
+    'commerce.catalog.read.release-local-override-recovery',
     'commerce.catalog.read.decide-product-type-unnecessary-recovery',
     'commerce.catalog.read.correct-sku-recovery',
     'commerce.catalog.read.correct-product-recovery',

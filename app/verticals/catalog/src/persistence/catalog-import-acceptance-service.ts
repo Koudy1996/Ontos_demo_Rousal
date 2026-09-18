@@ -355,6 +355,13 @@ export const makeCatalogImportAcceptanceService = <Value>(wiring: CatalogImportA
         next: change.next,
         previous: change.previous,
         scope,
+        sourceRevision: {
+          assertionId: decision.base.assertionId,
+          issuerSystemId: decision.base.issuerSystemId,
+          kind: 'ACCEPTED_BASE',
+          sourceRecordId: decision.base.sourceRecordId,
+          sourceRevision: decision.base.sourceRevision,
+        },
       });
     }
     const accepted = {

@@ -133,23 +133,22 @@ const acceptedBaseRevisionFor = <Value>(input: {
   if (input.resolved.status !== 'CURRENT' || input.resolved.source !== 'BASE') {
     return null;
   }
+  const resolvedValue = input.resolved.value;
   const epoch = input.at.getTime();
   const matching = input.bases.filter(
     (base) =>
       Number.isFinite(epoch) &&
       base.effectiveFrom.getTime() <= epoch &&
       (base.effectiveTo === undefined || epoch < base.effectiveTo.getTime()) &&
-      input.valuesEqual(base.value, input.resolved.value),
+      input.valuesEqual(base.value, resolvedValue),
   );
-  return (
-    matching.toSorted((left, right) =>
-      left.sourceRevision === right.sourceRevision
-        ? right.evidencedAt.getTime() - left.evidencedAt.getTime()
-        : left.sourceRevision < right.sourceRevision
-          ? 1
-          : -1,
-    )[0] ?? null
-  );
+  const newestFirst = (left: CatalogSourceAssertion<Value>, right: CatalogSourceAssertion<Value>) => {
+    if (left.sourceRevision === right.sourceRevision) {
+      return right.evidencedAt.getTime() - left.evidencedAt.getTime();
+    }
+    return left.sourceRevision < right.sourceRevision ? 1 : -1;
+  };
+  return matching.toSorted(newestFirst)[0] ?? null;
 };
 
 /**

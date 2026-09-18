@@ -53,6 +53,35 @@ const InheritedValueSourceChangedPayloadSchema = Schema.Struct({
   }),
 );
 
+const CatalogFactSourceChangedPayloadSchema = Schema.Struct({
+  changeId: ProductActionInvocationIdSchema,
+  changeKind: Schema.Literals([
+    'BASE_ACCEPTED',
+    'LOCAL_OVERRIDE_ACTIVATED',
+    'LOCAL_OVERRIDE_CHANGED',
+    'LOCAL_OVERRIDE_RELEASED',
+  ]),
+  factKey: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200), Schema.isTrimmed()),
+  source: Schema.Union([
+    Schema.Struct({
+      assertionId: checkedUuid,
+      issuerSystemId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
+      kind: Schema.Literal('ACCEPTED_BASE'),
+      sourceRecordId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(300), Schema.isTrimmed()),
+      sourceRevision: Schema.String.check(Schema.isPattern(/^\d+$/u)),
+    }),
+    Schema.Struct({
+      evidenceRef: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed()),
+      kind: Schema.Literal('LOCAL_OVERRIDE'),
+      revision: Schema.String.check(Schema.isPattern(/^[1-9]\d*$/u)),
+    }),
+  ]),
+  sourceKind: Schema.Literal('CATALOG_FACT'),
+  targetId: checkedUuid,
+  targetKind: Schema.Literals(['PRODUCT', 'VARIANT', 'PACKAGE_DEFINITION']),
+  tenantId: TenantIdSchema,
+});
+
 /**
  * A committed change to a Product Type or inherited Attribute Value source that can alter
  * selection without editing a Variant. A Product Type revision names only the exact changed
@@ -63,6 +92,7 @@ const InheritedValueSourceChangedPayloadSchema = Schema.Struct({
 export const OutboxPayloadSchema = Schema.Union([
   ProductTypeSourceChangedPayloadSchema,
   InheritedValueSourceChangedPayloadSchema,
+  CatalogFactSourceChangedPayloadSchema,
 ]);
 export type OutboxPayload = Schema.Schema.Type<typeof OutboxPayloadSchema>;
 

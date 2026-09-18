@@ -30,8 +30,8 @@ describe('all published Catalog Action snapshot/recovery tuples', () => {
   it('covers exactly the published registry and manifest inventory', () => {
     const manifestKeys = catalogManifest.publicSurface.actions.map((action) => action.descriptor.actionKey);
     const runtimeKeys = getVerticalRuntimeActions(catalogRegistration).map((action) => action.descriptor.actionKey);
-    expect(manifestKeys).toHaveLength(78);
-    expect(new Set(manifestKeys).size).toBe(78);
+    expect(manifestKeys).toHaveLength(82);
+    expect(new Set(manifestKeys).size).toBe(82);
     expect(new Set(runtimeKeys)).toEqual(new Set(manifestKeys));
   });
 
@@ -54,7 +54,9 @@ describe('all published Catalog Action snapshot/recovery tuples', () => {
         permission: `commerce.catalog.read.${slug}-recovery`,
         scope: 'tenant',
       });
-      expect(schemaVersion).toBe('1');
+      const expectedSchemaVersion = Number(schemaVersion);
+      expect(Number.isSafeInteger(expectedSchemaVersion)).toBe(true);
+      expect(expectedSchemaVersion).toBeGreaterThan(0);
 
       const actionSource = source(`src/actions/${slug}.action.ts`);
       const recoverySource = source(`src/api/${slug}-recovery.read.ts`);
@@ -72,13 +74,13 @@ describe('all published Catalog Action snapshot/recovery tuples', () => {
         return declaration?.groups?.key;
       };
       expect(resolveKey(capture.actionKeyExpression)).toBe(actionKey);
-      expect(capture.schemaVersion).toBe(Number(schemaVersion));
+      expect(capture.schemaVersion).toBe(expectedSchemaVersion);
       const declaredResultSchema = /resultSchema:\s*(?<schema>[A-Za-z][A-Za-z0-9]*Schema)/u.exec(actionSource)?.groups
         ?.schema;
       expect(declaredResultSchema).toBeDefined();
       expect(actionSource).toContain(declaredResultSchema);
       if (recovery) {
-        expect(recovery).toEqual({ actionKeyExpression: `'${actionKey}'`, schemaVersion: Number(schemaVersion) });
+        expect(recovery).toEqual({ actionKeyExpression: `'${actionKey}'`, schemaVersion: expectedSchemaVersion });
       } else {
         expect(recoverySource).toContain('recover');
       }

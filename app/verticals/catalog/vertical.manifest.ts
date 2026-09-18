@@ -13,6 +13,7 @@ import type { OntosModuleManifestInput } from '@app/core-runtime';
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
 import { activateLocalOverrideAction } from './src/actions/activate-local-override.action.ts';
+import { ActivateLocalOverrideRecoveryApi } from './shared/apis/activate-local-override-recovery.ts';
 import { activatePackageDefinitionAction } from './src/actions/activate-package-definition.action.ts';
 import { ActivatePackageDefinitionRecoveryApi } from './shared/apis/activate-package-definition-recovery.ts';
 import { activatePackageOptionAction } from './src/actions/activate-package-option.action.ts';
@@ -35,6 +36,7 @@ import { catalogRootResourceDescriptor } from './shared/resources/catalog-root.t
 import { CatalogSourceResolutionApi } from './shared/apis/catalog-source-resolution.ts';
 import { CatalogWidget } from './src/components/catalog-widget.tsx';
 import { changeLocalOverrideAction } from './src/actions/change-local-override.action.ts';
+import { ChangeLocalOverrideRecoveryApi } from './shared/apis/change-local-override-recovery.ts';
 import { changeProductManufacturerAction } from './src/actions/change-product-manufacturer.action.ts';
 import { ChangeProductManufacturerRecoveryApi } from './shared/apis/change-product-manufacturer-recovery.ts';
 import { changeProductRelationshipAction } from './src/actions/change-product-relationship.action.ts';
@@ -92,6 +94,7 @@ import { GovernVariantAxesRecoveryApi } from './shared/apis/govern-variant-axes-
 import { GtinCurrentApi } from './shared/apis/gtin-current.ts';
 import { GtinHistoryApi } from './shared/apis/gtin-history.ts';
 import { importSourceAssertionAction } from './src/actions/import-source-assertion.action.ts';
+import { ImportSourceAssertionRecoveryApi } from './shared/apis/import-source-assertion-recovery.ts';
 import { ListRecordedVariantsApi } from './shared/apis/list-recorded-variants.ts';
 import { ManufacturerRelationCurrentApi } from './shared/apis/manufacturer-relation-current.ts';
 import { ManufacturerRelationHistoryApi } from './shared/apis/manufacturer-relation-history.ts';
@@ -129,6 +132,7 @@ import { ReactivateProductRecoveryApi } from './shared/apis/reactivate-product-r
 import { reactivateVariantAction } from './src/actions/reactivate-variant.action.ts';
 import { ReactivateVariantRecoveryApi } from './shared/apis/reactivate-variant-recovery.ts';
 import { releaseLocalOverrideAction } from './src/actions/release-local-override.action.ts';
+import { ReleaseLocalOverrideRecoveryApi } from './shared/apis/release-local-override-recovery.ts';
 import { removeCatalogMediaAction } from './src/actions/remove-catalog-media.action.ts';
 import { RemoveCatalogMediaRecoveryApi } from './shared/apis/remove-catalog-media-recovery.ts';
 import { removeProductAttributeValuesAction } from './src/actions/remove-product-attribute-values.action.ts';
@@ -337,6 +341,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
     ],
     api: {
       // <generated-module-manifest-apis>
+      'activate-local-override-recovery': ActivateLocalOverrideRecoveryApi,
       'activate-package-definition-recovery': ActivatePackageDefinitionRecoveryApi,
       'activate-package-option-recovery': ActivatePackageOptionRecoveryApi,
       'add-product-category-assignment-recovery': AddProductCategoryAssignmentRecoveryApi,
@@ -348,6 +353,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'catalog-document-current': CatalogDocumentCurrentApi,
       'catalog-media-current': CatalogMediaCurrentApi,
       'catalog-source-resolution': CatalogSourceResolutionApi,
+      'change-local-override-recovery': ChangeLocalOverrideRecoveryApi,
       'change-product-manufacturer-recovery': ChangeProductManufacturerRecoveryApi,
       'change-product-relationship-recovery': ChangeProductRelationshipRecoveryApi,
       'change-variant-recovery': ChangeVariantRecoveryApi,
@@ -378,6 +384,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'govern-variant-axes-recovery': GovernVariantAxesRecoveryApi,
       'gtin-current': GtinCurrentApi,
       'gtin-history': GtinHistoryApi,
+      'import-source-assertion-recovery': ImportSourceAssertionRecoveryApi,
       'list-recorded-variants': ListRecordedVariantsApi,
       'manufacturer-relation-current': ManufacturerRelationCurrentApi,
       'manufacturer-relation-history': ManufacturerRelationHistoryApi,
@@ -401,6 +408,7 @@ export const catalogManifest: OntosModuleManifestInput = defineOntosModuleManife
       'reactivate-controlled-attribute-value-recovery': ReactivateControlledAttributeValueRecoveryApi,
       'reactivate-product-recovery': ReactivateProductRecoveryApi,
       'reactivate-variant-recovery': ReactivateVariantRecoveryApi,
+      'release-local-override-recovery': ReleaseLocalOverrideRecoveryApi,
       'remove-catalog-media-recovery': RemoveCatalogMediaRecoveryApi,
       'remove-product-attribute-values-recovery': RemoveProductAttributeValuesRecoveryApi,
       'remove-product-category-assignment-recovery': RemoveProductCategoryAssignmentRecoveryApi,

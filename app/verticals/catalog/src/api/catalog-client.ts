@@ -13,12 +13,14 @@ import { catalogApi, catalogApiContract, catalogOperationContexts } from '../../
 import type { CatalogReadiness, OperationContext } from '../../shared/api.ts';
 
 // <generated-action-http-client-exports>
+export * from './activate-local-override-action-client.ts';
 export * from './activate-package-definition-action-client.ts';
 export * from './activate-package-option-action-client.ts';
 export * from './add-product-category-assignment-action-client.ts';
 export * from './assert-size-equivalence-action-client.ts';
 export * from './assign-catalog-media-action-client.ts';
 export * from './assign-sku-action-client.ts';
+export * from './change-local-override-action-client.ts';
 export * from './change-product-manufacturer-action-client.ts';
 export * from './change-product-relationship-action-client.ts';
 export * from './change-variant-action-client.ts';
@@ -43,6 +45,7 @@ export * from './decide-product-type-unnecessary-action-client.ts';
 export * from './govern-product-attribute-applicability-action-client.ts';
 export * from './govern-variant-allowed-values-action-client.ts';
 export * from './govern-variant-axes-action-client.ts';
+export * from './import-source-assertion-action-client.ts';
 export * from './mark-gtin-unresolved-action-client.ts';
 export * from './move-product-category-action-client.ts';
 export * from './promote-package-definition-action-client.ts';
@@ -51,6 +54,7 @@ export * from './reactivate-brand-action-client.ts';
 export * from './reactivate-controlled-attribute-value-action-client.ts';
 export * from './reactivate-product-action-client.ts';
 export * from './reactivate-variant-action-client.ts';
+export * from './release-local-override-action-client.ts';
 export * from './remove-catalog-media-action-client.ts';
 export * from './remove-product-attribute-values-action-client.ts';
 export * from './remove-product-category-assignment-action-client.ts';
