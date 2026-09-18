@@ -213,6 +213,11 @@ export default defineConfig(
           security: createCloudflareWorkerSecurity(),
           services: [
             {
+              binding: getOptionalBuildConfig('VERTICAL_CATALOG_WORKER_BINDING') ?? 'VERTICAL_CATALOG_WORKER',
+              prefix: '/catalog-api',
+              service: getOptionalBuildConfig('VERTICAL_CATALOG_WORKER_NAME') ?? 'app-catalog',
+            },
+            {
               binding:
                 getOptionalBuildConfig('VERTICAL_COMMERCE_CUSTOMER_CONTEXT_WORKER_BINDING') ??
                 'VERTICAL_COMMERCE_CUSTOMER_CONTEXT_WORKER',
