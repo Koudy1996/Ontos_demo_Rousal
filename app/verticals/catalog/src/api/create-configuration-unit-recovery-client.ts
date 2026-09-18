@@ -20,12 +20,10 @@ type CreateConfigurationUnitRecoveryOperationInvocation = readonly [
   options?: CreateConfigurationUnitRecoveryClientOptions,
 ];
 
-const createConfigurationUnitRecoveryClient = (
+const configurationUnitRecoveryClient = (
   credential: Redacted.Redacted,
-  {
-    options,
-    requestCorrelation,
-  }: { readonly options: CreateConfigurationUnitRecoveryClientOptions; readonly requestCorrelation: string },
+  requestCorrelation: string,
+  options: CreateConfigurationUnitRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
@@ -41,7 +39,7 @@ export const executeCreateConfigurationUnitRecoveryWithAuthorization = (
   payload: CreateConfigurationUnitRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateConfigurationUnitRecoveryAuthorizedInvocation
 ) =>
-  createConfigurationUnitRecoveryClient(Redacted.make(credential), { options, requestCorrelation }).pipe(
+  configurationUnitRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) =>
       client.createConfigurationUnitRecovery.execute({ headers: {}, params: {}, payload, query: {} }),
     ),

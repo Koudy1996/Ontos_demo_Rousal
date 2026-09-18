@@ -20,12 +20,10 @@ type CreateProductRelationshipRecoveryOperationInvocation = readonly [
   options?: CreateProductRelationshipRecoveryClientOptions,
 ];
 
-const createProductRelationshipRecoveryClient = (
+const productRelationshipRecoveryClient = (
   credential: Redacted.Redacted,
-  {
-    options,
-    requestCorrelation,
-  }: { readonly options: CreateProductRelationshipRecoveryClientOptions; readonly requestCorrelation: string },
+  requestCorrelation: string,
+  options: CreateProductRelationshipRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
@@ -41,7 +39,7 @@ export const executeCreateProductRelationshipRecoveryWithAuthorization = (
   payload: CreateProductRelationshipRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateProductRelationshipRecoveryAuthorizedInvocation
 ) =>
-  createProductRelationshipRecoveryClient(Redacted.make(credential), { options, requestCorrelation }).pipe(
+  productRelationshipRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) =>
       client.createProductRelationshipRecovery.execute({ headers: {}, params: {}, payload, query: {} }),
     ),

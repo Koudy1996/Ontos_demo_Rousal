@@ -20,12 +20,10 @@ type CreatePackageDefinitionRecoveryOperationInvocation = readonly [
   options?: CreatePackageDefinitionRecoveryClientOptions,
 ];
 
-const createPackageDefinitionRecoveryClient = (
+const packageDefinitionRecoveryClient = (
   credential: Redacted.Redacted,
-  {
-    options,
-    requestCorrelation,
-  }: { readonly options: CreatePackageDefinitionRecoveryClientOptions; readonly requestCorrelation: string },
+  requestCorrelation: string,
+  options: CreatePackageDefinitionRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
@@ -41,7 +39,7 @@ export const executeCreatePackageDefinitionRecoveryWithAuthorization = (
   payload: CreatePackageDefinitionRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreatePackageDefinitionRecoveryAuthorizedInvocation
 ) =>
-  createPackageDefinitionRecoveryClient(Redacted.make(credential), { options, requestCorrelation }).pipe(
+  packageDefinitionRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) =>
       client.createPackageDefinitionRecovery.execute({ headers: {}, params: {}, payload, query: {} }),
     ),

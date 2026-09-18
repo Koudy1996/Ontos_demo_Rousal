@@ -20,12 +20,10 @@ type CreateSetCompositionRecoveryOperationInvocation = readonly [
   options?: CreateSetCompositionRecoveryClientOptions,
 ];
 
-const createSetCompositionRecoveryClient = (
+const setCompositionRecoveryClient = (
   credential: Redacted.Redacted,
-  {
-    options,
-    requestCorrelation,
-  }: { readonly options: CreateSetCompositionRecoveryClientOptions; readonly requestCorrelation: string },
+  requestCorrelation: string,
+  options: CreateSetCompositionRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
@@ -41,7 +39,7 @@ export const executeCreateSetCompositionRecoveryWithAuthorization = (
   payload: CreateSetCompositionRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateSetCompositionRecoveryAuthorizedInvocation
 ) =>
-  createSetCompositionRecoveryClient(Redacted.make(credential), { options, requestCorrelation }).pipe(
+  setCompositionRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) =>
       client.createSetCompositionRecovery.execute({ headers: {}, params: {}, payload, query: {} }),
     ),

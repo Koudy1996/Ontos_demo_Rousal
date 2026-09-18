@@ -20,12 +20,10 @@ type CreateAttributeDefinitionRecoveryOperationInvocation = readonly [
   options?: CreateAttributeDefinitionRecoveryClientOptions,
 ];
 
-const createAttributeDefinitionRecoveryClient = (
+const attributeDefinitionRecoveryClient = (
   credential: Redacted.Redacted,
-  {
-    options,
-    requestCorrelation,
-  }: { readonly options: CreateAttributeDefinitionRecoveryClientOptions; readonly requestCorrelation: string },
+  requestCorrelation: string,
+  options: CreateAttributeDefinitionRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
@@ -40,7 +38,7 @@ export const executeCreateAttributeDefinitionRecoveryWithAuthorization = (
   payload: CreateAttributeDefinitionRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateAttributeDefinitionRecoveryAuthorizedInvocation
 ) =>
-  createAttributeDefinitionRecoveryClient(Redacted.make(credential), { options, requestCorrelation }).pipe(
+  attributeDefinitionRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) =>
       client.createAttributeDefinitionRecovery.execute({ headers: {}, params: {}, payload, query: {} }),
     ),

@@ -20,12 +20,10 @@ type CreateControlledAttributeValueRecoveryOperationInvocation = readonly [
   options?: CreateControlledAttributeValueRecoveryClientOptions,
 ];
 
-const createControlledAttributeValueRecoveryClient = (
+const controlledAttributeValueRecoveryClient = (
   credential: Redacted.Redacted,
-  {
-    options,
-    requestCorrelation,
-  }: { readonly options: CreateControlledAttributeValueRecoveryClientOptions; readonly requestCorrelation: string },
+  requestCorrelation: string,
+  options: CreateControlledAttributeValueRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
@@ -41,7 +39,7 @@ export const executeCreateControlledAttributeValueRecoveryWithAuthorization = (
   payload: CreateControlledAttributeValueRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateControlledAttributeValueRecoveryAuthorizedInvocation
 ) =>
-  createControlledAttributeValueRecoveryClient(Redacted.make(credential), { options, requestCorrelation }).pipe(
+  controlledAttributeValueRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) =>
       client.createControlledAttributeValueRecovery.execute({ headers: {}, params: {}, payload, query: {} }),
     ),

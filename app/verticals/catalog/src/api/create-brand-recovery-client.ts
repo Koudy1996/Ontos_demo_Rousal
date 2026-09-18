@@ -20,12 +20,10 @@ type CreateBrandRecoveryOperationInvocation = readonly [
   options?: CreateBrandRecoveryClientOptions,
 ];
 
-const createBrandRecoveryClient = (
+const brandRecoveryClient = (
   credential: Redacted.Redacted,
-  {
-    options,
-    requestCorrelation,
-  }: { readonly options: CreateBrandRecoveryClientOptions; readonly requestCorrelation: string },
+  requestCorrelation: string,
+  options: CreateBrandRecoveryClientOptions,
 ) =>
   makeGovernedEffectBffClient(
     {
@@ -41,7 +39,7 @@ export const executeCreateBrandRecoveryWithAuthorization = (
   payload: CreateBrandRecoveryRequest,
   ...[credential, requestCorrelation, options = {}]: CreateBrandRecoveryAuthorizedInvocation
 ) =>
-  createBrandRecoveryClient(Redacted.make(credential), { options, requestCorrelation }).pipe(
+  brandRecoveryClient(Redacted.make(credential), requestCorrelation, options).pipe(
     Effect.flatMap((client) => client.createBrandRecovery.execute({ headers: {}, params: {}, payload, query: {} })),
   );
 
