@@ -39,7 +39,7 @@ export const recoverCreateProduct = Effect.fn('CreateProductRecoveryRead.recover
   return yield* Match.value(recovery).pipe(
     Match.discriminator('status')('committed', ({ result }) => Effect.succeed(result)),
     Match.discriminator('status')('absent', () => Effect.fail(notFound())),
-    Match.discriminator('status')('rejected', () => Effect.fail(notFound())),
+    Match.discriminator('status')('rejected', () => Effect.fail(unavailable())),
     Match.discriminator('status')('open', () => Effect.fail(unavailable())),
     Match.discriminator('status')('indeterminate', () => Effect.fail(unavailable())),
     Match.discriminator('status')('unavailable', () => Effect.fail(unavailable())),

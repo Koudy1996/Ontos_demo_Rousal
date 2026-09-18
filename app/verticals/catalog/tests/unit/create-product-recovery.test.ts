@@ -96,11 +96,7 @@ describe('create Product recovery', () => {
             services: services(() => Effect.succeed({ status })),
           },
         ).pipe(Effect.provideService(ActionRuntime, runtime), Effect.flip);
-        expect(
-          Schema.is(status === 'absent' || status === 'rejected' ? ReadHandlerNotFound : ReadHandlerUnavailable)(
-            failure,
-          ),
-        ).toBe(true);
+        expect(Schema.is(status === 'absent' ? ReadHandlerNotFound : ReadHandlerUnavailable)(failure)).toBe(true);
       }),
     );
   }

@@ -35,7 +35,13 @@ const codec = {
 const productId = Schema.decodeUnknownSync(Schema.String.pipe(Schema.brand('ProductId')))('product-1');
 const otherProductId = Schema.decodeUnknownSync(Schema.String.pipe(Schema.brand('ProductId')))('product-2');
 
-const transaction = (options: { existing?: typeof catalogResultSnapshots.$inferInsert; inserted?: boolean } = {}) => {
+const transaction = (
+  options: {
+    existing?: typeof catalogResultSnapshots.$inferInsert;
+    inserted?: boolean;
+    readUnavailable?: boolean;
+  } = {},
+) => {
   const rows: (typeof catalogResultSnapshots.$inferInsert)[] = [];
   return {
     insert: (table: typeof catalogResultSnapshots) => {
@@ -55,7 +61,14 @@ const transaction = (options: { existing?: typeof catalogResultSnapshots.$inferI
     select: () => ({
       from: (table: typeof catalogResultSnapshots) => {
         expect(table).toBe(catalogResultSnapshots);
-        return { where: () => ({ limit: () => Effect.succeed(options.existing ? [options.existing] : []) }) };
+        return {
+          where: () => ({
+            limit: () =>
+              options.readUnavailable === true
+                ? Effect.fail(new Error('database unavailable'))
+                : Effect.succeed(options.existing ? [options.existing] : []),
+          }),
+        };
       },
     }),
   };
@@ -152,6 +165,15 @@ describe('Catalog Action result snapshot', () => {
       // @ts-expect-error Focused mock implements only the snapshot query chains.
       const malformedService = catalogActionResultSnapshotForScope(malformed, scope, codec);
       expect(Schema.is(CatalogPersistenceUnavailable)(yield* Effect.flip(malformedService.read(identity)))).toBe(true);
+    }),
+  );
+
+  it.effect('does not turn a failed snapshot read into an absent or committed result', () =>
+    Effect.gen(function* unavailableRead() {
+      const tx = transaction({ readUnavailable: true });
+      // @ts-expect-error Focused mock implements only the snapshot query chains.
+      const service = catalogActionResultSnapshotForScope(tx, scope, codec);
+      expect(Schema.is(CatalogPersistenceUnavailable)(yield* Effect.flip(service.read(identity)))).toBe(true);
     }),
   );
 });
