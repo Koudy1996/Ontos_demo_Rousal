@@ -6,6 +6,7 @@ import {
   ProductTypeAssignmentSchema,
   selectCurrentProductType,
 } from '../../shared/domain/product-type-identity.ts';
+import { ProductTypeRulesRevisionSchema } from '../../shared/domain/product-type-rules.ts';
 import { ProductTypeRefSchema } from '../../shared/resources/product-type.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -48,6 +49,55 @@ describe('Catalog Product Type identity', () => {
 
       expect(first.currentProductTypeRef).toEqual(second.currentProductTypeRef);
       expect(first.productRef.resourceId).not.toBe(second.productRef.resourceId);
+    }),
+  );
+
+  it.effect('distinguishes a service type by required data, not by a navigation label', () =>
+    Effect.gen(function* serviceTypeRequirements() {
+      const serviceProductRef = {
+        ...productRef,
+        resourceId: '55555555-5555-4555-8555-555555555555',
+      } as const;
+      const serviceTypeRef = {
+        ...productTypeRef,
+        resourceId: '66666666-6666-4666-8666-666666666666',
+      } as const;
+      const shelfMaterial = {
+        moduleId: 'commerce.catalog',
+        resourceId: '77777777-7777-4777-8777-777777777777',
+        resourceType: 'commerce.catalog.attribute-definition',
+        tenantId,
+      } as const;
+      const installationScope = {
+        ...shelfMaterial,
+        resourceId: '88888888-8888-4888-8888-888888888888',
+      } as const;
+      const decodeRules = Schema.decodeUnknownSync(ProductTypeRulesRevisionSchema);
+      const shelfRules = decodeRules({
+        productTypeRef,
+        revision: 1,
+        rules: [{ attributeDefinitionRef: shelfMaterial, level: 'PRODUCT', required: true }],
+      });
+      const serviceRules = decodeRules({
+        productTypeRef: serviceTypeRef,
+        revision: 1,
+        rules: [{ attributeDefinitionRef: installationScope, level: 'PRODUCT', required: true }],
+      });
+      const shelfAssignment = yield* selectCurrentProductType(
+        Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef }).productRef,
+        [Schema.decodeUnknownSync(ProductTypeRefSchema)(productTypeRef)],
+      );
+      const serviceAssignment = yield* selectCurrentProductType(
+        Schema.decodeUnknownSync(ProductTypeAssignmentSchema)({ productRef: serviceProductRef }).productRef,
+        [Schema.decodeUnknownSync(ProductTypeRefSchema)(serviceTypeRef)],
+      );
+
+      expect(shelfRules.rules[0]?.attributeDefinitionRef).toEqual(shelfMaterial);
+      expect(serviceRules.rules[0]?.attributeDefinitionRef).toEqual(installationScope);
+      expect(serviceRules.rules[0]?.attributeDefinitionRef).not.toEqual(shelfRules.rules[0]?.attributeDefinitionRef);
+      expect(shelfAssignment.currentProductTypeRef).toEqual(shelfRules.productTypeRef);
+      expect(serviceAssignment.currentProductTypeRef).toEqual(serviceRules.productTypeRef);
+      expect(serviceAssignment.productRef).toEqual(serviceProductRef);
     }),
   );
 
