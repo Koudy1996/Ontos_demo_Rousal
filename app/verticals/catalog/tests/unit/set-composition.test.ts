@@ -56,6 +56,18 @@ describe('Set composition', () => {
     expect(() =>
       Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
         ...revision,
+        components: [{ ...components[0], selection: { productRef } }, components[1]],
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+        ...revision,
+        components: [{ ...components[0], selection: { productRef, variantRef } }, components[1]],
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+        ...revision,
         components: [
           { ...components[0], quantity: { amount: '2', unitRef: ref('product', unitRef.resourceId) } },
           components[1],
@@ -97,6 +109,31 @@ describe('Set composition', () => {
       components: [components[0], { ...components[1], selection: { ...selection, variantRef: otherVariant } }],
     });
     expect(summarizeSetComponents(issued.components).map((item) => item.amount)).toEqual(['2', '4']);
+  });
+
+  it('keeps exact package content revisions separate', () => {
+    const packageRef = ref('package-definition', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    const packageOption = {
+      contentRevision: { resourceRef: packageRef, revision: 1 },
+      optionRef: packageRef,
+    };
+    const withPackage = Schema.decodeUnknownSync(SetCompositionRevisionSchema)({
+      ...revision,
+      components: [
+        { ...components[0], selection: { ...selection, packageOption } },
+        {
+          ...components[1],
+          selection: {
+            ...selection,
+            packageOption: { ...packageOption, contentRevision: { resourceRef: packageRef, revision: 2 } },
+          },
+        },
+      ],
+    });
+    expect(summarizeSetComponents(withPackage.components).map(({ amount }) => amount)).toEqual(['2', '4']);
+    expect(
+      classifySetCompositionChange(Schema.decodeUnknownSync(SetCompositionRevisionSchema)(revision), withPackage),
+    ).toBe('MATERIAL_CHANGE');
   });
 
   it('distinguishes an evidence correction from a material successor without overwriting R1', () => {

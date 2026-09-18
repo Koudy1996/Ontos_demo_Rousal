@@ -50,6 +50,9 @@ export const SetCompositionRevisionSchema = Schema.Struct({
     if (components.some(({ selection }) => selection.productRef.tenantId !== tenantId)) {
       return 'Set components must share the Set Tenant';
     }
+    if (components.some(({ selection }) => selection.productRef.resourceId === productRef.resourceId)) {
+      return 'A Set Product cannot contain itself';
+    }
     if (
       predecessor !== undefined &&
       (predecessor.resourceRef.resourceId !== reference.resourceRef.resourceId ||
