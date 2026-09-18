@@ -129,6 +129,32 @@ const invalidAxisDefinitionPointer = (
   (row.definitionRevision ?? 0) < 1 ||
   definition.currentRevision < (row.definitionRevision ?? 0);
 
+const invalidProductAxisApplicability = (
+  applicability: typeof productAttributeApplicability.$inferSelect | undefined,
+  tenantId: string,
+  productId: string,
+  attributeDefinitionId: string,
+): boolean =>
+  applicability === undefined ||
+  applicability.tenantId !== tenantId ||
+  applicability.productId !== productId ||
+  applicability.attributeDefinitionId !== attributeDefinitionId ||
+  !applicability.variantLevel ||
+  !Number.isSafeInteger(applicability.currentRevision) ||
+  applicability.currentRevision < 1;
+
+const invalidProductAxisApplicabilityRevision = (
+  revision: typeof productAttributeApplicabilityRevisions.$inferSelect | undefined,
+  applicability: typeof productAttributeApplicability.$inferSelect,
+): boolean =>
+  revision === undefined ||
+  revision.tenantId !== applicability.tenantId ||
+  revision.productId !== applicability.productId ||
+  revision.attributeDefinitionId !== applicability.attributeDefinitionId ||
+  revision.revision !== applicability.currentRevision ||
+  !revision.variantLevel ||
+  revision.productLevel !== applicability.productLevel;
+
 const malformedAxisSnapshot = (
   event: typeof productVariantAxisEvents.$inferSelect | undefined,
   rows: readonly (typeof productVariantAxes.$inferSelect)[],
@@ -163,6 +189,7 @@ export const variantAxisPersistenceForScope = (
 
   const readAxis = Effect.fn('VariantAxisPersistence.readAxis')(function* readAxis(
     row: typeof productVariantAxes.$inferSelect,
+    productId: string,
     productTypeId: string,
     productTypeRevision: number,
   ) {
@@ -233,6 +260,41 @@ export const variantAxisPersistenceForScope = (
       .limit(1)
       .pipe(Effect.mapError(unavailable));
     if (rule === undefined) {
+      return yield* basisUnavailable();
+    }
+    const [applicability] = yield* transaction
+      .select()
+      .from(productAttributeApplicability)
+      .where(
+        and(
+          eq(productAttributeApplicability.tenantId, tenantId),
+          eq(productAttributeApplicability.productId, productId),
+          eq(productAttributeApplicability.attributeDefinitionId, row.attributeDefinitionId),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (invalidProductAxisApplicability(applicability, tenantId, productId, row.attributeDefinitionId)) {
+      return yield* basisUnavailable();
+    }
+    // The preceding guard establishes the current declaration's presence.
+    if (applicability === undefined) {
+      return yield* basisUnavailable();
+    }
+    const [applicabilityRevision] = yield* transaction
+      .select()
+      .from(productAttributeApplicabilityRevisions)
+      .where(
+        and(
+          eq(productAttributeApplicabilityRevisions.tenantId, tenantId),
+          eq(productAttributeApplicabilityRevisions.productId, productId),
+          eq(productAttributeApplicabilityRevisions.attributeDefinitionId, row.attributeDefinitionId),
+          eq(productAttributeApplicabilityRevisions.revision, applicability.currentRevision),
+        ),
+      )
+      .limit(1)
+      .pipe(Effect.mapError(unavailable));
+    if (invalidProductAxisApplicabilityRevision(applicabilityRevision, applicability)) {
       return yield* basisUnavailable();
     }
     let inheritable = false;
@@ -343,7 +405,7 @@ export const variantAxisPersistenceForScope = (
 
       const axes = yield* Effect.forEach(
         rows,
-        (row) => readAxis(row, assignment?.productTypeId ?? '', productTypeRevision ?? 0),
+        (row) => readAxis(row, productId, assignment?.productTypeId ?? '', productTypeRevision ?? 0),
         { concurrency: 1 },
       );
       return { axes, axisRevision: event?.axisRevision ?? 0, productId, productTypeRevision };

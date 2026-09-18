@@ -144,11 +144,29 @@ const transactionWith = (overrides = new Map<AxisTable, readonly object[]>(), wr
     [productTypeRevisionAttributes, [{ attributeDefinitionId: definitionId }]],
     [
       productAttributeApplicability,
-      [{ attributeDefinitionId: definitionId, currentRevision: 1, productId, tenantId, variantLevel: true }],
+      [
+        {
+          attributeDefinitionId: definitionId,
+          currentRevision: 1,
+          productId,
+          productLevel: false,
+          tenantId,
+          variantLevel: true,
+        },
+      ],
     ],
     [
       productAttributeApplicabilityRevisions,
-      [{ attributeDefinitionId: definitionId, productId, revision: 1, tenantId, variantLevel: true }],
+      [
+        {
+          attributeDefinitionId: definitionId,
+          productId,
+          productLevel: false,
+          revision: 1,
+          tenantId,
+          variantLevel: true,
+        },
+      ],
     ],
   ]);
   for (const [table, value] of overrides) {
@@ -233,6 +251,78 @@ describe('Variant Axis Current basis', () => {
       );
       const current = yield* persistence.readCurrent(productRef);
       expect(current.axes[0]).toEqual(expect.objectContaining({ definitionRevision: 3, valueKind: 'CONTROLLED' }));
+    }),
+  );
+
+  it.effect('rejects an axis after its Product-local Variant declaration is removed', () =>
+    Effect.gen(function* rejectsRemovedApplicability() {
+      const persistence = variantAxisPersistenceForScope(
+        // @ts-expect-error Focused Drizzle read-chain mock.
+        transactionWith(new Map([[productAttributeApplicability, []]])),
+        scope,
+      );
+      expect(Schema.is(VariantAxisBasisUnavailable)(yield* Effect.flip(persistence.readCurrent(productRef)))).toBe(
+        true,
+      );
+    }),
+  );
+
+  it.effect('rejects a declaration whose current revision evidence is missing or stale', () =>
+    Effect.gen(function* rejectsStaleApplicabilityRevision() {
+      for (const revisions of [
+        [],
+        [
+          {
+            attributeDefinitionId: definitionId,
+            productId,
+            productLevel: false,
+            revision: 2,
+            tenantId,
+            variantLevel: true,
+          },
+        ],
+      ]) {
+        const persistence = variantAxisPersistenceForScope(
+          // @ts-expect-error Focused Drizzle read-chain mock.
+          transactionWith(new Map([[productAttributeApplicabilityRevisions, revisions]])),
+          scope,
+        );
+        expect(Schema.is(VariantAxisBasisUnavailable)(yield* Effect.flip(persistence.readCurrent(productRef)))).toBe(
+          true,
+        );
+      }
+    }),
+  );
+
+  it.effect('rejects Product-local applicability from a different source or without Variant permission', () =>
+    Effect.gen(function* rejectsMismatchedApplicability() {
+      for (const revision of [
+        {
+          attributeDefinitionId: definitionId,
+          productId: variantId,
+          productLevel: false,
+          revision: 1,
+          tenantId,
+          variantLevel: true,
+        },
+        {
+          attributeDefinitionId: definitionId,
+          productId,
+          productLevel: false,
+          revision: 1,
+          tenantId,
+          variantLevel: false,
+        },
+      ]) {
+        const persistence = variantAxisPersistenceForScope(
+          // @ts-expect-error Focused Drizzle read-chain mock.
+          transactionWith(new Map([[productAttributeApplicabilityRevisions, [revision]]])),
+          scope,
+        );
+        expect(Schema.is(VariantAxisBasisUnavailable)(yield* Effect.flip(persistence.readCurrent(productRef)))).toBe(
+          true,
+        );
+      }
     }),
   );
 
