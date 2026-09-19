@@ -21,7 +21,7 @@ import {
   productVariants,
 } from '../../src/database/schema.ts';
 import type { CatalogTransaction } from '../../src/database/types.ts';
-import { skuPersistenceForScope } from '../../src/persistence/sku-persistence.ts';
+import { SkuPersistenceUnavailable, skuPersistenceForScope } from '../../src/persistence/sku-persistence.ts';
 import type { SkuChangeOutcome, SkuLookupOutcome } from '../../src/persistence/sku-persistence.ts';
 import type { SkuTarget } from '../../shared/domain/commercial-code.ts';
 
@@ -255,8 +255,133 @@ it.live('enforces tenant-wide normalized Current and historical SKU reservations
         variantId: variantA,
       });
 
+      const missingTarget = { kind: 'VARIANT' as const, tenantId: tenantA, variantId: randomUUID() };
+      expectTagged(yield* assign(tenantA, change('MISSING-00', missingTarget)), 'not_found');
+      expectTagged(
+        yield* assign(
+          tenantA,
+          change('MISSING-PACKAGE-00', {
+            kind: 'PACKAGE_OPTION',
+            packageDefinitionId: randomUUID(),
+            tenantId: tenantA,
+          }),
+        ),
+        'not_found',
+      );
+
+      yield* admin
+        .update(products)
+        .set({ lifecycleState: 'RETIRED' })
+        .where(and(eq(products.tenantId, tenantA), eq(products.productId, productA)));
+      expectTagged(yield* assign(tenantA, change('RETIRED-PRODUCT-00', targetA)), 'invalid');
+      yield* admin
+        .update(products)
+        .set({ lifecycleState: 'ACTIVE' })
+        .where(and(eq(products.tenantId, tenantA), eq(products.productId, productA)));
+
+      yield* admin
+        .update(productVariants)
+        .set({ lifecycleState: 'RETIRED' })
+        .where(and(eq(productVariants.tenantId, tenantA), eq(productVariants.variantId, variantA)));
+      expectTagged(yield* assign(tenantA, change('RETIRED-VARIANT-00', targetA)), 'invalid');
+      yield* admin
+        .update(productVariants)
+        .set({ lifecycleState: 'ACTIVE' })
+        .where(and(eq(productVariants.tenantId, tenantA), eq(productVariants.variantId, variantA)));
+
+      yield* admin
+        .update(packageDefinitions)
+        .set({ lifecycleState: 'RETIRED' })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
+      expectTagged(yield* assign(tenantA, change('RETIRED-PACKAGE-00', optionTarget)), 'invalid');
+      yield* admin
+        .update(packageDefinitions)
+        .set({ lifecycleState: 'ACTIVE' })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
+
+      yield* admin
+        .update(packageDefinitions)
+        .set({ optionState: 'RETIRED' })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
+      expectTagged(yield* assign(tenantA, change('RETIRED-OPTION-00', optionTarget)), 'invalid');
+      yield* admin
+        .update(packageDefinitions)
+        .set({ optionState: 'ACTIVE' })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
+
+      yield* admin
+        .update(packageContentRevisions)
+        .set({ lifecycleState: 'RETIRED' })
+        .where(
+          and(
+            eq(packageContentRevisions.tenantId, tenantA),
+            eq(packageContentRevisions.packageDefinitionId, optionId),
+          ),
+        );
+      expectTagged(yield* assign(tenantA, change('RETIRED-CONTENT-00', optionTarget)), 'invalid');
+      yield* admin
+        .update(packageContentRevisions)
+        .set({ lifecycleState: 'ACTIVE' })
+        .where(
+          and(
+            eq(packageContentRevisions.tenantId, tenantA),
+            eq(packageContentRevisions.packageDefinitionId, optionId),
+          ),
+        );
+
+      yield* admin
+        .update(packageOptionRoleRevisions)
+        .set({ state: 'RETIRED' })
+        .where(
+          and(
+            eq(packageOptionRoleRevisions.tenantId, tenantA),
+            eq(packageOptionRoleRevisions.packageDefinitionId, optionId),
+          ),
+        );
+      expectTagged(yield* assign(tenantA, change('RETIRED-ROLE-00', optionTarget)), 'invalid');
+      yield* admin
+        .update(packageOptionRoleRevisions)
+        .set({ state: 'ACTIVE' })
+        .where(
+          and(
+            eq(packageOptionRoleRevisions.tenantId, tenantA),
+            eq(packageOptionRoleRevisions.packageDefinitionId, optionId),
+          ),
+        );
+
+      yield* admin
+        .update(productUnits)
+        .set({ lifecycleState: 'RETIRED' })
+        .where(and(eq(productUnits.tenantId, tenantA), eq(productUnits.unitId, unitId)));
+      expectTagged(yield* assign(tenantA, change('RETIRED-UNIT-00', optionTarget)), 'invalid');
+      yield* admin
+        .update(productUnits)
+        .set({ lifecycleState: 'ACTIVE' })
+        .where(and(eq(productUnits.tenantId, tenantA), eq(productUnits.unitId, unitId)));
+
+      yield* admin
+        .update(packageDefinitions)
+        .set({ currentOptionRevision: 2 })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
+      const inconsistentCurrent = yield* Effect.flip(assign(tenantA, change('INDETERMINATE-00', optionTarget)));
+      expect(Schema.is(SkuPersistenceUnavailable)(inconsistentCurrent)).toBe(true);
+      yield* admin
+        .update(packageDefinitions)
+        .set({ currentOptionRevision: 1 })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
+
       const displayCode = '  MiXeD-01  ';
       expectTagged(yield* assign(tenantA, change(displayCode, targetA)), 'applied', { revision: 1 });
+      expectTagged(
+        yield* withTenant(tenantA, (transaction) =>
+          sku(transaction, tenantA).rename({
+            ...change('STALE-01', targetA),
+            expectedRevision: 2,
+            oldCode: displayCode,
+          }),
+        ),
+        'stale',
+      );
       expectTagged(yield* lookup(tenantA, 'mixed-01'), 'found', { displayCode, state: 'CURRENT', target: targetA });
       expectTagged(yield* assign(tenantA, change('MIXED-01', targetB)), 'conflict');
       expectTagged(yield* assign(tenantA, change(' mixed-01 ', optionTarget)), 'conflict');

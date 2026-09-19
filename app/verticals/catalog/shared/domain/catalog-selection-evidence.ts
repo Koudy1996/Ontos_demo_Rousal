@@ -157,6 +157,7 @@ export const CatalogSelectionBasisRoles = [
   'PRODUCT',
   'VARIANT',
   'PRODUCT_TYPE',
+  'PRODUCT_TYPE_UNTYPED_DECISION',
   'ATTRIBUTE_DEFINITION',
   'INHERITED_VALUE',
   'VARIANT_AXIS',
@@ -184,6 +185,7 @@ const expectedBasisResourceTypes = (role: CatalogSelectionBasisRole): readonly s
     Match.when('PRODUCT', () => [productType]),
     Match.when('VARIANT', () => [variantType]),
     Match.when('PRODUCT_TYPE', () => [productTypeResource]),
+    Match.when('PRODUCT_TYPE_UNTYPED_DECISION', () => [productType]),
     Match.when('ATTRIBUTE_DEFINITION', () => [attributeDefinitionType]),
     Match.when('INHERITED_VALUE', () => [attributeValueSetType]),
     Match.when('VARIANT_AXIS', () => [productType]),
@@ -199,6 +201,7 @@ const expectedBasisResourceTypes = (role: CatalogSelectionBasisRole): readonly s
   );
 
 export const CatalogSelectionBasisSchema = Schema.Struct({
+  provenance: Schema.optionalKey(Schema.Literal('CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION')),
   role: Schema.Literals([...CatalogSelectionBasisRoles]),
   source: CatalogSelectionRevisionSchema,
   /** Absent for the selected target itself; present for one need in a pinned Set revision. */
@@ -219,12 +222,21 @@ export const CatalogSelectionBasisSchema = Schema.Struct({
       ? `Basis role ${role} must name a ${expected.join(' or ')} Resource`
       : undefined;
   }),
+  Schema.makeFilter(({ provenance, role, subject }) => {
+    if (role === 'PRODUCT_TYPE_UNTYPED_DECISION') {
+      return provenance === 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION' && subject === undefined
+        ? undefined
+        : 'Untyped Product Type proof requires exact owner decision provenance and no component subject';
+    }
+    return provenance === undefined ? undefined : 'Only an untyped Product Type decision may carry decision provenance';
+  }),
 );
 export type CatalogSelectionBasis = typeof CatalogSelectionBasisSchema.Type;
 
 /** Role and component scope are part of identity, even when the owner Source revision is equal. */
 export const sameCatalogSelectionBasis = (left: CatalogSelectionBasis, right: CatalogSelectionBasis): boolean =>
   left.role === right.role &&
+  left.provenance === right.provenance &&
   sameRef(left.source.resourceRef, right.source.resourceRef) &&
   left.source.revision === right.source.revision &&
   left.source.revisionId === right.source.revisionId &&
@@ -282,6 +294,20 @@ const assessmentFields = {
   selection: CatalogSelectionSchema,
   validUntil: Schema.optionalKey(CatalogRevisionInstantSchema),
 };
+const hasExclusiveTypeProof = (
+  basis: readonly (typeof CatalogSelectionBasisSchema.Type)[],
+  productRef: typeof ProductRefSchema.Type,
+): boolean => {
+  const typed = basis.filter(({ role, subject }) => subject === undefined && role === 'PRODUCT_TYPE').length;
+  const untyped = basis.filter(
+    ({ provenance, role, source, subject }) =>
+      subject === undefined &&
+      role === 'PRODUCT_TYPE_UNTYPED_DECISION' &&
+      provenance === 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION' &&
+      sameRef(source.resourceRef, productRef),
+  ).length;
+  return typed + untyped === 1;
+};
 export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
   ...assessmentFields,
   membership: CatalogSelectionMembershipSchema,
@@ -306,6 +332,7 @@ export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
         subject === undefined && role === 'PRODUCT' && sameRef(source.resourceRef, selection.productRef),
     ) &&
     hasExactBasis(basis, 'VARIANT', membership.variant) &&
+    hasExclusiveTypeProof(basis, selection.productRef) &&
     (selection.packageOption === undefined ||
       hasExactBasis(basis, 'PACKAGE_CONTENT', selection.packageOption.contentRevision)) &&
     (selection.setComposition === undefined || hasExactBasis(basis, 'SET_COMPOSITION', selection.setComposition)) &&
@@ -317,7 +344,7 @@ export const CatalogSelectionValidEvidenceSchema = Schema.Struct({
             (unit === undefined || hasExactBasis(basis, 'UNIT', unit)),
         )))
       ? undefined
-      : 'VALID evidence requires exact membership and every selected source revision',
+      : 'VALID evidence requires exact membership, one type proof, and every selected source revision',
   ),
 );
 const CatalogSelectionInvalidEvidenceSchema = Schema.Struct({

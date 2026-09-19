@@ -22,6 +22,7 @@ import {
   productTypeRevisionAttributes,
   productTypeRevisions,
   productTypes,
+  productTypeUntypedDecisions,
   productVariantAxes,
   productVariantAxisEvents,
   setCompositionComponents,
@@ -58,13 +59,6 @@ const selection = {
   },
 } as const;
 const selected = (rows: readonly object[]) => ({
-  where: () =>
-    Object.assign(Effect.succeed(rows), {
-      for: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
-      limit: () => Effect.succeed(rows),
-    }),
-});
-const selectedWithOrder = (rows: readonly object[]) => ({
   where: () =>
     Object.assign(Effect.succeed(rows), {
       for: () => Object.assign(Effect.succeed(rows), { limit: () => Effect.succeed(rows) }),
@@ -282,7 +276,7 @@ describe('Catalog Selection Current basis', () => {
       expect(result.purpose).toBe('PURCHASE_ACCEPTANCE');
       expect(Number.isNaN(Date.parse(result.assessedAt))).toBe(false);
       if (result.status !== 'OBSERVED') {
-        expect(result.reason).toBe('Current Product Type assignment and rules are not owner-attested');
+        expect(result.reason).toBe('Current Product Type readiness cannot be proved');
       }
     }),
   );
@@ -509,7 +503,7 @@ describe('Catalog Selection Current basis', () => {
         }
         const transaction = {
           select: () => ({
-            from: (table: typeof products) => selectedWithOrder(rows.get(table) ?? []),
+            from: (table: typeof products) => selected(rows.get(table) ?? []),
           }),
         };
         // @ts-expect-error The mock provides the exercised owner read chains only.
@@ -566,6 +560,69 @@ describe('Catalog Selection Current basis', () => {
       expect(inheritedAfter.basis.find(({ role }) => role === 'INHERITED_VALUE')?.source.resourceRef.resourceId).toBe(
         valueSetId,
       );
+    }),
+  );
+
+  it.effect('accepts confirmed-untyped Current proof after axes were cleared at a later revision', () =>
+    Effect.gen(function* confirmedUntypedAfterAxisClear() {
+      const unitId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const rows = new Map<unknown, readonly object[]>([
+        [products, [{ currentRevision: 4, lifecycleState: 'ACTIVE', productId, revision: 4, tenantId }]],
+        [
+          productVariants,
+          [{ currentRevision: 7, lifecycleState: 'ACTIVE', productId, revision: 7, tenantId, variantId }],
+        ],
+        [productTypeAssignments, []],
+        [productTypes, []],
+        [productTypeRevisions, []],
+        [productTypeRevisionAttributes, []],
+        [productVariantAxes, []],
+        [
+          productVariantAxisEvents,
+          [{ attributeDefinitionIds: [], attributeDefinitionRevisions: [], axisRevision: 3, productId, tenantId }],
+        ],
+        [
+          productTypeUntypedDecisions,
+          [
+            {
+              axisRevision: 3,
+              decisionRevision: 2,
+              decisionState: 'CONFIRMED',
+              productId,
+              productRevision: 4,
+              structuredAttributesRequired: false,
+              tenantId,
+              valueRevisionTokens: [],
+              variantAxesRequired: false,
+              variantRevisionTokens: [`${variantId}:7`],
+            },
+          ],
+        ],
+        [variantUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
+        [packageUnitDivisibility, [{ currentRevision: 1, divisible: false, unitId }]],
+        [productUnits, [{ currentRuleRevision: 2, lifecycleState: 'ACTIVE', unitId }]],
+        [productUnitRuleRevisions, [{ lifecycleState: 'ACTIVE', revision: 2, rounding: 'UP', step: '1' }]],
+      ]);
+      const transaction = {
+        select: () => ({
+          from: (table: typeof products) => selected(rows.get(table) ?? []),
+        }),
+      };
+      // @ts-expect-error The mock provides only the Current owner read chains exercised by this scenario.
+      const current = yield* catalogSelectionCurrentBasisForScope(transaction, scope).read({
+        purpose: 'PURCHASE_ACCEPTANCE',
+        selection,
+      });
+      expect(current.status).toBe('OBSERVED');
+      expect(current.basis).toContainEqual({
+        provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+        role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+        source: { resourceRef: selection.productRef, revision: 2 },
+      });
+      expect(
+        assessCatalogSelection({ assessedAt: current.assessedAt, current, purpose: 'PURCHASE_ACCEPTANCE', selection })
+          .status,
+      ).toBe('VALID');
     }),
   );
 
@@ -1018,7 +1075,7 @@ it.effect('reassesses an unchanged Set selection against component Current facts
                 : [],
             );
           }
-          return selectedWithOrder(rows.get(table) ?? []);
+          return selected(rows.get(table) ?? []);
         },
       }),
     };

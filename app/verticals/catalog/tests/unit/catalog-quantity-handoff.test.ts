@@ -40,6 +40,11 @@ const evidence: CatalogSelectionEvidence = Schema.decodeUnknownSync(CatalogSelec
   basis: [
     { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
     { role: 'VARIANT', source: variantRevision },
+    {
+      provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+      role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+      source: { resourceRef: productRef, revision: 1 },
+    },
     { role: 'PACKAGE_CONTENT', source: pinnedRevision },
     { role: 'UNIT_RULE', source: { resourceRef: unitRef, revision: 1 } },
     { role: 'UNIT_TARGET_DIVISIBILITY', source: { resourceRef: packageRef, revision: 1 } },

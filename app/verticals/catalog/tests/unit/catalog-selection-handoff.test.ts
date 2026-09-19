@@ -32,6 +32,11 @@ const evidence = Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema)({
   basis: [
     { role: 'PRODUCT', source: productRevision },
     { role: 'VARIANT', source: variantRevision },
+    {
+      provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+      role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+      source: { resourceRef: productRef, revision: 1 },
+    },
   ],
   membership: {
     attestationId: 'membership-1',

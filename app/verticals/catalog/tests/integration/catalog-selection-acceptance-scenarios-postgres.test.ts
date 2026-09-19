@@ -21,6 +21,7 @@ import {
   productTypeAssignmentEvents,
   productTypeAssignments,
   productTypeRevisions,
+  productTypeUntypedDecisions,
   productTypes,
   productUnitRuleRevisions,
   productUnits,
@@ -463,6 +464,156 @@ it.live('issues Current Catalog Selection evidence for distinct Variants, change
         ).readCurrent({ at: new Date('2026-09-18T00:00:00.000Z'), compositionId }),
       );
       expect(Option.isSome(current) && current.value.revision.reference.revision).toBe(2);
+    }),
+  ),
+);
+
+it.live('issues VALID selection evidence from an exact confirmed-untyped decision and invalidates source drift', () =>
+  Effect.scoped(
+    Effect.gen(function* confirmedUntypedSelectionAcceptance() {
+      const untypedTenantId = randomUUID();
+      const untypedProductId = randomUUID();
+      const untypedVariantId = randomUUID();
+      const untypedUnitId = randomUUID();
+      const untypedScope = {
+        ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+          authContextRef: 'job:selection-untyped-postgres:run:1',
+          authMethod: 'system',
+          principalId,
+          tenantId: untypedTenantId,
+        }),
+        correlationId: 'selection-untyped-postgres',
+      };
+      const untypedProductRef = {
+        moduleId: 'commerce.catalog' as const,
+        resourceId: untypedProductId,
+        resourceType: 'commerce.catalog.product' as const,
+        tenantId: untypedTenantId,
+      };
+      const untypedSelection = Schema.decodeUnknownSync(CatalogSelectionSchema)({
+        productRef: untypedProductRef,
+        variantRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: untypedVariantId,
+          resourceType: 'commerce.catalog.variant',
+          tenantId: untypedTenantId,
+        },
+      });
+      const { admin: adminPool, runtimePool } = yield* testDatabasePools;
+      const admin = yield* makeTestDatabaseFromPool(adminPool, catalogRelations);
+      const runtime = yield* makeTestDatabaseFromPool(runtimePool, catalogRelations);
+      const read = () =>
+        runtime.transaction((transaction) =>
+          Effect.gen(function* readUntypedSelection() {
+            yield* transaction.execute(sql`select set_config('ontos.tenant_id', ${untypedTenantId}, true)`, 'objects');
+            return yield* catalogSelectionCurrentBasisForScope(
+              // @ts-expect-error The integration transaction lacks only Core's private scope brand.
+              transaction,
+              untypedScope,
+            ).read({ purpose: 'PURCHASE_ACCEPTANCE', selection: untypedSelection });
+          }),
+        );
+
+      yield* admin.transaction((transaction) =>
+        Effect.gen(function* seedUntypedSelection() {
+          yield* transaction.insert(products).values({
+            createdByActionInvocationId: randomUUID(),
+            createdByPrincipalId: principalId,
+            currentRevision: 1,
+            lifecycleState: 'ACTIVE',
+            name: 'Confirmed untyped selection',
+            productId: untypedProductId,
+            tenantId: untypedTenantId,
+          });
+          yield* transaction.insert(productVariants).values({
+            combinationAxisRevision: 0,
+            combinationKey: '3'.repeat(64),
+            createdByActionInvocationId: randomUUID(),
+            createdByPrincipalId: principalId,
+            currentRevision: 1,
+            lifecycleState: 'ACTIVE',
+            productId: untypedProductId,
+            tenantId: untypedTenantId,
+            variantId: untypedVariantId,
+          });
+          yield* transaction.insert(productVariantAxisEvents).values({
+            actingPrincipalId: principalId,
+            actionInvocationId: randomUUID(),
+            attributeDefinitionIds: [],
+            attributeDefinitionRevisions: [],
+            axisRevision: 3,
+            evidenceRefs: ['catalog:confirmed-untyped-selection:axes-cleared'],
+            productId: untypedProductId,
+            reason: 'Historical axes are now cleared',
+            tenantId: untypedTenantId,
+          });
+          yield* transaction.insert(productTypeUntypedDecisions).values({
+            actingPrincipalId: principalId,
+            actionInvocationId: randomUUID(),
+            axisRevision: 3,
+            decisionRevision: 1,
+            decisionState: 'CONFIRMED',
+            evidenceRefs: ['catalog:confirmed-untyped-selection'],
+            productId: untypedProductId,
+            productRevision: 1,
+            reason: 'No structured attributes or Variant axes are required',
+            structuredAttributesRequired: false,
+            tenantId: untypedTenantId,
+            valueRevisionTokens: [],
+            variantAxesRequired: false,
+            variantRevisionTokens: [`${untypedVariantId}:1`],
+          });
+          yield* transaction.insert(productUnits).values({
+            code: `piece-${untypedUnitId}`,
+            currentRuleRevision: 1,
+            label: 'piece',
+            lifecycleState: 'ACTIVE',
+            tenantId: untypedTenantId,
+            unitId: untypedUnitId,
+          });
+          yield* transaction.insert(productUnitRuleRevisions).values({
+            actingPrincipalId: principalId,
+            actionInvocationId: randomUUID(),
+            changeKind: 'CREATED',
+            evidenceRefs,
+            lifecycleState: 'ACTIVE',
+            reason: 'Whole pieces',
+            revision: 1,
+            rounding: 'UP',
+            step: '1',
+            tenantId: untypedTenantId,
+            unitId: untypedUnitId,
+          });
+          yield* transaction.insert(variantUnitDivisibility).values({
+            currentRevision: 1,
+            divisible: false,
+            tenantId: untypedTenantId,
+            unitId: untypedUnitId,
+            variantId: untypedVariantId,
+          });
+        }),
+      );
+
+      const current = yield* read();
+      expect(current.status).toBe('OBSERVED');
+      if (current.status !== 'OBSERVED') {
+        return;
+      }
+      expect(current.basis).toContainEqual({
+        provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+        role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+        source: { resourceRef: untypedProductRef, revision: 1 },
+      });
+      expect(current.basis.some(({ role }) => role === 'PRODUCT_TYPE')).toBe(false);
+      expect(assessFor(current, untypedSelection).status).toBe('VALID');
+
+      yield* admin
+        .update(products)
+        .set({ currentRevision: 2 })
+        .where(and(eq(products.tenantId, untypedTenantId), eq(products.productId, untypedProductId)));
+      const drifted = yield* read();
+      expect(drifted.status).toBe('INDETERMINATE');
+      expect(drifted.basis.some(({ role }) => role === 'PRODUCT_TYPE_UNTYPED_DECISION')).toBe(false);
     }),
   ),
 );

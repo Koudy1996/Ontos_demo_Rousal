@@ -3,6 +3,7 @@
 // @ontos-outbox-topic commerce.catalog.product-configuration-published.v1
 import { Schema } from 'effect';
 import { PublishProductConfigurationPayloadSchema } from '../actions/publish-product-configuration.ts';
+import { PRODUCT_CONFIGURATION_DEFINITION_RESOURCE_TYPE } from '../domain/configuration-definition.ts';
 import { ProductRefSchema as CatalogProductRefSchema } from '../resources/product.ts';
 
 // Publication uses the stable ID domain accepted by the owning Action and persistence.
@@ -13,7 +14,7 @@ const TenantId = CatalogProductRefSchema.fields.tenantId;
 const ConfigurationDefinitionRefSchema = Schema.Struct({
   moduleId: Schema.Literal(MODULE_ID),
   resourceId: DefinitionId,
-  resourceType: Schema.Literal('commerce.catalog.product-configuration-definition'),
+  resourceType: Schema.Literal(PRODUCT_CONFIGURATION_DEFINITION_RESOURCE_TYPE),
   tenantId: TenantId,
 });
 const ProductRefSchema = Schema.Struct({

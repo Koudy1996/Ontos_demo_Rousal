@@ -21,6 +21,8 @@ const ref = (resourceType: string, resourceId: string, scopedTenantId = tenantId
 });
 const productRef = ref('commerce.catalog.product', '22222222-2222-4222-8222-222222222222');
 const variantRef = ref('commerce.catalog.variant', '33333333-3333-4333-8333-333333333333');
+const typeRef = ref('commerce.catalog.product-type', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+const typeProof = { role: 'PRODUCT_TYPE', source: { resourceRef: typeRef, revision: 1 } };
 const selection = { productRef, variantRef };
 const instant = '2026-09-17T12:00:00.000Z';
 const decodeSelection = Schema.decodeUnknownSync(CatalogSelectionSchema, { onExcessProperty: 'error' });
@@ -69,6 +71,7 @@ describe('Catalog Selection decision references', () => {
     const basis = [
       { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
       { role: 'VARIANT', source: membership.variant },
+      typeProof,
       { role: 'SET_COMPOSITION', source: composition },
       componentFact,
     ];
@@ -221,6 +224,7 @@ describe('Catalog Selection decision references', () => {
     const basis = [
       { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
       { role: 'VARIANT', source: membership.variant },
+      typeProof,
     ];
     const purpose = 'PURCHASE_ACCEPTANCE';
     expect(
@@ -295,6 +299,68 @@ describe('Catalog Selection decision references', () => {
     ).toThrow();
   });
 
+  it('requires exactly one typed or confirmed-untyped proof for VALID evidence', () => {
+    const membership = {
+      attestationId: 'catalog-membership-untyped-1',
+      observedAt: instant,
+      productRef,
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      variant: { resourceRef: variantRef, revision: 2 },
+    };
+    const directBasis = [
+      { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
+      { role: 'VARIANT', source: membership.variant },
+    ];
+    const untypedProof = {
+      provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+      role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+      source: { resourceRef: productRef, revision: 7 },
+    };
+    const evidence = {
+      assessedAt: instant,
+      basis: [...directBasis, untypedProof],
+      membership,
+      purpose: 'PURCHASE_ACCEPTANCE',
+      selection,
+      status: 'VALID',
+    };
+    expect(decodeEvidence(evidence).basis).toContainEqual(untypedProof);
+    expect(() =>
+      decodeEvidence({
+        ...evidence,
+        basis: [
+          ...evidence.basis,
+          {
+            role: 'PRODUCT_TYPE',
+            source: { resourceRef: ref('commerce.catalog.product-type', tenantId), revision: 1 },
+          },
+        ],
+      }),
+    ).toThrow();
+    expect(() => decodeEvidence({ ...evidence, basis: directBasis })).toThrow();
+    expect(() =>
+      decodeEvidence({
+        ...evidence,
+        basis: [{ role: 'PRODUCT_TYPE_UNTYPED_DECISION', source: untypedProof.source }, ...directBasis],
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeEvidence({
+        ...evidence,
+        basis: [
+          ...directBasis,
+          {
+            ...untypedProof,
+            source: {
+              resourceRef: ref('commerce.catalog.product-type', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+              revision: 7,
+            },
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
   it('rejects VALID evidence missing a pinned package, set, or configuration source', () => {
     const packageRef = ref('commerce.catalog.package-definition', '44444444-4444-4444-8444-444444444444');
     const setRef = ref('commerce.catalog.set-composition', '55555555-5555-4555-8555-555555555555');
@@ -327,6 +393,7 @@ describe('Catalog Selection decision references', () => {
     const directBasis = [
       { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
       { role: 'VARIANT', source: membership.variant },
+      typeProof,
     ];
     const requiredBasis = [
       { role: 'PACKAGE_CONTENT', source: contentRevision },
@@ -377,7 +444,7 @@ describe('Catalog Selection decision references', () => {
   });
 
   it('qualifies every deciding basis role to its expected Catalog resourceType', () => {
-    const typeRef = ref('commerce.catalog.product-type', '99999999-9999-4999-8999-999999999999');
+    const qualifiedTypeRef = ref('commerce.catalog.product-type', '99999999-9999-4999-8999-999999999999');
     const attributeRef = ref('commerce.catalog.attribute-definition', '77777777-7777-4777-8777-777777777777');
     const valueSetRef = ref('commerce.catalog.attribute-value-set', '66666666-6666-4666-8666-666666666666');
     const definitionRef = ref('commerce.catalog.configuration-definition', '66666666-6666-4666-8666-666666666666');
@@ -390,7 +457,7 @@ describe('Catalog Selection decision references', () => {
     const qualified: readonly (readonly [string, object])[] = [
       ['PRODUCT', productRef],
       ['VARIANT', variantRef],
-      ['PRODUCT_TYPE', typeRef],
+      ['PRODUCT_TYPE', qualifiedTypeRef],
       ['ATTRIBUTE_DEFINITION', attributeRef],
       ['INHERITED_VALUE', valueSetRef],
       ['VARIANT_AXIS', productRef],

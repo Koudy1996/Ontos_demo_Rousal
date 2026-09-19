@@ -57,6 +57,18 @@ const hasRoleForRef = (
 ): boolean =>
   basis.some((fact) => fact.subject === undefined && fact.role === role && sameRef(fact.source.resourceRef, ref));
 
+const hasExclusiveTypeProof = (basis: Basis, selection: CatalogSelection): boolean => {
+  const typed = basis.filter((fact) => fact.subject === undefined && fact.role === 'PRODUCT_TYPE').length;
+  const untyped = basis.filter(
+    (fact) =>
+      fact.subject === undefined &&
+      fact.role === 'PRODUCT_TYPE_UNTYPED_DECISION' &&
+      fact.provenance === 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION' &&
+      sameRef(fact.source.resourceRef, selection.productRef),
+  ).length;
+  return typed + untyped === 1;
+};
+
 const assessPinnedRevisions = (
   selection: CatalogSelection,
   basis: Basis,
@@ -129,10 +141,7 @@ export const assessCatalogSelection = (input: CatalogSelectionAssessmentInput): 
   if (!hasRoleForRef(basis, 'PRODUCT', selection.productRef)) {
     return indeterminate('Current Product revision is missing');
   }
-  if (
-    !basis.some((fact) => fact.subject === undefined && fact.role === 'PRODUCT_TYPE') ||
-    !current.dependentFactsComplete
-  ) {
+  if (!hasExclusiveTypeProof(basis, selection) || !current.dependentFactsComplete) {
     return indeterminate('Required direct or indirect Catalog facts are not completely attested');
   }
   if (basis.some((fact) => fact.source.resourceRef.tenantId !== selection.productRef.tenantId)) {

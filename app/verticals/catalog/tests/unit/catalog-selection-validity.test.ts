@@ -37,6 +37,11 @@ const membership = {
 const basis = [
   { role: 'PRODUCT' as const, source: { resourceRef: productRef, revision: 1 } },
   { role: 'VARIANT' as const, source: membership.variant },
+  {
+    provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION' as const,
+    role: 'PRODUCT_TYPE_UNTYPED_DECISION' as const,
+    source: { resourceRef: productRef, revision: 1 },
+  },
 ];
 const decodeEvidence = Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema, { onExcessProperty: 'error' });
 const validEvidence = decodeEvidence({

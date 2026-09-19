@@ -1,5 +1,9 @@
 import { Schema } from 'effect';
 
+import {
+  CatalogRevisionResourceIdSchema,
+  CatalogRevisionTenantIdSchema,
+} from './catalog-revision-reference.ts';
 import type { CatalogResourceRef } from './catalog-revision-reference.ts';
 import type { ProductRef } from '../resources/product.ts';
 
@@ -15,6 +19,15 @@ import type { ProductRef } from '../resources/product.ts';
 
 /** The exact Catalog resource type of a Product-level Configuration Definition revision. */
 export const PRODUCT_CONFIGURATION_DEFINITION_RESOURCE_TYPE = 'commerce.catalog.configuration-definition' as const;
+
+/** Canonical tenant-qualified reference to one Product-level Configuration Definition Resource. */
+export const ProductConfigurationDefinitionReferenceSchema = Schema.Struct({
+  moduleId: Schema.Literal('commerce.catalog'),
+  resourceId: CatalogRevisionResourceIdSchema,
+  resourceType: Schema.Literal(PRODUCT_CONFIGURATION_DEFINITION_RESOURCE_TYPE),
+  tenantId: CatalogRevisionTenantIdSchema,
+});
+export type ProductConfigurationDefinitionReference = typeof ProductConfigurationDefinitionReferenceSchema.Type;
 
 /** Launch scope declares exactly these choice kinds; text labels are never identity. */
 export const SUPPORTED_CONFIGURATION_CHOICE_KINDS = ['MEASURED_VALUE', 'SINGLE_CHOICE'] as const;

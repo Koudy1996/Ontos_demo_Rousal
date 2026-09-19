@@ -110,6 +110,16 @@ describe('Product Configuration definition acceptance (#456)', () => {
   });
 
   it('requires the Definition to be the Catalog-owned Product-level Resource at one exact revision', () => {
+    expect(
+      inspectProductConfigurationDefinitionOwnership({
+        ...definition,
+        reference: {
+          ...definition.reference,
+          resourceRef: makeRef('commerce.catalog.product-configuration-definition', definitionRef.resourceId),
+        },
+      }),
+    ).toMatchObject({ status: 'INVALID' });
+
     const wrongType = {
       ...definition,
       reference: {

@@ -70,6 +70,11 @@ const currentValidEvidence = (selection: CatalogSelection) =>
     basis: [
       { role: 'PRODUCT', source: { resourceRef: selection.productRef, revision: 3 } },
       { role: 'VARIANT', source: { resourceRef: selection.variantRef, revision: 1 } },
+      {
+        provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+        role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+        source: { resourceRef: selection.productRef, revision: 1 },
+      },
     ],
     membership: {
       attestationId: 'product-lifecycle-current-membership',

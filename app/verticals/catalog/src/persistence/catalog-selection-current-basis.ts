@@ -458,7 +458,7 @@ const verifyProductTypeReadiness = Effect.fn('CatalogSelectionCurrentBasis.verif
     scope: OperationalScope,
     selection: CatalogSelection,
     now: DateTime.Utc,
-    rulesRevision: number,
+    source: { readonly rulesRevision: number; readonly status: 'VERIFIED' } | { readonly status: 'UNTYPED' },
   ) {
     const readiness = yield* productTypeReadinessSourceForScope(transaction, scope)
       .evaluate(selection.productRef, now)
@@ -469,7 +469,19 @@ const verifyProductTypeReadiness = Effect.fn('CatalogSelectionCurrentBasis.verif
     if (readiness.status === 'INVALID') {
       return { reason: 'Current Product Type requirements are invalid', status: 'INVALID' as const };
     }
-    if (readiness.status !== 'VERIFIED_TYPE_MINIMUM' || readiness.rulesRevision !== rulesRevision) {
+    if (source.status === 'UNTYPED') {
+      if (readiness.status !== 'CONFIRMED_UNTYPED_MINIMUM') {
+        return {
+          reason: 'Current confirmed-untyped decision is not completely attested',
+          status: 'INDETERMINATE' as const,
+        };
+      }
+      const revision = Schema.decodeOption(CatalogRevisionNumberSchema)(readiness.decisionRevision);
+      return Option.isNone(revision)
+        ? { reason: 'Current untyped decision revision is unavailable', status: 'INDETERMINATE' as const }
+        : { decisionRevision: revision.value, reason: null };
+    }
+    if (readiness.status !== 'VERIFIED_TYPE_MINIMUM' || readiness.rulesRevision !== source.rulesRevision) {
       return {
         reason: 'Current Product Type requirements are not completely attested',
         status: 'INDETERMINATE' as const,
@@ -877,6 +889,7 @@ const readPurposeCategoryBasis = Effect.fn('CatalogSelectionCurrentBasis.readPur
   },
 );
 
+/* oxlint-disable eslint/complexity -- Exact scope: one transaction-scoped Catalog Selection dependency proof. Evidence: #398 tests require separate typed/untyped, value, axis, package/unit, readiness, and category fail-closed outcomes. Owner/tracking: Catalog #398. Remove when these owner reads expose an approved aggregate Current-basis contract without weakening outcome distinctions; expires: 2027-03-31. */
 const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readIndirectDependencies')(
   function* readIndirectDependencies(
     transaction: ScopedTransaction,
@@ -892,20 +905,22 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
     const typeSource = yield* productTypeReadinessSourceForScope(transaction, scope)
       .load(selection.productRef, now)
       .pipe(Effect.orElseSucceed(() => null));
-    if (typeSource === null || typeSource.status !== 'VERIFIED') {
-      return unknown('Current Product Type assignment and rules are not owner-attested');
+    if (typeSource === null) {
+      return unknown('Current Product Type assignment or untyped decision is not owner-attested');
     }
-    const typeRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(typeSource.basis.revision).pipe(
-      Effect.mapError(unavailable),
-    );
-    basis.push({
-      role: 'PRODUCT_TYPE',
-      source: {
-        resourceRef: typeSource.basis.productTypeRef,
-        revision: typeRevision,
-        revisionId: typeSource.basis.revisionId,
-      },
-    });
+    if (typeSource.status === 'VERIFIED') {
+      const typeRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(typeSource.basis.revision).pipe(
+        Effect.mapError(unavailable),
+      );
+      basis.push({
+        role: 'PRODUCT_TYPE',
+        source: {
+          resourceRef: typeSource.basis.productTypeRef,
+          revision: typeRevision,
+          revisionId: typeSource.basis.revisionId,
+        },
+      });
+    }
     const productValues = yield* readProductValueValidity(
       transaction,
       scope,
@@ -921,29 +936,47 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
     }
     const axisReader = variantAxisPersistenceForScope(transaction, scope);
     const axes = yield* axisReader.readCurrent(selection.productRef).pipe(Effect.orElseSucceed(() => null));
-    if (
-      axes === null ||
-      axes.productId !== selection.productRef.resourceId ||
-      axes.productTypeRevision !== typeSource.basis.revision
-    ) {
-      return unknown('Current Variant axes are unavailable or stale against Product Type');
+    if (axes === null || axes.productId !== selection.productRef.resourceId) {
+      return unknown('Current Variant axes are unavailable');
     }
-    if (!Number.isSafeInteger(axes.axisRevision) || axes.axisRevision < 1) {
-      return unknown('Current Variant axis revision is not owner-attested');
+    if (typeSource.status === 'VERIFIED') {
+      if (axes.productTypeRevision !== typeSource.basis.revision) {
+        return unknown('Current Variant axes are stale against Product Type');
+      }
+      if (!Number.isSafeInteger(axes.axisRevision) || axes.axisRevision < 1) {
+        return unknown('Current Variant axis revision is not owner-attested');
+      }
+      const axisRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(axes.axisRevision).pipe(
+        Effect.mapError(unavailable),
+      );
+      basis.push({ role: 'VARIANT_AXIS', source: { resourceRef: selection.productRef, revision: axisRevision } });
+      const axisValues = yield* axisReader
+        .readEffectiveValues(selection.productRef, selection.variantRef, axes)
+        .pipe(Effect.orElseSucceed(() => null));
+      if (axisValues === null || axisValues.length !== axes.axes.length) {
+        return unknown('Current Variant axis values are unavailable or incomplete');
+      }
+      const axisValueProblem = appendAxisValueBasis(basis, axisValues, scope.tenantId);
+      if (axisValueProblem !== null) {
+        return unknown(axisValueProblem);
+      }
+    } else if (axes.productTypeRevision !== null || axes.axes.length !== 0) {
+      return unknown('Current untyped Product has contradictory Variant axes');
     }
-    const axisRevision = yield* Schema.decodeEffect(CatalogRevisionNumberSchema)(axes.axisRevision).pipe(
-      Effect.mapError(unavailable),
-    );
-    basis.push({ role: 'VARIANT_AXIS', source: { resourceRef: selection.productRef, revision: axisRevision } });
-    const axisValues = yield* axisReader
-      .readEffectiveValues(selection.productRef, selection.variantRef, axes)
-      .pipe(Effect.orElseSucceed(() => null));
-    if (axisValues === null || axisValues.length !== axes.axes.length) {
-      return unknown('Current Variant axis values are unavailable or incomplete');
-    }
-    const axisValueProblem = appendAxisValueBasis(basis, axisValues, scope.tenantId);
-    if (axisValueProblem !== null) {
-      return unknown(axisValueProblem);
+
+    if (typeSource.status === 'UNTYPED') {
+      const readiness = yield* verifyProductTypeReadiness(transaction, scope, selection, now, { status: 'UNTYPED' });
+      if (readiness.reason !== null) {
+        return { basis, reason: readiness.reason, status: readiness.status };
+      }
+      if (!('decisionRevision' in readiness)) {
+        return unknown('Current untyped decision revision is unavailable');
+      }
+      basis.push({
+        provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+        role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+        source: { resourceRef: selection.productRef, revision: readiness.decisionRevision },
+      });
     }
 
     const packageBasis = yield* catalogSelectionPackageUnitBasisForScope(transaction, scope)
@@ -962,9 +995,14 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
     if (packageProblem !== null) {
       return unknown(packageProblem);
     }
-    const readiness = yield* verifyProductTypeReadiness(transaction, scope, selection, now, typeSource.basis.revision);
-    if (readiness.reason !== null) {
-      return { basis, reason: readiness.reason, status: readiness.status };
+    if (typeSource.status === 'VERIFIED') {
+      const readiness = yield* verifyProductTypeReadiness(transaction, scope, selection, now, {
+        rulesRevision: typeSource.basis.revision,
+        status: 'VERIFIED',
+      });
+      if (readiness.reason !== null) {
+        return { basis, reason: readiness.reason, status: readiness.status };
+      }
     }
     const category = yield* readPurposeCategoryBasis(transaction, scope, selection.productRef.resourceId, purpose);
     basis.push(...category.basis);
@@ -979,6 +1017,7 @@ const readIndirectDependencies = Effect.fn('CatalogSelectionCurrentBasis.readInd
     };
   },
 );
+/* oxlint-enable eslint/complexity */
 
 /**
  * Core supplies one tenant-scoped transaction. An OBSERVED result is a complete

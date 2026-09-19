@@ -92,6 +92,7 @@ export const requiredCatalogSelectionRoles = (
   ...new Set<CatalogSelectionBasisRole>([
     'PRODUCT',
     'VARIANT',
+    'PRODUCT_TYPE',
     ...pinnedRequirements(selection).map(({ role }) => role),
     ...purposeExtraRoles(purpose),
   ]),
@@ -123,15 +124,41 @@ export const selectSmallestCompleteCatalogSelectionBasis = (input: {
 }): CatalogSelectionBasisMinimalisation => {
   const { basis, purpose, selection } = input;
   const pinned = pinnedRequirements(selection);
-  const roleOnly = new Set<CatalogSelectionBasisRole>(['PRODUCT', 'VARIANT', ...purposeExtraRoles(purpose)]);
+  const roleOnly = new Set<CatalogSelectionBasisRole>([
+    'PRODUCT',
+    'VARIANT',
+    'PRODUCT_TYPE',
+    ...purposeExtraRoles(purpose),
+  ]);
   const optionalWhenPresent = new Set<CatalogSelectionBasisRole>([
     'UNIT_CONVERSION',
     ...(purpose === 'PURCHASE_ACCEPTANCE' || purpose === 'CART_VALIDATION'
       ? (['ATTRIBUTE_DEFINITION', 'INHERITED_VALUE', 'OTHER_CATALOG_FACT'] as const)
       : []),
   ]);
-  const present = (role: CatalogSelectionBasisRole): boolean =>
-    basis.some((fact) => fact.subject === undefined && fact.role === role);
+  const hasConfirmedUntypedProof = basis.some(
+    (fact) =>
+      fact.subject === undefined &&
+      fact.role === 'PRODUCT_TYPE_UNTYPED_DECISION' &&
+      sameRef(fact.source.resourceRef, selection.productRef),
+  );
+  const present = (role: CatalogSelectionBasisRole): boolean => {
+    if (role === 'PRODUCT_TYPE') {
+      return (
+        basis.filter(
+          (fact) =>
+            fact.subject === undefined &&
+            (fact.role === 'PRODUCT_TYPE' ||
+              (fact.role === 'PRODUCT_TYPE_UNTYPED_DECISION' &&
+                sameRef(fact.source.resourceRef, selection.productRef))),
+        ).length === 1
+      );
+    }
+    if (role === 'VARIANT_AXIS' && hasConfirmedUntypedProof) {
+      return true;
+    }
+    return basis.some((fact) => fact.subject === undefined && fact.role === role);
+  };
 
   const missing: CatalogSelectionBasisRole[] = [];
   if (
@@ -174,7 +201,11 @@ export const selectSmallestCompleteCatalogSelectionBasis = (input: {
     if (fact.role === 'VARIANT') {
       return sameRef(fact.source.resourceRef, selection.variantRef);
     }
-    if (roleOnly.has(fact.role) || optionalWhenPresent.has(fact.role)) {
+    if (
+      roleOnly.has(fact.role) ||
+      optionalWhenPresent.has(fact.role) ||
+      (fact.role === 'PRODUCT_TYPE_UNTYPED_DECISION' && roleOnly.has('PRODUCT_TYPE'))
+    ) {
       return true;
     }
     return pinned.some((requirement) => matchesPinned(fact, requirement));

@@ -42,7 +42,7 @@ const packageDefinitionRef = {
 const configurationDefinitionRef = {
   moduleId: 'commerce.catalog',
   resourceId: configurationDefinitionId,
-  resourceType: 'commerce.catalog.product-configuration-definition',
+  resourceType: 'commerce.catalog.configuration-definition',
   tenantId,
 } as const;
 
@@ -128,6 +128,12 @@ describe('Catalog product-form reference separation', () => {
     expect(Schema.decodeUnknownSync(ProductConfigurationDefinitionReferenceSchema)(configurationDefinitionRef)).toEqual(
       configurationDefinitionRef,
     );
+    expect(() =>
+      Schema.decodeUnknownSync(ProductConfigurationDefinitionReferenceSchema)({
+        ...configurationDefinitionRef,
+        resourceType: 'commerce.catalog.product-configuration-definition',
+      }),
+    ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(ProductConfigurationSchema, { onExcessProperty: 'error' })({
         configurationResourceId: configurationDefinitionId,

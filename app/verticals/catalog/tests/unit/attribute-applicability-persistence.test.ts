@@ -52,6 +52,11 @@ const assessedAt = '2026-09-18T12:00:00.000Z';
 const basis = [
   { role: 'PRODUCT', source: { resourceRef: productRef, revision: 1 } },
   { role: 'VARIANT', source: { resourceRef: variantRef, revision: 1 } },
+  {
+    provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+    role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+    source: { resourceRef: productRef, revision: 1 },
+  },
 ];
 const validSelectionEvidence = Schema.decodeUnknownSync(CatalogSelectionEvidenceSchema)({
   assessedAt,

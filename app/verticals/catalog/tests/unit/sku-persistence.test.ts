@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Match, Schema } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 
 import {
+  assessCurrentPackageOptionSnapshot,
   assessSkuLookupSnapshot,
   currentPackageOptionSnapshotMatches,
   SkuPersistenceUnavailable,
+  skuPersistenceForScope,
   validSkuChangeInput,
 } from '../../src/persistence/sku-persistence.ts';
 
@@ -17,6 +19,26 @@ const base = {
   reason: 'Verified against source',
   target: { kind: 'VARIANT', tenantId: 'tenant-a', variantId: '00000000-0000-4000-8000-000000000003' },
 } as const;
+
+const invalidReason = (snapshot: Parameters<typeof assessCurrentPackageOptionSnapshot>[0]) =>
+  Match.value(assessCurrentPackageOptionSnapshot(snapshot)).pipe(
+    Match.tag('INVALID_CURRENT', ({ reason }) => reason),
+    Match.orElse(() => null),
+  );
+
+const emptyAuthoritativeSelect = () => {
+  const query = {
+    for: () => query,
+    from: () => query,
+    limit: () => Effect.succeed([]),
+    where: () => query,
+  };
+  return query;
+};
+
+const persistenceWithEmptyAuthoritativeLookup = () =>
+  // @ts-expect-error This focused mock implements the authoritative empty-select path only.
+  skuPersistenceForScope({ select: emptyAuthoritativeSelect }, { tenantId: 'tenant-a' });
 
 describe('SKU persistence input guard', () => {
   it('accepts a tenant-scoped Variant and preserves display spelling', () => {
@@ -56,6 +78,57 @@ describe('SKU persistence input guard', () => {
   });
 });
 
+describe('SKU authoritative target absence', () => {
+  it.effect('returns not_found when the authoritative Variant lookup succeeds with no row', () =>
+    Effect.gen(function* missingVariant() {
+      const outcome = yield* persistenceWithEmptyAuthoritativeLookup().assign(base);
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('not_found', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('returns not_found when the authoritative Package Definition lookup succeeds with no row', () =>
+    Effect.gen(function* missingPackageDefinition() {
+      const outcome = yield* persistenceWithEmptyAuthoritativeLookup().assign({
+        ...base,
+        target: {
+          kind: 'PACKAGE_OPTION',
+          packageDefinitionId: '00000000-0000-4000-8000-000000000004',
+          tenantId: 'tenant-a',
+        },
+      });
+      expect(
+        Match.value(outcome).pipe(
+          Match.tag('not_found', () => true),
+          Match.orElse(() => false),
+        ),
+      ).toBe(true);
+    }),
+  );
+
+  it.effect('keeps an authoritative lookup outage distinct from target absence', () =>
+    Effect.gen(function* unavailableTargetOwner() {
+      const query = {
+        for: () => query,
+        from: () => query,
+        limit: () => Effect.fail(new Error('database unavailable')),
+        where: () => query,
+      };
+      const persistence = skuPersistenceForScope(
+        // @ts-expect-error This focused mock implements the failing authoritative-select path only.
+        { select: () => query },
+        { tenantId: 'tenant-a' },
+      );
+      const failure = yield* Effect.flip(persistence.assign(base));
+      expect(Schema.is(SkuPersistenceUnavailable)(failure)).toBe(true);
+    }),
+  );
+});
+
 describe('SKU Package Option Current proof', () => {
   const now = new Date('2026-09-17T10:00:00.000Z');
   const active = {
@@ -72,6 +145,7 @@ describe('SKU Package Option Current proof', () => {
       currentRevision: 4,
       lifecycleState: 'ACTIVE',
       optionState: 'ACTIVE',
+      packageDefinitionId: 'package-a',
       productId: 'product-a',
       variantId: 'variant-a',
     },
@@ -91,7 +165,6 @@ describe('SKU Package Option Current proof', () => {
     unitLifecycle: 'ACTIVE',
     variantLifecycle: 'ACTIVE',
   } as const;
-
   it('accepts only pinned active role and content for an independent Option', () => {
     expect(currentPackageOptionSnapshotMatches(active)).toBe(true);
     expect(currentPackageOptionSnapshotMatches({ ...active, contentRevision: 3 })).toBe(false);
@@ -140,6 +213,29 @@ describe('SKU Package Option Current proof', () => {
         content: { ...active.content, effectiveAt: new Date('2026-09-18T00:00:00.000Z') },
       }),
     ).toBe(false);
+  });
+
+  it('separates known invalid Current state from contradictory Current proof', () => {
+    expect(invalidReason({ ...active, productLifecycle: 'RETIRED' })).toBe('PRODUCT_NOT_ACTIVE');
+    expect(invalidReason({ ...active, variantLifecycle: 'RETIRED' })).toBe('VARIANT_NOT_ACTIVE');
+    expect(invalidReason({ ...active, definition: { ...active.definition, optionState: 'RETIRED' } })).toBe(
+      'PACKAGE_OPTION_NOT_ACTIVE',
+    );
+    expect(invalidReason({ ...active, content: { ...active.content, lifecycleState: 'RETIRED' } })).toBe(
+      'CONTENT_NOT_ACTIVE',
+    );
+    expect(invalidReason({ ...active, unitLifecycle: 'RETIRED' })).toBe('UNIT_NOT_ACTIVE');
+    expect(
+      Match.value(
+        assessCurrentPackageOptionSnapshot({
+          ...active,
+          role: { ...active.role, contentRevision: 3 },
+        }),
+      ).pipe(
+        Match.tag('INDETERMINATE', ({ reason }) => reason),
+        Match.orElse(() => null),
+      ),
+    ).toBe('CURRENT_SNAPSHOT_CONTRADICTORY');
   });
 });
 

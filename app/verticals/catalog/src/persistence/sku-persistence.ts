@@ -18,11 +18,43 @@ import {
 } from '../database/schema.ts';
 
 type ScopedTransaction = Parameters<ReadServiceFactory<Readonly<Record<string, never>>>>[0];
-interface ResolvedTarget {
-  readonly packageDefinitionId: string | null;
-  readonly productId: string;
-  readonly variantId: string;
-}
+/* oxlint-disable effect-native/no-nullable-schema-field, effect-native/no-unbranded-identifier-schema -- Exact scope: internal Drizzle result identity. Evidence: package_definition_id is nullable by target kind and these owner-local strings never cross a decode boundary. Owner/tracking: Catalog #398. Remove when SKU target reads return the approved branded owner value object; expires: 2027-03-31. */
+const ResolvedTargetSchema = Schema.Struct({
+  packageDefinitionId: Schema.NullOr(Schema.String),
+  productId: Schema.String,
+  variantId: Schema.String,
+});
+/* oxlint-enable effect-native/no-nullable-schema-field, effect-native/no-unbranded-identifier-schema */
+type ResolvedTarget = typeof ResolvedTargetSchema.Type;
+
+const SkuTargetResolutionSchema = Schema.Union([
+  Schema.TaggedStruct('RESOLVED', { target: ResolvedTargetSchema }),
+  Schema.TaggedStruct('NOT_FOUND', { reason: Schema.Literals(['PACKAGE_OPTION_NOT_FOUND', 'VARIANT_NOT_FOUND']) }),
+  Schema.TaggedStruct('INVALID_CURRENT', {
+    reason: Schema.Literals([
+      'CONTENT_NOT_ACTIVE',
+      'PACKAGE_DEFINITION_NOT_ACTIVE',
+      'PACKAGE_OPTION_NOT_ACTIVE',
+      'PACKAGE_OPTION_NOT_INDEPENDENT',
+      'PRODUCT_NOT_ACTIVE',
+      'UNIT_NOT_ACTIVE',
+      'VARIANT_NOT_ACTIVE',
+    ]),
+  }),
+  Schema.TaggedStruct('INDETERMINATE', {
+    reason: Schema.Literals([
+      'CONTENT_PROOF_INCOMPLETE',
+      'CURRENT_SNAPSHOT_CONTRADICTORY',
+      'PRODUCT_PROOF_INCOMPLETE',
+      'ROLE_PROOF_INCOMPLETE',
+      'UNIT_PROOF_INCOMPLETE',
+      'VARIANT_PROOF_INCOMPLETE',
+    ]),
+  }),
+]);
+type SkuTargetResolution = typeof SkuTargetResolutionSchema.Type;
+
+const resolvedTarget = (target: ResolvedTarget): SkuTargetResolution => ({ _tag: 'RESOLVED', target });
 
 export interface SkuCurrentOptionSnapshot {
   readonly content: Pick<
@@ -32,7 +64,13 @@ export interface SkuCurrentOptionSnapshot {
   readonly contentRevision: number;
   readonly definition: Pick<
     typeof packageDefinitions.$inferSelect,
-    'currentOptionRevision' | 'currentRevision' | 'lifecycleState' | 'optionState' | 'productId' | 'variantId'
+    | 'currentOptionRevision'
+    | 'currentRevision'
+    | 'lifecycleState'
+    | 'optionState'
+    | 'packageDefinitionId'
+    | 'productId'
+    | 'variantId'
   >;
   readonly effectiveContentRevision: number;
   readonly now: Date;
@@ -52,36 +90,73 @@ export interface SkuCurrentOptionSnapshot {
   readonly variantLifecycle: string;
 }
 
-/* oxlint-disable eslint/complexity -- Exact Current proof requires each independent revision, lifecycle, and business-role invariant. expires: 2027-03-31. */
-export const currentPackageOptionSnapshotMatches = (snapshot: SkuCurrentOptionSnapshot): boolean => {
+/* oxlint-disable eslint/complexity -- Exact scope: package-option Current proof. Evidence: every branch preserves a distinct revision, lifecycle, or requestability outcome required by #398 tests. Owner/tracking: Catalog #398. Remove when the proof is represented by an approved owner value object without flattening outcomes; expires: 2027-03-31. */
+export const assessCurrentPackageOptionSnapshot = (snapshot: SkuCurrentOptionSnapshot): SkuTargetResolution => {
   const { content, definition, now, role } = snapshot;
-  return (
-    definition.lifecycleState === 'ACTIVE' &&
-    definition.optionState === 'ACTIVE' &&
-    definition.currentRevision > 0 &&
-    definition.currentOptionRevision > 0 &&
-    content.lifecycleState === 'ACTIVE' &&
-    snapshot.effectiveContentRevision > 0 &&
-    snapshot.effectiveContentRevision <= definition.currentRevision &&
-    snapshot.contentRevision === snapshot.effectiveContentRevision &&
-    content.productId === definition.productId &&
-    content.variantId === definition.variantId &&
-    content.unitResourceType === 'commerce.catalog.product-unit' &&
-    role.state === 'ACTIVE' &&
-    role.revision === definition.currentOptionRevision &&
-    role.contentRevision === snapshot.effectiveContentRevision &&
-    role.productId === definition.productId &&
-    role.variantId === definition.variantId &&
-    role.independentlyRequested &&
-    !role.looseUnitsSubstitutable &&
-    snapshot.productLifecycle === 'ACTIVE' &&
-    snapshot.variantLifecycle === 'ACTIVE' &&
-    snapshot.unitLifecycle === 'ACTIVE' &&
-    content.effectiveAt.getTime() <= now.getTime() &&
-    role.effectiveAt.getTime() <= now.getTime()
-  );
+  if (
+    definition.currentRevision < 1 ||
+    definition.currentOptionRevision < 1 ||
+    snapshot.effectiveContentRevision < 1 ||
+    snapshot.effectiveContentRevision > definition.currentRevision ||
+    snapshot.contentRevision !== snapshot.effectiveContentRevision ||
+    content.productId !== definition.productId ||
+    content.variantId !== definition.variantId ||
+    content.unitResourceType !== 'commerce.catalog.product-unit' ||
+    role.revision !== definition.currentOptionRevision ||
+    role.contentRevision !== snapshot.effectiveContentRevision ||
+    role.productId !== definition.productId ||
+    role.variantId !== definition.variantId ||
+    content.effectiveAt.getTime() > now.getTime() ||
+    role.effectiveAt.getTime() > now.getTime()
+  ) {
+    return { _tag: 'INDETERMINATE', reason: 'CURRENT_SNAPSHOT_CONTRADICTORY' };
+  }
+  if (definition.lifecycleState !== 'ACTIVE') {
+    return { _tag: 'INVALID_CURRENT', reason: 'PACKAGE_DEFINITION_NOT_ACTIVE' };
+  }
+  if (definition.optionState !== 'ACTIVE' || role.state !== 'ACTIVE') {
+    return { _tag: 'INVALID_CURRENT', reason: 'PACKAGE_OPTION_NOT_ACTIVE' };
+  }
+  if (content.lifecycleState !== 'ACTIVE') {
+    return { _tag: 'INVALID_CURRENT', reason: 'CONTENT_NOT_ACTIVE' };
+  }
+  if (!role.independentlyRequested || role.looseUnitsSubstitutable) {
+    return { _tag: 'INVALID_CURRENT', reason: 'PACKAGE_OPTION_NOT_INDEPENDENT' };
+  }
+  if (snapshot.productLifecycle !== 'ACTIVE') {
+    return { _tag: 'INVALID_CURRENT', reason: 'PRODUCT_NOT_ACTIVE' };
+  }
+  if (snapshot.variantLifecycle !== 'ACTIVE') {
+    return { _tag: 'INVALID_CURRENT', reason: 'VARIANT_NOT_ACTIVE' };
+  }
+  if (snapshot.unitLifecycle !== 'ACTIVE') {
+    return { _tag: 'INVALID_CURRENT', reason: 'UNIT_NOT_ACTIVE' };
+  }
+  return resolvedTarget({
+    packageDefinitionId: definition.packageDefinitionId,
+    productId: definition.productId,
+    variantId: definition.variantId,
+  });
 };
+
+export const currentPackageOptionSnapshotMatches = (snapshot: SkuCurrentOptionSnapshot): boolean =>
+  Match.value(assessCurrentPackageOptionSnapshot(snapshot)).pipe(
+    Match.tag('RESOLVED', () => true),
+    Match.orElse(() => false),
+  );
 /* oxlint-enable eslint/complexity */
+
+const invalidCurrentReason = (resolution: Extract<SkuTargetResolution, { _tag: 'INVALID_CURRENT' }>): string =>
+  Match.value(resolution.reason).pipe(
+    Match.when('CONTENT_NOT_ACTIVE', () => 'Package Option effective content is not Active'),
+    Match.when('PACKAGE_DEFINITION_NOT_ACTIVE', () => 'Package Definition is not Active'),
+    Match.when('PACKAGE_OPTION_NOT_ACTIVE', () => 'Package Option role is not Active'),
+    Match.when('PACKAGE_OPTION_NOT_INDEPENDENT', () => 'Package Option is not independently requestable'),
+    Match.when('PRODUCT_NOT_ACTIVE', () => 'Product is not Active'),
+    Match.when('UNIT_NOT_ACTIVE', () => 'Product Unit is not Active'),
+    Match.when('VARIANT_NOT_ACTIVE', () => 'Variant is not Active'),
+    Match.exhaustive,
+  );
 
 export class SkuPersistenceUnavailable extends Schema.TaggedError<SkuPersistenceUnavailable>()(
   'SkuPersistenceUnavailable',
@@ -321,6 +396,7 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       )
       .limit(1)
       .pipe(Effect.mapError(unavailable));
+  /* oxlint-disable eslint/complexity -- Exact scope: authoritative SKU target resolution. Evidence: focused #398 outcome tests require separate missing, invalid, and indeterminate branches. Owner/tracking: Catalog #398. Remove when Variant and Package Option expose one approved typed Current-read contract; expires: 2027-03-31. */
   const resolveTarget = Effect.fn('SkuPersistence.resolveTarget')(function* resolveTarget(target: SkuTarget) {
     if (target.kind === 'PACKAGE_OPTION') {
       const [definition] = yield* transaction
@@ -336,7 +412,13 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
         .limit(1)
         .pipe(Effect.mapError(unavailable));
       if (definition === undefined) {
-        return null;
+        return { _tag: 'NOT_FOUND', reason: 'PACKAGE_OPTION_NOT_FOUND' } as const;
+      }
+      if (definition.lifecycleState !== 'ACTIVE') {
+        return { _tag: 'INVALID_CURRENT', reason: 'PACKAGE_DEFINITION_NOT_ACTIVE' } as const;
+      }
+      if (definition.optionState !== 'ACTIVE') {
+        return { _tag: 'INVALID_CURRENT', reason: 'PACKAGE_OPTION_NOT_ACTIVE' } as const;
       }
       const now = DateTime.toDateUtc(yield* DateTime.now);
       const [contents, [role], [variant], [product]] = yield* Effect.all(
@@ -391,14 +473,32 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
         Match.exhaustive,
       );
       const content = contents.find((row) => row.revision === effectiveRevision);
-      if (
-        content === undefined ||
-        contents.length !== definition.currentRevision ||
-        role === undefined ||
-        variant === undefined ||
-        product === undefined
-      ) {
-        return yield* unavailable();
+      if (content === undefined || contents.length !== definition.currentRevision) {
+        return { _tag: 'INDETERMINATE', reason: 'CONTENT_PROOF_INCOMPLETE' } as const;
+      }
+      if (role === undefined) {
+        return { _tag: 'INDETERMINATE', reason: 'ROLE_PROOF_INCOMPLETE' } as const;
+      }
+      if (variant === undefined) {
+        return { _tag: 'INDETERMINATE', reason: 'VARIANT_PROOF_INCOMPLETE' } as const;
+      }
+      if (product === undefined) {
+        return { _tag: 'INDETERMINATE', reason: 'PRODUCT_PROOF_INCOMPLETE' } as const;
+      }
+      if (content.lifecycleState !== 'ACTIVE') {
+        return { _tag: 'INVALID_CURRENT', reason: 'CONTENT_NOT_ACTIVE' } as const;
+      }
+      if (role.state !== 'ACTIVE') {
+        return { _tag: 'INVALID_CURRENT', reason: 'PACKAGE_OPTION_NOT_ACTIVE' } as const;
+      }
+      if (!role.independentlyRequested || role.looseUnitsSubstitutable) {
+        return { _tag: 'INVALID_CURRENT', reason: 'PACKAGE_OPTION_NOT_INDEPENDENT' } as const;
+      }
+      if (product.lifecycleState !== 'ACTIVE') {
+        return { _tag: 'INVALID_CURRENT', reason: 'PRODUCT_NOT_ACTIVE' } as const;
+      }
+      if (variant.lifecycleState !== 'ACTIVE') {
+        return { _tag: 'INVALID_CURRENT', reason: 'VARIANT_NOT_ACTIVE' } as const;
       }
       const [unit] = yield* transaction
         .select()
@@ -408,28 +508,22 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
         .limit(1)
         .pipe(Effect.mapError(unavailable));
       if (unit === undefined) {
-        return yield* unavailable();
+        return { _tag: 'INDETERMINATE', reason: 'UNIT_PROOF_INCOMPLETE' } as const;
       }
-      if (
-        !currentPackageOptionSnapshotMatches({
-          content,
-          contentRevision: content.revision,
-          definition,
-          effectiveContentRevision: effectiveRevision ?? 0,
-          now,
-          productLifecycle: product.lifecycleState,
-          role,
-          unitLifecycle: unit.lifecycleState,
-          variantLifecycle: variant.lifecycleState,
-        })
-      ) {
-        return yield* unavailable();
+      if (unit.lifecycleState !== 'ACTIVE') {
+        return { _tag: 'INVALID_CURRENT', reason: 'UNIT_NOT_ACTIVE' } as const;
       }
-      return {
-        packageDefinitionId: definition.packageDefinitionId,
-        productId: definition.productId,
-        variantId: definition.variantId,
-      } satisfies ResolvedTarget;
+      return assessCurrentPackageOptionSnapshot({
+        content,
+        contentRevision: content.revision,
+        definition,
+        effectiveContentRevision: effectiveRevision ?? 0,
+        now,
+        productLifecycle: product.lifecycleState,
+        role,
+        unitLifecycle: unit.lifecycleState,
+        variantLifecycle: variant.lifecycleState,
+      });
     }
     const [variant] = yield* transaction
       .select()
@@ -439,7 +533,7 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       .limit(1)
       .pipe(Effect.mapError(unavailable));
     if (variant === undefined) {
-      return null;
+      return { _tag: 'NOT_FOUND', reason: 'VARIANT_NOT_FOUND' } as const;
     }
     const [product] = yield* transaction
       .select()
@@ -447,15 +541,39 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
       .where(and(eq(products.tenantId, tenantId), eq(products.productId, variant.productId)))
       .limit(1)
       .pipe(Effect.mapError(unavailable));
-    if (product === undefined || product.lifecycleState !== 'ACTIVE' || variant.lifecycleState !== 'ACTIVE') {
-      return yield* unavailable();
+    if (product === undefined) {
+      return { _tag: 'INDETERMINATE', reason: 'PRODUCT_PROOF_INCOMPLETE' } as const;
     }
-    return {
+    if (product.lifecycleState !== 'ACTIVE') {
+      return { _tag: 'INVALID_CURRENT', reason: 'PRODUCT_NOT_ACTIVE' } as const;
+    }
+    if (variant.lifecycleState !== 'ACTIVE') {
+      return { _tag: 'INVALID_CURRENT', reason: 'VARIANT_NOT_ACTIVE' } as const;
+    }
+    return resolvedTarget({
       packageDefinitionId: null,
       productId: variant.productId,
       variantId: variant.variantId,
-    } satisfies ResolvedTarget;
+    });
   });
+  /* oxlint-enable eslint/complexity */
+  const resolveChangeTarget = (target: SkuTarget) =>
+    resolveTarget(target).pipe(
+      Effect.flatMap((resolution) =>
+        Match.value(resolution).pipe(
+          Match.tag('RESOLVED', ({ target: resolvedValue }) => Effect.succeed({ target: resolvedValue })),
+          Match.tag('NOT_FOUND', () => Effect.succeed({ outcome: { _tag: 'not_found' as const }, target: null })),
+          Match.tag('INVALID_CURRENT', (invalid) =>
+            Effect.succeed({
+              outcome: { _tag: 'invalid' as const, reason: invalidCurrentReason(invalid) },
+              target: null,
+            }),
+          ),
+          Match.tag('INDETERMINATE', () => Effect.fail(unavailable())),
+          Match.exhaustive,
+        ),
+      ),
+    );
   const appendRevision = (
     input: SkuChangeInput,
     target: ResolvedTarget,
@@ -486,9 +604,10 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     if (!validSkuChangeInput(input, tenantId) || input.expectedRevision !== 0) {
       return { _tag: 'invalid', reason: 'Invalid SKU assignment or initial revision' } as const;
     }
-    const target = yield* resolveTarget(input.target);
+    const targetDecision = yield* resolveChangeTarget(input.target);
+    const { target } = targetDecision;
     if (target === null) {
-      return { _tag: 'not_found' } as const;
+      return targetDecision.outcome;
     }
     const [priorInvocation] = yield* readAnyInvocation(input.actionInvocationId);
     if (priorInvocation !== undefined) {
@@ -563,9 +682,10 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     ) {
       return { _tag: 'invalid', reason: 'Invalid documented SKU correction' } as const;
     }
-    const target = yield* resolveTarget(input.target);
+    const targetDecision = yield* resolveChangeTarget(input.target);
+    const { target } = targetDecision;
     if (target === null) {
-      return { _tag: 'not_found' } as const;
+      return targetDecision.outcome;
     }
     const [priorInvocation] = yield* readAnyInvocation(input.actionInvocationId);
     if (priorInvocation !== undefined) {
@@ -657,9 +777,10 @@ export const skuPersistenceForScope = (transaction: ScopedTransaction, scope: Op
     ) {
       return { _tag: 'invalid', reason: 'Invalid SKU rename or unchanged comparison code' } as const;
     }
-    const target = yield* resolveTarget(input.target);
+    const targetDecision = yield* resolveChangeTarget(input.target);
+    const { target } = targetDecision;
     if (target === null) {
-      return { _tag: 'not_found' } as const;
+      return targetDecision.outcome;
     }
     const [anyInvocation] = yield* readAnyInvocation(input.actionInvocationId);
     if (anyInvocation !== undefined) {

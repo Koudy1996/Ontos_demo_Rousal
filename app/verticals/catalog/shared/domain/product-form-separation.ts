@@ -2,6 +2,7 @@ import { Schema } from 'effect';
 
 import { ProductRefSchema } from '../resources/product.ts';
 import { VariantRefSchema } from '../resources/variant.ts';
+import { ProductConfigurationDefinitionReferenceSchema } from './configuration-definition.ts';
 
 /**
  * Contract-only references for the product-form vocabulary.
@@ -21,11 +22,6 @@ const packageDefinitionResourceId = checkedUuid.pipe(
   Schema.brand('CatalogPackageDefinitionResourceId'),
   Schema.decodeTo(checkedUuid),
 );
-const configurationDefinitionResourceId = checkedUuid.pipe(
-  Schema.brand('CatalogProductConfigurationDefinitionResourceId'),
-  Schema.decodeTo(checkedUuid),
-);
-
 const revision = Schema.Finite.check(Schema.isInt(), Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })).pipe(
   Schema.brand('CatalogProductFormRevision'),
 );
@@ -48,13 +44,8 @@ export const PackageDefinitionReferenceSchema = Schema.Struct({
 export type PackageDefinitionReference = typeof PackageDefinitionReferenceSchema.Type;
 
 /** A Product-level Resource describing supported configuration choices. */
-export const ProductConfigurationDefinitionReferenceSchema = Schema.Struct({
-  moduleId: Schema.Literal('commerce.catalog'),
-  resourceId: configurationDefinitionResourceId,
-  resourceType: Schema.Literal('commerce.catalog.product-configuration-definition'),
-  tenantId: catalogTenantId,
-});
-export type ProductConfigurationDefinitionReference = typeof ProductConfigurationDefinitionReferenceSchema.Type;
+export { ProductConfigurationDefinitionReferenceSchema } from './configuration-definition.ts';
+export type { ProductConfigurationDefinitionReference } from './configuration-definition.ts';
 
 /**
  * A Package Option is a selectable role of one Package Definition for one Variant.

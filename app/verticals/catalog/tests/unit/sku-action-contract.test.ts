@@ -213,16 +213,23 @@ describe('governed SKU Action contracts', () => {
     }
   });
 
-  it('maps retained-code conflict and stale CAS to typed 409 problems', () => {
-    const conflict = mapAssignSkuActionProblem(
-      new SkuActionConflict({ code: 'sku_action_conflict', reason: 'retained' }),
-    );
-    const stale = mapRenameSkuActionProblem(new SkuActionStale({ actualRevision: 2, code: 'sku_action_stale' }));
-    const correctionConflict = mapCorrectSkuActionProblem(
-      new SkuActionConflict({ code: 'sku_action_conflict', reason: 'wrong previous target' }),
-    );
-    expect(conflict.status).toBe(409);
-    expect(stale.status).toBe(409);
-    expect(correctionConflict.status).toBe(409);
+  it('preserves the complete SKU HTTP outcome matrix for assign, correct, and rename', () => {
+    const mappers = [mapAssignSkuActionProblem, mapCorrectSkuActionProblem, mapRenameSkuActionProblem] as const;
+    for (const mapProblem of mappers) {
+      const conflict = mapProblem(new SkuActionConflict({ code: 'sku_action_conflict', reason: 'retained' }));
+      const stale = mapProblem(new SkuActionStale({ actualRevision: 2, code: 'sku_action_stale' }));
+      const missing = mapProblem(new SkuActionNotFound({ code: 'sku_action_not_found', reason: 'missing' }));
+      const invalid = mapProblem(new SkuActionInvalid({ code: 'sku_action_invalid', reason: 'retired' }));
+      const unavailable = mapProblem(
+        new SkuPersistenceUnavailable({ code: 'sku_persistence_unavailable', reason: 'contradictory Current proof' }),
+      );
+      expect(conflict.status).toBe(409);
+      expect(stale.status).toBe(409);
+      expect(missing.status).toBe(404);
+      expect(invalid.status).toBe(422);
+      expect('retryable' in missing).toBe(false);
+      expect('retryable' in invalid).toBe(false);
+      expect(unavailable).toMatchObject({ retryable: true, status: 503 });
+    }
   });
 });

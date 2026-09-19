@@ -79,7 +79,7 @@ describe('Product Configuration publication event', () => {
           definitionRef: {
             moduleId: 'commerce.catalog',
             resourceId: payload.definitionId,
-            resourceType: 'commerce.catalog.product-configuration-definition',
+            resourceType: 'commerce.catalog.configuration-definition',
             tenantId,
           },
           productRef: { resourceId: payload.productId, tenantId },
@@ -109,7 +109,7 @@ describe('Product Configuration publication event', () => {
       definitionRef: {
         moduleId: 'commerce.catalog',
         resourceId: payload.definitionId,
-        resourceType: 'commerce.catalog.product-configuration-definition',
+        resourceType: 'commerce.catalog.configuration-definition',
         tenantId,
       },
       productRef: {
@@ -122,6 +122,15 @@ describe('Product Configuration publication event', () => {
       tenantId,
     };
     expect(Schema.is(OutboxPayloadSchema)(eventPayload)).toBe(true);
+    expect(
+      Schema.is(OutboxPayloadSchema)({
+        ...eventPayload,
+        definitionRef: {
+          ...eventPayload.definitionRef,
+          resourceType: 'commerce.catalog.product-configuration-definition',
+        },
+      }),
+    ).toBe(false);
     expect(Schema.is(OutboxPayloadSchema)({ ...eventPayload, revision: 0 })).toBe(false);
     expect(
       Schema.is(OutboxPayloadSchema)({

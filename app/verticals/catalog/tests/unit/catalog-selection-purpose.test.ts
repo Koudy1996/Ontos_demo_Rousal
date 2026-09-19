@@ -81,6 +81,42 @@ describe('Catalog Selection purpose minimalisation', () => {
     }
   });
 
+  it('uses an exclusive confirmed-untyped decision instead of Product Type and Variant-axis facts', () => {
+    const untyped = decodeBasis({
+      provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+      role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+      source: { resourceRef: productRef, revision: 6 },
+    });
+    const result = selectSmallestCompleteCatalogSelectionBasis({
+      basis: [
+        fact('PRODUCT', productRef, 1),
+        fact('VARIANT', variantRef, 2),
+        untyped,
+        fact('UNIT_RULE', unitRuleRef, 1),
+        fact('UNIT_TARGET_DIVISIBILITY', variantRef, 5),
+      ],
+      purpose: 'PURCHASE_ACCEPTANCE',
+      selection,
+    });
+    expect(result).toMatchObject({ status: 'COMPLETE' });
+    if (result.status === 'COMPLETE') {
+      expect(result.basis.map(({ role }) => role)).toEqual([
+        'PRODUCT',
+        'VARIANT',
+        'PRODUCT_TYPE_UNTYPED_DECISION',
+        'UNIT_RULE',
+        'UNIT_TARGET_DIVISIBILITY',
+      ]);
+    }
+    expect(
+      selectSmallestCompleteCatalogSelectionBasis({
+        basis: [...baseFacts, untyped],
+        purpose: 'PURCHASE_ACCEPTANCE',
+        selection,
+      }),
+    ).toMatchObject({ status: 'INCOMPLETE' });
+  });
+
   it('reports every missing deciding role instead of estimating it', () => {
     const result = selectSmallestCompleteCatalogSelectionBasis({
       basis: [fact('PRODUCT', productRef, 1), fact('VARIANT', variantRef, 2)],
@@ -118,6 +154,7 @@ describe('Catalog Selection purpose minimalisation', () => {
     const basis = [
       fact('PRODUCT', productRef, 1),
       fact('VARIANT', variantRef, 2),
+      fact('PRODUCT_TYPE', typeRef, 1),
       fact('PACKAGE_CONTENT', packageRef, 1),
       fact('SET_COMPOSITION', setRef, 2),
       fact('CONFIGURATION_DEFINITION', configDefRef, 3),
@@ -138,6 +175,7 @@ describe('Catalog Selection purpose minimalisation', () => {
     expect(result.basis.map(({ role }) => role)).toEqual([
       'PRODUCT',
       'VARIANT',
+      'PRODUCT_TYPE',
       'PACKAGE_CONTENT',
       'SET_COMPOSITION',
       'CONFIGURATION_DEFINITION',
@@ -164,7 +202,12 @@ describe('Catalog Selection purpose minimalisation', () => {
       'UNIT_RULE',
       'UNIT_TARGET_DIVISIBILITY',
     ]);
-    expect(requiredCatalogSelectionRoles('PRICING', selection)).toEqual(['PRODUCT', 'VARIANT', 'CATEGORY']);
+    expect(requiredCatalogSelectionRoles('PRICING', selection)).toEqual([
+      'PRODUCT',
+      'VARIANT',
+      'PRODUCT_TYPE',
+      'CATEGORY',
+    ]);
     const categoryFacts = [
       fact('PRODUCT', productRef, 1),
       fact('VARIANT', variantRef, 2),
@@ -179,10 +222,40 @@ describe('Catalog Selection purpose minimalisation', () => {
     });
     expect(pricing.status).toBe('COMPLETE');
     if (pricing.status === 'COMPLETE') {
-      expect(pricing.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT', 'CATEGORY', 'CATEGORY']);
+      expect(pricing.basis.map(({ role }) => role)).toEqual([
+        'PRODUCT',
+        'VARIANT',
+        'CATEGORY',
+        'CATEGORY',
+        'PRODUCT_TYPE',
+      ]);
     }
     expect(
       selectSmallestCompleteCatalogSelectionBasis({ basis: categoryFacts, purpose: 'ORDER_HISTORY', selection }),
-    ).toEqual({ basis: categoryFacts.slice(0, 2), status: 'COMPLETE' });
+    ).toEqual({ basis: [categoryFacts[0], categoryFacts[1], categoryFacts[4]], status: 'COMPLETE' });
+  });
+
+  it('retains the exclusive confirmed-untyped proof for every VALID purpose', () => {
+    const untyped = decodeBasis({
+      provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+      role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+      source: { resourceRef: productRef, revision: 6 },
+    });
+    for (const purpose of ['PRICING', 'ASSORTMENT', 'AVAILABILITY_ELIGIBILITY', 'ORDER_HISTORY'] as const) {
+      const result = selectSmallestCompleteCatalogSelectionBasis({
+        basis: [
+          fact('PRODUCT', productRef, 1),
+          fact('VARIANT', variantRef, 2),
+          untyped,
+          ...(purpose === 'PRICING' || purpose === 'ASSORTMENT' ? [fact('CATEGORY', categoryRef, 1)] : []),
+        ],
+        purpose,
+        selection,
+      });
+      expect(result.status).toBe('COMPLETE');
+      if (result.status === 'COMPLETE') {
+        expect(result.basis.filter(({ role }) => role === 'PRODUCT_TYPE_UNTYPED_DECISION')).toEqual([untyped]);
+      }
+    }
   });
 });

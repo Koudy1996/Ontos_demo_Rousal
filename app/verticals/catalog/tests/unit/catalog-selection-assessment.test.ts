@@ -71,6 +71,28 @@ describe('Catalog Selection Current assessment', () => {
     ).toBe('INDETERMINATE');
   });
 
+  it('accepts one exact confirmed-untyped decision and rejects absent or contradictory type proof', () => {
+    const untyped = Schema.decodeUnknownSync(Schema.Array(CatalogSelectionBasisSchema))([
+      ...basis.filter(({ role }) => role !== 'PRODUCT_TYPE'),
+      {
+        provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+        role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+        source: { resourceRef: productRef, revision: 9 },
+      },
+    ]);
+    const valid = assess({ ...observed, basis: untyped });
+    expect(valid.status).toBe('VALID');
+    expect(valid.basis).toContainEqual({
+      provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+      role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+      source: { resourceRef: productRef, revision: 9 },
+    });
+    expect(assess({ ...observed, basis: [...basis, ...untyped.slice(-1)] }).status).toBe('INDETERMINATE');
+    expect(
+      assess({ ...observed, basis: untyped.filter(({ role }) => role !== 'PRODUCT_TYPE_UNTYPED_DECISION') }).status,
+    ).toBe('INDETERMINATE');
+  });
+
   it('does not transfer a Current observation to another variant, purpose, or time', () => {
     const another = Schema.decodeUnknownSync(CatalogSelectionSchema)({
       productRef,

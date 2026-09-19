@@ -184,7 +184,12 @@ describe('Catalog Selection evidence assembly service', () => {
     });
     expect(complete.evidence).toMatchObject({ status: 'VALID' });
     if (complete.evidence.status === 'VALID') {
-      expect(complete.evidence.basis.map(({ role }) => role)).toEqual(['PRODUCT', 'VARIANT', 'CATEGORY']);
+      expect(complete.evidence.basis.map(({ role }) => role)).toEqual([
+        'PRODUCT',
+        'VARIANT',
+        'PRODUCT_TYPE',
+        'CATEGORY',
+      ]);
     }
   });
 

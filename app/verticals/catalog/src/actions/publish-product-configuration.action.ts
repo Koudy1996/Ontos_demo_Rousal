@@ -11,6 +11,7 @@ import {
 import { productConfigurationPersistenceForScope } from '../persistence/product-configuration-persistence.ts';
 import type { ProductConfigurationPersistence } from '../persistence/product-configuration-persistence.ts';
 import { cartOpenSelectionPopulationFromEnvironment } from '../../shared/domain/catalog-open-selection-population.ts';
+import { PRODUCT_CONFIGURATION_DEFINITION_RESOURCE_TYPE } from '../../shared/domain/configuration-definition.ts';
 import { productConfigurationSelectionImpactForScope } from '../persistence/catalog-selection-change-impact.ts';
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { captureCatalogActionResult } from '../persistence/catalog-action-result-snapshot.ts';
@@ -77,7 +78,7 @@ export const handlePublishProductConfiguration = Effect.fn('PublishProductConfig
             definitionRef: {
               moduleId: MODULE_KEY,
               resourceId: payload.definitionId,
-              resourceType: 'commerce.catalog.product-configuration-definition' as const,
+              resourceType: PRODUCT_CONFIGURATION_DEFINITION_RESOURCE_TYPE,
               tenantId: context.scope.tenantId,
             },
             productRef: {
