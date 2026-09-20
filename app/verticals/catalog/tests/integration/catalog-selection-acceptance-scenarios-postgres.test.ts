@@ -525,17 +525,6 @@ it.live('issues VALID selection evidence from an exact confirmed-untyped decisio
             productId: untypedProductId,
             tenantId: untypedTenantId,
           });
-          yield* transaction.insert(productVariants).values({
-            combinationAxisRevision: 0,
-            combinationKey: '3'.repeat(64),
-            createdByActionInvocationId: randomUUID(),
-            createdByPrincipalId: principalId,
-            currentRevision: 1,
-            lifecycleState: 'ACTIVE',
-            productId: untypedProductId,
-            tenantId: untypedTenantId,
-            variantId: untypedVariantId,
-          });
           yield* transaction.insert(productVariantAxisEvents).values({
             actingPrincipalId: principalId,
             actionInvocationId: randomUUID(),
@@ -546,6 +535,17 @@ it.live('issues VALID selection evidence from an exact confirmed-untyped decisio
             productId: untypedProductId,
             reason: 'Historical axes are now cleared',
             tenantId: untypedTenantId,
+          });
+          yield* transaction.insert(productVariants).values({
+            combinationAxisRevision: 3,
+            combinationKey: '3'.repeat(64),
+            createdByActionInvocationId: randomUUID(),
+            createdByPrincipalId: principalId,
+            currentRevision: 1,
+            lifecycleState: 'ACTIVE',
+            productId: untypedProductId,
+            tenantId: untypedTenantId,
+            variantId: untypedVariantId,
           });
           yield* transaction.insert(productTypeUntypedDecisions).values({
             actingPrincipalId: principalId,

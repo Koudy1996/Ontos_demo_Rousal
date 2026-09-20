@@ -271,22 +271,26 @@ it.live('enforces tenant-wide normalized Current and historical SKU reservations
 
       yield* admin
         .update(products)
-        .set({ lifecycleState: 'RETIRED' })
+        .set({
+          lifecycleState: 'RETIRED',
+          retiredEffectiveAt: observedAt,
+          retiredReason: 'SKU eligibility test',
+        })
         .where(and(eq(products.tenantId, tenantA), eq(products.productId, productA)));
       expectTagged(yield* assign(tenantA, change('RETIRED-PRODUCT-00', targetA)), 'invalid');
       yield* admin
         .update(products)
-        .set({ lifecycleState: 'ACTIVE' })
+        .set({ lifecycleState: 'ACTIVE', retiredEffectiveAt: null, retiredReason: null })
         .where(and(eq(products.tenantId, tenantA), eq(products.productId, productA)));
 
       yield* admin
         .update(productVariants)
-        .set({ lifecycleState: 'RETIRED' })
+        .set({ combinationAxisRevision: null, combinationKey: null, lifecycleState: 'RETIRED' })
         .where(and(eq(productVariants.tenantId, tenantA), eq(productVariants.variantId, variantA)));
       expectTagged(yield* assign(tenantA, change('RETIRED-VARIANT-00', targetA)), 'invalid');
       yield* admin
         .update(productVariants)
-        .set({ lifecycleState: 'ACTIVE' })
+        .set({ combinationAxisRevision: 1, combinationKey: 'a'.repeat(64), lifecycleState: 'ACTIVE' })
         .where(and(eq(productVariants.tenantId, tenantA), eq(productVariants.variantId, variantA)));
 
       yield* admin
@@ -309,45 +313,89 @@ it.live('enforces tenant-wide normalized Current and historical SKU reservations
         .set({ optionState: 'ACTIVE' })
         .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
 
+      yield* admin.insert(packageContentRevisions).values({
+        actingPrincipalId: principalId,
+        actionInvocationId: randomUUID(),
+        amount: '1',
+        effectiveAt: new Date('2020-01-02T00:00:00.000Z'),
+        evidenceRefs: ['sku-postgres-test:retired-content'],
+        lifecycleState: 'RETIRED',
+        packageDefinitionId: optionId,
+        productId: productA,
+        reason: 'Retired content fixture',
+        revision: 2,
+        tenantId: tenantA,
+        unitResourceId: unitId,
+        unitResourceType: 'commerce.catalog.product-unit',
+        variantId: variantA,
+      });
       yield* admin
-        .update(packageContentRevisions)
-        .set({ lifecycleState: 'RETIRED' })
-        .where(
-          and(
-            eq(packageContentRevisions.tenantId, tenantA),
-            eq(packageContentRevisions.packageDefinitionId, optionId),
-          ),
-        );
+        .update(packageDefinitions)
+        .set({ currentRevision: 2 })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
       expectTagged(yield* assign(tenantA, change('RETIRED-CONTENT-00', optionTarget)), 'invalid');
+      yield* admin.insert(packageContentRevisions).values({
+        actingPrincipalId: principalId,
+        actionInvocationId: randomUUID(),
+        amount: '1',
+        effectiveAt: new Date('2020-01-03T00:00:00.000Z'),
+        evidenceRefs: ['sku-postgres-test:restored-content'],
+        lifecycleState: 'ACTIVE',
+        packageDefinitionId: optionId,
+        productId: productA,
+        reason: 'Restored content fixture',
+        revision: 3,
+        tenantId: tenantA,
+        unitResourceId: unitId,
+        unitResourceType: 'commerce.catalog.product-unit',
+        variantId: variantA,
+      });
       yield* admin
-        .update(packageContentRevisions)
-        .set({ lifecycleState: 'ACTIVE' })
-        .where(
-          and(
-            eq(packageContentRevisions.tenantId, tenantA),
-            eq(packageContentRevisions.packageDefinitionId, optionId),
-          ),
-        );
+        .update(packageDefinitions)
+        .set({ currentRevision: 3 })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
 
+      yield* admin.insert(packageOptionRoleRevisions).values({
+        actingPrincipalId: principalId,
+        actionInvocationId: randomUUID(),
+        contentRevision: 3,
+        effectiveAt: new Date('2020-01-04T00:00:00.000Z'),
+        evidenceRefs: ['sku-postgres-test:retired-role'],
+        independentlyRequested: true,
+        looseUnitsSubstitutable: false,
+        packageDefinitionId: optionId,
+        productId: productA,
+        revision: 2,
+        state: 'RETIRED',
+        tenantId: tenantA,
+        validationReason: 'Retired package option role fixture',
+        variantId: variantA,
+      });
       yield* admin
-        .update(packageOptionRoleRevisions)
-        .set({ state: 'RETIRED' })
-        .where(
-          and(
-            eq(packageOptionRoleRevisions.tenantId, tenantA),
-            eq(packageOptionRoleRevisions.packageDefinitionId, optionId),
-          ),
-        );
+        .update(packageDefinitions)
+        .set({ currentOptionRevision: 2 })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
       expectTagged(yield* assign(tenantA, change('RETIRED-ROLE-00', optionTarget)), 'invalid');
+      yield* admin.insert(packageOptionRoleRevisions).values({
+        actingPrincipalId: principalId,
+        actionInvocationId: randomUUID(),
+        contentRevision: 3,
+        effectiveAt: new Date('2020-01-05T00:00:00.000Z'),
+        evidenceRefs: ['sku-postgres-test:restored-role'],
+        independentlyRequested: true,
+        looseUnitsSubstitutable: false,
+        packageDefinitionId: optionId,
+        productId: productA,
+        revision: 3,
+        state: 'ACTIVE',
+        tenantId: tenantA,
+        validationReason: 'Restored package option role fixture',
+        variantId: variantA,
+      });
       yield* admin
-        .update(packageOptionRoleRevisions)
-        .set({ state: 'ACTIVE' })
-        .where(
-          and(
-            eq(packageOptionRoleRevisions.tenantId, tenantA),
-            eq(packageOptionRoleRevisions.packageDefinitionId, optionId),
-          ),
-        );
+        .update(packageDefinitions)
+        .set({ currentOptionRevision: 3 })
+        .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
 
       yield* admin
         .update(productUnits)
@@ -361,13 +409,13 @@ it.live('enforces tenant-wide normalized Current and historical SKU reservations
 
       yield* admin
         .update(packageDefinitions)
-        .set({ currentOptionRevision: 2 })
+        .set({ currentOptionRevision: 4 })
         .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
       const inconsistentCurrent = yield* Effect.flip(assign(tenantA, change('INDETERMINATE-00', optionTarget)));
       expect(Schema.is(SkuPersistenceUnavailable)(inconsistentCurrent)).toBe(true);
       yield* admin
         .update(packageDefinitions)
-        .set({ currentOptionRevision: 1 })
+        .set({ currentOptionRevision: 3 })
         .where(and(eq(packageDefinitions.tenantId, tenantA), eq(packageDefinitions.packageDefinitionId, optionId)));
 
       const displayCode = '  MiXeD-01  ';

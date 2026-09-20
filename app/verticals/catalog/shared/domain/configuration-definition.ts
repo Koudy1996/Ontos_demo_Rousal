@@ -1,9 +1,6 @@
 import { Schema } from 'effect';
 
-import {
-  CatalogRevisionResourceIdSchema,
-  CatalogRevisionTenantIdSchema,
-} from './catalog-revision-reference.ts';
+import { CatalogRevisionResourceIdSchema, CatalogRevisionTenantIdSchema } from './catalog-revision-reference.ts';
 import type { CatalogResourceRef } from './catalog-revision-reference.ts';
 import type { ProductRef } from '../resources/product.ts';
 
