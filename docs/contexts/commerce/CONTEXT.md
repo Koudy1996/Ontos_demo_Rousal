@@ -791,7 +791,10 @@ are alternative backend modes, not simultaneous issuers. Availability does not b
 merely by consuming the evidence. It has owner-scoped idempotency and correlation. Inventory
 preserves exact Catalog Selection and Quantity/Unit meaning; it does not decompose Package/Set
 contents or convert Units. It is not an Order or permanent Availability guarantee; an
-expired/unverifiable confirmation is not Current.
+expired/unverifiable confirmation is not Current. Inventory Launch does not renew, extend, reissue,
+or replace this Reservation Confirmation after pre-Protection expiry or definitive revocation; a
+later purchase retry uses a new Attempt only after the predecessor is authoritatively non-committed,
+closed against future commit, and its Inventory effects are safely resolved.
 
 **Payment Authorization** — Payment-owned proof that the required Payment method/amount/currency is
 authorized for one exact Order Commitment Attempt under the resolved Payment Term. It is distinct
@@ -818,8 +821,10 @@ state and conflicts. A different Bundle cannot reuse the same Attempt identity.
 Order Commitment Attempt + its exact Bundle through the commitment boundary. It may include Approval
 Revalidation, Assortment Commitment Confirmation, the Reservation Confirmation and Commitment
 Protection for the Attempt's one Inventory Reservation, Payment Authorization or analogous
-attempt-bound proofs. Legitimate renewal may replace an expired proof for the same unchanged Attempt +
-Bundle under the owning contract; that renewal does not change the Bundle hash.
+attempt-bound proofs. Where the owning contract supports renewal, legitimate renewal may replace an
+expired proof for the same unchanged Attempt + Bundle without changing the Bundle hash. Inventory
+Reservation Confirmation is an explicit Launch exception: its owning contract does not support
+renewal or successor Confirmation after pre-Protection expiry or definitive revocation.
 _Avoid_: Proof Set as prospective purchase identity, proofs from different Attempts unioned together,
 proof renewal used to smuggle changed Bundle meaning into the same Attempt.
 
@@ -834,7 +839,9 @@ be established rather than inferred from an earlier read or an undelivered chang
 occurred, then converges the exact Attempt's proof/preparation state and provisional
 reservation/Payment effects without duplicating Orders or provider operations. Definite pre-commit
 failure may trigger idempotent release/void; a proven committed Order is never erased as false
-rollback. A renewed attempt-bound proof never mutates the Attempt's Bundle identity.
+rollback. Where an owning contract legitimately supports renewal, a renewed attempt-bound proof never
+mutates the Attempt's Bundle identity; Inventory Reservation Confirmation itself is not renewable in
+Launch.
 
 ## History, archive, and repeat purchase
 
