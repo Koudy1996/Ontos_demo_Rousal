@@ -193,6 +193,8 @@ export interface RunActionInput<
   Services = Readonly<Record<string, never>>,
   HandlerRequirements = never,
 > {
+  /** Trusted receiving deployment audience for per-operation admission. */
+  readonly audience?: string;
   readonly payload: unknown;
   readonly principal: unknown;
   readonly registration: ActionRegistration<
@@ -794,14 +796,20 @@ export const makeActionRuntime = (...construction: ActionRuntimeConstruction): A
         const transport = yield* validateTransport(input.transport);
         const scope = yield* operationalScopeResolver.resolve(
           withOptionalProperty(
-            {
-              correlationId: transport.correlationId,
-              legalEntityScope: input.registration.descriptor.legalEntityScope,
-              principal,
-            },
-            transport.traceId !== undefined,
-            'traceId',
-            transport.traceId,
+            withOptionalProperty(
+              {
+                correlationId: transport.correlationId,
+                legalEntityScope: input.registration.descriptor.legalEntityScope,
+                principal,
+              },
+              transport.traceId !== undefined,
+              'traceId',
+              transport.traceId,
+              {},
+            ),
+            input.audience !== undefined,
+            'audience',
+            input.audience,
             {},
           ),
         );

@@ -1,4 +1,5 @@
 import { GatewayContextApiGroup } from '@app/shared-contracts';
+import { ExternalIdentityApiGroup } from '@app/shared-contracts/external-identity';
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts/problem-details';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
 // @ontos-codesmith-core-read-contract-imports:start
@@ -818,7 +819,8 @@ export const ShellAuthenticationApi = HttpApi.make('shellAuthenticationApi')
     ),
   )
   // @ontos-codesmith-core-read-api-groups:end
-  .add(GatewayContextApiGroup);
+  .add(GatewayContextApiGroup)
+  .add(ExternalIdentityApiGroup);
 
 const authenticationEndpointPath = (endpoint: { readonly path: string }) =>
   `/shell-super-app-api${endpoint.path}` as const;

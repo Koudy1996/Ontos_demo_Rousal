@@ -10,7 +10,9 @@
     "./ultramodern-build": "./src/ultramodern-build.ts",
     "./problem-details": "./src/problem-details.ts",
     "./client-runtime": "./src/client-runtime.ts",
-    "./server/gateway-context-api-key": "./src/gateway-context-api-key.ts"
+    "./server/gateway-context-api-key": "./src/gateway-context-api-key.ts",
+    "./external-identity": "./src/external-identity.ts",
+    "./server/external-identity-client": "./src/external-identity-client.ts"
   },
   "scripts": {
     "test:types": "node ../../scripts/ultramodern-typecheck.mts --project tests/tsconfig.json && node ../../scripts/ultramodern-typecheck.mts --project tests/client-runtime-types.tsconfig.json",
@@ -25,7 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
-    "effect-rstest": "0.1.4",
+    "effect-rstest": "https://pkg.pr.new/ScriptedAlchemy/effect-rstest@f29b3f495d45a11037334620bf5f693414fb5578",
     "@rstest/core": "0.11.12"
   }
 }
