@@ -199,14 +199,18 @@ const makeRecoveryFixture = Effect.fn('CommercePortalAuthRecoveryIntegration.mak
     databaseAdapter: database.adapter,
     emailDelivery,
   });
+  const signUpHeaders = { origin: ORIGIN, 'x-forwarded-for': ip };
   yield* Effect.tryPromise({
     catch: (cause) => cause,
     try: () =>
       auth.api.signUpEmail({
         body: { email, name: 'Recovery integration fixture', password },
-        headers: { origin: ORIGIN, 'x-forwarded-for': ip },
+        headers: signUpHeaders,
       }),
   });
+  yield* Effect.promise(
+    async () => await auth.api.sendVerificationEmail({ body: { email }, headers: signUpHeaders, returnHeaders: true }),
+  );
   const verificationToken = verificationTokens.at(-1);
   const verificationURL = verificationURLs.at(-1);
   if (verificationToken === undefined || verificationURL === undefined) {

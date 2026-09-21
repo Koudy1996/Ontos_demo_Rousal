@@ -491,7 +491,9 @@ const makeCommercePortalAuthOptionsWithAdapter = (
       autoSignInAfterVerification: false,
       expiresIn: COMMERCE_PORTAL_AUTH_POLICY.emailVerification.expiresInSeconds,
       sendOnSignIn: false,
-      sendOnSignUp: true,
+      // Better Auth's own sendOnSignUp hook is fire-and-forget; account-create.ts awaits the send
+      // itself instead, so a failed delivery can be reported before CREATED is ever recorded.
+      sendOnSignUp: false,
       sendVerificationEmail: emailDelivery.sendVerificationEmail,
     },
     logger: {

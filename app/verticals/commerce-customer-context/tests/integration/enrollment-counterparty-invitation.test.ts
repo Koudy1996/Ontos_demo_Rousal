@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ActionAuthorizationPreflightDatabaseLive, CorePersistenceLive, DatabaseConfigLive } from '@app/core-runtime';
 import { ResendEmailDeliveryConfig } from '@app/email-delivery/resend';
+import { FetchHttpClient } from 'effect/unstable/http';
 import { eq } from 'drizzle-orm';
 import { Config, Effect, Layer, Option, Redacted, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
@@ -113,11 +114,17 @@ const providerDatabaseUrl = Config.redacted('COMMERCE_PORTAL_AUTH_DATABASE_URL')
   Config.orElse(() => Config.redacted('DATABASE_URL')),
 );
 
-const emailDeliveryConfiguration = Layer.succeed(ResendEmailDeliveryConfig, {
-  apiKey: Redacted.make('re_commerce_enrollment_counterparty_invitation'),
-  endpoint: 'https://api.resend.com/emails',
-  from: 'no-reply@commerce.example.test',
-});
+/** Resend is answered locally: creation now awaits delivery, so the transport must accept. */
+const acceptingResendFetch: typeof fetch = () => Promise.resolve(Response.json({ id: 'accepted' }));
+
+const emailDeliveryConfiguration = Layer.mergeAll(
+  Layer.succeed(ResendEmailDeliveryConfig, {
+    apiKey: Redacted.make('re_commerce_enrollment_counterparty_invitation'),
+    endpoint: 'https://api.resend.com/emails',
+    from: 'no-reply@commerce.example.test',
+  }),
+  Layer.succeed(FetchHttpClient.Fetch, acceptingResendFetch),
+);
 
 const portalAuthConfiguration = Effect.fnUntraced(function* portalAuthConfiguration() {
   const databaseUrl = yield* providerDatabaseUrl;

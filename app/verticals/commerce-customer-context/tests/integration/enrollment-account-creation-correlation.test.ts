@@ -13,6 +13,7 @@ import {
 import type { CommercePortalAuthAccountLookup } from '../../api/portal-auth/provider/account-create.ts';
 import type { CommercePortalAuthAccountCreationGateway } from '../../api/portal-auth/provider/account-creation-gateway-service.ts';
 import { CommercePortalAuthAccountCreationRejected } from '../../api/portal-auth/provider/account-creation-rejected.ts';
+import { CommercePortalAuthAccountCreationUnavailable } from '../../api/portal-auth/provider/account-creation-unavailable.ts';
 import { CommercePortalAuthInstance, makeCommercePortalAuth } from '../../api/portal-auth/provider/auth.ts';
 import { parseCommercePortalAuthConfig } from '../../api/portal-auth/provider/config.ts';
 import {
@@ -273,14 +274,14 @@ it.live('writes the governed invocation in the very insert that commits the acco
 );
 
 /**
- * A retry that converges on an already-committed account must not report CREATED with no usable
- * verification link: the first send is simulated as failing after the user row committed, and the
- * retry must reissue it. The reissued token is proven usable by spending it through Better Auth's
- * own `/verify-email`, not merely by observing that a send was attempted.
+ * The first send is simulated as failing after the user row committed. Creation itself now awaits
+ * that send, so the outcome must be unavailable rather than CREATED, and the retry must converge on
+ * the already-committed account and reissue it. The reissued token is proven usable by spending it
+ * through Better Auth's own `/verify-email`, not merely by observing that a send was attempted.
  */
-it.live('reissues the verification email when a retry converges on an already-committed account', () =>
+it.live('reports unavailable when the first send fails, then converges and reissues on retry', () =>
   Effect.scoped(
-    Effect.gen(function* reissuesVerificationOnRetry() {
+    Effect.gen(function* reportsUnavailableThenReissuesOnRetry() {
       const configuration = yield* parseCommercePortalAuthConfig({
         COMMERCE_PORTAL_AUTH_DATABASE_URL: Redacted.value(yield* DATABASE_URL),
         COMMERCE_PORTAL_AUTH_SECRET: SECRET,
@@ -297,9 +298,9 @@ it.live('reissues the verification email when a retry converges on an already-co
           sendResetPassword: () => Promise.resolve(),
           sendVerificationEmail: ({ token }) => {
             sendCount += 1;
-            // The first send fails after Better Auth has already committed the user row (it is
-            // awaited outside `sendOnSignUp`'s fire-and-forget path only for the dedicated
-            // `/send-verification-email` reissue call the retry must make).
+            // The first send fails after Better Auth has already committed the user row. Creation
+            // now awaits this call directly (`sendOnSignUp` is off), so this failure must surface
+            // as the creation's own outcome rather than being swallowed fire-and-forget.
             if (sendCount === 1) {
               return Promise.reject(new Error('simulated transactional email outage'));
             }
@@ -338,16 +339,21 @@ it.live('reissues the verification email when a retry converges on an already-co
           tenantId,
         });
 
-      // Better Auth runs `sendOnSignUp` fire-and-forget and swallows its rejection, so the first
-      // creation still reports CREATED even though the simulated outage means nothing was ever
-      // delivered — exactly the state a lost-answer retry converges on.
-      const created = yield* attemptOnce();
+      // The user row commits inside Better Auth's sign-up, but the awaited send fails right after,
+      // so the outcome is unavailable and no CREATED result is ever produced for this invocation.
+      const firstFailure = yield* Effect.flip(attemptOnce());
+      expect(Schema.is(CommercePortalAuthAccountCreationUnavailable)(firstFailure)).toBe(true);
       expect(sendCount).toBe(1);
       expect(deliveredTokens).toStrictEqual([]);
 
+      const [committedRow] = yield* database.executor.select({ id: user.id }).from(user).where(eq(user.email, email));
+      const committedSubjectId =
+        committedRow?.id ?? (yield* Effect.die('The user row did not commit before the send failed'));
+
+      // The retry converges on the account the failed send left behind and reissues the link.
       const retried = yield* attemptOnce();
 
-      expect(retried.providerSubjectId).toBe(created.providerSubjectId);
+      expect(retried.providerSubjectId).toBe(committedSubjectId);
       expect(sendCount).toBe(2);
       expect(deliveredTokens).toHaveLength(1);
       const token = deliveredTokens.at(0) ?? (yield* Effect.die('The retry reissue delivered no verification token'));

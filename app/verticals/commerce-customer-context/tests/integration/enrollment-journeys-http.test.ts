@@ -4,6 +4,7 @@ import { v1 } from '@authzed/authzed-node';
 
 import { ActionAuthorizationPreflightDatabaseLive, CorePersistenceLive, DatabaseConfigLive } from '@app/core-runtime';
 import { ResendEmailDeliveryConfig } from '@app/email-delivery/resend';
+import { FetchHttpClient } from 'effect/unstable/http';
 import { eq, like, sql } from 'drizzle-orm';
 import { Config, Context, Effect, Layer, Option, Redacted, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
@@ -124,6 +125,11 @@ import {
   makeAcceptanceGatewayIssuer,
 } from '../support/enrollment-acceptance-identity-gateway-assertion.ts';
 import type { AcceptanceGatewayIssuer } from '../support/enrollment-acceptance-identity-gateway-assertion.ts';
+import {
+  issueCounterpartyAccessInvitation,
+  makeCounterpartyInvitationRealm,
+} from '../support/counterparty-invitation-acceptance.ts';
+import { makeCapturingCounterpartyInvitationProofDelivery } from '../support/counterparty-invitation-proof-capture.ts';
 
 /**
  * The enrollment start path through the deployed composition, on real PostgreSQL.
@@ -143,11 +149,17 @@ const providerDatabaseUrl = Config.redacted('COMMERCE_PORTAL_AUTH_DATABASE_URL')
   Config.orElse(() => Config.redacted('DATABASE_URL')),
 );
 
-const emailDeliveryConfiguration = Layer.succeed(ResendEmailDeliveryConfig, {
-  apiKey: Redacted.make('re_commerce_enrollment_journeys_http'),
-  endpoint: 'https://api.resend.com/emails',
-  from: 'no-reply@commerce.example.test',
-});
+/** Resend is answered locally: creation now awaits delivery, so the transport must accept. */
+const acceptingResendFetch: typeof fetch = () => Promise.resolve(Response.json({ id: 'accepted' }));
+
+const emailDeliveryConfiguration = Layer.mergeAll(
+  Layer.succeed(ResendEmailDeliveryConfig, {
+    apiKey: Redacted.make('re_commerce_enrollment_journeys_http'),
+    endpoint: 'https://api.resend.com/emails',
+    from: 'no-reply@commerce.example.test',
+  }),
+  Layer.succeed(FetchHttpClient.Fetch, acceptingResendFetch),
+);
 
 /** The realm a host that opted in gets, assembled from the same layer the composition root uses. */
 const configuredRealmLive = Effect.fnUntraced(function* configuredRealmLive() {
@@ -1017,6 +1029,9 @@ const makeSignedInPortalAccount = Effect.fnUntraced(function* makeSignedInPortal
         returnHeaders: true,
       }),
   );
+  yield* Effect.promise(
+    async () => await auth.api.sendVerificationEmail({ body: { email }, headers, returnHeaders: true }),
+  );
   const token = verificationTokens.at(-1);
   if (token === undefined) {
     return yield* Effect.die('The portal owner fixture received no email verification token');
@@ -1425,6 +1440,65 @@ it.live(
 );
 
 it.live(
+  'charges the address budget to a Counterparty invitation start exactly as a Retail one, answering 429 on the fourth',
+  () =>
+    Effect.scoped(
+      Effect.gen(function* counterpartyInvitationBudgetIsPerAddress() {
+        const tenantId = randomUUID();
+        const fixture = yield* makeEnrollmentAcceptanceFixture({ tenantId });
+        // No Action grants at all: the budget below is spent before any governed Action runs, so
+        // this Principal never needs authorization to exhaust it.
+        const realm = yield* makeCounterpartyInvitationRealm(fixture, {
+          recipientActionKeys: [],
+          storefrontActionKeys: [],
+        });
+        const capture = makeCapturingCounterpartyInvitationProofDelivery();
+        const issued = yield* issueCounterpartyAccessInvitation(
+          realm,
+          capture,
+          `enrollment-http-invitation-budget-${randomUUID()}`,
+        );
+        const gateway = yield* makeAcceptanceGatewayIssuer(READ_ISSUER, READ_KEY_ID);
+        const runtime = yield* authenticatedRuntime(gateway);
+        const email = `enrollment-http-${randomUUID()}@example.test`;
+        const enroller = randomUUID();
+        const startBody = {
+          displayName: START_DISPLAY_NAME,
+          email,
+          invitationId: issued.invitationId,
+          journey: 'COUNTERPARTY_INVITATION',
+          password: PORTAL_OWNER_PASSWORD,
+          sellingLegalEntityId: realm.legalEntityId,
+        };
+
+        /** One start of this address by the one Principal, each carrying its own single-use assertion. */
+        const startAs = Effect.fnUntraced(function* startAs() {
+          const assertion = yield* issueAcceptanceGatewayAssertion(fixture.admin, gateway, READ_AUDIENCE, {
+            authBindingId: randomUUID(),
+            authContextRef: `portal-session:${randomUUID()}`,
+            authenticationNamespaceId: COMMERCE_AUTHENTICATION_NAMESPACE_ID,
+            authMethod: 'session',
+            principalId: enroller,
+            tenantId,
+          });
+          return yield* Effect.promise(async () => await runtime.handler(startEnrollmentRequest(startBody, assertion)));
+        });
+
+        // The address' entire account-creation budget is three starts, whether Retail or Counterparty.
+        const spent = yield* Effect.forEach([0, 1, 2], () => startAs(), { concurrency: 1 });
+        expect(spent.map((response) => response.status)).not.toContain(429);
+
+        // A predicate that forgot Counterparty invitation would let this fourth start through
+        // uncharged, and a caller holding one claimable invitation could create unbounded provider
+        // accounts by varying only the address.
+        expect((yield* startAs()).status).toBe(429);
+        expect(yield* enrollmentStartBudgetKeys(email)).toHaveLength(1);
+      }),
+    ),
+  180_000,
+);
+
+it.live(
   'answers an Existing-account start that carries no portal session with 401 and no Attempt',
   () =>
     Effect.scoped(
@@ -1799,6 +1873,44 @@ const seedGovernedStartAuthorization = Effect.fnUntraced(function* seedGovernedS
   yield* Effect.addFinalizer(() => write(v1.RelationshipUpdate_Operation.DELETE).pipe(Effect.asVoid, Effect.orDie));
 });
 
+/**
+ * A second Principal sharing the first's Tenant and Legal Entity, for a scenario where two
+ * Principals must start the very same intent. Reuses the Tenant/Legal Entity/module rows
+ * `seedGovernedStartSubject` already wrote, rather than re-inserting them under a colliding key.
+ */
+const seedSecondGovernedStartPrincipal = Effect.fnUntraced(function* seedSecondGovernedStartPrincipal(
+  tenantId: string,
+  legalEntityId: string,
+) {
+  const connections = yield* loadDatabaseConnectionPair();
+  const admin = yield* makeCoreDatabase(connections.admin);
+  const subject: GovernedStartSubject = {
+    authBindingId: randomUUID(),
+    legalEntityId,
+    principalId: randomUUID(),
+    tenantId,
+  };
+  // Rows live and die with the Tenant fixture's own cleanup, which removes them in dependency order.
+  yield* admin.executor.insert(principals).values({
+    displayName: 'Enrollment start redemption second customer',
+    kind: 'human',
+    principalId: subject.principalId,
+    status: 'active',
+    tenantId: subject.tenantId,
+  });
+  yield* admin.executor.insert(principalAuthBindings).values({
+    authenticationNamespaceId: COMMERCE_AUTHENTICATION_NAMESPACE_ID,
+    principalAuthBindingId: subject.authBindingId,
+    principalId: subject.principalId,
+    provider: 'commerce-enrollment-acceptance-provider',
+    providerSubjectId: `enrollment-start-redemption-${subject.principalId}`,
+    status: 'active',
+    subjectType: 'user',
+    tenantId: subject.tenantId,
+  });
+  return subject;
+});
+
 /** Presents one `jti` to a single-use ledger, recording it whether or not it is accepted. */
 const presentToLedger = (presented: string[], redeemed: Set<string>, jti: string): boolean => {
   presented.push(jti);
@@ -2062,6 +2174,93 @@ it.live(
 
         // The address' durable budget row, removed again on scope close.
         expect(yield* enrollmentStartBudgetKeys(email)).toHaveLength(1);
+      }),
+    ),
+  180_000,
+);
+
+/**
+ * A second Principal starting the exact same intent — same Tenant, journey and normalized email —
+ * converges on the first Principal's Attempt rather than making its own; the intent digest carries
+ * no Principal. Without checking that the caller created the Attempt it converged on, that second
+ * Principal could claim the first Principal's transition and create a provider account under its
+ * own password. This must answer the same non-enumerating 404 a foreign Attempt gets, before any
+ * transition is claimed or any provider account is dispatched under the second Principal.
+ */
+it.live(
+  'refuses a second Principal that converges on the first Principal’s Attempt with the same 404 a foreign Attempt gets',
+  () =>
+    Effect.scoped(
+      Effect.gen(function* convergenceRefusesAForeignPrincipal() {
+        const tenantId = randomUUID();
+        const fixture = yield* makeEnrollmentAcceptanceFixture({ tenantId });
+        const first = yield* seedGovernedStartSubject(tenantId);
+        yield* seedGovernedStartAuthorization(first);
+        const second = yield* seedSecondGovernedStartPrincipal(tenantId, first.legalEntityId);
+        yield* seedGovernedStartAuthorization(second);
+        const gateway = yield* makeAcceptanceGatewayIssuer(GOVERNED_START_ISSUER, GOVERNED_START_KEY_ID);
+        const runtime = yield* authenticatedRuntime(
+          gateway,
+          singleUseRedemptionLive,
+          commerceCustomerContextActionRuntimeAwaitingOwnerPreparation.pipe(
+            Layer.provide(yield* preparationAuthorityLive()),
+          ),
+        );
+        const email = `enrollment-http-${randomUUID()}@example.test`;
+        yield* removePortalAccountsOnClose(email);
+        // Same Tenant, journey, address and Legal Entity for both starts: the intent digest carries
+        // none of the caller's own identity, so this is exactly what makes the second converge.
+        const startBody = {
+          displayName: START_DISPLAY_NAME,
+          email,
+          journey: 'RETAIL_SELF_ENROLLMENT',
+          password: PORTAL_OWNER_PASSWORD,
+          sellingLegalEntityId: first.legalEntityId,
+        };
+        const firstAssertion = yield* issueAcceptanceGatewayAssertion(fixture.admin, gateway, READ_AUDIENCE, {
+          authBindingId: first.authBindingId,
+          authContextRef: `portal-session:${first.principalId}`,
+          authenticationNamespaceId: COMMERCE_AUTHENTICATION_NAMESPACE_ID,
+          authMethod: 'session',
+          principalId: first.principalId,
+          tenantId,
+        });
+        const firstResponse = yield* Effect.promise(
+          async () => await runtime.handler(governedStartRequest(startBody, firstAssertion)),
+        );
+        expect(firstResponse.status).toBe(200);
+        const firstStarted = Schema.decodeUnknownSync(StartedEnrollmentResponseSchema)(
+          yield* Effect.promise(async () => await firstResponse.clone().json()),
+        );
+        expect(firstStarted.outcome).toBe('CREATED');
+        expect(yield* enrollmentAttemptCount(fixture)).toBe(1);
+        expect(yield* portalAccountsFor(email)).toHaveLength(1);
+
+        const secondAssertion = yield* issueAcceptanceGatewayAssertion(fixture.admin, gateway, READ_AUDIENCE, {
+          authBindingId: second.authBindingId,
+          authContextRef: `portal-session:${second.principalId}`,
+          authenticationNamespaceId: COMMERCE_AUTHENTICATION_NAMESPACE_ID,
+          authMethod: 'session',
+          principalId: second.principalId,
+          tenantId,
+        });
+        const secondResponse = yield* Effect.promise(
+          async () => await runtime.handler(governedStartRequest(startBody, secondAssertion)),
+        );
+
+        expect(secondResponse.status).toBe(404);
+        expect(yield* Effect.promise(async () => await secondResponse.clone().json())).toMatchObject({
+          code: 'attempt_not_found',
+          status: 404,
+        });
+
+        // Still exactly the first Principal's own Attempt and its own single account: the second
+        // Principal never claimed a transition or dispatched a provider account under it.
+        expect(yield* enrollmentAttemptCount(fixture)).toBe(1);
+        expect(yield* portalAccountsFor(email)).toHaveLength(1);
+        expect(
+          yield* readEnrollmentAcceptanceOperations(fixture, firstStarted.attempt.portalEnrollmentAttemptId),
+        ).toHaveLength(1);
       }),
     ),
   180_000,

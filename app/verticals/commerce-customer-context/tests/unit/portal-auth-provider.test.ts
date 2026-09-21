@@ -419,6 +419,85 @@ it.effect('projects a Better Auth create response double without returning its t
   );
 });
 
+it.effect('awaits the verification send after sign-up commits before returning the created account', () => {
+  const events: string[] = [];
+  const auth: CommercePortalAuthAccountCreationProvider = {
+    api: {
+      sendVerificationEmail: (input) =>
+        Effect.sync(() => {
+          events.push(`send:${input?.body?.email}`);
+        }),
+      signUpEmail: () => {
+        events.push('signUp');
+        return providerSuccess({ user: { id: providerSubjectId } });
+      },
+    },
+  };
+  return runGatewayCreate(
+    auth,
+    {
+      existsByEmail: () => Effect.succeed(false),
+      existsByProviderSubject: () => Effect.succeed(true),
+      subjectForOwnerInvocation: () => Effect.succeedNone,
+    },
+    {
+      email: 'buyer@example.test',
+      enrollmentAttemptId,
+      name: 'Buyer',
+      ownerInvocationId,
+      password: testPassword,
+      tenantId,
+    },
+  ).pipe(
+    Effect.tap((account) =>
+      Effect.sync(() => {
+        // The send must complete before CREATED is reportable, so an unverified account is never
+        // recorded without a link having actually gone out.
+        expect(events).toStrictEqual(['signUp', 'send:buyer@example.test']);
+        expect(account).toStrictEqual({ providerSubjectId });
+      }),
+    ),
+  );
+});
+
+it.effect('reports unavailable, not created, when the verification send fails after sign-up commits', () => {
+  let providerCalls = 0;
+  const auth: CommercePortalAuthAccountCreationProvider = {
+    api: {
+      sendVerificationEmail: () => Effect.fail(new Error('delivery transport unavailable')),
+      signUpEmail: () => {
+        providerCalls += 1;
+        return providerSuccess({ user: { id: providerSubjectId } });
+      },
+    },
+  };
+  return Effect.flip(
+    runGatewayCreate(
+      auth,
+      {
+        existsByEmail: () => Effect.succeed(false),
+        existsByProviderSubject: () => Effect.succeed(true),
+        subjectForOwnerInvocation: () => Effect.succeedNone,
+      },
+      {
+        email: 'buyer@example.test',
+        enrollmentAttemptId,
+        name: 'Buyer',
+        ownerInvocationId,
+        password: testPassword,
+        tenantId,
+      },
+    ),
+  ).pipe(
+    Effect.tap((failure) =>
+      Effect.sync(() => {
+        expect(Schema.is(CommercePortalAuthAccountCreationUnavailable)(failure)).toBe(true);
+        expect(providerCalls).toBe(1);
+      }),
+    ),
+  );
+});
+
 it.effect('does not treat Better Auth generic duplicate responses as created accounts', () => {
   const auth: CommercePortalAuthAccountCreationProvider = {
     api: {

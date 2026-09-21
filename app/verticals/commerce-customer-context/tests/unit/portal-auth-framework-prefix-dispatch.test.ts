@@ -150,6 +150,9 @@ it.effect('serves prefixed recovery routes through the owner group and rejects a
         headers: { origin: ORIGIN },
       }),
     );
+    // sendOnSignUp is off for this realm: the private account-creation port awaits its own send
+    // (account-create.ts), so this direct-provider test sends it the same way here.
+    yield* Effect.promise(() => auth.api.sendVerificationEmail({ body: { email: EMAIL } }));
     const verificationURL = verificationURLs.at(0);
     if (verificationURL === undefined) {
       return yield* Effect.fail(new Error('Better Auth did not capture a verification URL'));

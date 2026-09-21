@@ -6,6 +6,7 @@ import { expect, it } from 'effect-rstest';
 
 import {
   commercePortalAuthEnrollmentAddressBudget,
+  commercePortalAuthEnrollmentCreatesAccount,
   commercePortalAuthEnrollmentExistingAccountBudget,
 } from '../../api/portal-auth/enrollment/http.ts';
 import { CommercePortalAuthConfig } from '../../api/portal-auth/provider/config-service.ts';
@@ -84,6 +85,16 @@ const makeBudgetFixture = Effect.fnUntraced(function* makeBudgetFixture() {
         Effect.provideService(CommercePortalAuthConfig, configuration),
       ),
   };
+});
+
+it('owes the address budget for every journey that dispatches a provider account creation', () => {
+  // Retail self-enrollment and Counterparty invitation both create a provider account from this
+  // route; only Existing-account proves ownership of one that already exists. A predicate that
+  // forgets Counterparty invitation lets a caller with a claimable invitation create unbounded
+  // provider accounts by varying the address, since the budget below is never spent for it.
+  expect(commercePortalAuthEnrollmentCreatesAccount('RETAIL_SELF_ENROLLMENT')).toBe(true);
+  expect(commercePortalAuthEnrollmentCreatesAccount('COUNTERPARTY_INVITATION')).toBe(true);
+  expect(commercePortalAuthEnrollmentCreatesAccount('EXISTING_ACCOUNT')).toBe(false);
 });
 
 it.effect('leaves a second Principal the whole address budget the first one exhausted', () =>

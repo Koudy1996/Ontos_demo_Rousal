@@ -202,6 +202,13 @@ export const makeCommercePortalAuthAccountCreationGateway = Effect.fn('CommerceP
   > {
     const auth = yield* CommercePortalAuthAccountCreationProviderService;
     const accountLookup = yield* CommercePortalAuthAccountLookupService;
+    // Shared by the initial send and the correlated-replay reissue; only the failure reason differs.
+    const sendAccountVerificationEmail = (verificationEmail: string, reason: string) =>
+      auth.api
+        .sendVerificationEmail({ body: { email: verificationEmail } })
+        .pipe(
+          Effect.mapError((cause) => withCause(new CommercePortalAuthAccountCreationUnavailable({ reason }), cause)),
+        );
     const create = Effect.fn('CommercePortalAuthAccountCreationGateway.create')(function* createAccount(
       input: Pick<
         CommercePortalAccountCreateInput,
@@ -227,15 +234,9 @@ export const makeCommercePortalAuthAccountCreationGateway = Effect.fn('CommerceP
         // committed, and nothing else in this realm ever retries it. Reissuing here is what makes
         // the retry actually able to sign in, not just able to report CREATED again; a reissue
         // failure keeps the Attempt retryable instead of quietly completing without a usable link.
-        yield* auth.api.sendVerificationEmail({ body: { email: normalizedEmail } }).pipe(
-          Effect.mapError((cause) =>
-            withCause(
-              new CommercePortalAuthAccountCreationUnavailable({
-                reason: 'Commerce portal account creation could not reissue the verification email',
-              }),
-              cause,
-            ),
-          ),
+        yield* sendAccountVerificationEmail(
+          normalizedEmail,
+          'Commerce portal account creation could not reissue the verification email',
         );
         return { providerSubjectId: correlatedSubject.value };
       }
@@ -319,6 +320,12 @@ export const makeCommercePortalAuthAccountCreationGateway = Effect.fn('CommerceP
           reason: 'Better Auth did not persist a new Commerce portal account',
         });
       }
+      // A send failure here still leaves the user row committed, so it is reported as retryable
+      // unavailability rather than CREATED: the correlated replay above is what completes it.
+      yield* sendAccountVerificationEmail(
+        normalizedEmail,
+        'Commerce portal account creation could not send the verification email',
+      );
       // `response.token` is deliberately never read or copied into the result.
       return { providerSubjectId };
     });
