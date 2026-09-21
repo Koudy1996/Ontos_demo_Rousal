@@ -41,6 +41,8 @@ import {
   commercePortalAuthMfaFreshnessReaderFromApi,
   portalAuthMfaStandaloneApiLive,
 } from '../../api/portal-auth/provider/mfa/http.ts';
+import { makeCommercePortalAuthMfaProvider } from '../../api/portal-auth/provider/mfa/better-auth-provider.ts';
+import type { CommercePortalAuthTwoFactorApi } from '../../api/portal-auth/provider/mfa/better-auth-provider.ts';
 import type {
   CommercePortalAuthMfaFreshnessReader,
   CommercePortalAuthMfaSessionReadApi,
@@ -1222,6 +1224,82 @@ it.effect('forwards a verification the audit store accepted, with both rows and 
           ATTEMPT_EVIDENCE.subjectDigest,
           ATTEMPT_EVIDENCE.subjectDigest,
         ]);
+      }),
+    ),
+  );
+});
+
+/**
+ * A malformed Better Auth 2xx body is an indeterminate mutation, exercised through the real
+ * provider driver rather than a test double: Better Auth may already have minted or rotated a
+ * session even though the response body fails the provider's own result schema, so its
+ * `Set-Cookie` header must never ride along on the resulting failure — from the provider layer
+ * through the strict verification's completion row to whatever the caller receives.
+ */
+/**
+ * The two-factor endpoint stub only `makeCommercePortalAuthMfaProvider` ever calls in this test:
+ * `verifyTOTP` bound with `asResponse: true`. Better Auth's inferred endpoint type is a generic
+ * conditional this fixture does not reproduce, so the whole stub is asserted once; nothing about
+ * the double besides that assertion is unusual, and only `verifyTOTP` is invoked.
+ */
+const malformedVerificationTwoFactorApi = () => {
+  const stub = {
+    verifyTOTP: () =>
+      Promise.resolve(
+        new Response('{"not":"the-expected-verification-shape"}', {
+          headers: { 'set-cookie': VERIFICATION_COOKIE },
+          status: 200,
+        }),
+      ),
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions -- SAFETY: only verifyTOTP is invoked by makeCommercePortalAuthMfaProvider(...).verifyTOTP in this test; Better Auth's generic endpoint type is not reproduced by this fixture.
+  return stub as unknown as CommercePortalAuthTwoFactorApi;
+};
+
+it.effect('never carries a 2xx malformed-body cookie past the provider driver', () =>
+  Effect.result(
+    makeCommercePortalAuthMfaProvider(malformedVerificationTwoFactorApi()).verifyTOTP({
+      body: { code: '123456', trustDevice: false },
+      headers,
+    }),
+  ).pipe(
+    Effect.tap((result) =>
+      Effect.sync(() => {
+        expect(Result.isFailure(result)).toBe(true);
+        if (Result.isFailure(result)) {
+          expect(result.failure).toBeInstanceOf(CommercePortalAuthMfaProviderUnavailable);
+          // Before the fix this carried [VERIFICATION_COOKIE]: the live session cookie Better Auth
+          // already set, even though the body it sent alongside it never decoded.
+          expect(result.failure.setCookieHeaders).toStrictEqual([]);
+        }
+      }),
+    ),
+  ),
+);
+
+it.effect('answers a 2xx malformed verification body as provider_unavailable with no cookie to forward', () => {
+  const provider = makeCommercePortalAuthMfaProvider(malformedVerificationTwoFactorApi());
+  const recording = makeRecordingRecorder();
+  const revoked: string[] = [];
+  return makeCommercePortalAuthMfaService(recording.recorder, makeRecordingRollback(revoked)).pipe(
+    Effect.provideService(CommercePortalAuthMfaProviderService, provider),
+    Effect.flatMap((service) =>
+      Effect.result(service.verifyTOTP({ body: { code: '123456' }, evidence: ATTEMPT_EVIDENCE, headers })),
+    ),
+    Effect.tap((result) =>
+      Effect.sync(() => {
+        expect(Result.isFailure(result)).toBe(true);
+        if (Result.isFailure(result)) {
+          expect(result.failure).toBeInstanceOf(CommercePortalAuthMfaProviderUnavailable);
+          // What `forwardMfaOutcome` (http.ts) forwards to the browser is exactly this array: an
+          // empty one means no Set-Cookie header reaches the caller for this failure.
+          expect(result.failure.setCookieHeaders).toStrictEqual([]);
+        }
+        // The completion evidence records the outage, not a fabricated authentication failure, and
+        // there is no session identity available to roll back — the body that would have named it
+        // never decoded.
+        expect(recording.events().map((event) => event.outcome)).toStrictEqual(['requested', 'provider_unavailable']);
+        expect(revoked).toStrictEqual([]);
       }),
     ),
   );

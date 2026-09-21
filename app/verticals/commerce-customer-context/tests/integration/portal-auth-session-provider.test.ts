@@ -370,6 +370,9 @@ const makeProviderFixture = Effect.fn('CommercePortalAuthProviderIntegration.mak
         returnHeaders: true,
       }),
   });
+  yield* Effect.promise(
+    async () => await auth.api.sendVerificationEmail({ body: { email }, headers: signUpHeaders, returnHeaders: true }),
+  );
   const verificationToken = verificationTokens.at(-1);
   if (verificationToken === undefined) {
     return yield* Effect.fail(new Error('Provider fixture did not receive an email verification token'));

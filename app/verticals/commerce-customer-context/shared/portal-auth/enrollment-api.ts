@@ -95,6 +95,9 @@ const startErrors = [
   CommercePortalAuthEnrollmentAuthenticationProblemSchema,
   CommercePortalAuthEnrollmentForbiddenProblemSchema,
   CommercePortalAuthEnrollmentJourneyUnavailableProblemSchema,
+  // A start that converges on an Attempt another Principal created is refused with the same
+  // non-enumerating 404 the read route answers for a foreign Attempt.
+  CommercePortalAuthEnrollmentNotFoundProblemSchema,
   CommercePortalAuthEnrollmentRateLimitedProblemSchema,
   CommercePortalAuthEnrollmentUnavailableProblemSchema,
 ] as const;

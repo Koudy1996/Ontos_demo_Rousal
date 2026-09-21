@@ -13,6 +13,7 @@ import type { TestDatabaseFromPool } from '../../../../packages/core-runtime/tes
 import { ExternalIdentityClient } from '../../../../packages/shared-contracts/src/external-identity-client.ts';
 import type { ExternalIdentityClientPort } from '../../../../packages/shared-contracts/src/external-identity-client.ts';
 import { CommercePortalAuthAccountLookupService } from '../../api/portal-auth/provider/account-lookup-service.ts';
+import { CommercePortalAuthAccountCreationReconciliationService } from '../../api/portal-auth/provider/account-creation-reconciliation-service.ts';
 import { CommerceCoreIdentityClientConfig } from '../../api/portal-auth/provider/core-identity-client-config.ts';
 import { commerceCustomerContextRelations } from '../../src/database/schema.ts';
 import {
@@ -102,6 +103,9 @@ const registryLive = CommerceEnrollmentOwnerEffectRegistryLive.pipe(
         existsByEmail: unreachable('existsByEmail'),
         existsByProviderSubject: unreachable('existsByProviderSubject'),
         subjectForOwnerInvocation: unreachable('subjectForOwnerInvocation'),
+      }),
+      Layer.succeed(CommercePortalAuthAccountCreationReconciliationService, {
+        reissueVerificationEmail: unreachable('reissueVerificationEmail'),
       }),
       CommerceEnrollmentOwnerTransactionRunnerLive.pipe(
         Layer.provide(

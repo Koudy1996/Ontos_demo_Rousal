@@ -251,8 +251,11 @@ const callBetterAuth = <SchemaValue extends CommercePortalAuthMfaSchema, Respons
       }
       return Schema.decodeEffect(Schema.fromJsonString(schema))(response.bodyText).pipe(
         Effect.map((body) => ({ body, setCookieHeaders })),
+        // A 2xx body that fails to decode is an indeterminate mutation: Better Auth may already
+        // have minted or rotated a session, so its Set-Cookie headers are never forwarded from
+        // here — only a successfully decoded body's cookies are trusted downstream.
         Effect.mapError((cause) =>
-          commercePortalAuthMfaProviderUnavailable(operation, malformedResponseCause(cause), setCookieHeaders),
+          commercePortalAuthMfaProviderUnavailable(operation, malformedResponseCause(cause), []),
         ),
       );
     }),

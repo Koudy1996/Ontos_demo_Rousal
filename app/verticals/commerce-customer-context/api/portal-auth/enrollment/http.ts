@@ -312,11 +312,12 @@ export const commercePortalAuthEnrollmentResumeOnRead = (
  * It must agree with what the journey itself declares: a start that dispatches an account creation
  * the journey's definition does not require leaves an account nothing will ever use, and one that
  * claims a transition the definition removed gates the Attempt on a step that can never be proven.
- * Only Retail self-enrollment brings a brand-new subject into being.
+ * Retail self-enrollment and Counterparty invitation both bring a brand-new subject into being;
+ * only Existing-account proves ownership of one that already exists.
  */
 export const commercePortalAuthEnrollmentCreatesAccount = (
   journey: CommercePortalAuthEnrollmentStartInput['journey'],
-): boolean => journey === 'RETAIL_SELF_ENROLLMENT';
+): boolean => journey === 'RETAIL_SELF_ENROLLMENT' || journey === 'COUNTERPARTY_INVITATION';
 
 /**
  * Whether this journey's start must be made by the authenticated owner of the account it enrolls.
@@ -702,6 +703,18 @@ const startEnrollment = Effect.fn('CommercePortalAuthEnrollmentHttp.start')(func
     Effect.mapError(commercePortalAuthEnrollmentInvalidProblem),
   );
   const started = yield* runEnrollmentAction(startPortalEnrollmentAction, intent);
+
+  if (started.outcome === 'EXISTING') {
+    // Convergence names an Attempt this request did not create; only its own creator may claim its
+    // next transition, so a second Principal is refused exactly as the read route refuses a foreign
+    // Attempt, before any transition is claimed or any provider account is dispatched under it.
+    const callerPrincipalId = yield* Schema.decodeEffect(EnrollmentPrincipalIdSchema)(caller.principalId).pipe(
+      Effect.mapError(commercePortalAuthEnrollmentInvalidProblem),
+    );
+    if (!commercePortalAuthEnrollmentReadableBy(started.attempt, callerPrincipalId)) {
+      return yield* Effect.fail(commercePortalAuthEnrollmentNotFoundProblem());
+    }
+  }
 
   if (input.journey === 'EXISTING_ACCOUNT') {
     // Counterparty was refused above, so this is the only other variant, and it carries no

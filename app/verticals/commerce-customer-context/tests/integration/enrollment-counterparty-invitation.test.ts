@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ActionAuthorizationPreflightDatabaseLive, CorePersistenceLive, DatabaseConfigLive } from '@app/core-runtime';
 import { ResendEmailDeliveryConfig } from '@app/email-delivery/resend';
+import { FetchHttpClient } from 'effect/unstable/http';
 import { eq } from 'drizzle-orm';
 import { Config, Effect, Layer, Option, Redacted, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
@@ -18,11 +19,14 @@ import {
 } from '../../api/index.ts';
 import { CommercePortalAuthEnrollmentAttemptProjectionSchema } from '../../api/portal-auth/enrollment/contracts.ts';
 import { makeCommercePortalAuth } from '../../api/portal-auth/provider/auth.ts';
+import { CommercePortalAuthAccountCreationReconciliationService } from '../../api/portal-auth/provider/account-creation-reconciliation-service.ts';
+import { CommercePortalAuthAccountCreationProviderLive } from '../../api/portal-auth/provider/account-create.ts';
 import { CommercePortalAuthConfig } from '../../api/portal-auth/provider/config-service.ts';
 import { parseCommercePortalAuthConfig } from '../../api/portal-auth/provider/config.ts';
 import { CommerceCoreIdentityClientConfig } from '../../api/portal-auth/provider/core-identity-client-config.ts';
 import { CommerceCoreIdentityClientLive } from '../../api/portal-auth/provider/core-identity-client.ts';
 import { CommercePortalAuthAccountLookupLive } from '../../src/portal-auth/persistence/portal-auth-account-lookup.ts';
+import { CommercePortalAuthAccountCreationReconciliationLive } from '../../src/portal-auth/persistence/portal-auth-account-creation-reconciliation.ts';
 import {
   CommerceEnrollmentContinuation,
   CommerceEnrollmentContinuationLive,
@@ -113,11 +117,17 @@ const providerDatabaseUrl = Config.redacted('COMMERCE_PORTAL_AUTH_DATABASE_URL')
   Config.orElse(() => Config.redacted('DATABASE_URL')),
 );
 
-const emailDeliveryConfiguration = Layer.succeed(ResendEmailDeliveryConfig, {
-  apiKey: Redacted.make('re_commerce_enrollment_counterparty_invitation'),
-  endpoint: 'https://api.resend.com/emails',
-  from: 'no-reply@commerce.example.test',
-});
+/** Resend is answered locally: creation now awaits delivery, so the transport must accept. */
+const acceptingResendFetch: typeof fetch = () => Promise.resolve(Response.json({ id: 'accepted' }));
+
+const emailDeliveryConfiguration = Layer.mergeAll(
+  Layer.succeed(ResendEmailDeliveryConfig, {
+    apiKey: Redacted.make('re_commerce_enrollment_counterparty_invitation'),
+    endpoint: 'https://api.resend.com/emails',
+    from: 'no-reply@commerce.example.test',
+  }),
+  Layer.succeed(FetchHttpClient.Fetch, acceptingResendFetch),
+);
 
 const portalAuthConfiguration = Effect.fnUntraced(function* portalAuthConfiguration() {
   const databaseUrl = yield* providerDatabaseUrl;
@@ -158,16 +168,23 @@ const preparationAuthorityLive = Effect.fnUntraced(function* preparationAuthorit
     ),
   );
   const coreIdentityLive = CommerceCoreIdentityClientLive.pipe(Layer.provide(coreIdentityConfigurationLive));
-  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(
+  const databaseLive = CommercePortalAuthDatabaseLive.pipe(
+    Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration)),
+  );
+  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(Layer.provide(databaseLive));
+  const realmLive = yield* configuredRealmLive();
+  const accountCreationReconciliationLive = CommercePortalAuthAccountCreationReconciliationLive.pipe(
     Layer.provide(
-      CommercePortalAuthDatabaseLive.pipe(Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration))),
+      Layer.mergeAll(databaseLive, CommercePortalAuthAccountCreationProviderLive.pipe(Layer.provide(realmLive))),
     ),
   );
   const subjectResolverLive = CommerceEnrollmentPreparationSubjectResolverLive.pipe(
     Layer.provide(Layer.mergeAll(transactionRunnerLive, coreIdentityLive, coreIdentityConfigurationLive)),
   );
   return commerceEnrollmentOwnerTransitionPreparationLive.pipe(
-    Layer.provide(Layer.mergeAll(transactionRunnerLive, accountLookupLive, subjectResolverLive)),
+    Layer.provide(
+      Layer.mergeAll(transactionRunnerLive, accountLookupLive, accountCreationReconciliationLive, subjectResolverLive),
+    ),
   );
 });
 
@@ -519,6 +536,9 @@ const sweepingContinuation = Effect.fnUntraced(function* sweepingContinuation(sc
         ),
         CommerceCoreIdentityClientLive.pipe(Layer.provide(coreIdentityConfigurationLive)),
         coreIdentityConfigurationLive,
+        Layer.succeed(CommercePortalAuthAccountCreationReconciliationService, {
+          reissueVerificationEmail: () => Effect.die('reissueVerificationEmail is not part of this scenario'),
+        }),
         transactionRunnerLive,
       ),
     ),

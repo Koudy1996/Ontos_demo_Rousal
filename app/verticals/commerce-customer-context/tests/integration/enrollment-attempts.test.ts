@@ -1,10 +1,11 @@
 import {
+  findPostgresFailure,
   loadDatabaseConnectionPair,
   scopedRoutineInvokerFromTransaction,
   TrustedPrincipalContextSchema,
 } from '@app/core-runtime';
 import { eq, sql } from 'drizzle-orm';
-import { Effect, Exit, Schema } from 'effect';
+import { Effect, Exit, Option, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
 import { Pool } from 'pg';
 
@@ -742,6 +743,150 @@ it.live('reconciles a FAILED owner_reconciliation_required outcome instead of re
       expect(reconciled.operation.status).toBe('SUCCEEDED');
       expect(reconciled.attempt.state).not.toBe('RECONCILIATION_REQUIRED');
       expect(reconciled.attempt.state).toBe('IN_PROGRESS');
+    }),
+  ),
+);
+
+const tenantB = Schema.decodeSync(EnrollmentTenantIdSchema)('d6000000-0000-4000-8000-000000000097');
+const scopeB = {
+  ...Schema.decodeSync(TrustedPrincipalContextSchema)({
+    authContextRef: 'job:commerce-enrollment-attempts:run:integration-tenant-b',
+    authMethod: 'system',
+    principalId,
+    tenantId: tenantB,
+  }),
+  correlationId: 'commerce-enrollment-attempts.integration-tenant-b',
+};
+
+const cleanupFixturesForTenant = (
+  admin: Effect.Success<ReturnType<typeof makeTestDatabaseFromPool<typeof commerceCustomerContextRelations>>>,
+  forTenantId: typeof tenantId,
+) =>
+  admin.transaction((transaction: CommerceCustomerContextTransaction) =>
+    Effect.gen(function* cleanFixturesForTenant() {
+      yield* transaction.execute(sql`set local session_replication_role = 'replica'`, 'objects');
+      yield* transaction
+        .delete(portalEnrollmentOwnerOperations)
+        .where(eq(portalEnrollmentOwnerOperations.tenantId, forTenantId));
+      yield* transaction.delete(portalEnrollmentAttempts).where(eq(portalEnrollmentAttempts.tenantId, forTenantId));
+    }),
+  );
+
+const postgresErrorCode = (exit: Exit.Exit<unknown, unknown>): string | undefined =>
+  Exit.isFailure(exit)
+    ? findPostgresFailure(exit.cause).pipe(
+        Option.map(({ code }) => code),
+        Option.getOrUndefined,
+      )
+    : undefined;
+
+// Codex P1: `read_portal_enrollment_attempt` and `read_portal_enrollment_owner_operation` never
+// compared `p_tenant_id` with the verified `ontos.tenant_id` scope, unlike every mutation routine
+// on this Attempt. A transaction scoped to one Tenant could pass another Tenant's id as
+// `p_tenant_id` and read that Tenant's row through the SECURITY DEFINER projection. This proves
+// the migrated guard by calling the routines directly with raw SQL (bypassing the app-level
+// `ensureTenant` check and the `defineScopedRoutine` context injection, which never let a
+// mismatched tenant id reach the routine in the first place) so the database's own defense is what
+// is under test.
+it.live("rejects a cross-Tenant read of another Tenant's enrollment Attempt and owner operation", () =>
+  Effect.scoped(
+    Effect.gen(function* crossTenantReadRejected() {
+      const connections = yield* loadDatabaseConnectionPair();
+      const adminPool = yield* acquirePoolResource(
+        () => new Pool({ connectionString: connections.admin.connectionString }),
+      );
+      const runtimePool = yield* acquirePoolResource(
+        () => new Pool({ connectionString: connections.runtime.connectionString, max: 4 }),
+      );
+      const admin = yield* makeTestDatabaseFromPool(adminPool, commerceCustomerContextRelations);
+      const runtime = yield* makeTestDatabaseFromPool(runtimePool, commerceCustomerContextRelations);
+
+      const cleanup = () =>
+        Effect.all([cleanupTenantFixtures(admin), cleanupFixturesForTenant(admin, tenantB)], { concurrency: 1 });
+
+      yield* cleanup();
+      yield* Effect.addFinalizer(() => cleanup().pipe(Effect.orDie));
+
+      const inScopeB = <Value>(
+        operation: (persistence: CommerceEnrollmentAttemptPersistence) => Effect.Effect<Value, Error>,
+      ) =>
+        runtime.transaction((transaction) =>
+          Effect.gen(function* scopedAttemptTransactionB() {
+            yield* transaction.execute(sql`select set_config('ontos.tenant_id', ${tenantB}, true)`, 'objects');
+            const invoker = scopedRoutineInvokerFromTransaction(makeTransactionExecutor(transaction), scopeB);
+            const persistence = commerceEnrollmentAttemptPersistenceForTransaction(invoker, scopeB);
+            return yield* operation(persistence);
+          }),
+        );
+
+      const createdB = yield* inScopeB((persistence) =>
+        persistence.create({
+          actionInvocationId: actionInvocationId('d6970000-0000-4000-8000-000000000001'),
+          actorPrincipalId: principalId,
+          intentDigest: requestDigest,
+          intentKey: enrollmentKey('durable-enrollment-tenant-b'),
+          journey: 'RETAIL_SELF_ENROLLMENT',
+          tenantId: tenantB,
+        }),
+      );
+      const claimedB = yield* inScopeB((persistence) =>
+        persistence
+          .claim({
+            ...claimInput(
+              createdB.attempt.portalEnrollmentAttemptId,
+              createdB.attempt.revision,
+              'd6970000-0000-4000-8000-000000000002',
+              'provider.account.create',
+              'worker-tenant-b',
+            ),
+            tenantId: tenantB,
+          })
+          .pipe(Effect.flatMap(requireClaimed)),
+      );
+
+      const attackerReadAttempt = yield* Effect.exit(
+        runtime.transaction((transaction) =>
+          Effect.gen(function* crossTenantAttemptRead() {
+            yield* transaction.execute(sql`select set_config('ontos.tenant_id', ${tenantId}, true)`, 'objects');
+            return yield* transaction.execute(
+              sql`select * from commerce_customer_context.read_portal_enrollment_attempt(${tenantB}, ${createdB.attempt.portalEnrollmentAttemptId})`,
+              'objects',
+            );
+          }),
+        ),
+      );
+      expect(Exit.isFailure(attackerReadAttempt)).toBe(true);
+      expect(postgresErrorCode(attackerReadAttempt)).toBe('42501');
+
+      const attackerReadOwnerOperation = yield* Effect.exit(
+        runtime.transaction((transaction) =>
+          Effect.gen(function* crossTenantOwnerOperationRead() {
+            yield* transaction.execute(sql`select set_config('ontos.tenant_id', ${tenantId}, true)`, 'objects');
+            return yield* transaction.execute(
+              sql`select * from commerce_customer_context.read_portal_enrollment_owner_operation(${tenantB}, ${createdB.attempt.portalEnrollmentAttemptId}, ${claimedB.operation.ownerModuleKey}, ${claimedB.operation.transitionKey})`,
+              'objects',
+            );
+          }),
+        ),
+      );
+      expect(Exit.isFailure(attackerReadOwnerOperation)).toBe(true);
+      expect(postgresErrorCode(attackerReadOwnerOperation)).toBe('42501');
+
+      // The same-Tenant read still works: the guard compares, it does not simply forbid.
+      const ownReadAttempt = yield* inScopeB((persistence) =>
+        persistence.read({ portalEnrollmentAttemptId: createdB.attempt.portalEnrollmentAttemptId, tenantId: tenantB }),
+      );
+      expect(ownReadAttempt.portalEnrollmentAttemptId).toBe(createdB.attempt.portalEnrollmentAttemptId);
+
+      const ownReadOwnerOperation = yield* inScopeB((persistence) =>
+        persistence.readOperation({
+          ownerModuleKey: claimedB.operation.ownerModuleKey,
+          portalEnrollmentAttemptId: createdB.attempt.portalEnrollmentAttemptId,
+          tenantId: tenantB,
+          transitionKey: claimedB.operation.transitionKey,
+        }),
+      );
+      expect(ownReadOwnerOperation.portalEnrollmentAttemptId).toBe(createdB.attempt.portalEnrollmentAttemptId);
     }),
   ),
 );

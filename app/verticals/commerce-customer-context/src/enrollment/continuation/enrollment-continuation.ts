@@ -28,6 +28,10 @@ import { enrollmentJourneyDefinitionForAttempt } from '../orchestration/completi
 import { CommerceEnrollmentOwnerEffectRegistry } from '../orchestration/owner-effect-registry.ts';
 import type { CommerceEnrollmentRegisteredOwnerEffect } from '../orchestration/owner-effect-registry.ts';
 import {
+  PORTAL_ACCOUNT_CREATION_TRANSITION_KEY,
+  PORTAL_AUTH_OWNER_MODULE_KEY,
+} from '../orchestration/prepared-owner-authority.ts';
+import {
   CommerceEnrollmentOwnerTransitionSchema,
   commerceEnrollmentOwnerTransitionDriverFor,
 } from '../orchestration/owner-transition-driver.ts';
@@ -380,16 +384,7 @@ const advancePass = Effect.fn('CommerceEnrollmentContinuation.pass')(function* a
     return { attemptState: attempt.state, kind: 'SETTLED' };
   }
   const definition = yield* enrollmentJourneyDefinitionForAttempt(attempt);
-  const { operations, subject } = yield* Effect.all(
-    {
-      operations: readJournal(store, attempt, journeyTransitions(definition)),
-      subject: seams.resolveSubject({
-        portalEnrollmentAttemptId: attempt.portalEnrollmentAttemptId,
-        tenantId: attempt.tenantId,
-      }),
-    },
-    { concurrency: 2 },
-  );
+  const operations = yield* readJournal(store, attempt, journeyTransitions(definition));
   const proven = new Set(
     operations.flatMap((operation) => (operation.status === 'SUCCEEDED' ? [journeyTransitionIdentity(operation)] : [])),
   );
@@ -397,12 +392,20 @@ const advancePass = Effect.fn('CommerceEnrollmentContinuation.pass')(function* a
   if (next === undefined) {
     return { attemptState: attempt.state, kind: 'SETTLED' };
   }
-  const owner = yield* seams.registry.resolve(next, {
+  const ownerContext = {
     attempt,
     operations,
     requestCorrelation: `${CONTINUATION_WORKER_PREFIX}:${attempt.portalEnrollmentAttemptId}`,
-    subject,
-  });
+  } as const;
+  const owner = yield* next.ownerModuleKey === PORTAL_AUTH_OWNER_MODULE_KEY &&
+  next.transitionKey === PORTAL_ACCOUNT_CREATION_TRANSITION_KEY
+    ? seams.registry.resolve(next, ownerContext)
+    : seams
+        .resolveSubject({
+          portalEnrollmentAttemptId: attempt.portalEnrollmentAttemptId,
+          tenantId: attempt.tenantId,
+        })
+        .pipe(Effect.flatMap((subject) => seams.registry.resolve(next, { ...ownerContext, subject })));
   if (Option.isNone(owner)) {
     return halted('NO_OWNER_EFFECT', next);
   }

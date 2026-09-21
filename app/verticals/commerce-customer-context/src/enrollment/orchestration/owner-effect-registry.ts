@@ -11,6 +11,8 @@ import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect';
 
 import { CommercePortalAuthAccountLookupService } from '../../../api/portal-auth/provider/account-lookup-service.ts';
 import type { CommercePortalAuthAccountLookup } from '../../../api/portal-auth/provider/account-lookup-service.ts';
+import { CommercePortalAuthAccountCreationReconciliationService } from '../../../api/portal-auth/provider/account-creation-reconciliation-service.ts';
+import type { CommercePortalAuthAccountCreationReconciliation } from '../../../api/portal-auth/provider/account-creation-reconciliation-service.ts';
 import {
   CommerceCoreIdentityClientConfig,
   commerceCoreIdentityClientOptions,
@@ -77,7 +79,7 @@ import {
 import type { RetailSelfEnrollmentStepIntent } from '../journeys/retail-self-enrollment-contracts.ts';
 import { decodeOwnerResolution, ownerUnavailable } from './owner-effect-codec.ts';
 import type { OwnerResolutionDraft } from './owner-effect-codec.ts';
-import { providerObservationFor } from './owner-transition-composition.ts';
+import { providerAccountCreationObservationFor, providerObservationFor } from './owner-transition-composition.ts';
 import { commerceEnrollmentCoreIdentityOwnerEffectFor } from './owner-transition-driver.ts';
 import type {
   CommerceEnrollmentCoreIdentityOwnerEffectOptions,
@@ -119,11 +121,16 @@ export interface CommerceEnrollmentRegisteredOwnerEffect {
 }
 
 /** Everything the registry reads about one Attempt, all of it durable. */
-export interface CommerceEnrollmentOwnerEffectContext {
+export interface CommerceEnrollmentOwnerEffectResolutionContext {
   readonly attempt: EnrollmentAttemptSnapshot;
   /** The durable owner journal of this Attempt: one entry per transition ever claimed. */
   readonly operations: readonly EnrollmentOwnerOperationSnapshot[];
   readonly requestCorrelation: string;
+  /** Absent only while the account-creation transition is being reconciled before a subject exists. */
+  readonly subject?: RetailSelfEnrollmentPreparationSubject;
+}
+
+export interface CommerceEnrollmentOwnerEffectContext extends CommerceEnrollmentOwnerEffectResolutionContext {
   readonly subject: RetailSelfEnrollmentPreparationSubject;
 }
 
@@ -135,7 +142,7 @@ export interface CommerceEnrollmentOwnerEffectRegistryService {
    */
   readonly resolve: (
     transition: JourneyTransitionSpec,
-    context: CommerceEnrollmentOwnerEffectContext,
+    context: CommerceEnrollmentOwnerEffectResolutionContext,
   ) => Effect.Effect<Option.Option<CommerceEnrollmentRegisteredOwnerEffect>, CommerceEnrollmentAttemptError>;
 }
 
@@ -151,7 +158,14 @@ const CORE_BINDING_RECONCILIATION_PURPOSE = 'commerce.portal-enrollment.core-bin
 const PARTY_CANDIDATE_EVIDENCE_PURPOSE = 'commerce.portal-enrollment.party-candidate.evidence';
 const RETAIL_PORTAL_BINDING_REASON = 'Retail self-enrollment established the portal profile binding';
 
-type RegistryEntry = CommerceEnrollmentOwnerEffectRegistryService['resolve'];
+type RegistryEntry = (
+  transition: JourneyTransitionSpec,
+  context: CommerceEnrollmentOwnerEffectContext,
+) => Effect.Effect<Option.Option<CommerceEnrollmentRegisteredOwnerEffect>, CommerceEnrollmentAttemptError>;
+type PortalAccountRegistryEntry = (
+  transition: JourneyTransitionSpec,
+  context: CommerceEnrollmentOwnerEffectResolutionContext,
+) => Effect.Effect<Option.Option<CommerceEnrollmentRegisteredOwnerEffect>, CommerceEnrollmentAttemptError>;
 
 const registryKey = (ownerModuleKey: string, transitionKey: string): string => `${ownerModuleKey}/${transitionKey}`;
 
@@ -487,17 +501,26 @@ const bindProfileEntry = (run: Option.Option<CommerceEnrollmentOwnerTransactionR
 /**
  * Reconcile-only: the credential-carrying dispatch belongs to the enrollment start route alone, and
  * so does the Existing-account ownership proof — only the start request holds the caller's portal
- * session. Both transitions reconcile through the same exact-subject provider lookup: the question
- * a lost answer leaves open is the same one either way, whether the provider still holds the exact
- * subject the Attempt journalled.
+ * session. Existing-account verification reconciles through the exact-subject provider lookup;
+ * account creation additionally reissues verification to the account correlated to the original
+ * owner invocation, because its provider commit is not usable evidence of successful delivery.
  */
 const portalAccountEntry =
-  (accountLookup: CommercePortalAuthAccountLookup): RegistryEntry =>
-  (_transition, context) =>
+  (
+    accountLookup: CommercePortalAuthAccountLookup,
+    accountCreationReconciliation: CommercePortalAuthAccountCreationReconciliation,
+  ): PortalAccountRegistryEntry =>
+  (transition, context) =>
     Effect.succeedSome({
       dispatch: Option.none(),
       reconcile: commerceEnrollmentPortalAuthOwnerReconciliationForLookup((reconciliation) =>
-        providerObservationFor(context.attempt, accountLookup, reconciliation.ownerInvocationId),
+        transition.transitionKey === PORTAL_ACCOUNT_CREATION_TRANSITION_KEY
+          ? providerAccountCreationObservationFor(
+              context.attempt,
+              accountCreationReconciliation,
+              reconciliation.ownerInvocationId,
+            )
+          : providerObservationFor(context.attempt, accountLookup, reconciliation.ownerInvocationId),
       ).reconcile,
     });
 
@@ -876,6 +899,7 @@ export const CommerceEnrollmentOwnerEffectRegistryLive = Layer.effect(
   CommerceEnrollmentOwnerEffectRegistry,
   Effect.gen(function* makeCommerceEnrollmentOwnerEffectRegistry() {
     const accountLookup = yield* CommercePortalAuthAccountLookupService;
+    const accountCreationReconciliation = yield* CommercePortalAuthAccountCreationReconciliationService;
     const client = yield* ExternalIdentityClient;
     const configuration = yield* CommerceCoreIdentityClientConfig;
     /**
@@ -894,15 +918,8 @@ export const CommerceEnrollmentOwnerEffectRegistryLive = Layer.effect(
           `commerce-enrollment-continuation:${context.attempt.portalEnrollmentAttemptId}`,
         ),
     };
+    const portalAccount = portalAccountEntry(accountLookup, accountCreationReconciliation);
     const entries: ReadonlyMap<string, RegistryEntry> = new Map([
-      [
-        registryKey(PORTAL_AUTH_OWNER_MODULE_KEY, PORTAL_ACCOUNT_CREATION_TRANSITION_KEY),
-        portalAccountEntry(accountLookup),
-      ],
-      [
-        registryKey(PORTAL_AUTH_OWNER_MODULE_KEY, PORTAL_ACCOUNT_VERIFICATION_TRANSITION_KEY),
-        portalAccountEntry(accountLookup),
-      ],
       [registryKey(PARTY_REGISTRY_OWNER_MODULE_KEY, PARTY_CANDIDATE_SUBMISSION_TRANSITION_KEY), partyEntry],
       [
         registryKey(COMMERCE_CUSTOMER_CONTEXT_OWNER_MODULE_KEY, ENSURE_RETAIL_CUSTOMER_PROFILE_TRANSITION_KEY),
@@ -921,8 +938,19 @@ export const CommerceEnrollmentOwnerEffectRegistryLive = Layer.effect(
     ]);
     return {
       resolve: (transition, context) => {
-        const entry = entries.get(registryKey(transition.ownerModuleKey, transition.transitionKey));
-        return entry === undefined ? Effect.succeed(none) : entry(transition, context);
+        const key = registryKey(transition.ownerModuleKey, transition.transitionKey);
+        if (
+          key === registryKey(PORTAL_AUTH_OWNER_MODULE_KEY, PORTAL_ACCOUNT_CREATION_TRANSITION_KEY) ||
+          key === registryKey(PORTAL_AUTH_OWNER_MODULE_KEY, PORTAL_ACCOUNT_VERIFICATION_TRANSITION_KEY)
+        ) {
+          return portalAccount(transition, context);
+        }
+        const { subject } = context;
+        if (subject === undefined) {
+          return Effect.succeed(none);
+        }
+        const entry = entries.get(key);
+        return entry === undefined ? Effect.succeed(none) : entry(transition, { ...context, subject });
       },
     };
   }),
