@@ -31,6 +31,8 @@ import { ClaimCounterpartyAccessInvitationActionApi } from './apis/claim-counter
 import { ClaimPortalEnrollmentTransitionActionApi } from './apis/claim-portal-enrollment-transition-action.ts';
 import { ClearDefaultBillingAddressActionApi } from './apis/clear-default-billing-address-action.ts';
 import { ClearDefaultDeliveryDestinationActionApi } from './apis/clear-default-delivery-destination-action.ts';
+import { CommerceQuantityPolicyCurrentApi } from './apis/commerce-quantity-policy-current.ts';
+import { CommerceQuantityResolutionApi } from './apis/commerce-quantity-resolution.ts';
 import { ConsumePurchaseApprovalActionApi } from './apis/consume-purchase-approval-action.ts';
 import { CounterpartyAccessInvitationReadApi } from './apis/counterparty-access-invitation-read.ts';
 import { CounterpartyAllCustomerArchiveApi } from './apis/counterparty-all-customer-archive.ts';
@@ -64,12 +66,16 @@ import { GrantCounterpartyCommerceAccessActionApi } from './apis/grant-counterpa
 import { GuestAttributionStatusApi } from './apis/guest-attribution-status.ts';
 import { GuestPaymentTermsResolutionApi } from './apis/guest-payment-terms-resolution.ts';
 import { InvoiceRecipientResolutionApi } from './apis/invoice-recipient-resolution.ts';
+import { MarketBootstrapPolicyCurrentApi } from './apis/market-bootstrap-policy-current.ts';
+import { MarketBootstrapResolutionApi } from './apis/market-bootstrap-resolution.ts';
 import { MigrateCounterpartyPriceGroupActionApi } from './apis/migrate-counterparty-price-group-action.ts';
 import { MigrateCustomerPriceGroupActionApi } from './apis/migrate-customer-price-group-action.ts';
 import { OpenProfileReconciliationActionApi } from './apis/open-profile-reconciliation-action.ts';
 import { PaymentTermAffectedUseAssessmentApi } from './apis/payment-term-affected-use-assessment.ts';
+import { PaymentTermPolicyCurrentApi } from './apis/payment-term-policy-current.ts';
 import { PaymentTermsResolutionApi } from './apis/payment-terms-resolution.ts';
 import { ProfileReconciliationReadApi } from './apis/profile-reconciliation-read.ts';
+import { PurchaseCurrencyPolicyCurrentApi } from './apis/purchase-currency-policy-current.ts';
 import { PurchaseCurrencyResolutionApi } from './apis/purchase-currency-resolution.ts';
 import { PurchaseLimitEvaluationApi } from './apis/purchase-limit-evaluation.ts';
 import { PurchaseLimitPolicyReadApi } from './apis/purchase-limit-policy-read.ts';
@@ -130,6 +136,11 @@ export const commerceCustomerContextFoundationApi = HttpApi.make('CommerceCustom
   ),
 );
 export * from './apis/payment-term-affected-use-assessment.ts';
+export * from './apis/commerce-quantity-resolution.ts';
+export * from './apis/market-bootstrap-policy-current.ts';
+export * from './apis/market-bootstrap-resolution.ts';
+export * from './apis/payment-terms-resolution.ts';
+export * from './apis/purchase-currency-resolution.ts';
 
 export const commerceCustomerContextApi = HttpApi.make('CommerceCustomerContextApi')
   .addHttpApi(commerceCustomerContextFoundationApi)
@@ -156,6 +167,8 @@ export const commerceCustomerContextApi = HttpApi.make('CommerceCustomerContextA
   .addHttpApi(ClaimPortalEnrollmentTransitionActionApi)
   .addHttpApi(ClearDefaultBillingAddressActionApi)
   .addHttpApi(ClearDefaultDeliveryDestinationActionApi)
+  .addHttpApi(CommerceQuantityPolicyCurrentApi)
+  .addHttpApi(CommerceQuantityResolutionApi)
   .addHttpApi(ConsumePurchaseApprovalActionApi)
   .addHttpApi(CounterpartyAccessInvitationReadApi)
   .addHttpApi(CounterpartyAllCustomerArchiveApi)
@@ -189,12 +202,16 @@ export const commerceCustomerContextApi = HttpApi.make('CommerceCustomerContextA
   .addHttpApi(GuestAttributionStatusApi)
   .addHttpApi(GuestPaymentTermsResolutionApi)
   .addHttpApi(InvoiceRecipientResolutionApi)
+  .addHttpApi(MarketBootstrapPolicyCurrentApi)
+  .addHttpApi(MarketBootstrapResolutionApi)
   .addHttpApi(MigrateCounterpartyPriceGroupActionApi)
   .addHttpApi(MigrateCustomerPriceGroupActionApi)
   .addHttpApi(OpenProfileReconciliationActionApi)
   .addHttpApi(PaymentTermAffectedUseAssessmentApi)
+  .addHttpApi(PaymentTermPolicyCurrentApi)
   .addHttpApi(PaymentTermsResolutionApi)
   .addHttpApi(ProfileReconciliationReadApi)
+  .addHttpApi(PurchaseCurrencyPolicyCurrentApi)
   .addHttpApi(PurchaseCurrencyResolutionApi)
   .addHttpApi(PurchaseLimitEvaluationApi)
   .addHttpApi(PurchaseLimitPolicyReadApi)

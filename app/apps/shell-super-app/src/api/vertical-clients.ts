@@ -6,6 +6,11 @@ export {
   getCommerceCustomerContextReadiness,
 } from '@app/commerce-customer-context/api/client';
 export type { CommerceCustomerContextClientOptions } from '@app/commerce-customer-context/api/client';
+export {
+  createCommerceMarketCatalogClient,
+  getCommerceMarketCatalogReadiness,
+} from '@app/commerce-market-catalog/api/client';
+export type { CommerceMarketCatalogClientOptions } from '@app/commerce-market-catalog/api/client';
 export { createPaymentTermCatalogClient, getPaymentTermCatalogReadiness } from '@app/payment-term-catalog/api/client';
 export type { PaymentTermCatalogClientOptions } from '@app/payment-term-catalog/api/client';
 

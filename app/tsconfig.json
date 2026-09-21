@@ -29,6 +29,9 @@
       "path": "verticals/commerce-customer-context"
     },
     {
+      "path": "verticals/commerce-market-catalog"
+    },
+    {
       "path": "verticals/payment-term-catalog"
     },
     {

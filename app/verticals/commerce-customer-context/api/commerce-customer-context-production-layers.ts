@@ -9,10 +9,6 @@ import {
   PurchaseCurrencyPurchasingContextPort,
   unavailablePurchaseCurrencyPurchasingContextPort,
 } from '../shared/domain/purchase-currency-context-port.ts';
-import {
-  PurchaseCurrencyPolicyPort,
-  unavailablePurchaseCurrencyPolicyPort,
-} from '../shared/domain/purchase-currency-policy-port.ts';
 import { profileReactivationEligibilityEvaluatorFactoryLive } from '../src/integrations/profile-reactivation-eligibility.ts';
 import { profileCounterpartyRoleEligibilityResolverFactoryLive } from '../src/profile-counterparty-role-eligibility.ts';
 import { profileRetailPermissionReaderFactoryLive } from '../src/integrations/retail-permission-reader.ts';
@@ -64,10 +60,6 @@ const unavailablePurchaseCurrencyPurchasingContextPortLive = Layer.succeed(
   PurchaseCurrencyPurchasingContextPort,
   unavailablePurchaseCurrencyPurchasingContextPort(),
 );
-const unavailablePurchaseCurrencyPolicyPortLive = Layer.succeed(
-  PurchaseCurrencyPolicyPort,
-  unavailablePurchaseCurrencyPolicyPort(),
-);
 const unavailablePurchaseCurrencyPricingPortLive = Layer.succeed(
   PurchaseCurrencyPricingPort,
   unavailablePurchaseCurrencyPricingPort(),
@@ -84,7 +76,6 @@ const unavailableRepeatCartOwnerLive = Layer.succeed(RepeatCartOwner, unavailabl
 export const commerceCustomerContextProductionExternalPortsLive = Layer.mergeAll(
   unavailableCounterpartyInvitationProofDeliveryLive,
   unavailablePurchaseCurrencyPurchasingContextPortLive,
-  unavailablePurchaseCurrencyPolicyPortLive,
   unavailablePurchaseCurrencyPricingPortLive,
   paymentTermCatalogGatewayCredentialLive,
   unavailableRepeatCartOwnerLive,

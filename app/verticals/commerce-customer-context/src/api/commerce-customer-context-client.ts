@@ -74,6 +74,11 @@ export * from './trigger-purchase-approval-action-client.ts';
 export * from './update-customer-group-action-client.ts';
 export * from './update-saved-address-action-client.ts';
 // </generated-action-http-client-exports>
+export * from './commerce-quantity-resolution-client.ts';
+export * from './market-bootstrap-policy-current-client.ts';
+export * from './market-bootstrap-resolution-client.ts';
+export * from './payment-terms-resolution-client.ts';
+export * from './purchase-currency-resolution-client.ts';
 export * from './payment-term-affected-use-assessment-client.ts';
 export {
   PaymentTermAffectedUseAssessmentRequestSchema,
