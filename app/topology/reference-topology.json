@@ -1120,7 +1120,7 @@
         },
         "serverEntry": "verticals/commerce-market-catalog/api/index.ts",
         "basePath": "/commerce-market-catalog-api/commerce-market-catalog",
-        "consumedBy": ["shell-super-app", "commerce-market-catalog"],
+        "consumedBy": ["shell-super-app", "commerce-customer-context", "commerce-market-catalog"],
         "readiness": {
           "endpoint": "/commerce-market-catalog/readiness",
           "marker": {
