@@ -740,9 +740,11 @@ blocking, approval, or an Order.
 It is the canonical meaning previously described by the planning alias `Approval Threshold`; there
 is no second stored Approval Threshold amount or currency.
 
+**Purchase Demand Occurrence** — Stable immutable value identity for one independent demand occurrence in one exact prospective purchase, carrying one exact Catalog Selection and requested Quantity + Unit. The same occurrence identity is preserved into the Order Acceptance Decision Bundle and is the upstream identity consumed by Pricing and Inventory; equal-valued occurrences remain distinct.
+_Avoid_: array position as identity, assuming Cart line identity is automatically equivalent, Pricing Line owning the occurrence identity, or merging equal Catalog Selection + Quantity values.
 **Purchase Proposal Revision** — Immutable prospective representation of one submitted Cart revision
-that can be reviewed and approved. It contains exact Purchasing Subject, acting Buyer, Catalog
-Selections and Quantities, Purchase Value, currency, resolved commercial terms, Invoice Recipient,
+that can be reviewed and approved. It contains exact Purchasing Subject, acting Buyer, Purchase Demand Occurrences with their exact
+Catalog Selections + Quantities + Units, Purchase Value, currency, resolved commercial terms, Invoice Recipient,
 Delivery Destination and source revisions needed to identify what was approved. It is not an
 Accepted Order Snapshot and does not reserve stock, guarantee price or authorize Payment unless a
 separate owner-issued reservation/quotation/Payment contract explicitly says so.
@@ -782,19 +784,8 @@ hash that identified the Attempt.
 
 ## Order acceptance and recovery
 
-**Reservation Confirmation** — Attempt-bound proof issued by the selected Inventory Backend
-in its role as actual Reservation Authority, through Inventory's public boundary, that the one exact
-Inventory Reservation for exact Stock Item(s), Quantities/Units and Allocations is provisionally
-guaranteed for one exact Order Commitment Attempt until its explicit validity boundary. One Attempt
-has one normal-runtime Inventory Reservation; an External Business System and the OntOS-provided WMS
-are alternative backend modes, not simultaneous issuers. Availability does not become the issuer
-merely by consuming the evidence. It has owner-scoped idempotency and correlation. Inventory
-preserves exact Catalog Selection and Quantity/Unit meaning; it does not decompose Package/Set
-contents or convert Units. It is not an Order or permanent Availability guarantee; an
-expired/unverifiable confirmation is not Current. Inventory Launch does not renew, extend, reissue,
-or replace this Reservation Confirmation after pre-Protection expiry or definitive revocation; a
-later purchase retry uses a new Attempt only after the predecessor is authoritatively non-committed,
-closed against future commit, and its Inventory effects are safely resolved.
+**Reservation Confirmation** — Inventory-owned Attempt-bound proof issued by the selected Reservation Authority through Inventory's public boundary that one exact Inventory Reservation is provisionally guaranteed within its declared validity interval. Commerce consumes this proof in the Order Commitment Proof Set; its cardinality, health, renewal and recovery semantics remain owned by Inventory.
+_Avoid_: Availability as issuer, treating the proof as an Order or Availability promise, or redefining Inventory proof lifecycle in Commerce.
 
 **Payment Authorization** — Payment-owned proof that the required Payment method/amount/currency is
 authorized for one exact Order Commitment Attempt under the resolved Payment Term. It is distinct
@@ -804,7 +795,7 @@ Current status, and validity; secrets or payment instruments never enter Commerc
 **Order Acceptance Decision Bundle** — Immutable, versioned, canonical-hashable **pre-attempt**
 representation of one exact prospective purchase and the owner-issued decisions/evidence that define
 that purchase meaning. It includes trusted scope, Purchasing Subject/Actor, Cart revision, exact
-Catalog Selections and Quantities, Monetary Amounts, Pricing/Tax/currency, Payment Term, Invoice
+Purchase Demand Occurrences and their Catalog Selections + Quantities + Units, Monetary Amounts, Pricing/Tax/currency, Payment Term, Invoice
 Recipient, Delivery Destination, Purchase Value/limit result, Assortment and other prospective source
 evidence. It excludes any proof whose meaning requires an Order Commitment Attempt. Changed
 Bundle-contained evidence produces a distinct Bundle even when an owner proves unchanged business
@@ -900,7 +891,7 @@ and Product-level `VISIBILITY` is not proof that any Variant or Package Option i
 
 **Pricing** — Domain determining the commercial price of one exact purchase candidate in an explicit
 Commerce Purchasing Context. One Pricing Decision evaluates `1..N stable Pricing Lines`; each Pricing
-Line has an identity supplied by the exact candidate before Pricing calculation and binds one exact
+Line uses the upstream Purchase Demand Occurrence identity supplied by the exact candidate and binds its exact
 Catalog Selection, resulting Quantity and Unit. Pricing owns prices, Pricing-owned discounts and fees,
 quantity tiers, quotations and Price Group interpretation. Pricing calculation does not create, merge
 or split Pricing Lines; a purpose-specific aggregation may group stable Pricing Lines without changing
@@ -912,14 +903,9 @@ trusted operation time. A candidate with one Pricing Line uses the same authorit
 multi-line candidate; there is no second line-only Pricing Decision semantics. Pricing evaluation
 preserves the stable candidate line structure.
 
-**Pricing Line** — Stable per-selection Pricing part of one exact purchase candidate. Its identity
-and the candidate's Pricing-Line cardinality are supplied before Pricing calculation; it binds one
-exact Catalog Selection, resulting Quantity and Unit. Catalog owns the Catalog Selection meaning.
-Pricing does not create, merge or split Pricing Lines as a calculation side effect. A purpose-specific
-aggregation group or bounded quantity/calculation portion is not another Pricing Line. Pricing Line
-does not by itself define Cart/Order line lifecycle.
+**Pricing Line** — Pricing view of one Purchase Demand Occurrence in one exact purchase candidate; its identity is the upstream occurrence identity and it carries that occurrence's exact Catalog Selection, Quantity and Unit. Pricing does not create, merge or split occurrence identities, and Pricing Line does not define Cart/Order line lifecycle.
 
-**Inventory** — Domain owning the one-to-one binding from each exact Catalog Selection to one Stock Item, plus stock facts, Stock Requirements/Allocations, and Inventory-recognized stock obligations within declared authority boundaries. Inventory preserves exact Quantity/Unit meaning; Package/Set contents are not decomposed for stock. The whole Customer Configuration selects exactly one Inventory Backend for Launch; that selected backend is the actual Reservation Authority for the supported Reservation lifecycle.
+**Inventory** — Domain owning Stock Items, Stock Locations/Positions, Catalog-to-Stock Binding, Stock Requirements/Allocations, stock evidence, and Inventory-recognized obligations. It consumes Purchase Demand Occurrence identity without changing its exact Catalog Selection, Quantity or Unit; Reservation and authority lifecycle semantics are owned by the Inventory context and accepted ADRs.
 
 **Availability** — Current promise that an exact Catalog Selection and Quantity can be sold and
 delivered in a Commerce Purchasing Context. It may derive from Inventory or an External Business
