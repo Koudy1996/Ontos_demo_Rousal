@@ -76,7 +76,10 @@ const generateOutboxWorkerDeploymentEffect = (root, source) =>
         .split('\n')
         .filter(
           (line) =>
-            !line.includes(' run build') && !line.includes("- cp 'app/topology/") && !line.includes('VERTICAL_'),
+            !line.includes(' run build') &&
+            !line.includes("- cp 'app/topology/") &&
+            !line.includes('VERTICAL_') &&
+            !line.startsWith('        DATABASE_URL:'),
         )
         .map((line) =>
           line.includes('run zerops:materialize')

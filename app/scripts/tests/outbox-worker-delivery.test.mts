@@ -114,14 +114,17 @@ const makeFixture = () =>
 it.live('generates a separate supervised worker setup without changing owner configuration', () =>
   Effect.gen(function* testEffect2() {
     const root = yield* makeFixture();
-    const owner = `zerops:\n  - setup: 'ledger'\n    build:\n      buildCommands:\n        - cd app && pnpm --filter '@app/ledger' run build\n        - cd app && pnpm run zerops:materialize --app 'ledger' --package '@app/ledger' --package-dir 'verticals/ledger'\n        - cp 'app/topology/reference-topology.json' 'app/.zerops/runtime/ledger/topology.json'\n      deployFiles:\n        - 'app/.zerops/runtime/ledger'\n    run:\n      envVariables:\n        PORT: '4110'\n        VERTICAL_LEDGER_PORT: '4110'\n        ONTOS_KEEP_ME: 'true'\n        ULTRAMODERN_ZEROPS_SERVICE: ledger\n      healthCheck:\n        httpGet:\n          path: '/ledger-api/ledger/readiness'\n      start: sh -c 'cd app/.zerops/runtime/ledger && exec npm run serve'\n`;
+    const owner = `zerops:\n  - setup: 'ledger'\n    build:\n      buildCommands:\n        - cd app && pnpm --filter '@app/ledger' run build\n        - cd app && pnpm run zerops:materialize --app 'ledger' --package '@app/ledger' --package-dir 'verticals/ledger'\n        - cp 'app/topology/reference-topology.json' 'app/.zerops/runtime/ledger/topology.json'\n      deployFiles:\n        - 'app/.zerops/runtime/ledger'\n    run:\n      envVariables:\n        DATABASE_URL: postgresql://ontos_runtime:\${db18_password}@\${db18_hostname}:\${db18_port}/\${db18_dbName}\n        PORT: '4110'\n        VERTICAL_LEDGER_PORT: '4110'\n        ONTOS_KEEP_ME: 'true'\n        ULTRAMODERN_ZEROPS_SERVICE: ledger\n      healthCheck:\n        httpGet:\n          path: '/ledger-api/ledger/readiness'\n      start: sh -c 'cd app/.zerops/runtime/ledger && exec npm run serve'\n`;
     const generated = yield* Effect.tryPromise(() => generateOutboxWorkerDeployment(root, owner));
+    const [, worker] = generated.split("setup: 'ledger-worker'");
     expect(generated).toMatch(/setup: 'ledger-worker'/u);
     expect(generated).toMatch(/zerops:materialize .* --worker/u);
     expect(generated).toMatch(/DATABASE_URL: \$\{ledger_DATABASE_URL\}/u);
     expect(generated).toMatch(/OUTBOX_WORKER_HEALTH_PORT: '4110'/u);
-    expect(generated.split("setup: 'ledger-worker'")[1]).not.toMatch(/ run build/u);
-    expect(generated.split("setup: 'ledger-worker'")[1]).not.toMatch(/(?:^|\s)&(?:\s|$)/u);
+    expect(worker?.match(/DATABASE_URL:/gu)).toHaveLength(1);
+    expect(worker).not.toMatch(/db18_password/u);
+    expect(worker).not.toMatch(/ run build/u);
+    expect(worker).not.toMatch(/(?:^|\s)&(?:\s|$)/u);
     expect(generated.match(/ONTOS_KEEP_ME: 'true'/gu)?.length).toBe(2);
     expect(yield* Effect.tryPromise(() => generateOutboxWorkerDeployment(root, generated))).toBe(generated);
   }),
