@@ -35,6 +35,9 @@
       "path": "verticals/payment-term-catalog"
     },
     {
+      "path": "verticals/catalog"
+    },
+    {
       "path": "packages/email-delivery"
     }
   ]

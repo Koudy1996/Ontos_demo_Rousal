@@ -460,7 +460,7 @@ const exportedRuntimeFactory = (source: string): SourceRange | undefined => {
   if (exported === undefined || !/^[A-Za-z][A-Za-z0-9]*$/u.test(exported)) {
     return undefined;
   }
-  const runtimeInitializer = assignedExpression(source, new RegExp(`const ${escapeRegExp(exported)}\\s*=\\s*`, 'u'));
+  const runtimeInitializer = constInitializer(source, exported);
   const factory = /^(?<factory>make[A-Za-z][A-Za-z0-9]*ApiRuntime)\(/u.exec(runtimeInitializer ?? '')?.groups?.factory;
   const factoryExpression =
     factory === undefined
@@ -539,7 +539,7 @@ const slotIsMountedByAssembler = (
   if (handlers === undefined || !/^[A-Za-z][A-Za-z0-9]*$/u.test(handlers)) {
     return false;
   }
-  const resolved = assignedExpression(runtimeSource, new RegExp(`const ${escapeRegExp(handlers)}\\s*=\\s*`, 'u'));
+  const resolved = constInitializer(runtimeSource, handlers);
   return (
     resolved !== undefined && isWholeCallExpression(resolved, new RegExp(`^${escapeRegExp(layerName)}\\.pipe\\(`, 'u'))
   );
@@ -636,6 +636,9 @@ const apiStatementEnd = (source: string, start: number): number | undefined => {
   return nextExport === undefined ? semicolon : Math.min(semicolon, nextExport);
 };
 
+const governedApiDeclarationPrefix = (binding: string): string =>
+  `export const ${binding}(?:\\s*:\\s*[A-Za-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*)*)?\\s*=\\s*`;
+
 /** Resolve the actual exported root containing the generated slot, never an alias or decoy. */
 export const governedApiBinding = (source: string): string | undefined => {
   const slot = generatedSlotRange(source, GOVERNED_API_SLOT_START, GOVERNED_API_SLOT_END);
@@ -643,7 +646,9 @@ export const governedApiBinding = (source: string): string | undefined => {
     return undefined;
   }
   const candidates = [
-    ...maskComments(source).matchAll(/export const (?<name>[A-Za-z][A-Za-z0-9]*)\s*=\s*HttpApi\.make\(/gu),
+    ...maskComments(source).matchAll(
+      new RegExp(`${governedApiDeclarationPrefix('(?<name>[A-Za-z][A-Za-z0-9]*)')}HttpApi\\.make\\(`, 'gu'),
+    ),
   ]
     .filter((match) => isTopLevelCodePosition(source, match.index))
     .map((match) => match.groups?.name)
@@ -651,7 +656,7 @@ export const governedApiBinding = (source: string): string | undefined => {
       if (name === undefined) {
         return false;
       }
-      const root = assignedExpressionRange(source, new RegExp(`export const ${escapeRegExp(name)}\\s*=\\s*`, 'u'));
+      const root = assignedExpressionRange(source, new RegExp(governedApiDeclarationPrefix(escapeRegExp(name)), 'u'));
       const statementEnd = root === undefined ? undefined : apiStatementEnd(source, root.start);
       return (
         root !== undefined &&
@@ -668,7 +673,7 @@ const governedSharedApiRoot = (source: string): SourceRange | undefined => {
   const apiRoot =
     binding === undefined
       ? undefined
-      : assignedExpressionRange(source, new RegExp(`export const ${escapeRegExp(binding)}\\s*=\\s*`, 'u'));
+      : assignedExpressionRange(source, new RegExp(governedApiDeclarationPrefix(escapeRegExp(binding)), 'u'));
   const slot = generatedSlotRange(source, GOVERNED_API_SLOT_START, GOVERNED_API_SLOT_END);
   if (apiRoot === undefined || slot === undefined) {
     return undefined;
@@ -1706,6 +1711,58 @@ const generatedReadContributions = (
 const governedOwnerModuleId = (manifest: string | undefined): string | undefined =>
   /^\/\/ @ontos-module-id (?<moduleId>[^\s]+)$/mu.exec(manifest ?? '')?.groups?.moduleId;
 
+/** Keep the generated call shape while permitting a checked, declaration-safe Action type. */
+export const hasGeneratedActionRegistrationBinding = (
+  source: string,
+  camel: string,
+  type: string,
+  moduleId: string,
+): boolean => {
+  const actionName = escapeRegExp(`${camel}Action`);
+  const direct = new RegExp(`^export const ${actionName} = defineAction\\(`, 'mu');
+  const typed = new RegExp(
+    `^export const ${actionName}\\s*:\\s*ActionRegistration<\\s*typeof ${escapeRegExp(type)}PayloadSchema\\s*,\\s*typeof ${escapeRegExp(type)}ResultSchema\\s*,\\s*typeof (?<error>[A-Z][A-Za-z0-9]*ErrorSchema)\\s*,\\s*Readonly<Record<string, never>>\\s*,\\s*['"]${escapeRegExp(moduleId)}['"]\\s*,\\s*(?<services>[A-Z][A-Za-z0-9]*Services)\\s*>\\s*=\\s*defineAction\\(`,
+    'mu',
+  );
+  const directMatch = direct.exec(source);
+  if (directMatch !== null && isCodePosition(source, directMatch.index)) {
+    return true;
+  }
+  const typedMatch = typed.exec(source);
+  return (
+    typedMatch !== null &&
+    isCodePosition(source, typedMatch.index) &&
+    source.includes(`domainErrorSchema: ${typedMatch.groups?.error},`) &&
+    source.includes(`payloadSchema: ${type}PayloadSchema,`) &&
+    source.includes(`resultSchema: ${type}ResultSchema,`)
+  );
+};
+
+export const hasGeneratedActionKeyIdentity = (source: string, expectedKey: string): boolean => {
+  const escapedKey = escapeRegExp(expectedKey);
+  if (new RegExp(`actionKey:\\s*(?<quote>['"])${escapedKey}\\k<quote>`, 'u').test(source)) {
+    return true;
+  }
+  const declarations = [
+    ...source.matchAll(
+      /\bconst\s+(?<alias>[A-Za-z_$][\w$]*)\s*=\s*(?<quote>['"])(?<key>[^'"\r\n]*)\k<quote>\s*(?:as\s+const\s*)?;/gu,
+    ),
+  ].filter((match) => isCodePosition(source, match.index));
+  return declarations.some((declaration) => {
+    if (declaration.groups?.key !== expectedKey) {
+      return false;
+    }
+    const { alias } = declaration.groups;
+    if (declarations.filter((candidate) => candidate.groups?.alias === alias).length !== 1) {
+      return false;
+    }
+    const property = new RegExp(`\\bactionKey\\s*(?::\\s*${escapeRegExp(alias)}\\b|(?=\\s*[,}]))`, 'gu');
+    return [...source.matchAll(property)].some(
+      (match) => match.index > declaration.index && isCodePosition(source, match.index),
+    );
+  });
+};
+
 const hasCompleteGeneratedActionHttpSeam = (input: {
   readonly deploymentAppId: string;
   readonly handlerRoot: string;
@@ -1748,8 +1805,8 @@ const hasCompleteGeneratedActionHttpSeam = (input: {
       actionSource.startsWith(
         `// @generated by OntOS Codesmith Action v1\n// @ontos-action-owner ${input.moduleId}\n// @ontos-action-slug ${slug}\n`,
       ),
-      actionSource.includes(`export const ${camel}Action = defineAction(`),
-      new RegExp(`actionKey:\\s*['"]${escapeRegExp(input.moduleId)}\\.${escapedSlug}['"]`, 'u').test(actionSource),
+      hasGeneratedActionRegistrationBinding(actionSource, camel, type, input.moduleId),
+      hasGeneratedActionKeyIdentity(actionSource, `${input.moduleId}.${slug}`),
       new RegExp(
         `HttpApiEndpoint\\.post\\(\\s*'execute',\\s*'/${escapeRegExp(input.deploymentAppId)}/actions/${escapedSlug}'`,
         'u',

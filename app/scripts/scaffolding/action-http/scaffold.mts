@@ -231,7 +231,7 @@ interface DecodedActionRegistration {
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Dynamic import namespaces are untrusted here and are decoded field-by-field before the scaffold accepts the registration.
-const decodeActionRegistration = (module: unknown, value: string): Option.Option<DecodedActionRegistration> =>
+export const decodeActionRegistration = (module: unknown, value: string): Option.Option<DecodedActionRegistration> =>
   Option.gen(function* decodeActionRegistrationOption() {
     const moduleRecord = yield* decodeRecord(module);
     const action = yield* decodeRecord(moduleRecord[value]);

@@ -1506,6 +1506,11 @@ it.live(
         expect(moduleApiContract).toMatch(
           /headers: \{\},\s+params: \{\},\s+payload: ResourceDetailRequestSchema,\s+query: \{\}/u,
         );
+        expect(moduleApiContract).toContain(
+          'export type ResourceDetailRequest = typeof ResourceDetailRequestSchema.Type;',
+        );
+        expect(moduleApiContract).toContain('export const ResourceDetailResponseSchema = Schema.Struct(');
+        expect(moduleApiContract).not.toMatch(/export type ResourceDetailResponse\b/u);
         expect(moduleApiClient).toMatch(
           /client\.resourceDetail\.execute\(\{\s+headers: \{\},\s+params: \{\},\s+payload,\s+query: \{\},?\s+\}\)/u,
         );
@@ -1517,6 +1522,15 @@ it.live(
         expect(reportClient).not.toMatch(/\.provider\.ts|import\(/u);
         assertGovernedReadProviders([searchProvider, reportProvider]);
         expect(searchProvider).toMatch(/result\.map\(\(\{ ref \}\) => ref\)/u);
+        for (const [source, entrypoint, read] of [
+          [moduleApiRead, 'resourceDetail', 'resourceDetail'],
+          [searchProvider, 'inventoryItems', 'inventoryItems'],
+          [reportProvider, 'stockLevels', 'stockLevels'],
+        ]) {
+          expect(source).toMatch(new RegExp(`const ${entrypoint}Entrypoint = defineTenantModuleEntrypoint\\(\\{`, 'u'));
+          expect(source).not.toMatch(new RegExp(`export const ${entrypoint}Entrypoint`, 'u'));
+          expect(source).toMatch(new RegExp(`export const ${read}Read = defineRead\\(`, 'u'));
+        }
         expect(moduleApiRead).toMatch(/defineRead\(/u);
         expect(moduleApiRead).toMatch(/legalEntityScope: 'required'/u);
         assertGovernedReadServers([moduleApiServer, searchServer, reportServer]);
@@ -3073,13 +3087,11 @@ it.live(
 import { Effect, Schema } from 'effect';
 import { defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
 
-export const CreateOrder2PayloadSchema = Schema.Struct({});
-export type CreateOrder2Payload = Schema.Schema.Type<typeof CreateOrder2PayloadSchema>;
+const CreateOrder2PayloadSchema = Schema.Struct({});
 
-export const CreateOrder2ResultSchema = Schema.Struct({});
-export type CreateOrder2Result = Schema.Schema.Type<typeof CreateOrder2ResultSchema>;
+const CreateOrder2ResultSchema = Schema.Struct({});
 
-export class CreateOrder2NotImplemented extends Schema.TaggedError<CreateOrder2NotImplemented>()(
+class CreateOrder2NotImplemented extends Schema.TaggedError<CreateOrder2NotImplemented>()(
   'CreateOrder2NotImplemented',
   {
     code: Schema.Literal('action_not_implemented'),
@@ -6170,6 +6182,24 @@ it.live(
       readFile(path.join(appRoot, 'verticals/party-registry/api/index.ts'), 'utf-8'),
     );
     expect(hasValidGovernedHttpCompositionRoot(shared, handler)).toBe(true);
+    const typedShared = shared.replace(
+      'export const partyRegistryApi = HttpApi.make(',
+      'export const partyRegistryApi: PartyRegistryApi = HttpApi.make(',
+    );
+    expect(typedShared).not.toBe(shared);
+    expect(hasValidGovernedHttpCompositionRoot(typedShared, handler)).toBe(true);
+    const typedHandler = handler.replace(
+      'const apiRuntime = makePartyRegistryApiRuntime(',
+      'const apiRuntime: EffectBffDefinition<typeof partyRegistryApi> & EffectBffRuntime<typeof partyRegistryApi> = makePartyRegistryApiRuntime(',
+    );
+    expect(typedHandler).not.toBe(handler);
+    expect(hasValidGovernedHttpCompositionRoot(shared, typedHandler)).toBe(true);
+    expect(
+      hasValidGovernedHttpCompositionRoot(
+        shared,
+        typedHandler.replace('export default apiRuntime;', 'export default unrelatedRuntime;'),
+      ),
+    ).toBe(false);
     expect(
       hasValidGovernedHttpCompositionRoot(
         shared,
