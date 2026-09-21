@@ -3,6 +3,7 @@ import { expect, it } from 'effect-rstest';
 
 import { CommercePortalAuthAccountLookupService } from '../../api/portal-auth/provider/account-lookup-service.ts';
 import type { CommercePortalAuthAccountLookup } from '../../api/portal-auth/provider/account-lookup-service.ts';
+import { CommercePortalAuthAccountCreationReconciliationService } from '../../api/portal-auth/provider/account-creation-reconciliation-service.ts';
 import { CommercePortalAuthAccountCreationUnavailable } from '../../api/portal-auth/provider/account-creation-unavailable.ts';
 import {
   CommercePortalAccountSubjectSchema,
@@ -75,6 +76,9 @@ const portFor = (attemptFailure: CommerceEnrollmentAttemptError) =>
       runWorker: () => Effect.fail(attemptFailure),
     }),
     Effect.provideService(CommercePortalAuthAccountLookupService, accountLookupNeverRead),
+    Effect.provideService(CommercePortalAuthAccountCreationReconciliationService, {
+      reissueVerificationEmail: () => Effect.succeedNone,
+    }),
   );
 
 const retryableAttemptFailure = new CommerceEnrollmentAttemptUnavailable({
@@ -127,6 +131,9 @@ it.effect('opens exactly one owner transaction for the claim phase and never rea
         runWorker: () => Effect.fail(retryableAttemptFailure),
       }),
       Effect.provideService(CommercePortalAuthAccountLookupService, accountLookupNeverRead),
+      Effect.provideService(CommercePortalAuthAccountCreationReconciliationService, {
+        reissueVerificationEmail: () => Effect.succeedNone,
+      }),
     );
     yield* port.prepare(claimBinding);
     expect(transactions).toBe(1);

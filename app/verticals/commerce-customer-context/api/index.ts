@@ -24,6 +24,7 @@ import { Context, Layer as GovernedReadLayer, Logger, Option, References, Schema
 import { CommercePortalAuthDatabaseLive } from '../src/portal-auth/persistence/portal-auth-database.ts';
 import { CommercePortalAuthAuditLive } from '../src/portal-auth/audit/audit.ts';
 import { CommercePortalAuthAccountLookupLive } from '../src/portal-auth/persistence/portal-auth-account-lookup.ts';
+import { CommercePortalAuthAccountCreationReconciliationLive } from '../src/portal-auth/persistence/portal-auth-account-creation-reconciliation.ts';
 import {
   CommerceEnrollmentContinuationLive,
   commerceEnrollmentContinuationUnavailableLive,
@@ -286,6 +287,16 @@ const commerceEnrollmentOwnerTransactionRunnerProductionLive = CommerceEnrollmen
 const commercePortalAuthAccountLookupRealmLive = CommercePortalAuthAccountLookupLive.pipe(
   Layer.provide(CommercePortalAuthDatabaseLive),
 );
+const commercePortalAuthAccountCreationReconciliationRealmLive =
+  CommercePortalAuthAccountCreationReconciliationLive.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        CommercePortalAuthDatabaseLive,
+        CommercePortalAuthAccountCreationProviderLive.pipe(Layer.provide(commercePortalAuthProviderRealmLive)),
+      ),
+    ),
+    Layer.provide(Layer.mergeAll(CommercePortalAuthConfigLive, ResendEmailDeliveryConfigLive)),
+  );
 /**
  * The private provider account-creation capability the enrollment start route dispatches through.
  * It is a two-party operation and both parties are separate visible requirements here: the owner
@@ -499,6 +510,7 @@ const commerceEnrollmentOwnerTransitionPreparationRealmLive = commerceEnrollment
     Layer.mergeAll(
       commerceEnrollmentOwnerTransactionRunnerProductionLive,
       commercePortalAuthAccountLookupRealmLive.pipe(Layer.provide(CommercePortalAuthConfigLive)),
+      commercePortalAuthAccountCreationReconciliationRealmLive,
       commerceEnrollmentPreparationSubjectRealmLive,
     ),
   ),
@@ -569,6 +581,7 @@ const commerceEnrollmentOwnerEffectRegistryRealmLive = CommerceEnrollmentOwnerEf
   Layer.provide(
     Layer.mergeAll(
       commercePortalAuthAccountLookupRealmLive.pipe(Layer.provide(CommercePortalAuthConfigLive)),
+      commercePortalAuthAccountCreationReconciliationRealmLive,
       commerceCoreIdentityRealmLive,
       // The two Commerce-owned Retail transitions reconcile a lost Action response by reading the
       // Commerce owner itself, so the deployed registry is handed the same owner transaction runner

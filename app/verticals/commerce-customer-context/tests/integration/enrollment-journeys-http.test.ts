@@ -55,12 +55,15 @@ import {
 import type { CommercePortalAuthEnrollmentTransitionClaim } from '../../api/portal-auth/enrollment/intent.ts';
 import { commercePortalAuthEnrollmentSessionSubject } from '../../api/portal-auth/enrollment/session-subject.ts';
 import { CommercePortalAuthAccountLookupService } from '../../api/portal-auth/provider/account-lookup-service.ts';
-import { makeCommercePortalAuth } from '../../api/portal-auth/provider/auth.ts';
+import { CommercePortalAuthInstance, makeCommercePortalAuth } from '../../api/portal-auth/provider/auth.ts';
 import { CommercePortalAuthService } from '../../api/portal-auth/session/http.ts';
 import { CommercePortalAuthSessionLifecycle } from '../../api/portal-auth/session/lifecycle-service.ts';
 import { PORTAL_ACCOUNT_VERIFICATION_TRANSITION_KEY } from '../../src/enrollment/journeys/existing-account.ts';
 import { CommercePortalAuthAccountCreationRejected } from '../../api/portal-auth/provider/account-creation-rejected.ts';
-import { CommercePortalAuthAccountCreationService } from '../../api/portal-auth/provider/account-create.ts';
+import {
+  CommercePortalAuthAccountCreationProviderLive,
+  CommercePortalAuthAccountCreationService,
+} from '../../api/portal-auth/provider/account-create.ts';
 import { CommercePortalAuthAccountCreationUnavailable } from '../../api/portal-auth/provider/account-creation-unavailable.ts';
 import { CommercePortalAuthConfig } from '../../api/portal-auth/provider/config-service.ts';
 import { COMMERCE_PORTAL_AUTH_POLICY, parseCommercePortalAuthConfig } from '../../api/portal-auth/provider/config.ts';
@@ -72,6 +75,7 @@ import {
 } from '../../src/enrollment/attempts/attempt-persistence.ts';
 import {
   CommerceEnrollmentAttemptConflict,
+  CommerceEnrollmentAttemptIndeterminate,
   CommerceEnrollmentAttemptNotFound,
 } from '../../src/enrollment/attempts/errors.ts';
 import { CommercePortalAuthAccountLookupLive } from '../../src/portal-auth/persistence/portal-auth-account-lookup.ts';
@@ -111,6 +115,7 @@ import {
   CommercePortalAuthDatabaseLive,
   makeCommercePortalAuthDatabase,
 } from '../../src/portal-auth/persistence/portal-auth-database.ts';
+import { CommercePortalAuthAccountCreationReconciliationLive } from '../../src/portal-auth/persistence/portal-auth-account-creation-reconciliation.ts';
 import { rateLimit, user, verification } from '../../src/portal-auth/persistence/portal-auth-tables.ts';
 import {
   expireEnrollmentAcceptanceLeases,
@@ -152,17 +157,20 @@ const providerDatabaseUrl = Config.redacted('COMMERCE_PORTAL_AUTH_DATABASE_URL')
 /** Resend is answered locally: creation now awaits delivery, so the transport must accept. */
 const acceptingResendFetch: typeof fetch = () => Promise.resolve(Response.json({ id: 'accepted' }));
 
-const emailDeliveryConfiguration = Layer.mergeAll(
-  Layer.succeed(ResendEmailDeliveryConfig, {
-    apiKey: Redacted.make('re_commerce_enrollment_journeys_http'),
-    endpoint: 'https://api.resend.com/emails',
-    from: 'no-reply@commerce.example.test',
-  }),
-  Layer.succeed(FetchHttpClient.Fetch, acceptingResendFetch),
-);
+const emailDeliveryConfigurationFor = (deliveryFetch: typeof fetch) =>
+  Layer.mergeAll(
+    Layer.succeed(ResendEmailDeliveryConfig, {
+      apiKey: Redacted.make('re_commerce_enrollment_journeys_http'),
+      endpoint: 'https://api.resend.com/emails',
+      from: 'no-reply@commerce.example.test',
+    }),
+    Layer.succeed(FetchHttpClient.Fetch, deliveryFetch),
+  );
 
 /** The realm a host that opted in gets, assembled from the same layer the composition root uses. */
-const configuredRealmLive = Effect.fnUntraced(function* configuredRealmLive() {
+const configuredRealmLive = Effect.fnUntraced(function* configuredRealmLive(
+  deliveryFetch: typeof fetch = acceptingResendFetch,
+) {
   const databaseUrl = yield* providerDatabaseUrl;
   const configuration = yield* parseCommercePortalAuthConfig({
     COMMERCE_PORTAL_AUTH_DATABASE_URL: Redacted.value(databaseUrl),
@@ -172,7 +180,10 @@ const configuredRealmLive = Effect.fnUntraced(function* configuredRealmLive() {
   });
   return commercePortalAuthRealmLive.pipe(
     Layer.provideMerge(
-      Layer.mergeAll(Layer.succeed(CommercePortalAuthConfig, configuration), emailDeliveryConfiguration),
+      Layer.mergeAll(
+        Layer.succeed(CommercePortalAuthConfig, configuration),
+        emailDeliveryConfigurationFor(deliveryFetch),
+      ),
     ),
   );
 });
@@ -220,7 +231,9 @@ const portalAccountsFor = Effect.fnUntraced(function* portalAccountsFor(email: s
  * is configured but deliberately unreachable: these scenarios pin *which* port answers a Retail
  * transition, and every answer below is decided before any Core call is made.
  */
-const preparationAuthorityLive = Effect.fnUntraced(function* preparationAuthorityLive() {
+const preparationAuthorityLive = Effect.fnUntraced(function* preparationAuthorityLive(
+  deliveryFetch: typeof fetch = acceptingResendFetch,
+) {
   const databaseUrl = yield* providerDatabaseUrl;
   const configuration = yield* parseCommercePortalAuthConfig({
     COMMERCE_PORTAL_AUTH_DATABASE_URL: Redacted.value(databaseUrl),
@@ -244,9 +257,14 @@ const preparationAuthorityLive = Effect.fnUntraced(function* preparationAuthorit
       }),
     ),
   );
-  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(
+  const databaseLive = CommercePortalAuthDatabaseLive.pipe(
+    Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration)),
+  );
+  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(Layer.provide(databaseLive));
+  const realmLive = yield* configuredRealmLive(deliveryFetch);
+  const accountCreationReconciliationLive = CommercePortalAuthAccountCreationReconciliationLive.pipe(
     Layer.provide(
-      CommercePortalAuthDatabaseLive.pipe(Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration))),
+      Layer.mergeAll(databaseLive, CommercePortalAuthAccountCreationProviderLive.pipe(Layer.provide(realmLive))),
     ),
   );
   const subjectResolverLive = CommerceEnrollmentPreparationSubjectResolverLive.pipe(
@@ -262,7 +280,9 @@ const preparationAuthorityLive = Effect.fnUntraced(function* preparationAuthorit
     ),
   );
   return commerceEnrollmentOwnerTransitionPreparationLive.pipe(
-    Layer.provide(Layer.mergeAll(transactionRunnerLive, accountLookupLive, subjectResolverLive)),
+    Layer.provide(
+      Layer.mergeAll(transactionRunnerLive, accountLookupLive, accountCreationReconciliationLive, subjectResolverLive),
+    ),
   );
 });
 
@@ -368,7 +388,9 @@ it.live('still fails closed for an owner transition no installed port declares',
  * deployment that opted into both halves of the realm. The Core identity transport is configured
  * but deliberately unreachable here; the assertion below is decided before any Core call is made.
  */
-const continuationLive = Effect.fnUntraced(function* continuationLive() {
+const continuationLive = Effect.fnUntraced(function* continuationLive(
+  deliveryFetch: typeof fetch = acceptingResendFetch,
+) {
   const databaseUrl = yield* providerDatabaseUrl;
   const configuration = yield* parseCommercePortalAuthConfig({
     COMMERCE_PORTAL_AUTH_DATABASE_URL: Redacted.value(databaseUrl),
@@ -389,13 +411,25 @@ const continuationLive = Effect.fnUntraced(function* continuationLive() {
     ),
   );
   const coreIdentityLive = CommerceCoreIdentityClientLive.pipe(Layer.provide(coreIdentityConfigurationLive));
-  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(
+  const databaseLive = CommercePortalAuthDatabaseLive.pipe(
+    Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration)),
+  );
+  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(Layer.provide(databaseLive));
+  const realmLive = yield* configuredRealmLive(deliveryFetch);
+  const accountCreationReconciliationLive = CommercePortalAuthAccountCreationReconciliationLive.pipe(
     Layer.provide(
-      CommercePortalAuthDatabaseLive.pipe(Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration))),
+      Layer.mergeAll(databaseLive, CommercePortalAuthAccountCreationProviderLive.pipe(Layer.provide(realmLive))),
     ),
   );
   const registryLive = CommerceEnrollmentOwnerEffectRegistryLive.pipe(
-    Layer.provide(Layer.mergeAll(accountLookupLive, coreIdentityLive, coreIdentityConfigurationLive)),
+    Layer.provide(
+      Layer.mergeAll(
+        accountLookupLive,
+        accountCreationReconciliationLive,
+        coreIdentityLive,
+        coreIdentityConfigurationLive,
+      ),
+    ),
   );
   const subjectResolverLive = CommerceEnrollmentPreparationSubjectResolverLive.pipe(
     Layer.provide(Layer.mergeAll(transactionRunnerLive, coreIdentityLive, coreIdentityConfigurationLive)),
@@ -2381,12 +2415,19 @@ it.live(
         const fixture = yield* makeEnrollmentAcceptanceFixture({ tenantId });
         const subject = yield* seedGovernedStartSubject(tenantId);
         yield* seedGovernedStartAuthorization(subject, [RECORD_ACTION_KEY]);
+        let deliveryAvailable = false;
+        const deliveryFetch: typeof fetch = () =>
+          Promise.resolve(
+            deliveryAvailable
+              ? Response.json({ id: 'accepted-governed-record' })
+              : new Response('temporarily unavailable', { status: 503 }),
+          );
         const gateway = yield* makeAcceptanceGatewayIssuer(GOVERNED_START_ISSUER, GOVERNED_START_KEY_ID);
         const runtime = yield* authenticatedRuntime(
           gateway,
           singleUseRedemptionLive,
           commerceCustomerContextActionRuntimeAwaitingOwnerPreparation.pipe(
-            Layer.provide(yield* preparationAuthorityLive()),
+            Layer.provide(yield* preparationAuthorityLive(deliveryFetch)),
           ),
         );
         const actorPrincipalId = Schema.decodeSync(EnrollmentPrincipalIdSchema)(subject.principalId);
@@ -2428,17 +2469,23 @@ it.live(
         // the correlation the owner's authoritative lookup reconciles by.
         const scope = yield* Effect.scope;
         const accountCreation = Context.get(
-          yield* Layer.buildWithScope(yield* configuredRealmLive(), scope),
+          yield* Layer.buildWithScope(yield* configuredRealmLive(deliveryFetch), scope),
           CommercePortalAuthAccountCreationService,
         );
-        yield* accountCreation.createAccount({
-          email,
-          enrollmentAttemptId: attempt.portalEnrollmentAttemptId,
-          name: START_DISPLAY_NAME,
-          ownerInvocationId: claim.ownerInvocationId,
-          password: startInput.password,
-          tenantId,
-        });
+        expect(
+          Schema.is(CommercePortalAuthAccountCreationUnavailable)(
+            yield* Effect.flip(
+              accountCreation.createAccount({
+                email,
+                enrollmentAttemptId: attempt.portalEnrollmentAttemptId,
+                name: START_DISPLAY_NAME,
+                ownerInvocationId: claim.ownerInvocationId,
+                password: startInput.password,
+                tenantId,
+              }),
+            ),
+          ),
+        ).toBe(true);
 
         // The answer was lost before the journal recorded it: the lease lapses and the next claim
         // on this Attempt fences the abandoned transition into durable reconciliation.
@@ -2469,6 +2516,7 @@ it.live(
           principalId: subject.principalId,
           tenantId,
         });
+        deliveryAvailable = true;
         const response = yield* Effect.promise(
           async () =>
             await runtime.handler(
@@ -2525,6 +2573,152 @@ it.live(
             transition_key: PORTAL_ACCOUNT_CREATION_TRANSITION_KEY,
           },
         ]);
+      }),
+    ),
+  180_000,
+);
+
+/** A committed account is not complete until continuation can successfully reissue verification. */
+it.live(
+  'reissues verification through continuation before reconciling a committed account as successful',
+  () =>
+    Effect.scoped(
+      Effect.gen(function* reconciliationRequiresVerificationDelivery() {
+        const tenantId = randomUUID();
+        const fixture = yield* makeEnrollmentAcceptanceFixture({ tenantId });
+        const actorPrincipalId = Schema.decodeSync(EnrollmentPrincipalIdSchema)(randomUUID());
+        const email = `enrollment-http-${randomUUID()}@example.test`;
+        yield* removePortalAccountsOnClose(email);
+        let deliveryAvailable = false;
+        let deliveryAttempts = 0;
+        const delivered: { readonly text: string; readonly to: readonly string[] }[] = [];
+        const resendPayloadSchema = Schema.Struct({
+          text: Schema.String,
+          to: Schema.Array(Schema.String),
+        });
+        const deliveryFetch: typeof fetch = async (input, init) => {
+          deliveryAttempts += 1;
+          const request = new Request(input, init);
+          const payload = Schema.decodeUnknownSync(resendPayloadSchema)(await request.json());
+          if (!deliveryAvailable) {
+            return new Response('temporarily unavailable', { status: 503 });
+          }
+          delivered.push(payload);
+          return Response.json({ id: `accepted-${delivered.length}` });
+        };
+        const startInput = startInputFor(email);
+        const attempt = yield* startAcceptanceEnrollment(fixture, startInput, actorPrincipalId);
+        const claim = yield* commercePortalAuthEnrollmentAccountCreationClaim(
+          startInput,
+          attempt.portalEnrollmentAttemptId,
+        );
+        const claimed = yield* fixture.ownerStore
+          .claimTransition(
+            Schema.decodeUnknownSync(ClaimEnrollmentTransitionInputSchema)({
+              actorPrincipalId,
+              expectedRevision: attempt.revision,
+              leaseDurationMs: 30_000,
+              ownerInvocationId: claim.ownerInvocationId,
+              ownerModuleKey: claim.ownerModuleKey,
+              portalEnrollmentAttemptId: attempt.portalEnrollmentAttemptId,
+              requestDigest: claim.requestDigest,
+              required: true,
+              tenantId,
+              transitionKey: claim.transitionKey,
+              workerId: START_WORKER_ID,
+            }),
+          )
+          .pipe(
+            Effect.flatMap(
+              claimedOrIndeterminate({
+                ownerInvocationId: claim.ownerInvocationId,
+                portalEnrollmentAttemptId: attempt.portalEnrollmentAttemptId,
+              }),
+            ),
+          );
+        expect(claimed.outcome).toBe('CLAIMED');
+
+        const scope = yield* Effect.scope;
+        const realmServices = yield* Layer.buildWithScope(yield* configuredRealmLive(deliveryFetch), scope);
+        const accountCreation = Context.get(realmServices, CommercePortalAuthAccountCreationService);
+        const auth = Context.get(realmServices, CommercePortalAuthInstance);
+        const firstCreationFailure = yield* Effect.flip(
+          accountCreation.createAccount({
+            email,
+            enrollmentAttemptId: attempt.portalEnrollmentAttemptId,
+            name: START_DISPLAY_NAME,
+            ownerInvocationId: claim.ownerInvocationId,
+            password: startInput.password,
+            tenantId,
+          }),
+        );
+        expect(Schema.is(CommercePortalAuthAccountCreationUnavailable)(firstCreationFailure)).toBe(true);
+        expect(deliveryAttempts).toBe(1);
+        expect(delivered).toStrictEqual([]);
+        expect(yield* portalAccountsFor(email)).toHaveLength(1);
+
+        // The continuation worker takes the same expired-lease reconciliation path as production.
+        yield* expireEnrollmentAcceptanceLeases(fixture, attempt.portalEnrollmentAttemptId);
+        const continuation = Context.get(
+          yield* Layer.buildWithScope(yield* continuationLive(deliveryFetch), scope),
+          CommerceEnrollmentContinuation,
+        );
+        const unavailableFailure = yield* Effect.flip(
+          continuation.advance({
+            portalEnrollmentAttemptId: attempt.portalEnrollmentAttemptId,
+            tenantId: Schema.decodeSync(EnrollmentTenantIdSchema)(tenantId),
+          }),
+        );
+        expect(Schema.is(CommerceEnrollmentAttemptIndeterminate)(unavailableFailure)).toBe(true);
+        const unavailableOperations = yield* readEnrollmentAcceptanceOperations(
+          fixture,
+          attempt.portalEnrollmentAttemptId,
+        );
+        expect(unavailableOperations).toHaveLength(1);
+        expect(unavailableOperations[0]?.status).toBe('INDETERMINATE');
+        expect(deliveryAttempts).toBe(2);
+        expect(delivered).toStrictEqual([]);
+
+        deliveryAvailable = true;
+        yield* Effect.result(
+          continuation.advance({
+            portalEnrollmentAttemptId: attempt.portalEnrollmentAttemptId,
+            tenantId: Schema.decodeSync(EnrollmentTenantIdSchema)(tenantId),
+          }),
+        );
+
+        const accounts = yield* portalAccountsFor(email);
+        expect(accounts).toHaveLength(1);
+        expect(delivered).toHaveLength(1);
+        expect(delivered[0]?.to).toStrictEqual([email]);
+        const accountCreationOperation = (yield* readEnrollmentAcceptanceOperations(
+          fixture,
+          attempt.portalEnrollmentAttemptId,
+        )).find((operation) => operation.transition_key === PORTAL_ACCOUNT_CREATION_TRANSITION_KEY);
+        expect(accountCreationOperation).toStrictEqual({
+          outcome_code: 'provider_account_reconciled',
+          reconciliation_ref: attempt.portalEnrollmentAttemptId,
+          result_reference: attempt.portalEnrollmentAttemptId,
+          status: 'SUCCEEDED',
+          transition_key: PORTAL_ACCOUNT_CREATION_TRANSITION_KEY,
+        });
+
+        const verificationLink = Schema.decodeUnknownSync(Schema.String)(
+          /https?:\/\/[^\s]+/u.exec(delivered[0]?.text ?? '')?.[0],
+        );
+        const token = Schema.decodeUnknownSync(Schema.String)(new URL(verificationLink).searchParams.get('token'));
+        const headers = new Headers({ origin: ORIGIN });
+        yield* Effect.promise(
+          async () => await auth.api.verifyEmail({ headers, query: { token }, returnHeaders: true }),
+        );
+        const databaseUrl = yield* providerDatabaseUrl;
+        const database = yield* makeCommercePortalAuthDatabase({ connectionString: databaseUrl }).pipe(Effect.orDie);
+        const [verified] = yield* database.executor
+          .select({ emailVerified: user.emailVerified })
+          .from(user)
+          .where(eq(user.email, email))
+          .pipe(Effect.orDie);
+        expect(verified?.emailVerified).toBe(true);
       }),
     ),
   180_000,

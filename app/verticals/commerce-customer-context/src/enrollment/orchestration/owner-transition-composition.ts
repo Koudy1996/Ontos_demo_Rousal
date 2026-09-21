@@ -2,6 +2,8 @@ import { Effect, Layer, Option, Result, Schema } from 'effect';
 
 import { CommercePortalAuthAccountLookupService } from '../../../api/portal-auth/provider/account-lookup-service.ts';
 import type { CommercePortalAuthAccountLookup } from '../../../api/portal-auth/provider/account-lookup-service.ts';
+import { CommercePortalAuthAccountCreationReconciliationService } from '../../../api/portal-auth/provider/account-creation-reconciliation-service.ts';
+import type { CommercePortalAuthAccountCreationReconciliation } from '../../../api/portal-auth/provider/account-creation-reconciliation-service.ts';
 import {
   EnrollmentEvidenceReferenceSchema,
   EnrollmentModuleKeySchema,
@@ -105,13 +107,15 @@ const evidenceReferenceOf = (
 
 const reconciliationUnavailable = (
   reason: string,
-  cause: unknown,
+  cause?: unknown,
 ): InstanceType<typeof CommerceEnrollmentOwnerEffectUnavailable> =>
-  Object.defineProperty(
-    new CommerceEnrollmentOwnerEffectUnavailable({ code: 'provider_account_reconciliation_unavailable', reason }),
-    'cause',
-    { configurable: false, enumerable: false, value: cause },
-  );
+  cause === undefined
+    ? new CommerceEnrollmentOwnerEffectUnavailable({ code: 'provider_account_reconciliation_unavailable', reason })
+    : Object.defineProperty(
+        new CommerceEnrollmentOwnerEffectUnavailable({ code: 'provider_account_reconciliation_unavailable', reason }),
+        'cause',
+        { configurable: false, enumerable: false, value: cause },
+      );
 
 /**
  * The subject the provider itself correlated to this exact owner invocation, inside the very call
@@ -203,6 +207,52 @@ export const providerObservationFor = Effect.fn('CommerceEnrollmentPortalAuthOwn
   },
 );
 
+/** Account creation is complete only after the correlated account's verification email is reissued. */
+export const providerAccountCreationObservationFor = Effect.fn(
+  'CommerceEnrollmentPortalAuthOwnerPreparation.providerAccountCreationObservation',
+)(function* providerAccountCreationObservationEffect(
+  attempt: EnrollmentAttemptSnapshot,
+  reconciliation: CommercePortalAuthAccountCreationReconciliation,
+  ownerInvocationId: CommerceEnrollmentOwnerReconciliationInput['ownerInvocationId'],
+): Effect.fn.Return<
+  CommerceEnrollmentProviderOwnerReconciliationObservation,
+  InstanceType<typeof CommerceEnrollmentOwnerEffectUnavailable>
+> {
+  const evidenceRef = yield* evidenceReferenceOf(attempt).pipe(
+    Effect.mapError(
+      (cause) =>
+        new CommerceEnrollmentOwnerEffectUnavailable({
+          code: 'provider_account_reconciliation_unavailable',
+          reason: cause.reason,
+        }),
+    ),
+  );
+  // Keep provider delivery behind the local Attempt decode: malformed durable evidence must fail
+  // closed before reconciliation performs an externally visible email send.
+  // oxlint-disable-next-line effect-native/no-sequential-independent-yields -- Evidence validation intentionally gates verification delivery and fixes their failure ordering.
+  const reissued = yield* reconciliation
+    .reissueVerificationEmail({ ownerInvocationId })
+    .pipe(
+      Effect.mapError((failure) =>
+        reconciliationUnavailable(
+          'The Commerce portal verification email could not be reissued for account reconciliation',
+          failure,
+        ),
+      ),
+    );
+  if (Option.isNone(reissued)) {
+    return { evidenceRef, outcome: 'NOT_FOUND' as const };
+  }
+  const providerSubjectId = yield* Schema.decodeEffect(EnrollmentProviderSubjectIdSchema)(
+    reissued.value.providerSubjectId,
+  ).pipe(
+    Effect.mapError((cause) =>
+      reconciliationUnavailable('The reconciled Commerce portal account names no usable subject', cause),
+    ),
+  );
+  return { evidenceRef, outcome: 'FOUND' as const, providerSubjectId };
+});
+
 /** Rebuild the immutable owner transition identity from the durable operation, never the payload. */
 const ownerTransitionFor = (
   binding: CommerceEnrollmentPreparedOwnerBinding,
@@ -252,6 +302,7 @@ const prepareRecord = Effect.fn('CommerceEnrollmentPortalAuthOwnerPreparation.pr
   function* prepareRecordEffect(
     store: CommerceEnrollmentOwnerAttemptStore,
     accountLookup: CommercePortalAuthAccountLookup,
+    accountCreationReconciliation: CommercePortalAuthAccountCreationReconciliation,
     binding: CommerceEnrollmentPreparedOwnerBinding,
   ): Effect.fn.Return<CommerceEnrollmentOwnerTransitionPreparationResult, CommerceEnrollmentAttemptError> {
     const { attempt, operation } = yield* Effect.all(
@@ -292,7 +343,13 @@ const prepareRecord = Effect.fn('CommerceEnrollmentPortalAuthOwnerPreparation.pr
             ownerResultReference: operation.resultReference,
           };
     const owner = commerceEnrollmentPortalAuthOwnerReconciliationForLookup((reconciliation) =>
-      providerObservationFor(attempt, accountLookup, reconciliation.ownerInvocationId),
+      binding.transitionKey === PORTAL_ACCOUNT_TRANSITION_IDENTITY.transitionKey
+        ? providerAccountCreationObservationFor(
+            attempt,
+            accountCreationReconciliation,
+            reconciliation.ownerInvocationId,
+          )
+        : providerObservationFor(attempt, accountLookup, reconciliation.ownerInvocationId),
     );
     return yield* owner.reconcile(reconciliationInput).pipe(
       Effect.match({
@@ -324,10 +381,13 @@ export const makeCommerceEnrollmentPortalAuthOwnerPreparationPort = Effect.fn(
 )(function* makePortalAuthOwnerPreparationPort(): Effect.fn.Return<
   CommerceEnrollmentOwnerPreparationPort,
   never,
-  CommerceEnrollmentOwnerTransactionRunner | CommercePortalAuthAccountLookupService
+  | CommerceEnrollmentOwnerTransactionRunner
+  | CommercePortalAuthAccountLookupService
+  | CommercePortalAuthAccountCreationReconciliationService
 > {
   const runner = yield* CommerceEnrollmentOwnerTransactionRunner;
   const accountLookup = yield* CommercePortalAuthAccountLookupService;
+  const accountCreationReconciliation = yield* CommercePortalAuthAccountCreationReconciliationService;
   const prepare = (
     input: CommerceEnrollmentPreparedOwnerBinding,
   ): Effect.Effect<CommerceEnrollmentOwnerTransitionPreparationResult> => {
@@ -335,7 +395,7 @@ export const makeCommerceEnrollmentPortalAuthOwnerPreparationPort = Effect.fn(
     const prepared =
       input.actionKey === CLAIM_PORTAL_ENROLLMENT_TRANSITION_ACTION_KEY
         ? prepareClaim(store, input)
-        : prepareRecord(store, accountLookup, input);
+        : prepareRecord(store, accountLookup, accountCreationReconciliation, input);
     return prepared.pipe(Effect.match({ onFailure: preparationFailure, onSuccess: (result) => result }));
   };
   return { ...PORTAL_ACCOUNT_TRANSITION_IDENTITY, prepare };
