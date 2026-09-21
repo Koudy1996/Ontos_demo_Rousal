@@ -13,7 +13,7 @@ The selected backend is exactly one of:
 - a customer-provided External Business System, accessed through its supported API / Integration Route; or
 - the OntOS-provided WMS.
 
-The two modes are alternatives. Backend selection is not split by Stock Location, Channel, seller, or Order Commitment Attempt, and a Launch deployment never composes both as simultaneous authoritative stock/reservation backends.
+The two modes are alternatives. Backend selection is not split by Stock Location, Channel, Selling Legal Entity, or Order Commitment Attempt, and a Launch deployment never composes both as simultaneous authoritative stock/reservation backends.
 
 Inventory remains the public OntOS boundary and preserves provider-neutral Stock Item, Stock Position, Stock Requirement, Stock Allocation, Reservation, evidence and recovery semantics. The selected Inventory Backend remains the actual System of Record for the stock facts it owns and the actual Reservation Authority for the supported Reservation lifecycle.
 
@@ -45,7 +45,7 @@ The cutover boundary applies atomically to the whole Customer Configuration. Bef
 
 Every pre-cutover provisional Reservation and any known or possible unresolved pre-cutover create/effect debt that could still constrain stock must be authoritatively resolved before the switch. An unresolved effect blocks the whole Customer Configuration backend switch; Launch does not cut over only unaffected Stock Locations.
 
-Pre-cutover provisional Reservations never rebind to the replacement backend and the old backend does not remain Reservation Authority after the switch. Proven committed obligations may continue through migration/reconstruction only with preserved origin and source lineage. Late pre-cutover data or effects remain migration/Reconciliation evidence or debt and cannot establish post-cutover Current truth merely because they arrive later.
+Pre-cutover provisional Reservations never rebind to the replacement backend and the old backend does not remain Reservation Authority after the switch. Proven committed obligations may continue through migration/reconstruction only with preserved origin and source lineage. External identifier/correlation evidence also preserves its actual issuer/backend origin across the boundary: the same namespace/kind/text identifier under the pre-cutover and post-cutover backends is not one external key, and delayed pre-cutover evidence is never re-qualified through the replacement backend. Late pre-cutover data or effects remain migration/Reconciliation evidence or debt and cannot establish post-cutover Current truth merely because they arrive later.
 
 ## Considered options
 
