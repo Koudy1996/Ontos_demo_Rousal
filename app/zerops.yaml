@@ -49,6 +49,7 @@ zerops:
         MIGRATOR_PORT: '8080'
         NODE_ENV: production
         SPICEDB_ENDPOINT: 'spicedb:50051'
+        # The migrator bootstraps the same datastore identity that the SpiceDB service consumes.
         SPICEDB_DATABASE_URL: ${spicedb_SPICEDB_DATASTORE_CONN_URI}
         SPICEDB_INSECURE: 'true'
         SPICEDB_PRESHARED_KEY: ${spicedb_SPICEDB_GRPC_PRESHARED_KEY}
