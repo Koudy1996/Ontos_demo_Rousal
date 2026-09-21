@@ -1,11 +1,12 @@
-name: Ultramodern Workspace Gates and Stage Deploy
+name: Ultramodern Workspace Gates and Main-to-Stage Deploy
 
 on:
   push:
     branches:
       - main
-      - stage
   pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -16,7 +17,7 @@ defaults:
 
 concurrency:
   group: ultramodern-workspace-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/stage' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   workspace-gate:
@@ -292,8 +293,9 @@ jobs:
         run: mise exec -- pnpm cloudflare:build
 
   deploy-stage:
-    name: Deploy stage to Zerops
-    if: github.event_name == 'push' && github.ref == 'refs/heads/stage'
+    name: Deploy stage to Zerops after merge to main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
     needs: [workspace-gate, service-integration, node-runtime, cloudflare-runtime]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -314,7 +316,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout stage revision
+      - name: Checkout main revision
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
