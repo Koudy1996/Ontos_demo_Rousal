@@ -3,7 +3,7 @@ import type { Effect, Option } from 'effect';
 
 import type { CommercePortalAuthAccountCreationUnavailable } from './account-creation-unavailable.ts';
 
-export interface CommercePortalAuthAccountCreationReconciliationResult {
+interface CommercePortalAuthAccountCreationReconciliationResult {
   readonly providerSubjectId: string;
 }
 

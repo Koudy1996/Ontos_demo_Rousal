@@ -18,11 +18,13 @@ import {
   productionReadRuntimeLive,
 } from '../../api/index.ts';
 import { CommercePortalAuthEnrollmentAttemptProjectionSchema } from '../../api/portal-auth/enrollment/contracts.ts';
+import { CommercePortalAuthAccountCreationProviderLive } from '../../api/portal-auth/provider/account-create.ts';
 import { CommercePortalAuthConfig } from '../../api/portal-auth/provider/config-service.ts';
 import { parseCommercePortalAuthConfig } from '../../api/portal-auth/provider/config.ts';
 import { CommerceCoreIdentityClientConfig } from '../../api/portal-auth/provider/core-identity-client-config.ts';
 import { CommerceCoreIdentityClientLive } from '../../api/portal-auth/provider/core-identity-client.ts';
 import { CommercePortalAuthAccountLookupLive } from '../../src/portal-auth/persistence/portal-auth-account-lookup.ts';
+import { CommercePortalAuthAccountCreationReconciliationLive } from '../../src/portal-auth/persistence/portal-auth-account-creation-reconciliation.ts';
 import { portalEnrollmentAttempts } from '../../src/database/schema.ts';
 import { CommerceEnrollmentOwnerTransactionRunnerLive } from '../../src/enrollment/orchestration/owner-transaction-runner.ts';
 import { commerceEnrollmentOwnerTransitionPreparationLive } from '../../src/enrollment/orchestration/owner-transition-composition.ts';
@@ -120,16 +122,23 @@ const preparationAuthorityLive = Effect.fnUntraced(function* preparationAuthorit
     ),
   );
   const coreIdentityLive = CommerceCoreIdentityClientLive.pipe(Layer.provide(coreIdentityConfigurationLive));
-  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(
+  const databaseLive = CommercePortalAuthDatabaseLive.pipe(
+    Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration)),
+  );
+  const accountLookupLive = CommercePortalAuthAccountLookupLive.pipe(Layer.provide(databaseLive));
+  const realmLive = yield* configuredRealmLive();
+  const accountCreationReconciliationLive = CommercePortalAuthAccountCreationReconciliationLive.pipe(
     Layer.provide(
-      CommercePortalAuthDatabaseLive.pipe(Layer.provide(Layer.succeed(CommercePortalAuthConfig, configuration))),
+      Layer.mergeAll(databaseLive, CommercePortalAuthAccountCreationProviderLive.pipe(Layer.provide(realmLive))),
     ),
   );
   const subjectResolverLive = CommerceEnrollmentPreparationSubjectResolverLive.pipe(
     Layer.provide(Layer.mergeAll(transactionRunnerLive, coreIdentityLive, coreIdentityConfigurationLive)),
   );
   return commerceEnrollmentOwnerTransitionPreparationLive.pipe(
-    Layer.provide(Layer.mergeAll(transactionRunnerLive, accountLookupLive, subjectResolverLive)),
+    Layer.provide(
+      Layer.mergeAll(transactionRunnerLive, accountLookupLive, accountCreationReconciliationLive, subjectResolverLive),
+    ),
   );
 });
 

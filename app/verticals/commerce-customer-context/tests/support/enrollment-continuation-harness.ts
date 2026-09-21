@@ -10,7 +10,7 @@ import { journeyTransitionIdentity } from '../../src/enrollment/journeys/journey
 import type { JourneyTransitionSpec } from '../../src/enrollment/journeys/journey-contracts.ts';
 import { CommerceEnrollmentOwnerEffectRegistry } from '../../src/enrollment/orchestration/owner-effect-registry.ts';
 import type {
-  CommerceEnrollmentOwnerEffectContext,
+  CommerceEnrollmentOwnerEffectResolutionContext,
   CommerceEnrollmentRegisteredOwnerEffect,
 } from '../../src/enrollment/orchestration/owner-effect-registry.ts';
 import { CommerceEnrollmentOwnerTransactionRunner } from '../../src/enrollment/orchestration/owner-transition-production.ts';
@@ -58,7 +58,7 @@ export interface EnrollmentContinuationScript {
 
 const digestFor = (
   transition: JourneyTransitionSpec,
-  context: CommerceEnrollmentOwnerEffectContext,
+  context: CommerceEnrollmentOwnerEffectResolutionContext,
 ): typeof EnrollmentDigestSchema.Type =>
   Schema.decodeSync(EnrollmentDigestSchema)(
     enrollmentDigest(`${journeyTransitionIdentity(transition)}\u0000${context.attempt.portalEnrollmentAttemptId}`),
@@ -85,7 +85,7 @@ export const makeEnrollmentContinuationHarness = Effect.fnUntraced(function* mak
   const registryLive = Layer.succeed(CommerceEnrollmentOwnerEffectRegistry, {
     resolve: (
       transition: JourneyTransitionSpec,
-      context: CommerceEnrollmentOwnerEffectContext,
+      context: CommerceEnrollmentOwnerEffectResolutionContext,
     ): Effect.Effect<Option.Option<CommerceEnrollmentRegisteredOwnerEffect>, CommerceEnrollmentAttemptError> =>
       Effect.sync(() => {
         if (unregistered.has(transition.transitionKey)) {
