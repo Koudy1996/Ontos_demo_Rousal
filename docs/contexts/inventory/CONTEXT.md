@@ -15,7 +15,7 @@ _Avoid_: Product-level stock bucket or duplicate Current Positions for one Item 
 
 **ON_HAND** — Authoritative physical Quantity for one exact Stock Position according to its declared System of Record. It is not customer-facing Availability.
 
-**RESERVED** — Derived Quantity constrained by Current provisional Inventory Reservation Allocations on one exact Stock Position. It is not an independently writable stock fact or a synonym for committed obligations.
+**RESERVED** — Derived Quantity constrained by Current successful provisional Inventory Reservation Allocations on one exact Stock Position. It is not an independently writable stock fact, a synonym for committed obligations, or a container for failed/indeterminate create effects that never established a successful Reservation.
 
 **UNKNOWN** — Stock-fact state where the expected owner and scope are known but a Current numeric value cannot be established.
 
@@ -63,6 +63,8 @@ _Avoid_: Availability, Order Commitment Gate, Integration Route, provider adapte
 **Reservation Release** — Explicit owner-governed transition ending the whole provisional Inventory Reservation after release safety is proven.
 _Avoid_: Confirmation expiry, `AT_RISK`, or `REVOKED` treated as Release.
 
+**Unresolved Reservation Effect Constraint** — Inventory evidence meaning that a failed or indeterminate Reservation create effect is known or possible to keep stock constrained even though no successful Inventory Reservation exists. When owner evidence proves the exact effect, the evidence preserves the affected Stock Position, Quantity + Unit, Attempt and original create-effect provenance; when exact effect truth cannot be proven, the constraint remains explicitly `INDETERMINATE`.
+_Avoid_: folding this debt into `RESERVED`, treating absence of a successful Reservation as proof of reusable stock, changing `ON_HAND`, fabricating an exact deduction from uncertainty, or treating this evidence meaning as a customer-facing Availability outcome.
 **Provisional Shortage Priority** — Launch priority for competing unprotected provisional Reservation Confirmations after a material shortage. Authoritative issuance establishes one stable oldest-first rank within the affected constrained scope; `AT_RISK`, `UNVERIFIABLE`, repeated evaluation, or owner-valid recovery of the same Confirmation identity do not reset that rank. Explicit lifecycle exit from the provisional priority pool is distinct from Reservation Release and does not by itself prove Quantity reusable.
 _Avoid_: physical picking order, best-fit, Selling Legal Entity/Purchasing Subject priority, Current-health sorting, or technical arrival order.
 
