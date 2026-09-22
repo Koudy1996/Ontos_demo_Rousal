@@ -1,4 +1,4 @@
-import { Option, Schema } from 'effect';
+import { Option, Result, Schema } from 'effect';
 import { OwnerVerifiableSetCompletenessEvidenceSchema } from '@app/shared-contracts';
 
 import { assessCatalogSelection } from './catalog-selection-assessment.ts';
@@ -84,6 +84,10 @@ const CatalogQuantityHandoffFailureSchema = Schema.Struct({
 });
 
 const ownerReference = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
+const CatalogEquivalentSelectionKeySchema = ownerReference.pipe(
+  Schema.brand('CatalogEquivalentSelectionKey'),
+  Schema.decodeTo(ownerReference),
+);
 export const CatalogQuantityBasisSchema = Schema.Struct({
   targetDivisibilityRevision: Schema.Int.check(Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })),
   targetRef: CatalogResourceRefSchema,
@@ -99,7 +103,7 @@ export type CatalogQuantityBasis = typeof CatalogQuantityBasisSchema.Type;
 const CatalogQuantityHandoffReadySchema = Schema.Struct({
   ...CatalogQuantityHandoffCoreReadySchema.fields,
   completeness: Schema.toEncoded(OwnerVerifiableSetCompletenessEvidenceSchema),
-  equivalentSelectionKey: ownerReference,
+  equivalentSelectionKey: CatalogEquivalentSelectionKeySchema,
   hierarchyRevision: ownerReference,
   ownerRevision: ownerReference,
   quantityBasis: CatalogQuantityBasisSchema,
@@ -353,20 +357,39 @@ export interface CatalogQuantityHandoffBasisFacts {
   readonly variantRevision: number;
 }
 
+const xorBigInt = (left: bigint, right: bigint): bigint => {
+  let leftRemainder = left;
+  let place = 1n;
+  let result = 0n;
+  let rightRemainder = right;
+  while (leftRemainder > 0n || rightRemainder > 0n) {
+    if (leftRemainder % 2n !== rightRemainder % 2n) {
+      result += place;
+    }
+    leftRemainder /= 2n;
+    rightRemainder /= 2n;
+    place *= 2n;
+  }
+  return result;
+};
+
 const fingerprint = (value: string): string => {
   let hash = 14_695_981_039_346_656_037n;
   for (const character of value) {
-    hash ^= BigInt(character.codePointAt(0) ?? 0);
+    hash = xorBigInt(hash, BigInt(character.codePointAt(0) ?? 0));
     hash = BigInt.asUintN(64, hash * 1_099_511_628_211n);
   }
   return hash.toString(16).padStart(16, '0');
 };
 
+const encodeIdentityResult = Schema.encodeResult(Schema.fromJsonString(Schema.Unknown));
+const encodeIdentity = <Value>(value: Value): string => Result.getOrThrow(encodeIdentityResult(value));
+
 const resourceIdentity = (ref: CatalogResourceRef): string =>
   [ref.moduleId, ref.resourceType, ref.resourceId, ref.tenantId].join('|');
 
 const selectionIdentity = (selection: CatalogSelection): string =>
-  JSON.stringify({
+  encodeIdentity({
     configuration:
       selection.configuration === undefined
         ? null
@@ -382,7 +405,7 @@ const selectionIdentity = (selection: CatalogSelection): string =>
                   choice.unit === undefined ? null : [resourceIdentity(choice.unit.resourceRef), choice.unit.revision],
                 value: choice.value,
               }))
-              .sort((left, right) => left.choiceKey.localeCompare(right.choiceKey)),
+              .toSorted((left, right) => left.choiceKey.localeCompare(right.choiceKey)),
             definition: [
               resourceIdentity(selection.configuration.definition.resourceRef),
               selection.configuration.definition.revision,
@@ -400,6 +423,14 @@ const selectionIdentity = (selection: CatalogSelection): string =>
     variant: resourceIdentity(selection.variantRef),
   });
 
+const catalogProductUnitResourceType = 'commerce.catalog.product-unit';
+const catalogResourceRef = (resourceType: string, resourceId: string, tenantId: string): CatalogResourceRef => ({
+  moduleId: 'commerce.catalog',
+  resourceId,
+  resourceType,
+  tenantId,
+});
+
 const quantityOwnerMetadata = (input: {
   readonly basis: CatalogQuantityHandoffBasisFacts;
   readonly current: CatalogSelectionCurrentFacts;
@@ -408,13 +439,13 @@ const quantityOwnerMetadata = (input: {
 }) => {
   const targetRef = input.selection.packageOption?.optionRef ?? input.selection.variantRef;
   const unitRef = catalogResourceRef(
-    'commerce.catalog.product-unit',
+    catalogProductUnitResourceType,
     input.basis.unit.id,
     input.selection.productRef.tenantId,
   );
   const selectionKey = `commerce.catalog.selection:${fingerprint(selectionIdentity(input.selection))}`;
   const hierarchyRevision = `commerce.catalog.hierarchy:${fingerprint(
-    JSON.stringify({
+    encodeIdentity({
       contentPath: input.basis.contentPath,
       productRevision: input.basis.productRevision,
       setCompositionRevision: input.basis.setCompositionRevision ?? null,
@@ -422,7 +453,7 @@ const quantityOwnerMetadata = (input: {
     }),
   )}`;
   const ownerRevision = `commerce.catalog.quantity:${fingerprint(
-    JSON.stringify({
+    encodeIdentity({
       basis: input.current.basis,
       hierarchyRevision,
       membership: input.current.status === 'OBSERVED' ? input.current.membership : null,
@@ -462,13 +493,6 @@ interface CatalogPackageFacts {
   readonly packageRevision?: PackageContentRevision;
 }
 
-const catalogResourceRef = (resourceType: string, resourceId: string, tenantId: string): CatalogResourceRef => ({
-  moduleId: 'commerce.catalog',
-  resourceId,
-  resourceType,
-  tenantId,
-});
-
 /** Rebuilds exact immutable Package facts from an owner-verified path; it never invents missing content. */
 const buildCatalogPackageFacts = (input: {
   readonly basis: CatalogQuantityHandoffBasisFacts;
@@ -493,7 +517,7 @@ const buildCatalogPackageFacts = (input: {
         resourceRef: catalogResourceRef('commerce.catalog.package-definition', step.packageDefinitionId, tenantId),
         revision: revision.value,
       },
-      unitRef: catalogResourceRef('commerce.catalog.product-unit', step.unitId, tenantId),
+      unitRef: catalogResourceRef(catalogProductUnitResourceType, step.unitId, tenantId),
     };
     if (step.configurationKey !== null) {
       Object.assign(entry, { configurationKey: step.configurationKey });
@@ -562,7 +586,7 @@ export const assembleCatalogQuantityHandoff = (input: {
     quantity: input.quantity,
     selection: input.selection,
     unitRef: catalogResourceRef(
-      'commerce.catalog.product-unit',
+      catalogProductUnitResourceType,
       input.basis.unit.id,
       input.selection.productRef.tenantId,
     ),
