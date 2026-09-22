@@ -494,7 +494,7 @@ const TopologySchema = Schema.Struct({
         routes: Schema.Struct({
           apiReadiness: Schema.String,
           locale: Schema.optionalKey(Schema.String),
-          mfManifest: Schema.String,
+          mfManifest: Schema.optionalKey(Schema.String),
           ssr: Schema.optionalKey(Schema.String),
         }),
       }),
