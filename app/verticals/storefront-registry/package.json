@@ -1,0 +1,34 @@
+{
+  "name": "@app/storefront-registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./shared/api.ts",
+    "./api/client": "./src/api/storefront-registry-client.ts",
+    "./current-storefront-application/read": "./src/api/current-storefront-application.read.ts"
+  },
+  "scripts": {
+    "db:check": "drizzle-kit check --config drizzle.config.ts",
+    "test:unit": "rstest --project unit",
+    "typecheck": "node ../../scripts/ultramodern-typecheck.mts --project tsconfig.json"
+  },
+  "dependencies": {
+    "@app/core-runtime": "workspace:*",
+    "@app/shared-contracts": "workspace:*",
+    "@app/storefront-registry-contracts": "workspace:*",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
+    "effect": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@rstest/core": "0.11.12",
+    "@types/node": "20.19.43",
+    "drizzle-kit": "1.0.0-rc.5-ab785fc",
+    "effect-rstest": "https://pkg.pr.new/ScriptedAlchemy/effect-rstest@f29b3f495d45a11037334620bf5f693414fb5578"
+  },
+  "ontosModule": {
+    "appId": "storefront-registry",
+    "moduleId": "commerce.storefront-registry",
+    "schemaVersion": 2
+  }
+}

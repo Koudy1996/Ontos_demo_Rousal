@@ -1,0 +1,23 @@
+{
+  "id": "9f90ac55-1f32-4bc0-92ce-5be4aa4ddd01",
+  "prevIds": [],
+  "version": "8",
+  "dialect": "postgres",
+  "ddl": [
+    { "name": "storefront_registry", "entityType": "schemas" },
+    { "isRlsEnabled": true, "name": "storefront_applications", "entityType": "tables", "schema": "storefront_registry" },
+    { "isRlsEnabled": true, "name": "storefront_application_revisions", "entityType": "tables", "schema": "storefront_registry" },
+    { "isRlsEnabled": true, "name": "storefront_registry_generations", "entityType": "tables", "schema": "storefront_registry" }
+  ],
+  "views": [],
+  "enums": [],
+  "sequences": [],
+  "roles": [],
+  "policies": [],
+  "functions": [],
+  "indexes": [],
+  "foreignKeys": [],
+  "primaryKeys": [],
+  "uniqueConstraints": [],
+  "checkConstraints": []
+}
