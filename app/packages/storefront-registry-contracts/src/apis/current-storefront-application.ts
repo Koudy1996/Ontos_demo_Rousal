@@ -169,6 +169,18 @@ export const CurrentStorefrontApplicationForbiddenProblemSchema = makeProblemDet
   'CurrentStorefrontApplicationForbiddenProblem',
   403,
 );
+export const CurrentStorefrontApplicationNotFoundProblemSchema = makeProblemDetailsSchema(
+  'CurrentStorefrontApplicationNotFoundProblem',
+  404,
+);
+export const CurrentStorefrontApplicationPolicyConflictProblemSchema = makeProblemDetailsSchema(
+  'CurrentStorefrontApplicationPolicyConflictProblem',
+  409,
+);
+export const CurrentStorefrontApplicationPolicyProblemSchema = makeProblemDetailsSchema(
+  'CurrentStorefrontApplicationPolicyProblem',
+  422,
+);
 export const CurrentStorefrontApplicationUnavailableProblemSchema = makeRetryableProblemDetailsSchema(
   'CurrentStorefrontApplicationUnavailableProblem',
   503,
@@ -185,6 +197,9 @@ export const CurrentStorefrontApplicationApi = HttpApi.make('CurrentStorefrontAp
         CurrentStorefrontApplicationInvalidProblemSchema,
         CurrentStorefrontApplicationAuthenticationProblemSchema,
         CurrentStorefrontApplicationForbiddenProblemSchema,
+        CurrentStorefrontApplicationNotFoundProblemSchema,
+        CurrentStorefrontApplicationPolicyConflictProblemSchema,
+        CurrentStorefrontApplicationPolicyProblemSchema,
         CurrentStorefrontApplicationUnavailableProblemSchema,
         CurrentStorefrontApplicationInternalProblemSchema,
       ],

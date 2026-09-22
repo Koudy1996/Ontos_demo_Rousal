@@ -2,6 +2,9 @@ import { describe, expect, it } from 'effect-rstest';
 import { Effect, Exit, Schema } from 'effect';
 
 import {
+  CurrentStorefrontApplicationNotFoundProblemSchema,
+  CurrentStorefrontApplicationPolicyConflictProblemSchema,
+  CurrentStorefrontApplicationPolicyProblemSchema,
   CurrentStorefrontApplicationRequestSchema,
   CurrentStorefrontApplicationResponseSchema,
   executeCurrentStorefrontApplication,
@@ -101,6 +104,28 @@ describe('Storefront Registry Current Storefront Application public contract', (
         allowedChannels: ['B2C'],
       }),
     ).toThrow();
+  });
+
+  it('publishes the generated not-found, policy-conflict, and policy problem contracts', () => {
+    for (const [schema, status, tag] of [
+      [CurrentStorefrontApplicationNotFoundProblemSchema, 404, 'CurrentStorefrontApplicationNotFoundProblem'],
+      [
+        CurrentStorefrontApplicationPolicyConflictProblemSchema,
+        409,
+        'CurrentStorefrontApplicationPolicyConflictProblem',
+      ],
+      [CurrentStorefrontApplicationPolicyProblemSchema, 422, 'CurrentStorefrontApplicationPolicyProblem'],
+    ] as const) {
+      expect(
+        Schema.decodeUnknownSync(schema)({
+          _tag: tag,
+          detail: 'Storefront Registry rejected the governed read',
+          status,
+          title: 'Current Storefront Application problem',
+          type: 'about:blank',
+        }).status,
+      ).toBe(status);
+    }
   });
 
   it.effect('strictly encodes the request before either governed client executor can invoke HTTP', () =>
