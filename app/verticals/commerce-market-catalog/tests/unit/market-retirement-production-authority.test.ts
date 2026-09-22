@@ -96,9 +96,9 @@ describe('Market retirement production authority', () => {
 
         expect(calls).toEqual([{ payload: request, requestCorrelation: input.actionInvocationId }]);
         expect(result).toEqual({
-          assessmentDigest,
           assessedMarketRef: marketRef,
           assessedMarketRevision: 3,
+          assessmentDigest,
           effectiveAt,
           providers: [
             {
@@ -136,14 +136,17 @@ describe('Market retirement production authority', () => {
         () => Effect.succeed(verified),
         (payload, requestCorrelation, idempotencyKey) => {
           calls.push({ idempotencyKey, payload, requestCorrelation });
+          let lifecycle: 'COMMITTED' | 'RELEASED' | 'RESERVED';
+          if (payload.operation === 'RESERVE') {
+            lifecycle = 'RESERVED';
+          } else if (payload.operation === 'COMMIT') {
+            lifecycle = 'COMMITTED';
+          } else {
+            lifecycle = 'RELEASED';
+          }
           return Effect.succeed({
             assessmentDigest,
-            lifecycle:
-              payload.operation === 'RESERVE'
-                ? ('RESERVED' as const)
-                : payload.operation === 'COMMIT'
-                  ? ('COMMITTED' as const)
-                  : ('RELEASED' as const),
+            lifecycle,
             marketRef,
             marketRevision: 3,
             reservationToken,

@@ -35,9 +35,9 @@ const MarketRetirementReservationSchema = Schema.Struct({
 }).annotate(strict);
 
 export const MarketRetirementImpactAssessmentSchema = Schema.Struct({
-  assessmentDigest: sha256Digest,
   assessedMarketRef: MarketRefSchema,
   assessedMarketRevision: positiveRevision,
+  assessmentDigest: sha256Digest,
   effectiveAt: utcInstant,
   providers: Schema.Array(MarketRetirementProviderAssessmentSchema).check(Schema.isMaxLength(32)),
   requiredProviderModuleKeys: Schema.Array(OntosModuleIdSchema).check(Schema.isMinLength(1), Schema.isMaxLength(32)),

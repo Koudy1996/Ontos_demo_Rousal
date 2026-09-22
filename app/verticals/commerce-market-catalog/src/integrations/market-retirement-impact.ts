@@ -194,9 +194,9 @@ const verifiedAssessment = (
       ? providerWithoutBoundary
       : { ...providerWithoutBoundary, nextBoundaryAt: response.nextApplicabilityBoundary };
   return Effect.succeed({
-    assessmentDigest: response.assessmentDigest,
     assessedMarketRef: response.marketRef,
     assessedMarketRevision: response.marketRevision,
+    assessmentDigest: response.assessmentDigest,
     effectiveAt: response.evaluatedAt,
     providers: [provider],
     requiredProviderModuleKeys: [CUSTOMER_CONTEXT_MODULE_KEY],
