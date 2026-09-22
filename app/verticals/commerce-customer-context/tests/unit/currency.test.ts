@@ -102,10 +102,7 @@ const launchCurrencyPolicy = {
   allowedCurrencies: ['CZK'] as const,
   completeness: policyCompleteness,
   defaultCurrency: 'CZK' as const,
-  policyRevisionIds: [
-    '10000000-0000-4000-8000-000000000011',
-    '10000000-0000-4000-8000-000000000012',
-  ] as const,
+  policyRevisionIds: ['10000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000012'] as const,
 };
 const launchPricingCurrencySupport = {
   pricingRevision: 'pricing-czk-launch-v1',
@@ -235,10 +232,7 @@ it.effect('composes the complete Current CZK Launch policy and retains exact evi
       allowedCurrencies: ['CZK'],
       completeness: policyCompleteness,
       defaultCurrency: 'CZK',
-      policyRevisionIds: [
-        '10000000-0000-4000-8000-000000000011',
-        '10000000-0000-4000-8000-000000000012',
-      ],
+      policyRevisionIds: ['10000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000012'],
     });
   }),
 );
@@ -618,6 +612,7 @@ it.effect('loads Current policy and pricing without a preference persistence dep
   Effect.gen(function* ownerComposedCurrentFacts() {
     const input = baseResolution().request;
     const calls: string[] = [];
+    const pricingInputs: unknown[] = [];
     const services = yield* makePurchaseCurrencyResolutionServices({
       scope: {
         legalEntityId: sellingLegalEntityId,
@@ -642,8 +637,9 @@ it.effect('loads Current policy and pricing without a preference persistence dep
         },
       }),
       Effect.provideService(PurchaseCurrencyPricingPort, {
-        resolveCurrent: () => {
+        resolveCurrent: (pricingInput) => {
           calls.push('pricing');
+          pricingInputs.push(pricingInput);
           return Effect.succeed(launchPricingCurrencySupport);
         },
       }),
@@ -651,6 +647,17 @@ it.effect('loads Current policy and pricing without a preference persistence dep
     const current = yield* services.loadCurrent(input, '2026-09-09T10:00:01.000Z');
     expect(current).not.toHaveProperty('preference');
     expect(calls).toEqual(['context', 'policy', 'pricing']);
+    expect(pricingInputs).toEqual([
+      {
+        context: {
+          contextRevision: input.contextRevision,
+          purchasingContext,
+          subject: input.subject,
+        },
+        observedAt: '2026-09-09T10:00:01.000Z',
+        subject: input.subject,
+      },
+    ]);
   }),
 );
 

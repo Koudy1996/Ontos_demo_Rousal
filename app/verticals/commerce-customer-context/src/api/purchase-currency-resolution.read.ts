@@ -42,6 +42,7 @@ import type { PurchaseCurrencyPolicyPortService } from '../../shared/domain/purc
 import { PurchaseCurrencyPricingPort } from '../../shared/domain/purchase-currency-pricing-port.ts';
 import type { PurchaseCurrencyPricingPortService } from '../../shared/domain/purchase-currency-pricing-port.ts';
 import { purchaseCurrencyPolicyPortForRepository } from '../integrations/purchase-currency-policy.ts';
+import { purchaseCurrencyPricingPortFromEnvironment } from '../integrations/purchase-currency-pricing.ts';
 import { customerCommercePolicyRepositoryForScope } from '../persistence/customer-commerce-policy-persistence.ts';
 
 export interface PurchaseCurrencyResolutionServices {
@@ -80,7 +81,7 @@ const purchaseCurrencyResolutionServicesFromPorts = (
             observedAt,
             subject: currentContext.subject,
           }),
-          pricingPort.resolveCurrent({ context: currentContext, observedAt }),
+          pricingPort.resolveCurrent({ context: currentContext, observedAt, subject: currentContext.subject }),
         ],
         { concurrency: 2 },
       );
@@ -353,7 +354,10 @@ export const purchaseCurrencyResolutionRead = defineRead(
       }
       const repository = yield* customerCommercePolicyRepositoryForScope(transaction, scope);
       const contextPort = yield* PurchaseCurrencyPurchasingContextPort;
-      const pricingPort = yield* PurchaseCurrencyPricingPort;
+      const pricingPort = yield* purchaseCurrencyPricingPortFromEnvironment({
+        legalEntityId: scope.legalEntityId,
+        requestCorrelation: scope.correlationId,
+      });
       return purchaseCurrencyResolutionServicesFromPorts(
         {
           legalEntityId: scope.legalEntityId,

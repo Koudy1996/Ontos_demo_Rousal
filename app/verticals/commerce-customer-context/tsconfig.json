@@ -42,6 +42,9 @@
       "path": "../../packages/payment-term-catalog-contracts"
     },
     {
+      "path": "../../packages/pricing-contracts"
+    },
+    {
       "path": "../../packages/shared-contracts"
     },
     {
