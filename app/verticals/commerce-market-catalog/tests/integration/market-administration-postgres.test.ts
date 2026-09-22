@@ -69,6 +69,26 @@ const reference = (resourceId: string, resourceType: string, scopeTenantId = ten
 });
 
 const marketRef = reference(marketId, 'commerce.market-catalog.market');
+const retirementImpactAssessment = (marketRevision: number, effectiveAt: string) => ({
+  assessedMarketRef: marketRef,
+  assessedMarketRevision: marketRevision,
+  effectiveAt,
+  providers: [
+    {
+      completenessEvidenceReference: 'customer-context:market-impact-completeness:17',
+      currentnessEvidenceReference: 'customer-context:market-impact-currentness:17',
+      effectiveAt,
+      liveBlockingReferences: { count: 0, evidenceReference: 'customer-context:live-market-references:17' },
+      observedAt: '2031-12-31T23:59:59.000Z',
+      ownerModuleKey: 'commerce.customer-context',
+      ownerRevision: 'customer-context-policy:17',
+      retainedHistoryEvidence: { count: 1, evidenceReference: 'customer-context:retained-market-history:17' },
+      versionToken: 'customer-context-market-impact:17',
+    },
+  ],
+  requiredProviderModuleKeys: ['commerce.customer-context'],
+  reservationToken: 'market-retirement:reservation:12',
+});
 const sellerRef = {
   moduleId: 'core.identity',
   resourceId: sellerId,
@@ -325,6 +345,9 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
                 lifecycle,
                 marketId,
                 reason: `${lifecycle} lifecycle acceptance.`,
+                ...(lifecycle === 'RETIRED'
+                  ? { retirementImpactAssessment: retirementImpactAssessment(expectedRevision, effectiveAt) }
+                  : {}),
                 tenantId,
               })}::jsonb)`,
             'objects',
@@ -383,12 +406,15 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
         readonly definition_revisions: number;
         readonly generation: number;
         readonly lifecycle_periods: number;
+        readonly retirement_impact_assessment: unknown;
       }>(
         sql`select
           (select count(*)::integer from commerce_market_catalog.storefront_association_revisions where tenant_id = ${tenantId}::uuid) as association_revisions,
           (select count(*)::integer from commerce_market_catalog.market_definition_revisions where tenant_id = ${tenantId}::uuid) as definition_revisions,
           (select generation from commerce_market_catalog.market_catalog_completeness_generations where tenant_id = ${tenantId}::uuid) as generation,
-          (select count(*)::integer from commerce_market_catalog.market_lifecycle_periods where tenant_id = ${tenantId}::uuid) as lifecycle_periods`,
+          (select count(*)::integer from commerce_market_catalog.market_lifecycle_periods where tenant_id = ${tenantId}::uuid) as lifecycle_periods,
+          (select retirement_impact_assessment from commerce_market_catalog.market_lifecycle_periods
+            where tenant_id = ${tenantId}::uuid and lifecycle = 'RETIRED') as retirement_impact_assessment`,
         'objects',
       );
       expect(history).toEqual({
@@ -396,6 +422,7 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
         definition_revisions: 2,
         generation: 8,
         lifecycle_periods: 4,
+        retirement_impact_assessment: retirementImpactAssessment(4, '2032-01-01T00:00:00.000Z'),
       });
     }),
   ),

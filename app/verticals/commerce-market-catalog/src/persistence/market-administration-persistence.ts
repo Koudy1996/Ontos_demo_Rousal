@@ -9,6 +9,7 @@ import type {
   ReviseMarketDefinitionPayload,
   ReviseStorefrontAssociationPayload,
 } from '../../shared/action-contracts.ts';
+import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 import type { MarketLifecycle } from '../../shared/market-contracts.ts';
 import {
   associateStorefrontRoutine,
@@ -139,6 +140,7 @@ interface LifecycleCommand extends MarketAdministrationCommandContext {
   readonly lifecycle: MarketLifecycle;
   readonly marketId: string;
   readonly reason: string;
+  readonly retirementImpactAssessment?: MarketRetirementImpactAssessment;
   readonly tenantId: string;
 }
 

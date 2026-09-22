@@ -173,6 +173,20 @@ const handleRetireMarket = Effect.fn('RetireMarketAction.handle')(function* reti
       'Retirement is blocked while a material live owner reference still depends on this Market',
     );
   }
+  const revalidatedImpact = yield* context.services.assessRetirementImpact({
+    actionInvocationId: context.actionInvocationId,
+    effectiveAt: changedAt,
+    expectedMarketRevision: payload.expectedRevision,
+    marketRef: payload.marketRef,
+    reservationToken: payload.retirementImpactReservationToken,
+  });
+  const transitionImpact = yield* validateAssessment(payload, revalidatedImpact);
+  if (transitionImpact.providers.some(({ liveBlockingReferences }) => liveBlockingReferences.count > 0)) {
+    return yield* rejectMarketCommand(
+      'replacement_impact_unresolved',
+      'Retirement is blocked because authoritative affected use changed during transition revalidation',
+    );
+  }
   const recordedAt = yield* marketRecordedAt;
   const outcome = yield* context.services.transitionLifecycle({
     actionInvocationId: context.actionInvocationId,
@@ -184,6 +198,7 @@ const handleRetireMarket = Effect.fn('RetireMarketAction.handle')(function* reti
     principalId: context.scope.principalId,
     reason: payload.reason,
     recordedAt,
+    retirementImpactAssessment: transitionImpact,
     tenantId: context.scope.tenantId,
   });
   const success = yield* Match.value(outcome).pipe(
@@ -208,7 +223,7 @@ const handleRetireMarket = Effect.fn('RetireMarketAction.handle')(function* reti
     completenessGeneration: success.generation,
     operation: 'RETIRE',
     reason: payload.reason,
-    retirementImpactAssessment: verifiedImpact,
+    retirementImpactAssessment: transitionImpact,
     revision: success.revision,
   });
   yield* context.recordDataAccess(
@@ -219,7 +234,7 @@ const handleRetireMarket = Effect.fn('RetireMarketAction.handle')(function* reti
     }),
   );
   yield* Effect.forEach(
-    verifiedImpact.providers,
+    transitionImpact.providers,
     (provider) =>
       context.recordDataAccess({
         accessKind: 'read',

@@ -421,6 +421,7 @@ describe('Market administration Actions', () => {
     Effect.gen(function* successfulRetirement() {
       const payload = retirementPayload();
       const impactAssessment = retirementImpactAssessment();
+      const transitionInputs: Parameters<MarketAdministrationService['transitionLifecycle']>[0][] = [];
       const collector = createActionCollector(
         retireMarketAction.descriptor.domainEvents,
         'commerce.market-catalog',
@@ -437,18 +438,22 @@ describe('Market administration Actions', () => {
         services: {
           ...unavailableServices,
           assessRetirementImpact: () => Effect.succeed(impactAssessment),
-          transitionLifecycle: () =>
-            Effect.succeed({
+          transitionLifecycle: (input) => {
+            transitionInputs.push(input);
+            return Effect.succeed({
               _tag: 'transitioned',
               changed: true,
               definitionRevisionId,
               generation: 0,
               lifecycle: 'RETIRED',
               revision: 4,
-            } as const),
+            } as const);
+          },
         },
       });
       expect(result).toMatchObject({ changed: true, lifecycle: 'RETIRED', revision: 4 });
+      expect(transitionInputs).toHaveLength(1);
+      expect(transitionInputs[0]).toMatchObject({ retirementImpactAssessment: impactAssessment });
       expect(collector.snapshot().auditEvidence).toMatchObject({
         retirementImpactAssessment: impactAssessment,
       });
@@ -459,6 +464,61 @@ describe('Market administration Actions', () => {
           servingModuleKey: 'commerce.customer-context',
         }),
       );
+    }),
+  );
+
+  it.effect('revalidates affected use and does not persist when a concurrent provider change adds a blocker', () =>
+    Effect.gen(function* concurrentAffectedUse() {
+      const payload = retirementPayload();
+      let assessmentCalls = 0;
+      const persistenceCalls: string[] = [];
+      const collector = createActionCollector(
+        retireMarketAction.descriptor.domainEvents,
+        'commerce.market-catalog',
+        retireMarketAction.descriptor.accessEvidencePolicy,
+        retireMarketAction.descriptor.auditEvidenceSchema,
+      );
+      const failure = yield* getActionHandler(retireMarketAction)(payload, {
+        actionInvocationId,
+        addDomainEvent: collector.addDomainEvent,
+        addOutboxMessage: collector.addOutboxMessage,
+        recordAuditEvidence: collector.recordAuditEvidence,
+        recordDataAccess: collector.recordDataAccess,
+        scope,
+        services: {
+          ...unavailableServices,
+          assessRetirementImpact: () => {
+            assessmentCalls += 1;
+            const assessment = retirementImpactAssessment();
+            return Effect.succeed(
+              assessmentCalls === 1
+                ? assessment
+                : {
+                    ...assessment,
+                    providers: assessment.providers.map((provider) => ({
+                      ...provider,
+                      liveBlockingReferences: {
+                        count: 1,
+                        evidenceReference: 'customer-context:live-market-references:concurrent',
+                      },
+                      ownerRevision: 'customer-context-policy:18',
+                      versionToken: 'customer-context-market-impact:18',
+                    })),
+                  },
+            );
+          },
+          transitionLifecycle: () => {
+            persistenceCalls.push('transitionLifecycle');
+            return unexpected();
+          },
+        },
+      }).pipe(Effect.flip);
+      expect(Predicate.isTagged(failure, 'MarketCommandRejected')).toBe(true);
+      expect(failure).toMatchObject({ code: 'replacement_impact_unresolved' });
+      expect(assessmentCalls).toBe(2);
+      expect(persistenceCalls).toHaveLength(0);
+      expect(collector.snapshot().auditEvidence).toEqual({});
+      expect(collector.snapshot().domainEvents).toHaveLength(0);
     }),
   );
 

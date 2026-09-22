@@ -2,6 +2,7 @@
 import { tenantRlsPolicies } from '@app/core-runtime';
 import { defineRelations, sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, jsonb, pgSchema, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 
 export const COMMERCE_MARKET_CATALOG_SCHEMA_NAME = 'commerce_market_catalog';
 
@@ -111,6 +112,7 @@ export const marketLifecyclePeriods = commerceMarketCatalogSchema.table.withRLS(
     effectiveFrom: periodStart(),
     effectiveTo: periodEnd(),
     reason: text('reason').notNull(),
+    retirementImpactAssessment: jsonb('retirement_impact_assessment').$type<MarketRetirementImpactAssessment>(),
     actionInvocationId: uuid('action_invocation_id').notNull(),
     actingPrincipalId: uuid('acting_principal_id').notNull(),
     recordedAt: recordedAt(),
