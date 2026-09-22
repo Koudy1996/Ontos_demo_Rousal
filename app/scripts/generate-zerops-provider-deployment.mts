@@ -84,6 +84,7 @@ const renderProvider = (vertical: ProviderVertical) =>
           protocol: tcp
           httpSupport: true
       envVariables:
+        DATABASE_URL: postgresql://ontos_runtime:\${db18_password}@\${db18_hostname}:\${db18_port}/\${db18_dbName}
         NODE_ENV: production
         PORT: '${port}'
         SPICEDB_ENDPOINT: 'spicedb:50051'

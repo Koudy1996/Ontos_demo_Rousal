@@ -20,6 +20,10 @@ it('binds generated PostgreSQL credentials into every database-using service', (
     'party-registry',
     'commerce-customer-context',
     'payment-term-catalog',
+    'commerce-market-catalog',
+    'catalog',
+    'pricing',
+    'storefront-registry',
     'shellsuperapp',
   ]) {
     expect(serviceBlock(zeropsYaml, setup)).toContain(runtimeDatabaseUrl);
