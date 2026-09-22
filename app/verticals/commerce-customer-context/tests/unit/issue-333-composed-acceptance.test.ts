@@ -32,7 +32,7 @@ it.effect('composes the Czech Launch inventory and four policy defaults behind g
   Effect.gen(function* composedLaunch() {
     yield* validateCzechLaunchFixtureContracts();
     yield* validateCzechLaunchActivation({
-      catalogQuantityBasisCurrent: true,
+      catalogQuantity: CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.catalogQuantity,
       marketEligibleTupleCurrent: true,
       paymentTermCurrent: true,
       policySetsComplete: {
@@ -55,15 +55,81 @@ it.effect('composes the Czech Launch inventory and four policy defaults behind g
       expect(runtimeEntrypoints.api[apiKey]).toBeTypeOf('function');
     }
 
-    expect(CZECH_LAUNCH_COMMERCE_FIXTURE.policies.purchaseCurrency.revision.value).toEqual({
-      currencyCode: 'CZK',
-      kind: 'DEFAULT_CURRENCY',
-    });
-    expect(CZECH_LAUNCH_COMMERCE_FIXTURE.policies.paymentTerm.revision.value.kind).toBe('FALLBACK_PAYMENT_TERM');
-    expect(CZECH_LAUNCH_COMMERCE_FIXTURE.policies.quantity.revision.value).toMatchObject({
+    expect(
+      CZECH_LAUNCH_COMMERCE_FIXTURE.policies.purchaseCurrency.map(({ expectedGeneration, revision }) => ({
+        expectedGeneration,
+        value: revision.value,
+      })),
+    ).toEqual([
+      {
+        expectedGeneration: 0,
+        value: { currencyCode: 'CZK', kind: 'ALLOWED_CURRENCY_CONSTRAINT' },
+      },
+      {
+        expectedGeneration: 1,
+        value: { currencyCode: 'CZK', kind: 'DEFAULT_CURRENCY' },
+      },
+    ]);
+    expect(
+      CZECH_LAUNCH_COMMERCE_FIXTURE.policies.paymentTerm.map(({ expectedGeneration, revision }) => ({
+        expectedGeneration,
+        value: revision.value,
+      })),
+    ).toEqual([
+      {
+        expectedGeneration: 0,
+        value: {
+          kind: 'APPLICABLE_PAYMENT_TERM_CONSTRAINT',
+          paymentTermRef: {
+            moduleId: 'payment.term-catalog',
+            resourceId: 'czech-launch-net-14',
+            resourceType: 'payment.term-catalog.payment-term',
+            tenantId: '70000000-0000-4000-8000-000000000010',
+          },
+        },
+      },
+      {
+        expectedGeneration: 1,
+        value: {
+          kind: 'FALLBACK_PAYMENT_TERM',
+          paymentTermRef: {
+            moduleId: 'payment.term-catalog',
+            resourceId: 'czech-launch-net-14',
+            resourceType: 'payment.term-catalog.payment-term',
+            tenantId: '70000000-0000-4000-8000-000000000010',
+          },
+        },
+      },
+    ]);
+    expect(CZECH_LAUNCH_COMMERCE_FIXTURE.policies.quantity.revision.value).toEqual({
+      basis: {
+        targetDivisibilityRevision: 1,
+        targetRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '76000000-0000-4000-8000-000000000015',
+          resourceType: 'commerce.catalog.package-definition',
+          tenantId: '70000000-0000-4000-8000-000000000010',
+        },
+        unitRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '76000000-0000-4000-8000-000000000020',
+          resourceType: 'commerce.catalog.product-unit',
+          tenantId: '70000000-0000-4000-8000-000000000010',
+        },
+        unitRuleRevision: 1,
+      },
       constraintMode: 'REPLACEABLE_ENVELOPE',
-      envelope: { minimum: '1', multiple: '1' },
-      selector: { kind: 'ALL' },
+      envelope: { kind: 'BOUNDED', maximum: null, minimum: '1', multiple: '1' },
+      kind: 'COMMERCE_QUANTITY_RULE',
+      selector: {
+        kind: 'PACKAGE_OPTION',
+        packageOptionRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '76000000-0000-4000-8000-000000000015',
+          resourceType: 'commerce.catalog.package-definition',
+          tenantId: '70000000-0000-4000-8000-000000000010',
+        },
+      },
     });
   }),
 );
