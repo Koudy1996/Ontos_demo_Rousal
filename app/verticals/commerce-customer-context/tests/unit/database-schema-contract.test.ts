@@ -26,6 +26,7 @@ import {
   marketBootstrapPolicyRevisions,
   marketBootstrapPolicyCandidateGenerations,
   marketBootstrapPolicyCandidateRevisions,
+  marketRetirementReservations,
   purchaseCurrencyPolicyRevisions,
   paymentTermPolicyRevisions,
   commerceQuantityRuleRevisions,
@@ -47,8 +48,32 @@ it('owns an exact private Commerce Customer Context table catalog', () => {
   );
 
   expect(COMMERCE_CUSTOMER_CONTEXT_SCHEMA_NAME).toBe('commerce_customer_context');
-  expect(COMMERCE_CUSTOMER_CONTEXT_TABLES).toHaveLength(48);
+  expect(COMMERCE_CUSTOMER_CONTEXT_TABLES).toHaveLength(49);
   expect(actual).toEqual(expected);
+});
+
+it('stores exact Market retirement evidence behind one active reservation per scoped Market', () => {
+  const reservation = getTableConfig(marketRetirementReservations);
+  expect(reservation.columns.map(({ name }) => name)).toEqual(
+    expect.arrayContaining([
+      'tenant_id',
+      'legal_entity_id',
+      'market_resource_id',
+      'market_revision',
+      'assessment_digest',
+      'source_evidence',
+      'evaluated_at',
+      'lifecycle',
+      'reservation_version',
+      'action_invocation_id',
+      'actor_principal_id',
+    ]),
+  );
+  expect(
+    reservation.indexes.some(({ config }) => config.name === 'ccc_market_retirement_reservations_active_market_uk'),
+  ).toBe(true);
+  expect(reservation.checks.some(({ name }) => name === 'ccc_market_retirement_reservations_digest_ck')).toBe(true);
+  expect(reservation.checks.some(({ name }) => name === 'ccc_market_retirement_reservations_evidence_ck')).toBe(true);
 });
 
 it('stores each executable Customer Commerce Policy family in explicit typed tables', () => {

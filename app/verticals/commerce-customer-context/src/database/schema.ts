@@ -66,6 +66,7 @@ export const COMMERCE_CUSTOMER_CONTEXT_TABLE_INVENTORY = [
   'guest_retail_attributions',
   'market_bootstrap_policy_candidate_generations',
   'market_bootstrap_policy_candidate_revisions',
+  'market_retirement_reservations',
   'party_merge_profile_observations',
   'principal_purchase_limit_overrides',
   'purchase_currency_policy_revisions',
@@ -1430,6 +1431,56 @@ const paymentTermRetirementReservations = commerceCustomerContextSchema.table.wi
   ],
 );
 
+/** Durable owner evidence barrier held while Market Catalog completes one retirement transition. */
+export const marketRetirementReservations = commerceCustomerContextSchema.table.withRLS(
+  'market_retirement_reservations',
+  {
+    marketRetirementReservationId: uuid('market_retirement_reservation_id').defaultRandom().primaryKey(),
+    ...scopeColumns(),
+    marketResourceId: text('market_resource_id').notNull(),
+    marketRevision: integer('market_revision').notNull(),
+    assessmentDigest: text('assessment_digest').notNull(),
+    sourceEvidence: jsonb('source_evidence').$type<readonly DatabaseJsonObject[]>().notNull(),
+    evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull(),
+    lastActionInvocationId: uuid('last_action_invocation_id'),
+    lastOperation: text('last_operation'),
+    lifecycle: text('lifecycle').default('RESERVED').notNull(),
+    reservationVersion: integer('reservation_version').default(1).notNull(),
+    ...operationAttribution(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    scopeIdentity('ccc_market_retirement_reservations_scope_id_uk', table, table.marketRetirementReservationId),
+    unique('ccc_market_retirement_reservations_action_uk').on(
+      table.tenantId,
+      table.legalEntityId,
+      table.actionInvocationId,
+    ),
+    uniqueIndex('ccc_market_retirement_reservations_active_market_uk')
+      .on(table.tenantId, table.legalEntityId, table.marketResourceId)
+      .where(sql`${table.lifecycle} in ('RESERVED', 'COMMITTED')`),
+    trimmed('ccc_market_retirement_reservations_market_ck', table.marketResourceId),
+    positiveRevision('ccc_market_retirement_reservations_market_revision_ck', table.marketRevision),
+    check('ccc_market_retirement_reservations_digest_ck', sql`${table.assessmentDigest} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'ccc_market_retirement_reservations_evidence_ck',
+      sql`jsonb_typeof(${table.sourceEvidence}) = 'array' and jsonb_array_length(${table.sourceEvidence}) > 0`,
+    ),
+    check(
+      'ccc_market_retirement_reservations_lifecycle_ck',
+      sql`${table.lifecycle} in ('RESERVED', 'COMMITTED', 'RELEASED')`,
+    ),
+    check(
+      'ccc_market_retirement_reservations_last_operation_ck',
+      sql`(${table.lastActionInvocationId} is null and ${table.lastOperation} is null) or (${table.lastActionInvocationId} is not null and ${table.lastOperation} in ('COMMIT', 'RELEASE'))`,
+    ),
+    positiveRevision('ccc_market_retirement_reservations_version_ck', table.reservationVersion),
+    trimmed('ccc_market_retirement_reservations_reason_ck', table.reason),
+    ...scopedPolicies('ccc_market_retirement_reservations_scope', table),
+  ],
+);
+
 const savedAddresses = commerceCustomerContextSchema.table.withRLS(
   'saved_addresses',
   {
@@ -2551,6 +2602,7 @@ const commerceCustomerContextDatabaseSchema = {
   marketBootstrapPolicyCandidateGenerations,
   marketBootstrapPolicyCandidateRevisions,
   marketBootstrapPolicyRevisions,
+  marketRetirementReservations,
   partyMergeProfileObservations,
   paymentTermPolicyRevisions,
   paymentTermRetirementReservations,
@@ -2601,6 +2653,7 @@ export const COMMERCE_CUSTOMER_CONTEXT_TABLES = [
   guestRetailAttributions,
   marketBootstrapPolicyCandidateGenerations,
   marketBootstrapPolicyCandidateRevisions,
+  marketRetirementReservations,
   partyMergeProfileObservations,
   principalPurchaseLimitOverrides,
   purchaseCurrencyPolicyRevisions,
