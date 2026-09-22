@@ -117,10 +117,7 @@ const scopeMatches = (scope: PolicyCandidate['scope'], request: MarketBootstrapR
   return scope.kind === 'CHANNEL_SELLER' || scope.storefrontId === request.storefrontRef.appId;
 };
 
-const tupleMatchesDefault = (
-  tuple: CompleteEligibleResponse['tuples'][number],
-  candidate: PolicyCandidate,
-): boolean =>
+const tupleMatchesDefault = (tuple: CompleteEligibleResponse['tuples'][number], candidate: PolicyCandidate): boolean =>
   tuple.channel === candidate.defaultTuple.channelId &&
   tuple.marketRef.resourceId === candidate.defaultTuple.commerceMarketId &&
   tuple.sellingLegalEntityRef.resourceId === candidate.defaultTuple.sellingLegalEntityId;

@@ -83,9 +83,7 @@ type RankedSelection =
   | { readonly kind: 'NONE' }
   | { readonly candidate: DefaultCurrencyCandidate; readonly kind: 'ONE' };
 
-const oneHighestRanked = (
-  candidates: readonly CurrentPurchaseCurrencyPolicyCandidate[],
-): RankedSelection => {
+const oneHighestRanked = (candidates: readonly CurrentPurchaseCurrencyPolicyCandidate[]): RankedSelection => {
   const matching = candidates.filter(
     (candidate): candidate is DefaultCurrencyCandidate => candidate.value.kind === 'DEFAULT_CURRENCY',
   );

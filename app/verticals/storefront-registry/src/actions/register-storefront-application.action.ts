@@ -37,8 +37,13 @@ const RegisteredEventSchema = Schema.Struct({
   revision: Schema.Literal(1),
   storefrontApplicationRef: StorefrontApplicationRefSchema,
 });
-const domainEvents = { 'commerce.storefront-registry.storefront-application-registered.v1': RegisteredEventSchema } as const;
-const ErrorSchema = Schema.Union([StorefrontApplicationCommandRejected, StorefrontAdministrationPersistenceUnavailable]);
+const domainEvents = {
+  'commerce.storefront-registry.storefront-application-registered.v1': RegisteredEventSchema,
+} as const;
+const ErrorSchema = Schema.Union([
+  StorefrontApplicationCommandRejected,
+  StorefrontAdministrationPersistenceUnavailable,
+]);
 
 export const handleRegisterStorefrontApplication = Effect.fn('RegisterStorefrontApplicationAction.handle')(
   function* register(
@@ -82,7 +87,9 @@ export const handleRegisterStorefrontApplication = Effect.fn('RegisterStorefront
       reason: payload.reason,
       revision: result.revision,
     });
-    yield* context.recordDataAccess(storefrontDataAccessEvidence('register', result.storefrontApplicationRef.resourceId));
+    yield* context.recordDataAccess(
+      storefrontDataAccessEvidence('register', result.storefrontApplicationRef.resourceId),
+    );
     if (result.created) {
       const eventPayload = {
         allowedChannels: payload.allowedChannels,

@@ -229,11 +229,7 @@ describe('Market bootstrap policy resolution', () => {
     const decision = resolveMarketBootstrapPolicy(
       request({ storefrontRef: { appId: 'another-shop', tenantId } }),
       eligible([firstTuple]),
-      policy([
-        partition(sellerOneId, [
-          policyCandidate('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', channelScope()),
-        ]),
-      ]),
+      policy([partition(sellerOneId, [policyCandidate('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', channelScope())])]),
       evaluatedAtInstant,
     );
 

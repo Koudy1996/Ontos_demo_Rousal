@@ -39,86 +39,85 @@ const RevisedEventSchema = Schema.Struct({
   storefrontApplicationRef: StorefrontApplicationRefSchema,
 });
 const domainEvents = { 'commerce.storefront-registry.storefront-application-revised.v1': RevisedEventSchema } as const;
-const ErrorSchema = Schema.Union([StorefrontApplicationCommandRejected, StorefrontAdministrationPersistenceUnavailable]);
+const ErrorSchema = Schema.Union([
+  StorefrontApplicationCommandRejected,
+  StorefrontAdministrationPersistenceUnavailable,
+]);
 
-export const handleReviseStorefrontApplication = Effect.fn('ReviseStorefrontApplicationAction.handle')(
-  function* revise(
-    payload: ReviseStorefrontApplicationPayload,
-    context: ActionHandlerContext<typeof domainEvents, StorefrontAdministrationService>,
-  ) {
-    const outcome = yield* context.services.revise({
-      ...payload,
-      actionInvocationId: context.actionInvocationId,
-      principalId: context.scope.principalId,
-      recordedAt: yield* storefrontRecordedAt,
-    });
-    const result = yield* Match.value(outcome).pipe(
-      Match.tag('revised', ({ generation, previousRevision, revision }) =>
-        Effect.succeed({
-          changed: true,
-          generation,
-          previousRevision,
-          revision,
-          storefrontApplicationRef: payload.storefrontApplicationRef,
-        } as const),
-      ),
-      Match.tag('reused', ({ generation, previousRevision, revision }) =>
-        Effect.succeed({
-          changed: false,
-          generation,
-          previousRevision,
-          revision,
-          storefrontApplicationRef: payload.storefrontApplicationRef,
-        } as const),
-      ),
-      Match.tag('application_not_found', () =>
-        rejectStorefrontCommand('application_not_found', 'The Storefront application is not registered'),
-      ),
-      Match.tag('revision_conflict', () =>
-        rejectStorefrontCommand('revision_conflict', 'The observed Storefront application revision is stale'),
-      ),
-      Match.tag('retired_lifecycle_terminal', () =>
-        rejectStorefrontCommand('retired_lifecycle_terminal', 'A retired Storefront application cannot be revised'),
-      ),
-      Match.orElse(() =>
-        rejectStorefrontCommand('application_not_found', 'The Storefront application revision target is inconsistent'),
-      ),
-    );
-    yield* context.recordAuditEvidence({
-      changed: result.changed,
-      generation: result.generation,
-      operation: 'REVISE',
-      reason: payload.reason,
+export const handleReviseStorefrontApplication = Effect.fn('ReviseStorefrontApplicationAction.handle')(function* revise(
+  payload: ReviseStorefrontApplicationPayload,
+  context: ActionHandlerContext<typeof domainEvents, StorefrontAdministrationService>,
+) {
+  const outcome = yield* context.services.revise({
+    ...payload,
+    actionInvocationId: context.actionInvocationId,
+    principalId: context.scope.principalId,
+    recordedAt: yield* storefrontRecordedAt,
+  });
+  const result = yield* Match.value(outcome).pipe(
+    Match.tag('revised', ({ generation, previousRevision, revision }) =>
+      Effect.succeed({
+        changed: true,
+        generation,
+        previousRevision,
+        revision,
+        storefrontApplicationRef: payload.storefrontApplicationRef,
+      } as const),
+    ),
+    Match.tag('reused', ({ generation, previousRevision, revision }) =>
+      Effect.succeed({
+        changed: false,
+        generation,
+        previousRevision,
+        revision,
+        storefrontApplicationRef: payload.storefrontApplicationRef,
+      } as const),
+    ),
+    Match.tag('application_not_found', () =>
+      rejectStorefrontCommand('application_not_found', 'The Storefront application is not registered'),
+    ),
+    Match.tag('revision_conflict', () =>
+      rejectStorefrontCommand('revision_conflict', 'The observed Storefront application revision is stale'),
+    ),
+    Match.tag('retired_lifecycle_terminal', () =>
+      rejectStorefrontCommand('retired_lifecycle_terminal', 'A retired Storefront application cannot be revised'),
+    ),
+    Match.orElse(() =>
+      rejectStorefrontCommand('application_not_found', 'The Storefront application revision target is inconsistent'),
+    ),
+  );
+  yield* context.recordAuditEvidence({
+    changed: result.changed,
+    generation: result.generation,
+    operation: 'REVISE',
+    reason: payload.reason,
+    revision: result.revision,
+  });
+  yield* context.recordDataAccess(storefrontDataAccessEvidence('revise', result.storefrontApplicationRef.resourceId));
+  if (result.changed) {
+    const eventPayload = {
+      allowedChannels: payload.allowedChannels,
+      effectiveInterval: payload.effectiveInterval,
+      lifecycle: payload.lifecycle,
+      previousRevision: result.previousRevision,
       revision: result.revision,
+      storefrontApplicationRef: result.storefrontApplicationRef,
+    };
+    const event = yield* context.addDomainEvent({
+      eventType: 'commerce.storefront-registry.storefront-application-revised.v1',
+      payloadJson: eventPayload,
+      producerModuleKey: MODULE_KEY,
+      subjectModuleKey: MODULE_KEY,
+      subjectResourceId: result.storefrontApplicationRef.resourceId,
+      subjectResourceType: result.storefrontApplicationRef.resourceType,
     });
-    yield* context.recordDataAccess(
-      storefrontDataAccessEvidence('revise', result.storefrontApplicationRef.resourceId),
+    yield* context.addOutboxMessage(
+      event,
+      storefrontOutboxMessage('commerce.storefront-registry.storefront-application-revised.v1', eventPayload),
     );
-    if (result.changed) {
-      const eventPayload = {
-        allowedChannels: payload.allowedChannels,
-        effectiveInterval: payload.effectiveInterval,
-        lifecycle: payload.lifecycle,
-        previousRevision: result.previousRevision,
-        revision: result.revision,
-        storefrontApplicationRef: result.storefrontApplicationRef,
-      };
-      const event = yield* context.addDomainEvent({
-        eventType: 'commerce.storefront-registry.storefront-application-revised.v1',
-        payloadJson: eventPayload,
-        producerModuleKey: MODULE_KEY,
-        subjectModuleKey: MODULE_KEY,
-        subjectResourceId: result.storefrontApplicationRef.resourceId,
-        subjectResourceType: result.storefrontApplicationRef.resourceType,
-      });
-      yield* context.addOutboxMessage(
-        event,
-        storefrontOutboxMessage('commerce.storefront-registry.storefront-application-revised.v1', eventPayload),
-      );
-    }
-    return result;
-  },
-);
+  }
+  return result;
+});
 
 export const reviseStorefrontApplicationAction = defineAction(
   {

@@ -17,7 +17,9 @@ describe('Storefront Registry database contract', () => {
       return `${config.schema}.${config.name}`;
     }).toSorted();
     expect(STOREFRONT_REGISTRY_SCHEMA_NAME).toBe('storefront_registry');
-    expect(qualified).toEqual(STOREFRONT_REGISTRY_TABLE_INVENTORY.map((name) => `storefront_registry.${name}`).toSorted());
+    expect(qualified).toEqual(
+      STOREFRONT_REGISTRY_TABLE_INVENTORY.map((name) => `storefront_registry.${name}`).toSorted(),
+    );
     for (const table of STOREFRONT_REGISTRY_TABLES) {
       const config = getTableConfig(table);
       expect(config.enableRLS).toBe(true);
@@ -28,9 +30,14 @@ describe('Storefront Registry database contract', () => {
   it('enforces tenant application identity, immutable revision numbering, lifecycle, channels, and intervals', () => {
     const application = getTableConfig(storefrontApplications);
     const revision = getTableConfig(storefrontApplicationRevisions);
-    expect(application.uniqueConstraints.map(({ name }) => name)).toContain('storefront_registry_applications_app_id_uk');
+    expect(application.uniqueConstraints.map(({ name }) => name)).toContain(
+      'storefront_registry_applications_app_id_uk',
+    );
     expect(revision.uniqueConstraints.map(({ name }) => name)).toEqual(
-      expect.arrayContaining(['storefront_registry_revisions_number_uk', 'storefront_registry_revisions_invocation_uk']),
+      expect.arrayContaining([
+        'storefront_registry_revisions_number_uk',
+        'storefront_registry_revisions_invocation_uk',
+      ]),
     );
     expect(revision.checks.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
@@ -55,7 +62,9 @@ describe('Storefront Registry database contract', () => {
     expect(migration).toContain('for update');
     expect(migration).toContain("'_tag', 'revision_conflict'");
     expect(migration).toContain("v_current.lifecycle = 'RETIRED'");
-    expect(migration).toContain("p_tenant_id is distinct from nullif(current_setting('ontos.tenant_id', true), '')::uuid");
+    expect(migration).toContain(
+      "p_tenant_id is distinct from nullif(current_setting('ontos.tenant_id', true), '')::uuid",
+    );
     expect(migration).toContain('revoke all on all tables in schema storefront_registry from ontos_runtime');
     expect(migration).toContain(
       'grant execute on function storefront_registry.read_current_storefront_application(uuid, jsonb) to ontos_runtime',

@@ -35,7 +35,9 @@ const active: CurrentStorefrontApplicationSnapshot = {
   observedAt: '2026-09-22T09:59:59.000Z',
   revision: 3,
 };
-const persistence = (snapshot: Option.Option<CurrentStorefrontApplicationSnapshot>): CurrentStorefrontApplicationPersistence => ({
+const persistence = (
+  snapshot: Option.Option<CurrentStorefrontApplicationSnapshot>,
+): CurrentStorefrontApplicationPersistence => ({
   load: () => Effect.succeed({ generation: 7, observedAt: active.observedAt, snapshot }),
 });
 const context = (services: CurrentStorefrontApplicationPersistence, scopeOverride: OperationalScope = scope) => ({
@@ -47,10 +49,8 @@ const context = (services: CurrentStorefrontApplicationPersistence, scopeOverrid
 describe('Current Storefront Application governed owner read', () => {
   it.effect('returns owner revision, currentness boundary, and channel applicability evidence', () =>
     Effect.gen(function* () {
-      const output = yield* Option.some(active).pipe(
-        persistence,
-        context,
-        (readContext) => handleCurrentStorefrontApplication(request, readContext),
+      const output = yield* Option.some(active).pipe(persistence, context, (readContext) =>
+        handleCurrentStorefrontApplication(request, readContext),
       );
       expect(output.result).toEqual({
         ...request,
