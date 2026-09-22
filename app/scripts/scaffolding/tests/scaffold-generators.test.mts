@@ -6244,3 +6244,30 @@ it.live(
     }
   }),
 );
+
+it.live(
+  'assembled governed runtime follows output-bearing merges without accepting dependency-only handlers',
+  Effect.fn(function* mergedScenario101() {
+    const shared = yield* Effect.promise(() => readFile(path.join(appRoot, partyGovernedContractPath), 'utf-8'));
+    const handler = yield* Effect.promise(() =>
+      readFile(path.join(appRoot, 'verticals/party-registry/api/index.ts'), 'utf-8'),
+    );
+    const renamed = handler.replace(
+      'const apiHandlersLive = Layer.mergeAll(',
+      'const apiHandlerGroupsLive = Layer.mergeAll(',
+    );
+    const resolution = 'const resolvedApiHandlersLive = apiHandlersLive.pipe(';
+    const outputBearingMerge = `const apiHandlersLive = Layer.mergeAll(
+    partyRegistryFoundationLive.pipe(Layer.provide(apiHandlerGroupsLive)),
+    apiHandlerGroupsLive,
+  );
+  ${resolution}`;
+    const dependencyOnlyMerge = outputBearingMerge.replace('    apiHandlerGroupsLive,\n', '    Layer.empty,\n');
+    const outputBearing = renamed.replace(resolution, outputBearingMerge);
+    const dependencyOnly = renamed.replace(resolution, dependencyOnlyMerge);
+
+    expect(outputBearing).not.toBe(handler);
+    expect(hasValidGovernedHttpCompositionRoot(shared, outputBearing)).toBe(true);
+    expect(hasValidGovernedHttpCompositionRoot(shared, dependencyOnly)).toBe(false);
+  }),
+);

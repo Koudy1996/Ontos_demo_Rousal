@@ -133,6 +133,24 @@ const isWholeCallExpression = (source: string, declaration: RegExp): boolean => 
   return opening !== -1 && closing === source.length - 1;
 };
 
+const wholeCallArguments = (source: string, declaration: RegExp): readonly string[] | undefined => {
+  const match = declaration.exec(source);
+  if (match?.index === undefined || !isWholeCallExpression(source, declaration)) {
+    return undefined;
+  }
+  const opening = source.indexOf('(', match.index);
+  const closing = matchingDelimiterEnd(source, opening, '(', ')');
+  if (opening === -1 || closing === undefined) {
+    return undefined;
+  }
+  return separatedSource(
+    source,
+    topLevelSeparators(maskNonCode(source), ',', opening + 1, closing),
+    opening + 1,
+    closing,
+  ).filter((argument) => argument !== '');
+};
+
 interface SourceDepthAnalysis {
   readonly code: string;
   readonly prefixDepths: Int32Array;
@@ -516,6 +534,79 @@ const hasExactValueImport = (
   );
 };
 
+interface OutputPipeExpression {
+  readonly base: string;
+  readonly transforms: readonly string[];
+}
+
+const outputPipeExpression = (source: string): OutputPipeExpression | undefined => {
+  const structure = maskNonCode(source);
+  const match = [...structure.matchAll(/\.pipe\s*\(/gu)]
+    .filter((candidate) => candidate.index !== undefined && codeDepthBeforePosition(source, candidate.index) === 0)
+    .at(-1);
+  if (match?.index === undefined) {
+    return undefined;
+  }
+  const opening = structure.indexOf('(', match.index);
+  const closing = matchingDelimiterEnd(source, opening, '(', ')');
+  if (opening === -1 || closing !== source.length - 1) {
+    return undefined;
+  }
+  return {
+    base: source.slice(0, match.index).trim(),
+    transforms: separatedSource(
+      source,
+      topLevelSeparators(structure, ',', opening + 1, closing),
+      opening + 1,
+      closing,
+    ).filter((transform) => transform !== ''),
+  };
+};
+
+const isOutputSafeLayerTransform = (source: string): boolean =>
+  /^(?:GovernedReadLayer|Layer)\.orDie$/u.test(source) ||
+  isWholeCallExpression(source, /^(?:GovernedReadLayer|Layer)\.provide(?:Merge)?\(/u);
+
+const MAX_OUTPUT_COMPOSITION_DEPTH = 64;
+const MAX_OUTPUT_COMPOSITION_IDENTIFIERS = 32;
+
+const outputCompositionIncludes = (
+  source: string,
+  expression: string,
+  expectedLayer: string,
+  seen: Set<string> = new Set(),
+  depth = 0,
+): boolean => {
+  if (depth >= MAX_OUTPUT_COMPOSITION_DEPTH) {
+    return false;
+  }
+  const candidate = expression.trim();
+  if (candidate === expectedLayer) {
+    return true;
+  }
+  if (/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(candidate)) {
+    if (seen.has(candidate) || seen.size >= MAX_OUTPUT_COMPOSITION_IDENTIFIERS) {
+      return false;
+    }
+    seen.add(candidate);
+    const initializer = constInitializer(source, candidate);
+    return initializer !== undefined && outputCompositionIncludes(source, initializer, expectedLayer, seen, depth + 1);
+  }
+  const piped = outputPipeExpression(candidate);
+  if (piped !== undefined) {
+    return (
+      piped.transforms.length > 0 &&
+      piped.transforms.every(isOutputSafeLayerTransform) &&
+      outputCompositionIncludes(source, piped.base, expectedLayer, seen, depth + 1)
+    );
+  }
+  const merged = wholeCallArguments(candidate, /^(?:GovernedReadLayer|Layer)\.mergeAll\(/u);
+  return (
+    merged !== undefined &&
+    merged.some((operand) => outputCompositionIncludes(source, operand, expectedLayer, seen, depth + 1))
+  );
+};
+
 const slotIsMountedByAssembler = (
   source: string,
   runtimeSource: string,
@@ -533,16 +624,7 @@ const slotIsMountedByAssembler = (
     return false;
   }
   const handlers = objectPropertyValue(definition, 'handlers');
-  if (handlers === layerName) {
-    return true;
-  }
-  if (handlers === undefined || !/^[A-Za-z][A-Za-z0-9]*$/u.test(handlers)) {
-    return false;
-  }
-  const resolved = constInitializer(runtimeSource, handlers);
-  return (
-    resolved !== undefined && isWholeCallExpression(resolved, new RegExp(`^${escapeRegExp(layerName)}\\.pipe\\(`, 'u'))
-  );
+  return handlers !== undefined && outputCompositionIncludes(runtimeSource, handlers, layerName);
 };
 
 const definesExpectedRuntime = (definition: string | undefined, expectedApi: string, runtimeName: string): boolean =>
