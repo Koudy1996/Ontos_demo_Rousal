@@ -6,6 +6,7 @@ import type {
   ResolvedReadConditionalPermissionRequirement,
 } from '@app/core-runtime';
 import {
+  OperationContextUnavailable,
   ReadHandlerUnavailable,
   ReadPermissionDenied,
   defineRead,
@@ -203,8 +204,8 @@ export const commerceQuantityResolutionRead = defineRead(
     Effect.gen(function* makeCommerceQuantityResolutionServices() {
       const legalEntityId = scope.legalEntityId;
       if (legalEntityId === undefined) {
-        return yield* new ReadHandlerUnavailable({
-          code: 'read_handler_unavailable',
+        return yield* new OperationContextUnavailable({
+          code: 'operation_context_unavailable',
           reason: 'Commerce Quantity Resolution requires a trusted Legal Entity context',
         });
       }

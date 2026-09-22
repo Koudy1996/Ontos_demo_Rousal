@@ -1,5 +1,5 @@
 import { executeQuantityPreparationWithAuthorization } from '@app/catalog/api/client';
-import { Effect, Option, Redacted } from 'effect';
+import { Effect, Option, Redacted, Schema } from 'effect';
 
 import {
   CatalogQuantityGatewayCredentialService,
@@ -7,6 +7,7 @@ import {
 } from '../../shared/domain/catalog-quantity-gateway-credential.ts';
 import type { CommerceQuantityCatalogPortService } from '../../shared/domain/commerce-quantity-catalog-port.ts';
 import type { CommerceQuantityCatalogUnavailable } from '../../shared/domain/commerce-quantity-catalog-port.ts';
+import { ExactPositiveCommerceQuantitySchema } from '../../shared/domain/customer-commerce-policy.ts';
 
 type QuantityPreparationRequest = Parameters<typeof executeQuantityPreparationWithAuthorization>[0];
 type QuantityPreparationEffect = ReturnType<typeof executeQuantityPreparationWithAuthorization>;
@@ -45,6 +46,13 @@ const failureFor = (result: Exclude<QuantityPreparationResponse, { readonly stat
     result.reason,
   );
 
+const decodeOwnerQuantity = (value: string) =>
+  Schema.decodeEffect(ExactPositiveCommerceQuantitySchema)(value).pipe(
+    Effect.mapError((cause) =>
+      unavailable('catalog_selection_invalid', 'Catalog returned invalid Quantity evidence', cause),
+    ),
+  );
+
 export const catalogQuantityPortFromEnvironment = (
   context: { readonly legalEntityId: string; readonly requestCorrelation: string },
   execute: QuantityPreparationExecutor = executeQuantityPreparationWithAuthorization,
@@ -68,7 +76,11 @@ export const catalogQuantityPortFromEnvironment = (
                   lines,
                   (line) =>
                     execute(
-                      { amount: line.requestedQuantity, purpose: 'PURCHASE_ACCEPTANCE', selection: line.selection },
+                      {
+                        amount: line['requestedQuantity'],
+                        purpose: 'PURCHASE_ACCEPTANCE',
+                        selection: line['selection'],
+                      },
                       Redacted.value(credential),
                       context.requestCorrelation,
                       { baseUrl },
@@ -82,21 +94,27 @@ export const catalogQuantityPortFromEnvironment = (
                       ),
                       Effect.flatMap((result) =>
                         result.status === 'READY'
-                          ? Effect.succeed({
-                              lineId: line.lineId,
-                              selection: {
-                                basis: result.quantityBasis,
-                                catalogSelection: result.selection,
-                                completeness: result.completeness,
-                                divisible: result.divisible,
-                                equivalentSelectionKey: result.equivalentSelectionKey,
-                                hierarchyRevision: result.hierarchyRevision,
-                                normalizedQuantity: result.quantity.resulting,
-                                ownerRevision: result.ownerRevision,
-                                physicalMultiple: result.quantity.step,
-                                requestedQuantity: result.quantity.requested,
-                              },
-                            })
+                          ? Effect.all({
+                              normalizedQuantity: decodeOwnerQuantity(result.quantity.resulting),
+                              physicalMultiple: decodeOwnerQuantity(result.quantity.step),
+                              requestedQuantity: decodeOwnerQuantity(result.quantity.requested),
+                            }).pipe(
+                              Effect.map((quantity) => ({
+                                lineId: line['lineId'],
+                                selection: {
+                                  basis: result.quantityBasis,
+                                  catalogSelection: result.selection,
+                                  completeness: result.completeness,
+                                  divisible: result.divisible,
+                                  equivalentSelectionKey: result.equivalentSelectionKey,
+                                  hierarchyRevision: result.hierarchyRevision,
+                                  normalizedQuantity: quantity.normalizedQuantity,
+                                  ownerRevision: result.ownerRevision,
+                                  physicalMultiple: quantity.physicalMultiple,
+                                  requestedQuantity: quantity.requestedQuantity,
+                                },
+                              })),
+                            )
                           : Effect.fail(failureFor(result)),
                       ),
                     ),
