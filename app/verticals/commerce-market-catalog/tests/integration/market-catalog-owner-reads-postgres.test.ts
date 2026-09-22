@@ -279,6 +279,7 @@ it.live('reads scheduled Current state and immutable retained history through ru
                 retirementImpactAssessment: {
                   assessedMarketRef: marketRef,
                   assessedMarketRevision: 2,
+                  assessmentDigest: 'a'.repeat(64),
                   effectiveAt: '2035-05-01T00:00:00.000Z',
                   providers: [
                     {
@@ -294,7 +295,10 @@ it.live('reads scheduled Current state and immutable retained history through ru
                     },
                   ],
                   requiredProviderModuleKeys: ['commerce.customer-context'],
-                  reservationToken: 'acceptance:market-retirement:1',
+                  reservation: {
+                    token: 'e3474000-0000-4000-8000-000000000001',
+                    version: 1,
+                  },
                 },
                 tenantId,
               })}::jsonb)`,
