@@ -7,6 +7,10 @@ import {
   testDatabasePools,
 } from '../../../../packages/core-runtime/tests/support/database.ts';
 import type { TestDatabaseFromPool } from '../../../../packages/core-runtime/tests/support/database.ts';
+import type {
+  MarketRetirementImpactAssessment,
+  ReservedMarketRetirementImpactAssessment,
+} from '../../shared/domain/market-retirement-impact.ts';
 import { commerceMarketCatalogRelations } from '../../src/database/schema.ts';
 
 const tenantId = 'e3460000-0000-4000-8000-000000000001';
@@ -68,11 +72,19 @@ const reference = (resourceId: string, resourceType: string, scopeTenantId = ten
   tenantId: scopeTenantId,
 });
 
-const marketRef = reference(marketId, 'commerce.market-catalog.market');
-const retirementImpactAssessment = (marketRevision: number, effectiveAt: string) => ({
-  assessmentDigest: 'a'.repeat(64),
+const marketRef = {
+  moduleId: 'commerce.market-catalog',
+  resourceId: marketId,
+  resourceType: 'commerce.market-catalog.market',
+  tenantId,
+} as const;
+const retirementImpactAssessment = (
+  marketRevision: number,
+  effectiveAt: string,
+): ReservedMarketRetirementImpactAssessment => ({
   assessedMarketRef: marketRef,
   assessedMarketRevision: marketRevision,
+  assessmentDigest: 'a'.repeat(64),
   effectiveAt,
   providers: [
     {
@@ -336,7 +348,7 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
         actionId: string,
         effectiveAt: string,
         expectedRevision: number,
-        retirementImpactOverride?: unknown,
+        retirementImpactOverride?: MarketRetirementImpactAssessment,
       ) => {
         const payload: ReturnType<typeof command> & {
           effectiveAt: ReturnType<typeof retirementImpactAssessment>['effectiveAt'];
@@ -345,7 +357,7 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
           lifecycle: 'ACTIVE' | 'RETIRED' | 'SUSPENDED';
           marketId: string;
           reason: string;
-          retirementImpactAssessment?: unknown;
+          retirementImpactAssessment?: MarketRetirementImpactAssessment;
           tenantId: string;
         } = {
           ...command(actionId),
@@ -390,7 +402,7 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
       const retirementEffectiveAt = '2032-01-01T00:00:00.000Z';
       const validRetirementImpact = retirementImpactAssessment(4, retirementEffectiveAt);
       const { reservation: _reservation, ...impactWithoutReservation } = validRetirementImpact;
-      for (const [actionId, invalidImpact] of [
+      const invalidRetirementImpacts = [
         [
           'e3463000-0000-4000-8000-000000000014',
           { ...impactWithoutReservation, reservationToken: validRetirementImpact.reservation.token },
@@ -400,7 +412,8 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
           'e3463000-0000-4000-8000-000000000016',
           { ...validRetirementImpact, reservation: { ...validRetirementImpact.reservation, version: 0 } },
         ],
-      ] as const) {
+      ] as const;
+      for (const [actionId, invalidImpact] of invalidRetirementImpacts) {
         expectOutcome(
           oneOutcome(yield* transition('RETIRED', actionId, retirementEffectiveAt, 4, invalidImpact)),
           'replacement_impact_unresolved',

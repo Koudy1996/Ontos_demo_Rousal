@@ -83,9 +83,9 @@ const retirementPayload = (expectedRevision = 3) =>
 const retirementImpactAssessment = (
   overrides: Partial<MarketRetirementImpactAssessment> = {},
 ): MarketRetirementImpactAssessment => ({
-  assessmentDigest: 'a'.repeat(64),
   assessedMarketRef: retirementPayload().marketRef,
   assessedMarketRevision: 3,
+  assessmentDigest: 'a'.repeat(64),
   effectiveAt: retirementEffectiveAt,
   providers: [
     {
@@ -118,8 +118,8 @@ const reservedRetirementImpactAssessment = () => ({
 
 const unexpected = () => Effect.die('unexpected Market administration service call');
 const unavailableServices: RetireMarketServices = {
-  associateStorefront: unexpected,
   assessRetirementImpact: unexpected,
+  associateStorefront: unexpected,
   commitRetirementImpact: unexpected,
   createMarket: unexpected,
   releaseRetirementImpact: unexpected,
