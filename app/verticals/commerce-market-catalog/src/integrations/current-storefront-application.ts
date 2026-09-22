@@ -1,9 +1,10 @@
+import { CurrentStorefrontApplicationResponseSchema } from '@app/storefront-registry-contracts';
 import type {
   CurrentStorefrontApplicationRequest,
   CurrentStorefrontApplicationResponse,
 } from '@app/storefront-registry-contracts';
 import { executeCurrentStorefrontApplication } from '@app/storefront-registry-contracts/current-storefront-application/client';
-import { Effect } from 'effect';
+import { Effect, Schema } from 'effect';
 
 import { StorefrontApplicationEvidenceStale } from '../actions/storefront-application-evidence-stale.ts';
 import { StorefrontApplicationNotCurrent } from '../actions/storefront-application-not-current.ts';
@@ -108,6 +109,13 @@ export const makeCurrentStorefrontApplicationAuthority = (
     execute(input, requestCorrelation).pipe(
       Effect.mapError((cause) =>
         unavailable('The Storefront Registry Current application authority is unavailable', cause),
+      ),
+      Effect.flatMap((response) =>
+        Schema.decodeEffect(CurrentStorefrontApplicationResponseSchema)(response).pipe(
+          Effect.mapError((cause) =>
+            unavailable('The Storefront Registry Current application authority returned invalid evidence', cause),
+          ),
+        ),
       ),
       Effect.flatMap((response) => validateResponse(input, response)),
       Effect.withSpan('CurrentStorefrontApplicationAuthority.validateCurrent'),
