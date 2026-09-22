@@ -17,6 +17,7 @@
     "package.json",
     "shared",
     "shared/ultramodern-build.json",
+    "server",
     "src",
     "tests",
     "vertical.manifest.ts",
