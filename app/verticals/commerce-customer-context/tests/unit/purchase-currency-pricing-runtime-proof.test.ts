@@ -1,5 +1,5 @@
 import { CurrentSupportedCurrenciesResponseSchema } from '@app/pricing-contracts';
-import { Effect, Layer, Redacted, Schema } from 'effect';
+import { Effect, Layer, Match, Redacted, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { PurchaseCurrencyPurchasingContextPort } from '../../shared/domain/purchase-currency-context-port.ts';
@@ -179,8 +179,12 @@ describe('Purchase Currency Pricing runtime proof', () => {
       ).pipe(Effect.flip);
 
       expect(Schema.is(ExplicitPurchaseCurrencyChoiceInvalid)(failure)).toBe(true);
-      expect(failure).toMatchObject({
-        _tag: 'EXPLICIT_CHOICE_INVALID',
+      expect(
+        Match.value(failure).pipe(
+          Match.tag('EXPLICIT_CHOICE_INVALID', ({ currencyCode, reason }) => ({ currencyCode, reason })),
+          Match.orElse(() => null),
+        ),
+      ).toEqual({
         currencyCode: 'EUR',
         reason: 'PRICING_UNSUPPORTED',
       });
