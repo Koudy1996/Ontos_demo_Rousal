@@ -127,7 +127,7 @@ export interface MarketAffectedUseAssessmentRepository {
   ) => Effect.Effect<MarketAffectedUseAssessmentResponse, ReadHandlerUnavailable>;
 }
 
-export class MarketAffectedUseAssessmentRepositoryService extends Context.Service<
+class MarketAffectedUseAssessmentRepositoryService extends Context.Service<
   MarketAffectedUseAssessmentRepositoryService,
   MarketAffectedUseAssessmentRepository
 >()(
@@ -144,20 +144,23 @@ const unavailableAffectedUse = (reason: string, cause?: unknown): ReadHandlerUna
 
 export const marketAffectedUseAssessmentRepositoryForInvoker = (
   invoker: MarketRetirementScopedRoutineInvoker,
-): MarketAffectedUseAssessmentRepository => ({
-  assess: (input) =>
-    invoker
-      .invoke(assessMarketRetirementAffectedUseRoutine, [
-        input.marketRef.resourceId,
-        BigInt(input.marketRevision),
-        input.evaluatedAt,
-      ])
-      .pipe(
-        Effect.mapError((cause) => unavailableAffectedUse('Market affected-use evidence is unavailable', cause)),
-        Effect.flatMap((rows) => decodeJson(rows, MarketAffectedUseAssessmentResponseDecoder, unavailableAffectedUse)),
-        Effect.withSpan('commerce.customer-context.market-retirement.assess-affected-use'),
-      ),
-});
+): MarketAffectedUseAssessmentRepository =>
+  MarketAffectedUseAssessmentRepositoryService.of({
+    assess: (input) =>
+      invoker
+        .invoke(assessMarketRetirementAffectedUseRoutine, [
+          input.marketRef.resourceId,
+          BigInt(input.marketRevision),
+          input.evaluatedAt,
+        ])
+        .pipe(
+          Effect.mapError((cause) => unavailableAffectedUse('Market affected-use evidence is unavailable', cause)),
+          Effect.flatMap((rows) =>
+            decodeJson(rows, MarketAffectedUseAssessmentResponseDecoder, unavailableAffectedUse),
+          ),
+          Effect.withSpan('commerce.customer-context.market-retirement.assess-affected-use'),
+        ),
+  });
 
 const JsonValueSchema: Schema.Codec<Schema.Json> = Schema.suspend(() =>
   Schema.Union([
