@@ -2230,8 +2230,8 @@ const readServices = (
   const readRestrictionProfile = (
     input: MarketSubjectRestrictionsCurrentRequest,
   ): Effect.Effect<MarketSubjectRestrictionProfileResult, ReadHandlerUnavailable> => {
-    const profileKind = input.subject.kind === 'RETAIL_PROFILE' ? 'RETAIL' : 'COUNTERPARTY';
-    return transaction.invoke(readProfileRoutine, [input.subject.profileRef.resourceId, profileKind]).pipe(
+    const requestedProfileKind = input.subject.kind === 'RETAIL_PROFILE' ? 'RETAIL' : 'COUNTERPARTY';
+    return transaction.invoke(readProfileRoutine, [input.subject.profileRef.resourceId, requestedProfileKind]).pipe(
       Effect.mapError(readUnavailableFromRoutineFailure),
       Effect.flatMap(([row]): Effect.Effect<MarketSubjectRestrictionProfileResult, ReadHandlerUnavailable> => {
         if (row === undefined || row.outcome === 'PROFILE_NOT_FOUND') {
@@ -2254,7 +2254,7 @@ const readServices = (
         if (
           sellerResourceId === undefined ||
           sellerResourceId !== scope.legalEntityId ||
-          raw.profileKind !== profileKind
+          raw.profileKind !== requestedProfileKind
         ) {
           return Effect.fail(readUnavailable('The Purchasing Subject restriction projection is invalid'));
         }

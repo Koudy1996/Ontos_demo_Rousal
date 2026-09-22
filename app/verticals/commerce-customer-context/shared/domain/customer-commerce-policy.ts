@@ -332,7 +332,7 @@ const marketBootstrapTupleMatchesScope = Schema.makeFilter(
         { issue: 'Default Channel must match the Channel fixed by policy scope', path: ['value', 'defaultChannelId'] },
       ];
     }
-    return undefined;
+    return true;
   },
 );
 

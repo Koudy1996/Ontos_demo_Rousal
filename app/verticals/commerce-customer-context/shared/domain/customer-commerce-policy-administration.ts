@@ -16,7 +16,6 @@ import {
   CustomerCommercePolicyInstantSchema,
   CustomerCommercePolicyRevisionIdSchema,
   CustomerCommercePolicySellingLegalEntityIdSchema,
-  CustomerCommercePolicyStorefrontIdSchema,
   CustomerCommercePolicyTenantIdSchema,
   MarketBootstrapPolicyRevisionSchema,
   MarketBootstrapPolicyScopeSchema,
