@@ -11,7 +11,13 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @app/shell-super-app --filter './verticals/*' run \"/^dev(?::worker)?$/\"",
     "dev:shell": "pnpm --filter @app/shell-super-app dev",
+    "dev:party-registry": "pnpm --filter @app/party-registry dev",
+    "dev:commerce-customer-context": "pnpm --filter @app/commerce-customer-context dev",
+    "dev:payment-term-catalog": "pnpm --filter @app/payment-term-catalog dev",
     "dev:commerce-market-catalog": "pnpm --filter @app/commerce-market-catalog dev",
+    "dev:catalog": "pnpm --filter @app/catalog dev",
+    "dev:pricing": "pnpm --filter @app/pricing dev",
+    "dev:storefront-registry": "pnpm --filter @app/storefront-registry dev",
     "build": "node ./scripts/ultramodern-typecheck.mts --build packages/shared-contracts/tsconfig.json && node ./scripts/ultramodern-typecheck.mts --build packages/shared-design-tokens/tsconfig.json && pnpm -r --filter \"./verticals/*\" run build && pnpm --filter \"./apps/shell-super-app\" run build && pnpm mf:types && pnpm performance:readiness",
     "cloudflare:build": "node ./scripts/ultramodern-typecheck.mts --build packages/shared-contracts/tsconfig.json && node ./scripts/ultramodern-typecheck.mts --build packages/shared-design-tokens/tsconfig.json && pnpm -r --filter \"./verticals/*\" run cloudflare:build && pnpm --filter \"./apps/shell-super-app\" run cloudflare:build && pnpm mf:types --target cloudflare && pnpm cloudflare-output:verify && pnpm cloudflare:ssr-proof",
     "cloudflare:deploy": "pnpm -r --filter \"./verticals/*\" run cloudflare:deploy && pnpm --filter \"./apps/shell-super-app\" run cloudflare:deploy",
@@ -35,6 +41,7 @@
     "agents:refs:install": "node ./scripts/setup-agent-reference-repos.mts",
     "agents:refs:check": "node ./scripts/setup-agent-reference-repos.mts --check",
     "api:check": "modern-api-check",
+    "api:check:files": "modern-api-check-files",
     "i18n:boundaries": "node ./scripts/check-ultramodern-i18n-boundaries.mts",
     "postinstall": "node ./scripts/bootstrap-agent-skills.mts --postinstall",
     "sandbox:new": "sh ./scripts/locki-feature.sh",
@@ -97,12 +104,7 @@
     "quality:audit:test": "rstest --project scripts scripts/tests/quality-audit.test.mts scripts/tests/quality-audit-model.test.mts scripts/tests/quality-audit-runtime-model.test.mts scripts/tests/quality-audit-gate.test.mts scripts/tests/quality-cli-lifecycle.test.mts scripts/tests/quality-audit-count-domain.test.mts",
     "build:analyze": "cross-env RSDOCTOR=true pnpm build",
     "api:check:ontos": "node ./scripts/check-ultramodern-api-boundaries.mts",
-    "dev:party-registry": "pnpm --filter @app/party-registry dev",
-    "dev:commerce-customer-context": "pnpm --filter @app/commerce-customer-context dev",
-    "dev:payment-term-catalog": "pnpm --filter @app/payment-term-catalog dev",
-    "dev:catalog": "pnpm --filter @app/catalog dev",
-    "zerops:providers": "node ./scripts/generate-zerops-provider-deployment.mts",
-    "api:check:files": "modern-api-check-files"
+    "zerops:providers": "node ./scripts/generate-zerops-provider-deployment.mts"
   },
   "dependencies": {
     "@authzed/authzed-node": "1.6.1",
