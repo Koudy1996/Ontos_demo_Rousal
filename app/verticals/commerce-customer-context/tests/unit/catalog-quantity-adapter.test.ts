@@ -5,7 +5,10 @@ import {
   catalogQuantityGatewayCredentialLive,
   makeCatalogQuantityGatewayCredentialLayer,
 } from '../../api/catalog-quantity-gateway-credential.ts';
-import { CatalogQuantityGatewayCredentialService } from '../../shared/domain/catalog-quantity-gateway-credential.ts';
+import {
+  CatalogQuantityGatewayCredentialService,
+  unavailableCatalogQuantityGatewayCredentialIssuer,
+} from '../../shared/domain/catalog-quantity-gateway-credential.ts';
 import { catalogQuantityPortFromEnvironment } from '../../src/integrations/catalog-quantity.ts';
 
 const tenantId = '10000000-0000-4000-8000-000000000001';
@@ -58,6 +61,25 @@ const ready = {
 };
 
 describe('Catalog Quantity production adapter', () => {
+  it.effect('keeps the unavailable credential issuer on the typed fail-closed path', () =>
+    Effect.gen(function* rejectsUnavailableCredentialIssuer() {
+      const failure = yield* unavailableCatalogQuantityGatewayCredentialIssuer
+        .issue({
+          audience: 'catalog',
+          legalEntityId: '20000000-0000-4000-8000-000000000001',
+          requestCorrelation: 'quantity-test',
+        })
+        .pipe(Effect.flip);
+
+      expect(failure).toEqual({
+        _tag: 'CommerceQuantityCatalogUnavailable',
+        code: 'catalog_selection_unavailable',
+        reason: 'No server-owned Catalog gateway credential issuer is configured',
+        retryable: true,
+      });
+    }),
+  );
+
   it.effect('uses the production gateway composition and retains exact selection, basis, and normalization', () => {
     const gatewayRequests: unknown[] = [];
     return Effect.gen(function* resolvesOwnerFacts() {

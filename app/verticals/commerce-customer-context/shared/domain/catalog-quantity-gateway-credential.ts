@@ -30,5 +30,5 @@ export const unavailableCatalogQuantityGatewayCredentialIssuer: CatalogQuantityG
       code: 'catalog_selection_unavailable',
       reason: 'No server-owned Catalog gateway credential issuer is configured',
       retryable: true,
-    }),
+    } satisfies CommerceQuantityCatalogUnavailable),
 });
