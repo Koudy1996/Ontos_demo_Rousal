@@ -3,6 +3,7 @@
 // @ontos-action-slug associate-storefront
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import { StorefrontApplicationIdSchema } from '@app/storefront-registry-contracts';
 import { DateTime, Effect, Match, Schema } from 'effect';
 import {
   AssociateStorefrontPayloadSchema,
@@ -64,11 +65,21 @@ const handleAssociateStorefront = Effect.fn('AssociateStorefrontAction.handle')(
   context: ActionHandlerContext<typeof domainEvents, AssociateStorefrontServices>,
 ) {
   const effectiveAt = DateTime.formatIso(payload.effectivePeriod.startsAt);
+  const storefrontAppId = yield* Schema.decodeEffect(StorefrontApplicationIdSchema)(payload.storefrontRef.appId).pipe(
+    Effect.mapError((error) => {
+      const failure = new StorefrontApplicationValidationUnavailable({
+        code: 'storefront_application_validation_unavailable',
+        reason: 'The Storefront application identifier could not be validated for owner lookup',
+      });
+      Object.defineProperty(failure, 'cause', { configurable: true, value: error });
+      return failure;
+    }),
+  );
   const storefrontEvidence = yield* context.services.validateCurrent(
     {
       effectiveAt,
       requestedChannel: payload.channel,
-      storefrontAppId: payload.storefrontRef.appId,
+      storefrontAppId,
       tenantId: payload.storefrontRef.tenantId,
     },
     context.scope.correlationId,
