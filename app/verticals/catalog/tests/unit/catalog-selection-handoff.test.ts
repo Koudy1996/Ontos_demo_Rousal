@@ -8,11 +8,10 @@ import {
   CatalogSelectionSchema,
 } from '../../shared/domain/catalog-selection-evidence.ts';
 import {
-  CatalogResourceRefSchema,
   CatalogRetainedProductSchema,
   CatalogRetainedVariantSchema,
 } from '../../shared/domain/catalog-revision-reference.ts';
-import type { CatalogQuantityHandoff } from '../../shared/domain/catalog-quantity-handoff.ts';
+import { CatalogQuantityHandoffSchema } from '../../shared/domain/catalog-quantity-handoff.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const ref = (resourceType: string, resourceId: string) => ({
@@ -66,9 +65,20 @@ const variant = Schema.decodeUnknownSync(CatalogRetainedVariantSchema)({
   productRef,
   reference: variantRevision,
 });
-const quantity: CatalogQuantityHandoff = {
+const quantity = Schema.decodeUnknownSync(CatalogQuantityHandoffSchema)({
+  completeness: {
+    observedAt: '2026-09-17T12:00:00.000Z',
+    ownerRevision: 'commerce.catalog.quantity:test-owner-revision',
+    scope: {
+      kind: 'EXACT_PREDICATE',
+      predicateRef: 'commerce.catalog.quantity-preparation:test-selection:purchase:2',
+    },
+  },
   divisible: false,
+  equivalentSelectionKey: 'commerce.catalog.selection:test-selection',
   evidence,
+  hierarchyRevision: 'commerce.catalog.hierarchy:test-hierarchy-revision',
+  ownerRevision: 'commerce.catalog.quantity:test-owner-revision',
   quantity: {
     changed: false,
     notice: null,
@@ -82,10 +92,19 @@ const quantity: CatalogQuantityHandoff = {
     unitId: unitRef.resourceId,
     unitRuleRevision: 1,
   },
+  quantityBasis: {
+    targetDivisibilityRevision: 1,
+    targetRef: variantRef,
+    unitRef,
+    unitRuleRevision: 1,
+  },
   selection,
   status: 'READY',
-  unitRef: Schema.decodeUnknownSync(CatalogResourceRefSchema)(unitRef),
-};
+  unitRef,
+});
+if (quantity.status !== 'READY') {
+  throw new Error('Fixture must be READY');
+}
 const input = () => ({
   acceptedAt: '2026-09-17T12:01:00.000Z',
   product,
