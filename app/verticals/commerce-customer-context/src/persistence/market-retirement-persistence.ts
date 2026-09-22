@@ -208,7 +208,7 @@ interface MarketRetirementReservationOperations {
   ) => Effect.Effect<ReserveMarketRetirementResult, MarketRetirementReservationFailure>;
 }
 
-export const makeMarketRetirementReservationService = (
+export const marketRetirementReservationForTransaction = (
   invoker: MarketRetirementScopedRoutineInvoker,
 ): MarketRetirementReservationOperations => ({
   execute: (payload, attribution) =>
@@ -244,3 +244,6 @@ export const makeMarketRetirementReservationService = (
       Effect.withSpan('commerce.customer-context.market-retirement.reserve'),
     ),
 });
+
+/** @deprecated Use the transaction-owned factory name at production composition sites. */
+export const makeMarketRetirementReservationService = marketRetirementReservationForTransaction;
