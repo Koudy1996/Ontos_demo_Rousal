@@ -8,7 +8,6 @@ import { FetchHttpClient } from 'effect/unstable/http';
 
 import { createActionCollector } from '../../../../packages/core-runtime/src/actions/collector.ts';
 import { getActionHandler, getActionServiceFactory } from '../../../../packages/core-runtime/src/actions/definition.ts';
-import { TenantModuleStateService } from '../../../../packages/core-runtime/src/modules/tenant-module-state-service.ts';
 import { RetireMarketPayloadSchema, retireMarketAction } from '../../src/actions/retire-market.action.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -192,6 +191,13 @@ const runProductionRetirement = (responses: readonly MarketAffectedUseAssessment
         },
       ]);
     },
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          orderBy: () => Effect.succeed([{ moduleKey: 'commerce.customer-context', state: 'active' }]),
+        }),
+      }),
+    }),
   };
   const collector = createActionCollector(
     retireMarketAction.descriptor.domainEvents,
@@ -199,16 +205,6 @@ const runProductionRetirement = (responses: readonly MarketAffectedUseAssessment
     retireMarketAction.descriptor.accessEvidencePolicy,
     retireMarketAction.descriptor.auditEvidenceSchema,
   );
-  const moduleStateService = {
-    getTenantModuleStates: (_requestedTenantId: string, moduleKeys: readonly string[]) =>
-      Effect.succeed(
-        moduleKeys.flatMap((moduleKey) =>
-          moduleKey === 'commerce.customer-context' ? [{ moduleKey, state: 'active' as const }] : [],
-        ),
-      ),
-    listActiveTenantModules: () => Effect.succeed([]),
-    listTenantModuleStates: () => Effect.succeed([]),
-  };
   const program = Effect.gen(function* productionRetirement() {
     const services = yield* getActionServiceFactory(retireMarketAction)(transaction as never, scope);
     return yield* getActionHandler(retireMarketAction)(payload, {
@@ -221,7 +217,6 @@ const runProductionRetirement = (responses: readonly MarketAffectedUseAssessment
       services,
     });
   }).pipe(
-    Effect.provideService(TenantModuleStateService, moduleStateService),
     Effect.provide(
       ConfigProvider.layer(
         ConfigProvider.fromUnknown({

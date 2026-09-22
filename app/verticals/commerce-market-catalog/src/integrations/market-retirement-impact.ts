@@ -13,10 +13,10 @@ import { MarketRetirementImpactAssessmentStale } from '../actions/market-retirem
 import { MarketRetirementImpactAssessmentUnavailable } from '../actions/market-retirement-impact-assessment-unavailable.ts';
 import type { MarketRetirementImpactAuthority } from '../services/market-retirement-impact-authority.ts';
 
-type ExecuteMarketAffectedUseAssessment = (
+type ExecuteMarketAffectedUseAssessment<Failure> = (
   payload: MarketAffectedUseAssessmentRequest,
   requestCorrelation: string,
-) => Effect.Effect<MarketAffectedUseAssessmentResponse, unknown>;
+) => Effect.Effect<MarketAffectedUseAssessmentResponse, Failure>;
 
 type MarketRetirementModuleStateInventory = Pick<TenantModuleStateServiceContract, 'getTenantModuleStates'>;
 
@@ -239,8 +239,8 @@ const inventoryMaterialReferenceOwners = (
     }),
   );
 
-export const makeMarketRetirementImpactAuthority = (
-  execute: ExecuteMarketAffectedUseAssessment = executeMarketAffectedUseAssessment,
+export const makeMarketRetirementImpactAuthority = <Failure>(
+  execute: ExecuteMarketAffectedUseAssessment<Failure>,
   moduleStateInventory?: MarketRetirementModuleStateInventory,
 ): MarketRetirementImpactAuthority => ({
   assessRetirementImpact: (input) => {

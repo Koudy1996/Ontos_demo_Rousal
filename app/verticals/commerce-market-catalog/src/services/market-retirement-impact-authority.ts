@@ -24,7 +24,9 @@ export interface MarketRetirementImpactAuthority {
 export class MarketRetirementImpactAuthorityService extends Context.Service<
   MarketRetirementImpactAuthorityService,
   MarketRetirementImpactAuthority
->()('@app/commerce-market-catalog/services/MarketRetirementImpactAuthorityService') {}
+>()(
+  '@app/commerce-market-catalog/services/market-retirement-impact-authority/MarketRetirementImpactAuthorityService',
+) {}
 
 export const requiredMarketRetirementImpactAuthority = <Failure>(onUnavailable: () => Failure) =>
   Effect.serviceOption(MarketRetirementImpactAuthorityService).pipe(

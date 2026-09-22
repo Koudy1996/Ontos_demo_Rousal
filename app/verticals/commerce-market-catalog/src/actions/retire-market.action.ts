@@ -3,10 +3,10 @@
 // @ontos-action-slug retire-market
 import type { ActionHandlerContext } from '@app/core-runtime';
 import {
-  TenantModuleStateService,
   defineAction,
   defineActionResourcePermission,
   defineTenantModuleEntrypoint,
+  makeTenantModuleStateService,
 } from '@app/core-runtime';
 import { DateTime, Effect, Match, Schema } from 'effect';
 import {
@@ -72,10 +72,8 @@ const makeRetireMarketServices: (
 ) => Effect.Effect<RetireMarketServices, Effect.Error<ReturnType<typeof marketAdministrationService>>> = Effect.fn(
   'RetireMarketAction.makeServices',
 )(function* makeServices(transaction, scope) {
-  const [catalog, moduleStateInventory] = yield* Effect.all([
-    marketAdministrationService(transaction, scope),
-    TenantModuleStateService,
-  ]);
+  const catalog = yield* marketAdministrationService(transaction, scope);
+  const moduleStateInventory = makeTenantModuleStateService({ executor: transaction });
   return {
     ...catalog,
     ...makeMarketRetirementImpactAuthorityFromPublishedClient(moduleStateInventory),
