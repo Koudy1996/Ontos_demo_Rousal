@@ -5,7 +5,7 @@ import { expect, it } from 'effect-rstest';
 it('migrates a serialized owner assessment and reservation barrier instead of a stub routine', () => {
   const migration = readFileSync(
     new URL('../../drizzle/20260922170000_market-retirement-authority/migration.sql', import.meta.url),
-    'utf8',
+    'utf-8',
   );
 
   expect(migration).toContain(
