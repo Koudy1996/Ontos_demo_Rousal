@@ -11,10 +11,12 @@ import { associateStorefrontAction } from '../../src/actions/associate-storefron
 import { CreateMarketPayloadSchema, createMarketAction } from '../../src/actions/create-market.action.ts';
 import { removeStorefrontAssociationAction } from '../../src/actions/remove-storefront-association.action.ts';
 import {
+  MarketRetirementImpactAssessmentRejected,
   MarketRetirementImpactAssessmentUnavailable,
   RetireMarketPayloadSchema,
   retireMarketAction,
 } from '../../src/actions/retire-market.action.ts';
+import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 import { reviseMarketDefinitionAction } from '../../src/actions/revise-market-definition.action.ts';
 import { reviseStorefrontAssociationAction } from '../../src/actions/revise-storefront-association.action.ts';
 import { suspendMarketAction } from '../../src/actions/suspend-market.action.ts';
@@ -64,6 +66,49 @@ const createPayloadInput = {
   supportedLocales: ['cs-CZ'],
 } as const;
 const createPayload = Schema.decodeUnknownSync(CreateMarketPayloadSchema)(createPayloadInput);
+const retirementEffectiveAt = '2026-12-01T00:00:00.000Z';
+const retirementReservationToken = 'market-retirement:reservation:12';
+
+const retirementPayload = (expectedRevision = 3) =>
+  Schema.decodeUnknownSync(RetireMarketPayloadSchema)({
+    effectiveAt: retirementEffectiveAt,
+    expectedCurrentDefinitionRevisionRef: definitionRevisionRef,
+    expectedRevision,
+    marketRef,
+    reason: 'Retire replaced Market.',
+    retirementImpactReservationToken: retirementReservationToken,
+  });
+
+const retirementImpactAssessment = (
+  overrides: Partial<MarketRetirementImpactAssessment> = {},
+): MarketRetirementImpactAssessment => ({
+  assessedMarketRef: retirementPayload().marketRef,
+  assessedMarketRevision: 3,
+  effectiveAt: retirementEffectiveAt,
+  providers: [
+    {
+      completenessEvidenceReference: 'customer-context:market-impact-completeness:17',
+      currentnessEvidenceReference: 'customer-context:market-impact-currentness:17',
+      effectiveAt: retirementEffectiveAt,
+      liveBlockingReferences: {
+        count: 0,
+        evidenceReference: 'customer-context:live-market-references:17',
+      },
+      nextBoundaryAt: '2027-01-01T00:00:00.000Z',
+      observedAt: '2026-11-30T23:59:59.000Z',
+      ownerModuleKey: 'commerce.customer-context',
+      ownerRevision: 'customer-context-policy:17',
+      retainedHistoryEvidence: {
+        count: 1,
+        evidenceReference: 'customer-context:retained-market-history:17',
+      },
+      versionToken: 'customer-context-market-impact:17',
+    },
+  ],
+  requiredProviderModuleKeys: ['commerce.customer-context'],
+  reservationToken: retirementReservationToken,
+  ...overrides,
+});
 
 const unexpected = () => Effect.die('unexpected Market administration service call');
 const unavailableServices: MarketAdministrationService = {
@@ -176,19 +221,7 @@ describe('Market administration Actions', () => {
 
   it.effect('blocks retirement with unresolved affected use before persistence', () =>
     Effect.gen(function* affectedUse() {
-      const payload = Schema.decodeUnknownSync(RetireMarketPayloadSchema)({
-        affectedUseAssessment: {
-          bootstrapDefaultCount: 1,
-          evidenceReference: 'customer-context:market-defaults:7',
-          liveProspectivePurchaseCount: 0,
-          observedAt: '2026-09-21T10:00:00.000Z',
-        },
-        effectiveAt: '2026-12-01T00:00:00.000Z',
-        expectedCurrentDefinitionRevisionRef: definitionRevisionRef,
-        expectedRevision: 1,
-        marketRef,
-        reason: 'Retire replaced Market.',
-      });
+      const payload = retirementPayload();
       const collector = createActionCollector(
         retireMarketAction.descriptor.domainEvents,
         'commerce.market-catalog',
@@ -206,8 +239,14 @@ describe('Market administration Actions', () => {
           ...unavailableServices,
           assessRetirementImpact: () =>
             Effect.succeed({
-              assessment: payload.affectedUseAssessment,
-              servingModuleKey: 'commerce.customer-context',
+              ...retirementImpactAssessment(),
+              providers: retirementImpactAssessment().providers.map((provider) => ({
+                ...provider,
+                liveBlockingReferences: {
+                  count: 1,
+                  evidenceReference: 'customer-context:live-market-references:18',
+                },
+              })),
             }),
         },
       }).pipe(Effect.flip);
@@ -217,21 +256,9 @@ describe('Market administration Actions', () => {
     }),
   );
 
-  it.effect('rejects a caller claim that does not match authoritative retirement-impact evidence', () =>
-    Effect.gen(function* forgedAssessment() {
-      const payload = Schema.decodeUnknownSync(RetireMarketPayloadSchema)({
-        affectedUseAssessment: {
-          bootstrapDefaultCount: 0,
-          evidenceReference: 'customer-context:market-defaults:8',
-          liveProspectivePurchaseCount: 0,
-          observedAt: '2026-09-21T10:00:00.000Z',
-        },
-        effectiveAt: '2026-12-01T00:00:00.000Z',
-        expectedCurrentDefinitionRevisionRef: definitionRevisionRef,
-        expectedRevision: 1,
-        marketRef,
-        reason: 'Retire replaced Market.',
-      });
+  it.effect('rejects an impact assessment reserved under another token', () =>
+    Effect.gen(function* rejectedAssessment() {
+      const payload = retirementPayload();
       const persistenceCalls: string[] = [];
       const collector = createActionCollector(
         retireMarketAction.descriptor.domainEvents,
@@ -249,10 +276,7 @@ describe('Market administration Actions', () => {
         services: {
           ...unavailableServices,
           assessRetirementImpact: () =>
-            Effect.succeed({
-              assessment: { ...payload.affectedUseAssessment, bootstrapDefaultCount: 1 },
-              servingModuleKey: 'commerce.customer-context',
-            }),
+            Effect.succeed(retirementImpactAssessment({ reservationToken: 'market-retirement:reservation:other' })),
           transitionLifecycle: () => {
             persistenceCalls.push('transitionLifecycle');
             return unexpected();
@@ -268,19 +292,7 @@ describe('Market administration Actions', () => {
 
   it.effect('fails closed when authoritative retirement-impact assessment is unavailable', () =>
     Effect.gen(function* unavailableAssessment() {
-      const payload = Schema.decodeUnknownSync(RetireMarketPayloadSchema)({
-        affectedUseAssessment: {
-          bootstrapDefaultCount: 0,
-          evidenceReference: 'customer-context:market-defaults:9',
-          liveProspectivePurchaseCount: 0,
-          observedAt: '2026-09-21T10:00:00.000Z',
-        },
-        effectiveAt: '2026-12-01T00:00:00.000Z',
-        expectedCurrentDefinitionRevisionRef: definitionRevisionRef,
-        expectedRevision: 1,
-        marketRef,
-        reason: 'Retire replaced Market.',
-      });
+      const payload = retirementPayload();
       const persistenceCalls: string[] = [];
       const collector = createActionCollector(
         retireMarketAction.descriptor.domainEvents,
@@ -317,21 +329,98 @@ describe('Market administration Actions', () => {
     }),
   );
 
-  it.effect('preserves authoritative retirement-impact evidence on successful retirement', () =>
-    Effect.gen(function* successfulRetirement() {
-      const payload = Schema.decodeUnknownSync(RetireMarketPayloadSchema)({
-        affectedUseAssessment: {
-          bootstrapDefaultCount: 0,
-          evidenceReference: 'customer-context:market-defaults:10',
-          liveProspectivePurchaseCount: 0,
-          observedAt: '2026-09-21T10:00:00.000Z',
+  it.effect('fails closed when owner evidence was assessed against a stale Market revision', () =>
+    Effect.gen(function* staleAssessment() {
+      const payload = retirementPayload();
+      const collector = createActionCollector(
+        retireMarketAction.descriptor.domainEvents,
+        'commerce.market-catalog',
+        retireMarketAction.descriptor.accessEvidencePolicy,
+        retireMarketAction.descriptor.auditEvidenceSchema,
+      );
+      const failure = yield* getActionHandler(retireMarketAction)(payload, {
+        actionInvocationId,
+        addDomainEvent: collector.addDomainEvent,
+        addOutboxMessage: collector.addOutboxMessage,
+        recordAuditEvidence: collector.recordAuditEvidence,
+        recordDataAccess: collector.recordDataAccess,
+        scope,
+        services: {
+          ...unavailableServices,
+          assessRetirementImpact: () => Effect.succeed(retirementImpactAssessment({ assessedMarketRevision: 2 })),
         },
-        effectiveAt: '2026-12-01T00:00:00.000Z',
-        expectedCurrentDefinitionRevisionRef: definitionRevisionRef,
-        expectedRevision: 3,
-        marketRef,
-        reason: 'Retire replaced Market.',
-      });
+      }).pipe(Effect.flip);
+      expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentStale')).toBe(true);
+      expect(failure).toMatchObject({ code: 'market_retirement_impact_assessment_stale' });
+      expect(collector.snapshot().domainEvents).toHaveLength(0);
+    }),
+  );
+
+  it.effect('fails closed when a required provider is missing from the complete assessment', () =>
+    Effect.gen(function* missingProvider() {
+      const payload = retirementPayload();
+      const collector = createActionCollector(
+        retireMarketAction.descriptor.domainEvents,
+        'commerce.market-catalog',
+        retireMarketAction.descriptor.accessEvidencePolicy,
+        retireMarketAction.descriptor.auditEvidenceSchema,
+      );
+      const failure = yield* getActionHandler(retireMarketAction)(payload, {
+        actionInvocationId,
+        addDomainEvent: collector.addDomainEvent,
+        addOutboxMessage: collector.addOutboxMessage,
+        recordAuditEvidence: collector.recordAuditEvidence,
+        recordDataAccess: collector.recordDataAccess,
+        scope,
+        services: {
+          ...unavailableServices,
+          assessRetirementImpact: () =>
+            Effect.succeed(retirementImpactAssessment({ providers: [], requiredProviderModuleKeys: ['cart'] })),
+        },
+      }).pipe(Effect.flip);
+      expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentUnavailable')).toBe(true);
+      expect(failure).toMatchObject({ code: 'market_retirement_impact_assessment_unavailable' });
+      expect(collector.snapshot().domainEvents).toHaveLength(0);
+    }),
+  );
+
+  it.effect('keeps authority rejection distinct from unavailable and stale evidence', () =>
+    Effect.gen(function* rejectedAssessment() {
+      const payload = retirementPayload();
+      const collector = createActionCollector(
+        retireMarketAction.descriptor.domainEvents,
+        'commerce.market-catalog',
+        retireMarketAction.descriptor.accessEvidencePolicy,
+        retireMarketAction.descriptor.auditEvidenceSchema,
+      );
+      const failure = yield* getActionHandler(retireMarketAction)(payload, {
+        actionInvocationId,
+        addDomainEvent: collector.addDomainEvent,
+        addOutboxMessage: collector.addOutboxMessage,
+        recordAuditEvidence: collector.recordAuditEvidence,
+        recordDataAccess: collector.recordDataAccess,
+        scope,
+        services: {
+          ...unavailableServices,
+          assessRetirementImpact: () =>
+            Effect.fail(
+              new MarketRetirementImpactAssessmentRejected({
+                code: 'market_retirement_impact_assessment_rejected',
+                reason: 'Owner rejected the retirement reservation',
+              }),
+            ),
+        },
+      }).pipe(Effect.flip);
+      expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentRejected')).toBe(true);
+      expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentStale')).toBe(false);
+      expect(collector.snapshot().domainEvents).toHaveLength(0);
+    }),
+  );
+
+  it.effect('allows retained history and preserves exact authoritative provider evidence', () =>
+    Effect.gen(function* successfulRetirement() {
+      const payload = retirementPayload();
+      const impactAssessment = retirementImpactAssessment();
       const collector = createActionCollector(
         retireMarketAction.descriptor.domainEvents,
         'commerce.market-catalog',
@@ -347,11 +436,7 @@ describe('Market administration Actions', () => {
         scope,
         services: {
           ...unavailableServices,
-          assessRetirementImpact: () =>
-            Effect.succeed({
-              assessment: payload.affectedUseAssessment,
-              servingModuleKey: 'commerce.customer-context',
-            }),
+          assessRetirementImpact: () => Effect.succeed(impactAssessment),
           transitionLifecycle: () =>
             Effect.succeed({
               _tag: 'transitioned',
@@ -365,14 +450,12 @@ describe('Market administration Actions', () => {
       });
       expect(result).toMatchObject({ changed: true, lifecycle: 'RETIRED', revision: 4 });
       expect(collector.snapshot().auditEvidence).toMatchObject({
-        affectedUseEvidenceReference: 'customer-context:market-defaults:10',
-        bootstrapDefaultCount: 0,
-        liveProspectivePurchaseCount: 0,
+        retirementImpactAssessment: impactAssessment,
       });
       expect(collector.snapshot().dataAccessEvents).toContainEqual(
         expect.objectContaining({
-          queryHash: `market-retirement-impact:${marketId}:customer-context:market-defaults:10`,
-          resultCount: 0,
+          queryHash: `market-retirement-impact:${marketId}:commerce.customer-context:customer-context-policy:17:customer-context-market-impact:17`,
+          resultCount: 1,
           servingModuleKey: 'commerce.customer-context',
         }),
       );

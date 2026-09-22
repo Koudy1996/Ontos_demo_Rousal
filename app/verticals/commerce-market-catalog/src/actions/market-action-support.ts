@@ -5,16 +5,13 @@ import type { EffectivePeriod } from '../../shared/market-contracts.ts';
 import type { MarketDefinitionRevisionRef } from '../../shared/resources/market-definition-revision.ts';
 import type { MarketRef } from '../../shared/resources/market.ts';
 import type { StorefrontAssociationRef } from '../../shared/resources/storefront-association.ts';
+import { MarketRetirementImpactAssessmentSchema } from '../../shared/domain/market-retirement-impact.ts';
 
 export const MODULE_KEY = 'commerce.market-catalog' as const;
 
 export const MarketAdministrationAuditEvidenceSchema = Schema.Struct({
-  affectedUseEvidenceReference: Schema.optionalKey(Schema.String),
-  affectedUseObservedAt: Schema.optionalKey(Schema.toEncoded(Schema.DateTimeUtcFromString)),
-  bootstrapDefaultCount: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
   changed: Schema.Boolean,
   completenessGeneration: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  liveProspectivePurchaseCount: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
   operation: Schema.Literals([
     'ACTIVATE',
     'ASSOCIATE_STOREFRONT',
@@ -26,6 +23,7 @@ export const MarketAdministrationAuditEvidenceSchema = Schema.Struct({
     'SUSPEND',
   ]),
   reason: Schema.String,
+  retirementImpactAssessment: Schema.optionalKey(MarketRetirementImpactAssessmentSchema),
   revision: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
 });
 

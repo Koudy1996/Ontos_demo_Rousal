@@ -130,12 +130,7 @@ export const SuspendMarketPayloadSchema = Schema.Struct(lifecyclePayloadFields)
 export type SuspendMarketPayload = typeof SuspendMarketPayloadSchema.Type;
 export const RetireMarketPayloadSchema = Schema.Struct({
   ...lifecyclePayloadFields,
-  affectedUseAssessment: Schema.Struct({
-    bootstrapDefaultCount: Schema.Finite.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
-    evidenceReference: reason,
-    liveProspectivePurchaseCount: Schema.Finite.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
-    observedAt: Schema.DateTimeUtcFromString,
-  }).annotate(strict),
+  retirementImpactReservationToken: reason,
 })
   .check(
     Schema.makeFilter(({ expectedCurrentDefinitionRevisionRef, marketRef }) =>
