@@ -87,7 +87,6 @@ const SetCurrencySupportDomainResultSchema = Schema.Struct({
   pricingRevision: Schema.String,
   supportedCurrencies: Schema.Array(Schema.String),
 });
-export type SetCurrencySupportResult = typeof SetCurrencySupportDomainResultSchema.Type;
 const SetCurrencySupportOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('applied', { result: SetCurrencySupportDomainResultSchema }),
   Schema.TaggedStruct('unchanged', { result: SetCurrencySupportDomainResultSchema }),
