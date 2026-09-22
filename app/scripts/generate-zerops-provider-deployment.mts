@@ -51,6 +51,10 @@ const renderProvider = (vertical: ProviderVertical) =>
     const readiness = `/${id}-api/${id}/readiness`;
     const runtime = `app/.zerops/runtime/${id}`;
     const portKey = `VERTICAL_${id.replaceAll('-', '_').toUpperCase()}_PORT`;
+    const runtimeConfigurationPreflight =
+      id === 'commerce-customer-context'
+        ? 'test -n "$ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON" || { echo "ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON is required" >&2; exit 1; }; '
+        : '';
     return `  - setup: '${id}'
     build:
       base: 'alpine@3.23'
@@ -97,7 +101,7 @@ const renderProvider = (vertical: ProviderVertical) =>
         httpGet:
           port: ${port}
           path: '${readiness}'
-      start: sh -c 'cd ${runtime} && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'`;
+      start: sh -c '${runtimeConfigurationPreflight}cd ${runtime} && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'`;
   });
 
 export const generateZeropsProviderDeployment = (

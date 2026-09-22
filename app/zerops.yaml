@@ -2,6 +2,9 @@
 # Zerops services and are never stored in this file.
 # Stage topology provisioned for partyregistry and partyregistryworker.
 # Full stage rollout requested after PostgreSQL 18 migration.
+# ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON is a publisher-maintained
+# Zerops project variable. Project variables are inherited automatically; the
+# Commerce Customer Context start preflight deliberately does not shadow it here.
 
 zerops:
   - setup: 'migrator'
@@ -191,7 +194,7 @@ zerops:
         httpGet:
           port: 4101
           path: '/commerce-customer-context-api/commerce-customer-context/readiness'
-      start: sh -c 'cd app/.zerops/runtime/commerce-customer-context && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
+      start: sh -c 'test -n "$ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON" || { echo "ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON is required" >&2; exit 1; }; cd app/.zerops/runtime/commerce-customer-context && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
 
   - setup: 'payment-term-catalog'
     build:

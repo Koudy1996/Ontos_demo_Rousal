@@ -87,3 +87,35 @@ it.effect('rejects malformed identity, source boundaries, and provider drift', (
     ).toBe(generated);
   }),
 );
+
+it.effect('requires the publisher-owned composition snapshot only for Customer Context', () =>
+  Effect.gen(function* compositionSnapshotPreflight() {
+    const customerContext = {
+      id: 'commerce-customer-context',
+      moduleFederation: { manifestUrl: 'http://localhost:4101/mf-manifest.json' },
+      package: '@app/commerce-customer-context',
+      path: 'verticals/commerce-customer-context',
+    };
+    const partyRegistry = {
+      id: 'party-registry',
+      moduleFederation: { manifestUrl: 'http://localhost:4102/mf-manifest.json' },
+      package: '@app/party-registry',
+      path: 'verticals/party-registry',
+    };
+    const source = "zerops:\n  - setup: 'commerce-customer-context'\n\n  - setup: 'shellsuperapp'\n";
+    const generated = yield* generateZeropsProviderDeployment(source, {
+      verticals: [customerContext, partyRegistry],
+    });
+    const customerContextStart = generated.indexOf("  - setup: 'commerce-customer-context'");
+    const partyRegistryStart = generated.indexOf("  - setup: 'party-registry'");
+    const customerContextBlock = generated.slice(customerContextStart, partyRegistryStart);
+    const partyRegistryBlock = generated.slice(
+      partyRegistryStart,
+      generated.indexOf('  # </generated', partyRegistryStart),
+    );
+
+    expect(customerContextBlock).toContain('test -n "$ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON"');
+    expect(customerContextBlock).not.toContain('ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON:');
+    expect(partyRegistryBlock).not.toContain('ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON');
+  }),
+);
