@@ -21,7 +21,7 @@ import {
   marketAdministrationService,
 } from '../services/market-administration.service.ts';
 import type { MarketRetirementImpactAuthority } from '../services/market-retirement-impact-authority.ts';
-import { requiredMarketRetirementImpactAuthority } from '../services/market-retirement-impact-authority.ts';
+import { marketRetirementImpactAuthorityFromPublishedClient } from '../integrations/market-retirement-impact.ts';
 import { createRetireMarketCommerceMarketCatalogMarketRetiredV1OutboxMessage as createOutboxMessage } from './retire-market-commerce-market-catalog-market-retired-v1.outbox-message.ts';
 import {
   MODULE_KEY,
@@ -64,19 +64,11 @@ export type RetireMarketServices = MarketAdministrationService & MarketRetiremen
 const makeRetireMarketServices: (
   transaction: Parameters<typeof marketAdministrationService>[0],
   scope: Parameters<typeof marketAdministrationService>[1],
-) => Effect.Effect<
-  RetireMarketServices,
-  Effect.Error<ReturnType<typeof marketAdministrationService>> | MarketRetirementImpactAssessmentUnavailable
-> = Effect.fn('RetireMarketAction.makeServices')(function* makeServices(transaction, scope) {
+) => Effect.Effect<RetireMarketServices, Effect.Error<ReturnType<typeof marketAdministrationService>>> = Effect.fn(
+  'RetireMarketAction.makeServices',
+)(function* makeServices(transaction, scope) {
   const catalog = yield* marketAdministrationService(transaction, scope);
-  const authority = yield* requiredMarketRetirementImpactAuthority(
-    () =>
-      new MarketRetirementImpactAssessmentUnavailable({
-        code: 'market_retirement_impact_assessment_unavailable',
-        reason: 'No authoritative Market retirement-impact provider is configured',
-      }),
-  );
-  return { ...catalog, ...authority } satisfies RetireMarketServices;
+  return { ...catalog, ...marketRetirementImpactAuthorityFromPublishedClient } satisfies RetireMarketServices;
 });
 
 const refsMatch = (left: RetireMarketPayload['marketRef'], right: RetireMarketPayload['marketRef']) =>
