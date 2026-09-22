@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: prove-production-retirement
     content: "Add production-composition integration tests using the real neutral active Application Composition authority and currently installed affected-use providers. Prove safe retirement, live bootstrap/reference rejection, provider unavailability, stale evidence, concurrent material change, retained history, and authoritative `not installed` evidence for future providers; source or topology absence is not sufficient."
-    status: pending
+    status: completed
 isProject: false
 ---
 

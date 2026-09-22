@@ -16,7 +16,7 @@ todos:
     status: completed
   - id: prove-retirement-production-composition
     content: "Invoke deployed Market retirement through the real neutral Application Composition authority and real currently installed affected-use providers. Prove safe success, live-use rejection, stale evidence, provider unavailability and authoritative `not installed` evidence for future providers without fake authority or topology inference."
-    status: pending
+    status: completed
   - id: run-focused-owner-gates
     content: "Run the package-filtered Market Catalog, Customer Context, Catalog, Pricing, Payment Term, shared-contract, script, migration, RLS, API-boundary, and module-contract checks selected by the files changed in the remediation, fixing only confirmed in-scope failures."
     status: completed
