@@ -81,7 +81,7 @@ export default defineConfig(
     {
       appId,
       deliveryUnit: {
-        buildMarker: '1a7441dca4b5c7c1',
+        buildMarker: '6e1423f340df12ea',
         unitId: 'app/storefront-registry',
         version: '0.1.0',
       },

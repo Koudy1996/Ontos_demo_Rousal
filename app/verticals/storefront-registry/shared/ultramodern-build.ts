@@ -12,8 +12,8 @@ const generatedUnitId = 'app/storefront-registry';
 const ultramodernGeneratedBuildArtifact = {
   deliveryUnit: {
     appId: generatedAppId,
-    build: '1a7441dca4b5c7c1',
-    buildMarker: '1a7441dca4b5c7c1',
+    build: '6e1423f340df12ea',
+    buildMarker: '6e1423f340df12ea',
     deployProfile: generatedDeployProfile,
     kind: generatedDeliveryUnitKind,
     packageName: generatedPackageName,
@@ -27,8 +27,8 @@ const ultramodernGeneratedBuildArtifact = {
   surfaces: {
     api: {
       appId: generatedAppId,
-      build: '1a7441dca4b5c7c1',
-      buildMarker: '1a7441dca4b5c7c1',
+      build: '6e1423f340df12ea',
+      buildMarker: '6e1423f340df12ea',
       deployProfile: generatedDeployProfile,
       kind: generatedDeliveryUnitKind,
       packageName: generatedPackageName,
@@ -40,8 +40,8 @@ const ultramodernGeneratedBuildArtifact = {
     },
     ui: {
       appId: generatedAppId,
-      build: '1a7441dca4b5c7c1',
-      buildMarker: '1a7441dca4b5c7c1',
+      build: '6e1423f340df12ea',
+      buildMarker: '6e1423f340df12ea',
       deployProfile: generatedDeployProfile,
       kind: generatedDeliveryUnitKind,
       packageName: generatedPackageName,
