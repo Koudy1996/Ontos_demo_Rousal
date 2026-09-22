@@ -41,3 +41,10 @@ export const pricingRegistration = defineVerticalRuntimeRegistration({
     // </generated-module-registration-workers>
   ],
 });
+
+// <generated-public-component-registrations>
+// </generated-public-component-registrations>
+// <generated-search-registrations>
+// </generated-search-registrations>
+// <generated-report-registrations>
+// </generated-report-registrations>
