@@ -45,6 +45,12 @@ const catalogProductUnitRef = {
   resourceType: 'commerce.catalog.product-unit',
   tenantId,
 } as const;
+const paymentTermRef = {
+  moduleId: 'payment.term-catalog',
+  resourceId: 'czech-launch-net-14',
+  resourceType: 'payment.term-catalog.payment-term',
+  tenantId,
+} as const;
 
 export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
   actionKeys: Object.freeze({
@@ -88,29 +94,41 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
         },
       },
     },
-    paymentTerm: {
-      _tag: 'CREATE_REVISION',
-      expectedGeneration: 0,
-      revision: {
-        effectiveFrom,
-        effectiveTo: null,
-        field: 'PAYMENT_TERM',
-        idempotencyKey: 'czech-launch-payment-term-v1',
-        lifecycle: 'ACTIVE',
-        reason,
-        revisionId: '75000000-0000-4000-8000-000000000030',
-        scope: { kind: 'SELLER', sellingLegalEntityId },
-        value: {
-          kind: 'FALLBACK_PAYMENT_TERM',
-          paymentTermRef: {
-            moduleId: 'payment.term-catalog',
-            resourceId: 'czech-launch-net-14',
-            resourceType: 'payment.term-catalog.payment-term',
-            tenantId,
+    paymentTerm: [
+      {
+        _tag: 'CREATE_REVISION',
+        expectedGeneration: 0,
+        revision: {
+          effectiveFrom,
+          effectiveTo: null,
+          field: 'PAYMENT_TERM',
+          idempotencyKey: 'czech-launch-applicable-payment-term-v1',
+          lifecycle: 'ACTIVE',
+          reason,
+          revisionId: '75000000-0000-4000-8000-000000000030',
+          scope: { kind: 'SELLER', sellingLegalEntityId },
+          value: { kind: 'APPLICABLE_PAYMENT_TERM_CONSTRAINT', paymentTermRef },
+        },
+      },
+      {
+        _tag: 'CREATE_REVISION',
+        expectedGeneration: 1,
+        revision: {
+          effectiveFrom,
+          effectiveTo: null,
+          field: 'PAYMENT_TERM',
+          idempotencyKey: 'czech-launch-fallback-payment-term-v1',
+          lifecycle: 'ACTIVE',
+          reason,
+          revisionId: '75000000-0000-4000-8000-000000000031',
+          scope: { kind: 'SELLER', sellingLegalEntityId },
+          value: {
+            kind: 'FALLBACK_PAYMENT_TERM',
+            paymentTermRef,
           },
         },
       },
-    },
+    ],
     purchaseCurrency: [
       {
         _tag: 'CREATE_REVISION',
@@ -248,8 +266,11 @@ export const validateCzechLaunchFixtureContracts = () =>
           ),
           { concurrency: 'unbounded' },
         ),
-        Schema.decodeUnknownEffect(PaymentTermPolicyAdministrationPayloadSchema)(
-          CZECH_LAUNCH_COMMERCE_FIXTURE.policies.paymentTerm,
+        Effect.all(
+          CZECH_LAUNCH_COMMERCE_FIXTURE.policies.paymentTerm.map((payload) =>
+            Schema.decodeUnknownEffect(PaymentTermPolicyAdministrationPayloadSchema)(payload),
+          ),
+          { concurrency: 'unbounded' },
         ),
         Schema.decodeUnknownEffect(CommerceQuantityRuleAdministrationPayloadSchema)(
           CZECH_LAUNCH_COMMERCE_FIXTURE.policies.quantity,
