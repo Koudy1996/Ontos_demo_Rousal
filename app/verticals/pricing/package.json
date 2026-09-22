@@ -1,0 +1,42 @@
+{
+  "name": "@app/pricing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./shared/api.ts",
+    "./api/client": "./src/api/pricing-client.ts"
+  },
+  "scripts": {
+    "db:check": "drizzle-kit check --config drizzle.config.ts",
+    "db:test": "rstest run tests/unit/database-schema-contract.test.ts --config rstest.config.ts",
+    "test:unit": "rstest --project unit",
+    "typecheck": "node ../../scripts/ultramodern-typecheck.mts --project tsconfig.json"
+  },
+  "dependencies": {
+    "@app/core-runtime": "workspace:*",
+    "@app/gateway-principal-verifier": "workspace:*",
+    "@app/pricing-contracts": "workspace:*",
+    "@app/shared-contracts": "workspace:*",
+    "@effect/sql-pg": "4.0.0-rc.112",
+    "@modern-js/bff-effect": "npm:@bleedingdev/modern-js-bff-effect@3.9.0-ultramodern.11",
+    "drizzle-orm": "1.0.0-rc.5-ab785fc",
+    "effect": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@rstest/core": "0.11.12",
+    "@types/node": "20.19.43",
+    "drizzle-kit": "1.0.0-rc.5-ab785fc",
+    "effect-rstest": "https://pkg.pr.new/ScriptedAlchemy/effect-rstest@f29b3f495d45a11037334620bf5f693414fb5578"
+  },
+  "modernjs": {
+    "appId": "pricing",
+    "ontosModule": {
+      "contractPath": "/.well-known/ontos-module-manifest.json",
+      "manifest": "./vertical.manifest.ts",
+      "moduleId": "commerce.pricing",
+      "registration": "./vertical.registration.ts",
+      "schemaVersion": 2
+    }
+  }
+}
