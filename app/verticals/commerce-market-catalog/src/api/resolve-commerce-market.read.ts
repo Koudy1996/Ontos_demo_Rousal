@@ -124,8 +124,6 @@ export const handleResolveCommerceMarket = Effect.fn('ResolveCommerceMarketRead.
     if (input.subject !== undefined && input.subject.kind !== 'GUEST' && Option.isNone(subjectRestrictions)) {
       return { evidence: { resultCount: 0 }, result: unavailable() };
     }
-    // Authorization must complete before any owner persistence access; these Effects are intentionally sequential.
-    // oxlint-disable-next-line effect-native/no-sequential-independent-yields -- Preserves the fail-closed authorization-before-I/O boundary.
     const snapshot = yield* context.services
       .load(input, Option.getOrUndefined(subjectRestrictions))
       .pipe(Effect.option);

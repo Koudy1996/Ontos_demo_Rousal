@@ -149,19 +149,42 @@ export const StorefrontAssociationDefinitionSchema = Schema.Struct({
   )
   .annotate(strict);
 
-const CustomerContextProfileRefSchema = <const ResourceType extends string>(resourceType: ResourceType) =>
-  Schema.Struct({
-    moduleId: Schema.Literal('commerce.customer-context'),
-    resourceId: boundedText,
-    resourceType: Schema.Literal(resourceType),
-    tenantId: checkedUuid,
-  }).annotate(strict);
+const PurchasingSubjectTenantIdSchema = checkedUuid.pipe(
+  Schema.brand('CommerceMarketPurchasingSubjectTenantId'),
+  Schema.decodeTo(checkedUuid),
+);
+const RetailCustomerProfileResourceIdSchema = boundedText.pipe(
+  Schema.brand('CommerceMarketRetailCustomerProfileResourceId'),
+  Schema.decodeTo(boundedText),
+);
+const CounterpartyPurchasingProfileResourceIdSchema = boundedText.pipe(
+  Schema.brand('CommerceMarketCounterpartyPurchasingProfileResourceId'),
+  Schema.decodeTo(boundedText),
+);
+const CounterpartyResourceIdSchema = boundedText.pipe(
+  Schema.brand('CommerceMarketCounterpartyResourceId'),
+  Schema.decodeTo(boundedText),
+);
+
+const RetailCustomerProfileRefSchema = Schema.Struct({
+  moduleId: Schema.Literal('commerce.customer-context'),
+  resourceId: RetailCustomerProfileResourceIdSchema,
+  resourceType: Schema.Literal('commerce.customer-context.retail-customer-profile'),
+  tenantId: PurchasingSubjectTenantIdSchema,
+}).annotate(strict);
+
+const CounterpartyPurchasingProfileRefSchema = Schema.Struct({
+  moduleId: Schema.Literal('commerce.customer-context'),
+  resourceId: CounterpartyPurchasingProfileResourceIdSchema,
+  resourceType: Schema.Literal('commerce.customer-context.counterparty-purchasing-profile'),
+  tenantId: PurchasingSubjectTenantIdSchema,
+}).annotate(strict);
 
 const CounterpartyRefSchema = Schema.Struct({
   moduleId: Schema.Literal('party.registry'),
-  resourceId: boundedText,
+  resourceId: CounterpartyResourceIdSchema,
   resourceType: Schema.Literal('party.registry.counterparty'),
-  tenantId: checkedUuid,
+  tenantId: PurchasingSubjectTenantIdSchema,
 }).annotate(strict);
 
 export const PurchasingSubjectKindSchema = Schema.Literals(['GUEST', 'RETAIL_PROFILE', 'COUNTERPARTY']);
@@ -170,12 +193,12 @@ export const PurchasingSubjectRefSchema = Schema.Union([
   Schema.Struct({ kind: Schema.Literal('GUEST'), subjectRef: boundedText }).annotate(strict),
   Schema.Struct({
     kind: Schema.Literal('RETAIL_PROFILE'),
-    profileRef: CustomerContextProfileRefSchema('commerce.customer-context.retail-customer-profile'),
+    profileRef: RetailCustomerProfileRefSchema,
   }).annotate(strict),
   Schema.Struct({
     counterpartyRef: CounterpartyRefSchema,
     kind: Schema.Literal('COUNTERPARTY'),
-    profileRef: CustomerContextProfileRefSchema('commerce.customer-context.counterparty-purchasing-profile'),
+    profileRef: CounterpartyPurchasingProfileRefSchema,
   })
     .check(
       Schema.makeFilter(({ counterpartyRef, profileRef }) =>

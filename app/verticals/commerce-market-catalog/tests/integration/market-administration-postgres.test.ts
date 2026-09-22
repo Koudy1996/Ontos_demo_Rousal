@@ -332,27 +332,38 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
         actionId: string,
         effectiveAt: string,
         expectedRevision: number,
-      ) =>
-        scoped(runtime, (transaction) =>
+      ) => {
+        const payload: ReturnType<typeof command> & {
+          effectiveAt: ReturnType<typeof retirementImpactAssessment>['effectiveAt'];
+          expectedCurrentDefinitionRevisionId: string;
+          expectedRevision: number;
+          lifecycle: 'ACTIVE' | 'RETIRED' | 'SUSPENDED';
+          marketId: string;
+          reason: string;
+          retirementImpactAssessment?: ReturnType<typeof retirementImpactAssessment>;
+          tenantId: string;
+        } = {
+          ...command(actionId),
+          effectiveAt,
+          expectedCurrentDefinitionRevisionId: currentDefinitionRevisionId,
+          expectedRevision,
+          lifecycle,
+          marketId,
+          reason: `${lifecycle} lifecycle acceptance.`,
+          tenantId,
+        };
+        if (lifecycle === 'RETIRED') {
+          payload.retirementImpactAssessment = retirementImpactAssessment(expectedRevision, effectiveAt);
+        }
+        return scoped(runtime, (transaction) =>
           transaction.execute(
             sql`select * from commerce_market_catalog.transition_market_lifecycle(
               ${tenantId}::uuid, ${sellerId}::uuid,
-              ${JSON.stringify({
-                ...command(actionId),
-                effectiveAt,
-                expectedCurrentDefinitionRevisionId: currentDefinitionRevisionId,
-                expectedRevision,
-                lifecycle,
-                marketId,
-                reason: `${lifecycle} lifecycle acceptance.`,
-                ...(lifecycle === 'RETIRED'
-                  ? { retirementImpactAssessment: retirementImpactAssessment(expectedRevision, effectiveAt) }
-                  : {}),
-                tenantId,
-              })}::jsonb)`,
+              ${JSON.stringify(payload)}::jsonb)`,
             'objects',
           ),
         );
+      };
       expectOutcome(
         oneOutcome(
           yield* transition('SUSPENDED', 'e3463000-0000-4000-8000-000000000009', '2030-06-01T00:00:00.000Z', 2),

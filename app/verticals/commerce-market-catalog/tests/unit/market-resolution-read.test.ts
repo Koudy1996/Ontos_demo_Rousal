@@ -252,8 +252,10 @@ describe('Commerce Market governed resolution reads', () => {
               ...snapshot.completenessEvidence,
               ownerRevision: `market-eligibility:${restrictions?.ownerRevision ?? 'none'}`,
             },
-            facts: snapshot.facts.filter(({ tuple }) =>
-              restrictions?.allowedSellerIds.includes(tuple.sellingLegalEntityRef.resourceId),
+            facts: snapshot.facts.filter(
+              ({ tuple }) =>
+                restrictions !== undefined &&
+                restrictions.allowedSellerIds.includes(tuple.sellingLegalEntityRef.resourceId),
             ),
             generation: 7,
           }),
@@ -421,8 +423,8 @@ describe('Commerce Market governed resolution reads', () => {
   it.effect('returns a separate retryable inability when owner completeness cannot be established', () =>
     Effect.gen(function* unavailableResolution() {
       const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
-        effectiveAt: at,
         channel: 'B2C',
+        effectiveAt: at,
         storefrontRef,
       });
       const result = yield* handleResolveCommerceMarket(input, context(unavailable));
@@ -437,8 +439,8 @@ describe('Commerce Market governed resolution reads', () => {
   it.effect('invalidates prior completeness after a material lifecycle or association revision changes', () =>
     Effect.gen(function* invalidatedCompleteness() {
       const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
-        effectiveAt: at,
         channel: 'B2B',
+        effectiveAt: at,
         storefrontRef,
       });
       const changedSnapshot: MarketEligibilitySnapshot = {
@@ -464,8 +466,8 @@ describe('Commerce Market governed resolution reads', () => {
   it.effect('keeps exact predicate completeness stable across an unrelated tenant generation change', () =>
     Effect.gen(function* stableExactPredicate() {
       const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
-        effectiveAt: at,
         channel: 'B2B',
+        effectiveAt: at,
         storefrontRef,
       });
       const before = yield* handleResolveCommerceMarket(input, context(withSnapshot(snapshot, 7)));

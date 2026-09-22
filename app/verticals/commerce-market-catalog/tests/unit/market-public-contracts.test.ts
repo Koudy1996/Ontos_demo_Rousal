@@ -230,8 +230,8 @@ describe('Commerce Market public contracts', () => {
 
   it('discovers sellers without requiring a preselected Legal Entity and accepts an optional exact restriction', () => {
     const baseRequest = {
-      effectiveAt: '2026-09-21T10:00:00.000Z',
       channel: 'B2B',
+      effectiveAt: '2026-09-21T10:00:00.000Z',
       storefrontRef,
     } as const;
 

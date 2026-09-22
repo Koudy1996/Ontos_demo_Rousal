@@ -132,10 +132,10 @@ interface MarketEligibilityRoutineInput {
   effectiveAt: string;
   sellingLegalEntityId?: string;
   storefrontAppId: string;
+  subjectDecision?: 'ALLOWED' | 'DENIED';
   subjectIdentityRef?: string;
   subjectKind?: 'COUNTERPARTY' | 'RETAIL_PROFILE';
   subjectOwnerRevision?: string;
-  subjectDecision?: 'ALLOWED' | 'DENIED';
   subjectProfileState?: 'ACTIVE' | 'ARCHIVED' | 'SUSPENDED';
 }
 
