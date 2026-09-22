@@ -38,6 +38,12 @@
       "path": "verticals/catalog"
     },
     {
+      "path": "verticals/pricing"
+    },
+    {
+      "path": "verticals/storefront-registry"
+    },
+    {
       "path": "packages/email-delivery"
     }
   ]
