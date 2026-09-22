@@ -1,18 +1,22 @@
 import { scopedRoutineInvokerFromTransaction } from '@app/core-runtime';
 import type {
   MarketAffectedUseAssessmentResponse,
+  MarketRetirementInstantSchema,
   ReserveMarketRetirementPayload,
   ReserveMarketRetirementResult,
 } from '@app/customer-market-retirement-contracts';
+import { MarketAffectedUseSourceEvidenceSchema } from '@app/customer-market-retirement-contracts';
 import { sql } from 'drizzle-orm';
 import { Cause, Effect, Exit, Option, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
+import { createHash } from 'node:crypto';
 
 import {
   makeTestDatabaseFromPool,
   testDatabasePools,
 } from '../../../../packages/core-runtime/tests/support/database.ts';
 import type { TestDatabaseFromPool } from '../../../../packages/core-runtime/tests/support/database.ts';
+import { makeMarketAffectedUseAssessmentServices } from '../../src/api/market-affected-use-assessment.read.ts';
 import { commerceCustomerContextRelations } from '../../src/database/schema.ts';
 import type { CommerceCustomerContextTransaction } from '../../src/database/types.ts';
 import {
@@ -29,12 +33,18 @@ const secondLegalEntityId = 'e4200000-0000-4000-8000-000000000002';
 const secondMarketId = 'market-retirement-postgres-commit';
 const actorPrincipalId = 'e4300000-0000-4000-8000-000000000001';
 const evaluatedAt = '2020-01-01T00:00:00.000Z';
+const compositionValidUntil = '2099-01-01T00:00:00.000Z';
+const compositionRevision = 'postgres-composition-1';
 
 const actionInvocationIds = {
   commit: 'e4310000-0000-4000-8000-000000000006',
   commitRetry: 'e4310000-0000-4000-8000-000000000006',
   firstReserve: 'e4310000-0000-4000-8000-000000000001',
   freshReserve: 'e4310000-0000-4000-8000-000000000004',
+  invalidDigest: 'e4310000-0000-4000-8000-000000000008',
+  invalidExpiredProof: 'e4310000-0000-4000-8000-000000000009',
+  invalidMissingProof: 'e4310000-0000-4000-8000-000000000010',
+  invalidSubstitutedProof: 'e4310000-0000-4000-8000-000000000011',
   release: 'e4310000-0000-4000-8000-000000000003',
   secondReserve: 'e4310000-0000-4000-8000-000000000002',
   terminalRelease: 'e4310000-0000-4000-8000-000000000007',
@@ -88,6 +98,33 @@ const invokerFor = (transaction: CommerceCustomerContextTransaction, tenantId: s
     tenantId,
   });
 
+const compositionEvidence = (
+  moduleId: 'commerce.cart' | 'commerce.order',
+  overrides: Readonly<{
+    readonly sourceId?: string;
+    readonly validUntil?: typeof MarketRetirementInstantSchema.Type;
+  }> = {},
+) =>
+  Schema.decodeSync(MarketAffectedUseSourceEvidenceSchema)({
+    completenessEvidence: {
+      nextApplicabilityBoundary: overrides.validUntil ?? compositionValidUntil,
+      observedAt: evaluatedAt,
+      ownerRevision: compositionRevision,
+      scope: {
+        declaredScopeRef: `application-composition:${compositionRevision}`,
+        kind: 'SAFELY_BROADER_SCOPE',
+        predicateRef: `application-composition:module:${moduleId}:absent`,
+      },
+    },
+    currentness: 'CURRENT',
+    digest: createHash('sha256').update(`${compositionRevision}\0${moduleId}\0UNIMPLEMENTED`).digest('hex'),
+    generation: compositionRevision,
+    ownerRevision: compositionRevision,
+    sourceId: overrides.sourceId ?? `application-composition:${moduleId}:UNIMPLEMENTED`,
+  });
+
+const compositionSourceEvidence = [compositionEvidence('commerce.cart'), compositionEvidence('commerce.order')];
+
 const reserveInput = (
   assessment: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }>,
 ): ReservePayload => ({
@@ -108,8 +145,13 @@ const assess = (
   marketId: string,
   marketRevision: number,
 ) =>
-  inOwnerScope(database, tenantId, legalEntityId, (transaction) =>
-    marketAffectedUseAssessmentRepositoryForInvoker(invokerFor(transaction, tenantId, legalEntityId)).assess({
+  inOwnerScope(database, tenantId, legalEntityId, (transaction) => {
+    const repository = marketAffectedUseAssessmentRepositoryForInvoker(
+      invokerFor(transaction, tenantId, legalEntityId),
+    );
+    return makeMarketAffectedUseAssessmentServices(repository.assess, () =>
+      Effect.succeed({ sourceEvidence: compositionSourceEvidence }),
+    ).assess({
       evaluatedAt,
       marketRef: {
         moduleId: 'commerce.market-catalog',
@@ -119,8 +161,8 @@ const assess = (
       },
       marketRevision,
       tenantId,
-    }),
-  ).pipe(
+    });
+  }).pipe(
     Effect.flatMap((assessment) =>
       assessment.outcome === 'VERIFIED'
         ? Effect.succeed(assessment)
@@ -175,6 +217,41 @@ const cleanupReservations = (admin: CommerceCustomerContextTestDatabase) => () =
     ),
   );
 
+const mutateBootstrapReference = (
+  admin: CommerceCustomerContextTestDatabase,
+  tenantId: string,
+  legalEntityId: string,
+  marketId: string,
+  rollbackAfterInsert = false,
+) =>
+  inOwnerScope(admin, tenantId, legalEntityId, (transaction) => {
+    const insert = transaction.execute(
+      sql`insert into commerce_customer_context.market_bootstrap_policy_revisions (
+            policy_revision_id, tenant_id, legal_entity_id, scope_kind,
+            effective_from, applicable_from, lifecycle, idempotency_key, action_invocation_id,
+            actor_principal_id, reason, default_channel_id,
+            default_commerce_market_id, default_selling_legal_entity_id
+          ) values (
+            'e4320000-0000-4000-8000-000000000001'::uuid,
+            ${tenantId}::uuid, ${legalEntityId}::uuid, 'SELLER',
+            '2020-01-01T00:00:00.000Z'::timestamptz,
+            '2020-01-01T00:00:00.000Z'::timestamptz, 'ACTIVE',
+            'market-retirement-postgres-guard',
+            'e4320000-0000-4000-8000-000000000002'::uuid,
+            ${actorPrincipalId}::uuid, 'PostgreSQL Market retirement guard acceptance',
+            'web', ${marketId}, ${legalEntityId}::uuid
+          )`,
+      'objects',
+    );
+    return rollbackAfterInsert
+      ? Effect.gen(function* probeUnblockedInsert() {
+          yield* transaction.execute(sql`savepoint market_retirement_guard_probe`, 'objects');
+          yield* insert;
+          yield* transaction.execute(sql`rollback to savepoint market_retirement_guard_probe`, 'objects');
+        })
+      : insert;
+  });
+
 it.live(
   'serializes competing reservations, preserves exact evidence, and releases the Market for a fresh reservation',
   () =>
@@ -190,6 +267,57 @@ it.live(
 
         const assessment = yield* assess(runtime, firstTenantId, firstLegalEntityId, firstMarketId, 17);
         const payload = reserveInput(assessment);
+        const localEvidence = payload.sourceEvidence.filter(({ sourceId }) =>
+          sourceId.startsWith('commerce.customer-context.'),
+        );
+        const invalidPayloads: readonly (readonly [string, ReservePayload, string])[] = [
+          ['digest', { ...payload, assessmentDigest: 'f'.repeat(64) }, actionInvocationIds.invalidDigest],
+          [
+            'missing-proof',
+            {
+              ...payload,
+              sourceEvidence: [...localEvidence, compositionEvidence('commerce.cart')],
+            },
+            actionInvocationIds.invalidMissingProof,
+          ],
+          [
+            'expired-proof',
+            {
+              ...payload,
+              sourceEvidence: [
+                ...localEvidence,
+                compositionEvidence('commerce.cart', { validUntil: '2021-01-01T00:00:00.000Z' }),
+                compositionEvidence('commerce.order'),
+              ],
+            },
+            actionInvocationIds.invalidExpiredProof,
+          ],
+          [
+            'substituted-proof',
+            {
+              ...payload,
+              sourceEvidence: [
+                ...localEvidence,
+                compositionEvidence('commerce.cart', {
+                  sourceId: 'application-composition:commerce.checkout:UNIMPLEMENTED',
+                }),
+                compositionEvidence('commerce.order'),
+              ],
+            },
+            actionInvocationIds.invalidSubstitutedProof,
+          ],
+        ];
+        for (const [kind, invalidPayload, actionInvocationId] of invalidPayloads) {
+          expect(
+            Exit.isFailure(
+              yield* Effect.exit(
+                execute(runtime, firstTenantId, firstLegalEntityId, invalidPayload, actionInvocationId),
+              ),
+            ),
+            kind,
+          ).toBe(true);
+        }
+
         const attempts = yield* Effect.all(
           [
             execute(runtime, firstTenantId, firstLegalEntityId, payload, actionInvocationIds.firstReserve).pipe(
@@ -218,16 +346,19 @@ it.live(
           reservationVersion: 1,
         });
 
-        const stored = yield* inOwnerScope(runtime, firstTenantId, firstLegalEntityId, (transaction) =>
+        const stored = yield* admin.transaction((transaction) =>
           transaction
             .execute<ReservationRow>(
               sql`select assessment_digest, lifecycle, market_resource_id, market_revision,
-                       reservation_version, source_evidence
-                  from commerce_customer_context.market_retirement_reservations
-                 where market_retirement_reservation_id = ${reservation.reservationToken}::uuid`,
+                         reservation_version, source_evidence
+                    from commerce_customer_context.market_retirement_reservations
+                   where market_retirement_reservation_id = ${reservation.reservationToken}::uuid`,
               'objects',
             )
             .pipe(Effect.map(one)),
+        );
+        const storedEvidence = yield* Schema.decodeUnknownEffect(Schema.Array(MarketAffectedUseSourceEvidenceSchema))(
+          stored.source_evidence,
         );
         expect(stored).toMatchObject({
           assessment_digest: assessment.assessmentDigest,
@@ -235,8 +366,14 @@ it.live(
           market_resource_id: firstMarketId,
           market_revision: 17,
           reservation_version: 1,
-          source_evidence: assessment.sourceEvidence,
         });
+        expect(storedEvidence).toEqual(assessment.sourceEvidence);
+
+        expect(
+          Exit.isFailure(
+            yield* Effect.exit(mutateBootstrapReference(admin, firstTenantId, firstLegalEntityId, firstMarketId)),
+          ),
+        ).toBe(true);
 
         const winningActionInvocationId = firstSucceeded
           ? actionInvocationIds.firstReserve
@@ -274,6 +411,8 @@ it.live(
           actionInvocationIds.release,
         );
         expect(released).toMatchObject({ lifecycle: 'RELEASED', reservationVersion: 2 });
+
+        yield* mutateBootstrapReference(admin, firstTenantId, firstLegalEntityId, firstMarketId, true);
 
         const fresh = yield* execute(
           runtime,
@@ -325,6 +464,12 @@ it.live('makes COMMIT terminal and idempotent for the exact Action retry', () =>
 
       expect(committed).toMatchObject({ lifecycle: 'COMMITTED', reservationVersion: 2 });
       expect(retried).toEqual(committed);
+
+      expect(
+        Exit.isFailure(
+          yield* Effect.exit(mutateBootstrapReference(admin, secondTenantId, secondLegalEntityId, secondMarketId)),
+        ),
+      ).toBe(true);
 
       const terminalFailure = yield* Effect.exit(
         execute(

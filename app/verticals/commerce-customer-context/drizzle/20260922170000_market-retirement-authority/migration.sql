@@ -1,46 +1,3 @@
-CREATE TABLE "commerce_customer_context"."market_retirement_reservations" (
-	"market_retirement_reservation_id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"legal_entity_id" uuid NOT NULL,
-	"tenant_id" uuid NOT NULL,
-	"market_resource_id" text NOT NULL,
-	"market_revision" integer NOT NULL,
-	"assessment_digest" text NOT NULL,
-	"source_evidence" jsonb NOT NULL,
-	"evaluated_at" timestamp with time zone NOT NULL,
-	"last_action_invocation_id" uuid,
-	"last_operation" text,
-	"lifecycle" text DEFAULT 'RESERVED' NOT NULL,
-	"reservation_version" integer DEFAULT 1 NOT NULL,
-	"action_invocation_id" uuid NOT NULL,
-	"actor_principal_id" uuid NOT NULL,
-	"reason" text,
-	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "ccc_market_retirement_reservations_scope_id_uk" UNIQUE("tenant_id","legal_entity_id","market_retirement_reservation_id"),
-	CONSTRAINT "ccc_market_retirement_reservations_action_uk" UNIQUE("tenant_id","legal_entity_id","action_invocation_id"),
-	CONSTRAINT "ccc_market_retirement_reservations_market_ck" CHECK ("market_resource_id" = btrim("market_resource_id") and length("market_resource_id") > 0),
-	CONSTRAINT "ccc_market_retirement_reservations_market_revision_ck" CHECK ("market_revision" > 0),
-	CONSTRAINT "ccc_market_retirement_reservations_digest_ck" CHECK ("assessment_digest" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "ccc_market_retirement_reservations_evidence_ck" CHECK (jsonb_typeof("source_evidence") = 'array' and jsonb_array_length("source_evidence") > 0),
-	CONSTRAINT "ccc_market_retirement_reservations_lifecycle_ck" CHECK ("lifecycle" in ('RESERVED', 'COMMITTED', 'RELEASED')),
-	CONSTRAINT "ccc_market_retirement_reservations_last_operation_ck" CHECK (("last_action_invocation_id" is null and "last_operation" is null) or ("last_action_invocation_id" is not null and "last_operation" in ('COMMIT', 'RELEASE'))),
-	CONSTRAINT "ccc_market_retirement_reservations_version_ck" CHECK ("reservation_version" > 0),
-	CONSTRAINT "ccc_market_retirement_reservations_reason_ck" CHECK ("reason" is null or ("reason" = btrim("reason") and length("reason") > 0))
-);
---> statement-breakpoint
-ALTER TABLE "commerce_customer_context"."market_retirement_reservations" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "commerce_customer_context"."market_retirement_reservations" FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
-CREATE UNIQUE INDEX "ccc_market_retirement_reservations_active_market_uk" ON "commerce_customer_context"."market_retirement_reservations" USING btree ("tenant_id","legal_entity_id","market_resource_id") WHERE "lifecycle" in ('RESERVED', 'COMMITTED');
---> statement-breakpoint
-CREATE POLICY "ccc_market_retirement_reservations_scope_select" ON "commerce_customer_context"."market_retirement_reservations" AS PERMISSIVE FOR SELECT TO "ontos_runtime" USING ("tenant_id" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and "legal_entity_id" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid);
-CREATE POLICY "ccc_market_retirement_reservations_scope_insert" ON "commerce_customer_context"."market_retirement_reservations" AS PERMISSIVE FOR INSERT TO "ontos_runtime" WITH CHECK ("tenant_id" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and "legal_entity_id" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid);
-CREATE POLICY "ccc_market_retirement_reservations_scope_update" ON "commerce_customer_context"."market_retirement_reservations" AS PERMISSIVE FOR UPDATE TO "ontos_runtime" USING ("tenant_id" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and "legal_entity_id" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid) WITH CHECK ("tenant_id" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and "legal_entity_id" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid);
-CREATE POLICY "ccc_market_retirement_reservations_scope_delete" ON "commerce_customer_context"."market_retirement_reservations" AS PERMISSIVE FOR DELETE TO "ontos_runtime" USING ("tenant_id" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and "legal_entity_id" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid);
-CREATE POLICY "ccc_market_retirement_reservations_scope_owner_routine" ON "commerce_customer_context"."market_retirement_reservations" AS PERMISSIVE FOR ALL TO public USING ("tenant_id" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and "legal_entity_id" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid) WITH CHECK ("tenant_id" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and "legal_entity_id" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid);
---> statement-breakpoint
-
 CREATE OR REPLACE FUNCTION "commerce_customer_context"."assess_market_retirement_affected_use"(
   p_tenant_id uuid,
   p_legal_entity_id uuid,
@@ -272,6 +229,45 @@ REVOKE ALL ON FUNCTION "commerce_customer_context"."assess_market_retirement_aff
 GRANT EXECUTE ON FUNCTION "commerce_customer_context"."assess_market_retirement_affected_use"(uuid, uuid, text, bigint, timestamptz) TO "ontos_runtime";
 --> statement-breakpoint
 
+CREATE OR REPLACE FUNCTION "commerce_customer_context"."canonical_market_retirement_json"(
+  p_value jsonb
+) RETURNS text
+LANGUAGE plpgsql
+IMMUTABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, commerce_customer_context, pg_temp
+AS $canonical$
+DECLARE
+  v_result text;
+BEGIN
+  CASE jsonb_typeof(p_value)
+    WHEN 'object' THEN
+      SELECT '{' || coalesce(string_agg(
+        to_jsonb(entry.key)::text || ':' || canonical_market_retirement_json(entry.value),
+        ',' ORDER BY entry.key
+      ), '') || '}'
+      INTO v_result
+      FROM jsonb_each(p_value) AS entry;
+    WHEN 'array' THEN
+      SELECT '[' || coalesce(string_agg(
+        canonical_market_retirement_json(entry.value),
+        ',' ORDER BY entry.ordinality
+      ), '') || ']'
+      INTO v_result
+      FROM jsonb_array_elements(p_value) WITH ORDINALITY AS entry(value, ordinality);
+    WHEN 'null' THEN v_result := 'null';
+    WHEN 'boolean' THEN v_result := p_value::text;
+    WHEN 'number' THEN v_result := p_value::text;
+    WHEN 'string' THEN v_result := p_value::text;
+    ELSE RAISE EXCEPTION 'unsupported Market retirement canonical JSON value' USING ERRCODE = '22023';
+  END CASE;
+  RETURN v_result;
+END
+$canonical$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION "commerce_customer_context"."canonical_market_retirement_json"(jsonb) FROM PUBLIC;
+--> statement-breakpoint
+
 CREATE OR REPLACE FUNCTION "commerce_customer_context"."reserve_market_retirement"(
   p_tenant_id uuid,
   p_legal_entity_id uuid,
@@ -286,7 +282,13 @@ DECLARE
   v_actor_principal_id uuid;
   v_assessment jsonb;
   v_assessment_digest text;
+  v_composition_evidence jsonb;
+  v_composition_module text;
+  v_composition_observed_at text;
+  v_composition_revision text;
+  v_composition_valid_until text;
   v_current_local_evidence jsonb;
+  v_digest_input jsonb;
   v_evaluated_at timestamptz;
   v_existing market_retirement_reservations%ROWTYPE;
   v_market_resource_id text;
@@ -295,8 +297,10 @@ DECLARE
   v_reason text;
   v_reservation_token uuid;
   v_reservation_version integer;
+  v_sorted_source_evidence jsonb;
   v_source_evidence jsonb;
   v_supplied_local_evidence jsonb;
+  v_expected_assessment_digest text;
 BEGIN
   PERFORM assert_customer_commerce_policy_scope(p_tenant_id, p_legal_entity_id);
   IF jsonb_typeof(p_input) IS DISTINCT FROM 'object' THEN
@@ -345,13 +349,84 @@ BEGIN
        OR v_evaluated_at IS NULL OR v_evaluated_at > statement_timestamp()
        OR v_assessment_digest IS NULL OR v_assessment_digest !~ '^[0-9a-f]{64}$'
        OR jsonb_typeof(v_source_evidence) IS DISTINCT FROM 'array'
-       OR jsonb_array_length(v_source_evidence) < 2
+       OR jsonb_array_length(v_source_evidence) <> 4
        OR (SELECT count(*) FROM jsonb_array_elements(v_source_evidence))
           <> (SELECT count(DISTINCT item->>'sourceId') FROM jsonb_array_elements(v_source_evidence) AS evidence(item))
+       OR EXISTS (
+         SELECT 1
+         FROM (VALUES
+           ('commerce.customer-context.market-bootstrap-policy'),
+           ('commerce.customer-context.purchase-proposals'),
+           ('application-composition:commerce.cart:UNIMPLEMENTED'),
+           ('application-composition:commerce.order:UNIMPLEMENTED')
+         ) AS required(source_id)
+         WHERE (SELECT count(*) FROM jsonb_array_elements(v_source_evidence) AS evidence(item)
+                WHERE item->>'sourceId' = required.source_id) <> 1
+       )
     THEN
       RAISE EXCEPTION 'invalid Market retirement reservation input'
         USING ERRCODE = '22023', CONSTRAINT = 'market_retirement_reservation_invalid';
     END IF;
+
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(v_source_evidence) AS evidence(item)
+        WHERE jsonb_typeof(item) IS DISTINCT FROM 'object'
+           OR item->>'currentness' IS DISTINCT FROM 'CURRENT'
+           OR item->>'ownerRevision' IS NULL
+           OR item->>'ownerRevision' IS DISTINCT FROM item->'completenessEvidence'->>'ownerRevision'
+           OR item->>'generation' IS DISTINCT FROM item->>'ownerRevision'
+           OR item->>'digest' !~ '^[0-9a-f]{64}$'
+           OR (item->'completenessEvidence'->>'observedAt')::timestamptz > v_evaluated_at
+           OR (
+             item->'completenessEvidence' ? 'nextApplicabilityBoundary'
+             AND (item->'completenessEvidence'->>'nextApplicabilityBoundary')::timestamptz <= statement_timestamp()
+           )
+      ) THEN
+        RAISE EXCEPTION 'Market retirement source evidence is stale or internally inconsistent'
+          USING ERRCODE = 'P0001', CONSTRAINT = 'market_retirement_reservation_conflict';
+      END IF;
+    EXCEPTION WHEN invalid_text_representation OR datetime_field_overflow THEN
+      RAISE EXCEPTION 'Market retirement source evidence timestamps are invalid'
+        USING ERRCODE = '22023', CONSTRAINT = 'market_retirement_reservation_invalid';
+    END;
+
+    FOR v_composition_module IN SELECT unnest(ARRAY['commerce.cart', 'commerce.order']) LOOP
+      SELECT item INTO v_composition_evidence
+      FROM jsonb_array_elements(v_source_evidence) AS evidence(item)
+      WHERE item->>'sourceId' = format('application-composition:%s:UNIMPLEMENTED', v_composition_module);
+      IF v_composition_evidence->'completenessEvidence'->>'nextApplicabilityBoundary' IS NULL
+         OR v_composition_evidence->'completenessEvidence'->'scope'->>'kind' IS DISTINCT FROM 'SAFELY_BROADER_SCOPE'
+         OR v_composition_evidence->'completenessEvidence'->'scope'->>'predicateRef'
+            IS DISTINCT FROM format('application-composition:module:%s:absent', v_composition_module)
+         OR v_composition_evidence->'completenessEvidence'->'scope'->>'declaredScopeRef'
+            IS DISTINCT FROM format('application-composition:%s', v_composition_evidence->>'ownerRevision')
+         OR v_composition_evidence->>'digest' IS DISTINCT FROM encode(sha256(
+           convert_to(v_composition_evidence->>'ownerRevision', 'UTF8') || decode('00', 'hex') ||
+           convert_to(v_composition_module, 'UTF8') || decode('00', 'hex') ||
+           convert_to('UNIMPLEMENTED', 'UTF8')
+         ), 'hex')
+      THEN
+        RAISE EXCEPTION 'Application Composition absence proof is missing or substituted'
+          USING ERRCODE = 'P0001', CONSTRAINT = 'market_retirement_reservation_conflict';
+      END IF;
+      IF v_composition_revision IS NULL THEN
+        v_composition_revision := v_composition_evidence->>'ownerRevision';
+        v_composition_observed_at := v_composition_evidence->'completenessEvidence'->>'observedAt';
+        v_composition_valid_until := v_composition_evidence->'completenessEvidence'->>'nextApplicabilityBoundary';
+      ELSIF v_composition_evidence->>'ownerRevision' IS DISTINCT FROM v_composition_revision
+         OR v_composition_evidence->'completenessEvidence'->>'observedAt' IS DISTINCT FROM v_composition_observed_at
+         OR v_composition_evidence->'completenessEvidence'->>'nextApplicabilityBoundary'
+            IS DISTINCT FROM v_composition_valid_until
+      THEN
+        RAISE EXCEPTION 'Application Composition proofs do not describe one active snapshot'
+          USING ERRCODE = 'P0001', CONSTRAINT = 'market_retirement_reservation_conflict';
+      END IF;
+    END LOOP;
+    SELECT jsonb_agg(item ORDER BY item->>'sourceId')
+      INTO v_source_evidence
+      FROM jsonb_array_elements(v_source_evidence) AS evidence(item);
 
     SELECT reservation.* INTO v_existing
       FROM market_retirement_reservations AS reservation
@@ -402,6 +477,17 @@ BEGIN
        );
       IF v_supplied_local_evidence IS DISTINCT FROM v_current_local_evidence THEN
         RAISE EXCEPTION 'Market affected-use evidence changed before reservation'
+          USING ERRCODE = 'P0001', CONSTRAINT = 'market_retirement_reservation_conflict';
+      END IF;
+
+      v_sorted_source_evidence := v_source_evidence;
+      v_digest_input := (v_assessment - 'assessmentDigest' - 'outcome') ||
+        jsonb_build_object('sourceEvidence', v_sorted_source_evidence);
+      v_expected_assessment_digest := encode(sha256(convert_to(
+        canonical_market_retirement_json(v_digest_input), 'UTF8'
+      )), 'hex');
+      IF v_assessment_digest IS DISTINCT FROM v_expected_assessment_digest THEN
+        RAISE EXCEPTION 'Market affected-use aggregate digest does not match the exact owner evidence'
           USING ERRCODE = 'P0001', CONSTRAINT = 'market_retirement_reservation_conflict';
       END IF;
 

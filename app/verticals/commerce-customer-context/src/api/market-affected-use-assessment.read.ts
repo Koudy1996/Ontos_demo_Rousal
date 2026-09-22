@@ -24,7 +24,7 @@ import type {
   MarketAffectedUseSourceEvidence,
 } from '../../shared/apis/market-affected-use-assessment.ts';
 import { createHash } from 'node:crypto';
-import { DateTime, Context, Effect, Option, Schema } from 'effect';
+import { DateTime, Context, Effect, Option, Result, Schema } from 'effect';
 import { MarketRefSchema } from '@app/commerce-market-catalog/resources/market';
 
 import { marketAffectedUseAssessmentRepositoryForInvoker } from '../persistence/market-retirement-persistence.ts';
@@ -74,6 +74,35 @@ const CanonicalMarketAffectedUseDigestInputSchema = Schema.Struct({
   tenantId: MarketRefSchema.fields.tenantId,
 });
 const CanonicalMarketAffectedUseDigestJsonSchema = Schema.fromJsonString(CanonicalMarketAffectedUseDigestInputSchema);
+const CanonicalJsonSchema = Schema.fromJsonString(Schema.Json);
+const JsonBooleanTextSchema = Schema.fromJsonString(Schema.Boolean);
+const JsonNumberTextSchema = Schema.fromJsonString(Schema.Finite);
+const JsonStringTextSchema = Schema.fromJsonString(Schema.String);
+const encodeJsonBoolean = Schema.encodeResult(JsonBooleanTextSchema);
+const encodeJsonNumber = Schema.encodeResult(JsonNumberTextSchema);
+const encodeJsonString = Schema.encodeResult(JsonStringTextSchema);
+
+const canonicalJsonString = (value: Schema.Json): string => {
+  if (value === null) {
+    return 'null';
+  }
+  if (Schema.is(Schema.Boolean)(value)) {
+    return Result.getOrThrow(encodeJsonBoolean(value));
+  }
+  if (Schema.is(Schema.Finite)(value)) {
+    return Result.getOrThrow(encodeJsonNumber(value));
+  }
+  if (Schema.is(Schema.String)(value)) {
+    return Result.getOrThrow(encodeJsonString(value));
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJsonString).join(',')}]`;
+  }
+  return `{${Object.entries(value)
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([key, nested]) => `${Result.getOrThrow(encodeJsonString(key))}:${canonicalJsonString(nested)}`)
+    .join(',')}}`;
+};
 
 const canonicalDigest = (
   assessment: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }>,
@@ -93,7 +122,8 @@ const canonicalDigest = (
       ? digestInput
       : { ...digestInput, nextApplicabilityBoundary: assessment.nextApplicabilityBoundary };
   return Schema.encodeEffect(CanonicalMarketAffectedUseDigestJsonSchema)(completeDigestInput).pipe(
-    Effect.map((encoded) => createHash('sha256').update(encoded).digest('hex')),
+    Effect.flatMap(Schema.decodeEffect(CanonicalJsonSchema)),
+    Effect.map((encoded) => createHash('sha256').update(canonicalJsonString(encoded)).digest('hex')),
     Effect.mapError((cause) => {
       const failure = new ReadHandlerUnavailable({
         code: 'read_handler_unavailable',
@@ -161,6 +191,26 @@ export const makeMarketAffectedUseAssessmentServices = (
   }),
 });
 
+export const marketAffectedUseAssessmentServicesForTransaction = Effect.fn(
+  'marketAffectedUseAssessmentServicesForTransaction',
+)(function* makeServices(transaction: Parameters<typeof marketAffectedUseAssessmentRepositoryForInvoker>[0]) {
+  const deploymentStateService = yield* Effect.serviceOption(MarketReferenceOwnerDeploymentStateAuthorityService);
+  const deploymentState = Option.match(deploymentStateService, {
+    onNone: (): MarketReferenceOwnerDeploymentStateAuthority => ({
+      proveReferenceOwnerStates: () =>
+        Effect.fail(
+          new ReadHandlerUnavailable({
+            code: 'read_handler_unavailable',
+            reason: 'Authoritative Market-reference deployment state is not configured',
+          }),
+        ),
+    }),
+    onSome: (authority) => authority,
+  });
+  const repository = marketAffectedUseAssessmentRepositoryForInvoker(transaction);
+  return makeMarketAffectedUseAssessmentServices(repository.assess, deploymentState.proveReferenceOwnerStates);
+});
+
 export const handleMarketAffectedUseAssessment: (
   input: MarketAffectedUseAssessmentRequest,
   context: ReadHandlerContext<MarketAffectedUseAssessmentServices>,
@@ -221,23 +271,7 @@ export const marketAffectedUseAssessmentRead = defineRead(
         }),
       );
     }
-    return Effect.gen(function* makeServices() {
-      const deploymentStateService = yield* Effect.serviceOption(MarketReferenceOwnerDeploymentStateAuthorityService);
-      const deploymentState = Option.match(deploymentStateService, {
-        onNone: (): MarketReferenceOwnerDeploymentStateAuthority => ({
-          proveReferenceOwnerStates: () =>
-            Effect.fail(
-              new ReadHandlerUnavailable({
-                code: 'read_handler_unavailable',
-                reason: 'Authoritative Market-reference deployment state is not configured',
-              }),
-            ),
-        }),
-        onSome: (authority) => authority,
-      });
-      const repository = marketAffectedUseAssessmentRepositoryForInvoker(transaction);
-      return makeMarketAffectedUseAssessmentServices(repository.assess, deploymentState.proveReferenceOwnerStates);
-    });
+    return marketAffectedUseAssessmentServicesForTransaction(transaction);
   },
   () => ({ kind: 'module', moduleId: MARKET_AFFECTED_USE_MODULE_KEY }),
 );

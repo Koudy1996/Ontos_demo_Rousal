@@ -21,6 +21,7 @@ const privateRoutines = [
   'assert_customer_commerce_policy_scope',
   'assert_customer_payment_terms_scope',
   'assert_profile_operation_scope',
+  'canonical_market_retirement_json',
   'ccc_portal_enrollment_attempts_identity_guard',
   'ccc_portal_enrollment_owner_operations_identity_guard',
   'customer_group_document',
