@@ -21,6 +21,12 @@ import { Effect, Option, Schema } from 'effect';
 const MODULE_KEY = 'commerce.customer-context' as const;
 const ROUTINE_SCHEMA = 'commerce_customer_context' as const;
 const RoutineResultSchema = Schema.Struct({ result: Schema.Json });
+const MarketAffectedUseAssessmentResponseDecoder = Schema.make<Schema.Decoder<MarketAffectedUseAssessmentResponse>>(
+  MarketAffectedUseAssessmentResponseSchema.ast,
+);
+const ReserveMarketRetirementResultDecoder = Schema.make<Schema.Decoder<ReserveMarketRetirementResult>>(
+  ReserveMarketRetirementResultSchema.ast,
+);
 const assessParameters = [
   { source: 'tenantId', type: 'uuid' },
   { source: 'legalEntityId', type: 'uuid' },
@@ -137,7 +143,7 @@ export const makeMarketAffectedUseAssessmentRepository = ({
         Effect.flatMap((rows) =>
           decodeJson(
             rows,
-            MarketAffectedUseAssessmentResponseSchema,
+            MarketAffectedUseAssessmentResponseDecoder,
             (reason) => new ReadHandlerUnavailable({ code: 'read_handler_unavailable', reason }),
           ),
         ),
@@ -193,26 +199,20 @@ export const makeMarketRetirementReservationService = ({
   readonly scope: OperationalScope & { readonly legalEntityId: string };
 }): MarketRetirementReservationService => ({
   execute: (payload, attribution) =>
-    Schema.decodeUnknownEffect(JsonObjectSchema)({ ...payload, ...attribution }).pipe(
+    Schema.decodeEffect(JsonObjectSchema)({ ...payload, ...attribution }).pipe(
       Effect.mapError(
         () =>
           new MarketRetirementReservationInvalidRequest({ reason: 'Market retirement reservation input is invalid' }),
       ),
-      Effect.flatMap((encoded) => invoker.invoke(reserveMarketRetirementRoutine, [encoded])),
-      Effect.mapError((failure) =>
-        Schema.is(MarketRetirementReservationInvalidRequest)(failure) ? failure : mapReservationFailure(failure),
+      Effect.flatMap((encoded) =>
+        invoker.invoke(reserveMarketRetirementRoutine, [encoded]).pipe(Effect.mapError(mapReservationFailure)),
       ),
       Effect.flatMap((rows) =>
         decodeJson(
           rows,
-          ReserveMarketRetirementResultSchema,
+          ReserveMarketRetirementResultDecoder,
           (reason) => new MarketRetirementReservationUnavailable({ reason }),
         ),
-      ),
-      Effect.mapError((failure) =>
-        Schema.is(ReadHandlerUnavailable)(failure)
-          ? new MarketRetirementReservationUnavailable({ reason: failure.reason })
-          : failure,
       ),
       Effect.withSpan('commerce.customer-context.market-retirement.reserve', {
         attributes: { legalEntityId: scope.legalEntityId, tenantId: scope.tenantId },
