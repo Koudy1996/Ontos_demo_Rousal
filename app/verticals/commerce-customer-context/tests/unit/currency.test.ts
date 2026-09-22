@@ -19,7 +19,10 @@ import {
   PurchaseCurrencyResolvedSchema,
   resolvePurchaseCurrency,
 } from '../../shared/domain/purchase-currency-resolution.ts';
-import { PurchaseCurrencyPurchasingContextPort } from '../../shared/domain/purchase-currency-context-port.ts';
+import {
+  PurchaseCurrencyPurchasingContextPort,
+  unavailablePurchaseCurrencyPurchasingContextPort,
+} from '../../shared/domain/purchase-currency-context-port.ts';
 import { PurchaseCurrencyPolicyPort } from '../../shared/domain/purchase-currency-policy-port.ts';
 import { PurchaseCurrencyPricingPort } from '../../shared/domain/purchase-currency-pricing-port.ts';
 import { PurchaseCurrencyDependencyUnavailable } from '../../shared/domain/purchase-currency-dependency.ts';
@@ -681,6 +684,32 @@ it.effect('propagates an unavailable Current owner as a typed dependency outcome
     expect(Schema.is(PurchaseCurrencyDependencyUnavailable)(failure)).toBe(true);
     if (Schema.is(PurchaseCurrencyDependencyUnavailable)(failure)) {
       expect(failure.code).toBe('purchasing_context_unavailable');
+    }
+  }),
+);
+
+it.effect('fails closed when the purchasing-context owner is not configured', () =>
+  Effect.gen(function* unavailablePurchasingContextOwner() {
+    const input = baseResolution().request;
+    const service = unavailablePurchaseCurrencyPurchasingContextPort();
+    const failure = yield* service
+      .resolveCurrent({
+        claimedContext: input.purchasingContext,
+        claimedContextRevision: input.contextRevision,
+        claimedSubject: input.subject,
+        observedAt: '2026-09-09T10:00:01.000Z',
+        scope: {
+          legalEntityId: sellingLegalEntityId,
+          storefrontId: purchasingContext.storefrontId,
+          tenantId,
+        },
+      })
+      .pipe(Effect.flip);
+
+    expect(Schema.is(PurchaseCurrencyDependencyUnavailable)(failure)).toBe(true);
+    if (Schema.is(PurchaseCurrencyDependencyUnavailable)(failure)) {
+      expect(failure.code).toBe('purchasing_context_unavailable');
+      expect(failure.retryable).toBe(true);
     }
   }),
 );
