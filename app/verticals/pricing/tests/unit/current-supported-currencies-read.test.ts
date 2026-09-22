@@ -1,5 +1,5 @@
 import { CurrentSupportedCurrenciesRequestSchema } from '@app/pricing-contracts/current-supported-currencies';
-import { Effect, Schema } from 'effect';
+import { Effect, Exit, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 import { CurrencySupportPersistenceUnavailable } from '../../src/persistence/currency-support-persistence.ts';
 import { resolveCurrentSupportedCurrencies } from '../../src/api/current-supported-currencies.read.ts';
@@ -29,13 +29,13 @@ describe('Current supported currencies owner read', () => {
     Effect.gen(function* currentSupportEvidence() {
       const result = yield* resolveCurrentSupportedCurrencies(request, scope, () => Effect.succeedSome(stored));
       expect(result).toMatchObject({
-        outcome: 'SUPPORTED_CURRENCIES_CURRENT',
-        pricingRevision: 'pricing-currency-support:4',
-        supportedCurrencies: ['CZK'],
         completenessEvidence: {
           ownerRevision: 'pricing-currency-support:4',
           scope: { kind: 'EXACT_PREDICATE' },
         },
+        outcome: 'SUPPORTED_CURRENCIES_CURRENT',
+        pricingRevision: 'pricing-currency-support:4',
+        supportedCurrencies: ['CZK'],
       });
       if (result.outcome === 'SUPPORTED_CURRENCIES_CURRENT') {
         expect(result.completenessEvidence.scope.predicateRef).toContain('cart-context:7');
@@ -70,7 +70,7 @@ describe('Current supported currencies owner read', () => {
           Effect.die('must not run'),
         ),
       );
-      expect(exit._tag).toBe('Failure');
+      expect(Exit.isFailure(exit)).toBe(true);
     }),
   );
 });
