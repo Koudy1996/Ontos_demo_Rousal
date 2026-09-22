@@ -5,7 +5,10 @@ import type {
   MarketAffectedUseAssessmentResponse,
   ReserveMarketRetirementPayload,
 } from '@app/customer-market-retirement-contracts';
-import { MarketAffectedUseAssessmentResponseSchema } from '@app/customer-market-retirement-contracts';
+import {
+  MarketAffectedUseAssessmentResponseSchema,
+  MarketAffectedUseSourceEvidenceSchema,
+} from '@app/customer-market-retirement-contracts';
 import { Effect, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
 
@@ -60,6 +63,14 @@ const sourceEvidence = (sourceId: string, ownerRevision = 'revision-7') => ({
   ownerRevision,
   sourceId,
 });
+
+const decodedSourceEvidence = (sourceId: string) => {
+  const encoded = sourceEvidence(sourceId);
+  return {
+    ...encoded,
+    completenessEvidence: Schema.decodeSync(MarketAffectedUseSourceEvidenceSchema)(encoded).completenessEvidence,
+  };
+};
 
 const localAssessment: MarketAffectedUseAssessmentResponse = {
   assessmentDigest: digest,
@@ -287,7 +298,7 @@ it.effect('maps concurrent affected-use change to a retryable reservation confli
       marketRevision: 7,
       operation: 'RESERVE',
       reason: 'Retire unused Czech Market',
-      sourceEvidence: [sourceEvidence('commerce.customer-context.market-bootstrap-policy')],
+      sourceEvidence: [decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy')],
       tenantId,
     };
     const service = makeMarketRetirementReservationService({
@@ -326,7 +337,7 @@ it.effect('binds a reservation to exact Market revision, assessment evidence, an
       marketRevision: 7,
       operation: 'RESERVE',
       reason: 'Retire unused Czech Market',
-      sourceEvidence: [sourceEvidence('commerce.customer-context.market-bootstrap-policy')],
+      sourceEvidence: [decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy')],
       tenantId,
     };
     const result = {
@@ -363,6 +374,7 @@ it.effect('binds a reservation to exact Market revision, assessment evidence, an
             ...payload,
             actionInvocationId: '99999999-9999-4999-8999-999999999999',
             actorPrincipalId: principalId,
+            sourceEvidence: [sourceEvidence('commerce.customer-context.market-bootstrap-policy')],
           },
         ],
       ],

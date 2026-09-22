@@ -8,6 +8,7 @@ import type {
 import { ReadHandlerUnavailable, defineScopedRoutine } from '@app/core-runtime';
 import {
   MarketAffectedUseAssessmentResponseSchema,
+  ReserveMarketRetirementPayloadSchema,
   ReserveMarketRetirementResultSchema,
 } from '@app/customer-market-retirement-contracts';
 import type {
@@ -24,6 +25,9 @@ const RoutineResultSchema = Schema.Struct({ result: Schema.Json });
 const MarketAffectedUseAssessmentResponseDecoder = Schema.make<Schema.Decoder<MarketAffectedUseAssessmentResponse>>(
   MarketAffectedUseAssessmentResponseSchema.ast,
 );
+const ReserveMarketRetirementPayloadCodec = Schema.make<
+  Schema.Codec<ReserveMarketRetirementPayload, typeof ReserveMarketRetirementPayloadSchema.Encoded>
+>(ReserveMarketRetirementPayloadSchema.ast);
 const ReserveMarketRetirementResultDecoder = Schema.make<Schema.Decoder<ReserveMarketRetirementResult>>(
   ReserveMarketRetirementResultSchema.ast,
 );
@@ -199,10 +203,20 @@ export const makeMarketRetirementReservationService = ({
   readonly scope: OperationalScope & { readonly legalEntityId: string };
 }): MarketRetirementReservationService => ({
   execute: (payload, attribution) =>
-    Schema.decodeEffect(JsonObjectSchema)({ ...payload, ...attribution }).pipe(
+    Schema.encodeEffect(ReserveMarketRetirementPayloadCodec)(payload).pipe(
       Effect.mapError(
         () =>
           new MarketRetirementReservationInvalidRequest({ reason: 'Market retirement reservation input is invalid' }),
+      ),
+      Effect.flatMap((encodedPayload) =>
+        Schema.decodeEffect(JsonObjectSchema)({ ...encodedPayload, ...attribution }).pipe(
+          Effect.mapError(
+            () =>
+              new MarketRetirementReservationInvalidRequest({
+                reason: 'Market retirement reservation input is invalid',
+              }),
+          ),
+        ),
       ),
       Effect.flatMap((encoded) =>
         invoker.invoke(reserveMarketRetirementRoutine, [encoded]).pipe(Effect.mapError(mapReservationFailure)),
