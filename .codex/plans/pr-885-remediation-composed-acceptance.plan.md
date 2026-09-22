@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: run-final-pr-gates
     content: "After every focused lane is green, run the repository's full required check/build and production-artifact proofs, resolve the existing Deployment Impact Planner and Cloudflare Workerd failures if caused by PR #885, and record exact commands/results in the PR."
-    status: pending
+    status: completed
   - id: reconcile-review-and-pr-claims
     content: "Map every T0–T3 finding and applicable owner-level acceptance gate to evidence; update PR #885 to state the owner cutline and remove unsupported downstream operational claims; verify the authorized downstream/freeze notes exist only in #333 and #346; require HITL before any later mutation of those issues; do not edit or create any other issue."
     status: pending
