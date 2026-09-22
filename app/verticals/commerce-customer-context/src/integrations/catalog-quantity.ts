@@ -121,15 +121,11 @@ export const catalogQuantityPortFromEnvironment = (
                   { concurrency: 8 },
                 ),
               ),
-              Effect.flatMap((resolved) =>
-                resolved.every(({ selection }) => selection.catalogSelection.productRef.tenantId === tenantId)
-                  ? Effect.succeed(resolved)
-                  : Effect.fail(
-                      unavailable(
-                        'catalog_selection_invalid',
-                        'Catalog returned a selection outside the trusted Tenant',
-                      ),
-                    ),
+              Effect.filterOrFail(
+                (resolved) =>
+                  resolved.every(({ selection }) => selection.catalogSelection.productRef.tenantId === tenantId),
+                () =>
+                  unavailable('catalog_selection_invalid', 'Catalog returned a selection outside the trusted Tenant'),
               ),
             ),
       } satisfies CommerceQuantityCatalogPortService;
