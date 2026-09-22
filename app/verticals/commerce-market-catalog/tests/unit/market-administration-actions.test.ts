@@ -1,6 +1,6 @@
 import { makeActionTestHarness } from '@app/core-runtime/testing/actions';
 import { describe, expect, it } from 'effect-rstest';
-import { Effect, Predicate, Schema } from 'effect';
+import { Effect, Layer, Predicate, Schema } from 'effect';
 import { createActionCollector } from '../../../../packages/core-runtime/src/actions/collector.ts';
 import {
   getActionHandler,
@@ -19,6 +19,7 @@ import {
 import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 import { reviseMarketDefinitionAction } from '../../src/actions/revise-market-definition.action.ts';
 import { reviseStorefrontAssociationAction } from '../../src/actions/revise-storefront-association.action.ts';
+import { MarketRetirementImpactAuthorityService } from '../../src/services/market-retirement-impact-authority.ts';
 import { suspendMarketAction } from '../../src/actions/suspend-market.action.ts';
 import type { MarketAdministrationService } from '../../src/services/market-administration.service.ts';
 
@@ -119,6 +120,9 @@ const unavailableServices: MarketAdministrationService = {
   reviseStorefrontAssociation: unexpected,
   transitionLifecycle: unexpected,
 };
+const retirementImpactAuthorityTestLayer = Layer.succeed(MarketRetirementImpactAuthorityService, {
+  assessRetirementImpact: unexpected,
+});
 
 const collectCreate = (changed: boolean) =>
   Effect.gen(function* collectCreateEvidence() {
@@ -253,7 +257,7 @@ describe('Market administration Actions', () => {
       expect(Predicate.isTagged(failure, 'MarketCommandRejected')).toBe(true);
       expect(failure).toMatchObject({ code: 'replacement_impact_unresolved' });
       expect(collector.snapshot().domainEvents).toHaveLength(0);
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect('rejects an impact assessment reserved under another token', () =>
@@ -287,7 +291,7 @@ describe('Market administration Actions', () => {
       expect(failure).toMatchObject({ code: 'market_retirement_impact_assessment_rejected' });
       expect(persistenceCalls).toHaveLength(0);
       expect(collector.snapshot().domainEvents).toHaveLength(0);
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect('fails closed when authoritative retirement-impact assessment is unavailable', () =>
@@ -326,7 +330,7 @@ describe('Market administration Actions', () => {
       expect(failure).toMatchObject({ code: 'market_retirement_impact_assessment_unavailable' });
       expect(persistenceCalls).toHaveLength(0);
       expect(collector.snapshot().domainEvents).toHaveLength(0);
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect('fails closed when owner evidence was assessed against a stale Market revision', () =>
@@ -353,7 +357,7 @@ describe('Market administration Actions', () => {
       expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentStale')).toBe(true);
       expect(failure).toMatchObject({ code: 'market_retirement_impact_assessment_stale' });
       expect(collector.snapshot().domainEvents).toHaveLength(0);
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect('fails closed when a required provider is missing from the complete assessment', () =>
@@ -381,7 +385,7 @@ describe('Market administration Actions', () => {
       expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentUnavailable')).toBe(true);
       expect(failure).toMatchObject({ code: 'market_retirement_impact_assessment_unavailable' });
       expect(collector.snapshot().domainEvents).toHaveLength(0);
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect('keeps authority rejection distinct from unavailable and stale evidence', () =>
@@ -414,7 +418,7 @@ describe('Market administration Actions', () => {
       expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentRejected')).toBe(true);
       expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentStale')).toBe(false);
       expect(collector.snapshot().domainEvents).toHaveLength(0);
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect('allows retained history and preserves exact authoritative provider evidence', () =>
@@ -464,7 +468,7 @@ describe('Market administration Actions', () => {
           servingModuleKey: 'commerce.customer-context',
         }),
       );
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect('revalidates affected use and does not persist when a concurrent provider change adds a blocker', () =>
@@ -519,7 +523,7 @@ describe('Market administration Actions', () => {
       expect(persistenceCalls).toHaveLength(0);
       expect(collector.snapshot().auditEvidence).toEqual({});
       expect(collector.snapshot().domainEvents).toHaveLength(0);
-    }),
+    }).pipe(Effect.provide(retirementImpactAuthorityTestLayer)),
   );
 
   it.effect(
