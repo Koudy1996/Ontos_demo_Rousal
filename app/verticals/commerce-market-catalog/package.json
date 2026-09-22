@@ -40,6 +40,7 @@
   "dependencies": {
     "@app/commerce-customer-context": "workspace:*",
     "@app/core-runtime": "workspace:*",
+    "@app/customer-market-retirement-contracts": "workspace:*",
     "@app/gateway-principal-verifier": "workspace:*",
     "@app/shared-contracts": "workspace:*",
     "@app/shared-design-tokens": "workspace:*",

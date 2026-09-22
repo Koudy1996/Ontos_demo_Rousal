@@ -1,8 +1,8 @@
 import type {
   MarketAffectedUseAssessmentRequest,
   MarketAffectedUseAssessmentResponse,
-} from '@app/commerce-customer-context/api';
-import { executeMarketAffectedUseAssessmentWithAuthorization } from '@app/commerce-customer-context/api/client';
+} from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
+import { executeMarketAffectedUseAssessmentWithAuthorization } from '@app/customer-market-retirement-contracts/market-affected-use-assessment/client';
 import type { TenantModuleStateServiceContract } from '@app/core-runtime';
 import { issueGatewayContext } from '@app/shared-contracts';
 import { Config, DateTime, Effect, Schema } from 'effect';

@@ -1044,6 +1044,9 @@ importers:
       '@app/core-runtime':
         specifier: workspace:*
         version: link:../../packages/core-runtime
+      '@app/customer-market-retirement-contracts':
+        specifier: workspace:*
+        version: link:../../packages/customer-market-retirement-contracts
       '@app/gateway-principal-verifier':
         specifier: workspace:*
         version: link:../../packages/gateway-principal-verifier
