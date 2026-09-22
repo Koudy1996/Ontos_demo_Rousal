@@ -17,6 +17,8 @@ const EXPECTED_APPLICATION_SCHEMAS = [
   'core',
   'party',
   'payment_term_catalog',
+  'pricing',
+  'storefront_registry',
 ] as const;
 const EXPECTED_MIGRATION_JOURNALS = [
   '__drizzle_migrations_auth',
@@ -27,6 +29,8 @@ const EXPECTED_MIGRATION_JOURNALS = [
   '__drizzle_migrations_core',
   '__drizzle_migrations_party',
   '__drizzle_migrations_payment_term_catalog',
+  '__drizzle_migrations_pricing',
+  '__drizzle_migrations_storefront_registry',
 ] as const;
 const COMMERCE_PORTAL_AUTH_SCHEMA_NAME = 'commerce_auth' as const;
 const COMMERCE_PORTAL_AUTH_MIGRATION_JOURNAL = '__drizzle_migrations_commerce_portal_auth' as const;
