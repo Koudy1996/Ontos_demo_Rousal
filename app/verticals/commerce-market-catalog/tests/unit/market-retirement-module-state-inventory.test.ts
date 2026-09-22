@@ -2,7 +2,7 @@ import type {
   MarketAffectedUseAssessmentRequest,
   MarketAffectedUseAssessmentResponse,
   MarketAffectedUseSourceEvidence,
-} from '@app/commerce-customer-context/api';
+} from '@app/customer-market-retirement-contracts';
 import type { TenantModuleStateRecord } from '@app/core-runtime';
 import { DateTime, Effect, Predicate } from 'effect';
 import { expect, it } from 'effect-rstest';
