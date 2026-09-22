@@ -72,7 +72,6 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
           defaultChannelId: 'B2C',
           defaultCommerceMarketId: marketId,
           defaultSellingLegalEntityId: sellingLegalEntityId,
-          defaultStorefrontId: storefrontId,
           kind: 'DEFAULT_MARKET_TUPLE',
         },
       },

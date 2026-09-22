@@ -170,6 +170,15 @@ it.effect('derives the fixed local commerce launch modules through generated own
   }),
 );
 
+it('omits the excluded storefront from the default market tuple', () => {
+  expect(CZECH_LAUNCH_COMMERCE_FIXTURE.policies.marketBootstrap.revision.value).toEqual({
+    defaultChannelId: 'B2C',
+    defaultCommerceMarketId: '74000000-0000-4000-8000-000000000010',
+    defaultSellingLegalEntityId: '71000000-0000-4000-8000-000000000010',
+    kind: 'DEFAULT_MARKET_TUPLE',
+  });
+});
+
 it.effect('publishes a schema-valid deterministic Czech Launch operator fixture', () =>
   Effect.gen(function* validateFixture() {
     yield* validateCzechLaunchFixtureContracts();
