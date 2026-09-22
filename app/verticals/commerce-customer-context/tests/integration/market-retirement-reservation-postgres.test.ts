@@ -1,4 +1,4 @@
-import { scopedRoutineInvokerFromTransaction } from '@app/core-runtime';
+import { findPostgresFailure, scopedRoutineInvokerFromTransaction } from '@app/core-runtime';
 import type {
   MarketAffectedUseAssessmentResponse,
   MarketRetirementInstantSchema,
@@ -31,6 +31,9 @@ const firstMarketId = 'market-retirement-postgres-release';
 const secondTenantId = 'e4200000-0000-4000-8000-000000000001';
 const secondLegalEntityId = 'e4200000-0000-4000-8000-000000000002';
 const secondMarketId = 'market-retirement-postgres-commit';
+const thirdTenantId = 'e4400000-0000-4000-8000-000000000001';
+const thirdLegalEntityId = 'e4400000-0000-4000-8000-000000000002';
+const thirdMarketId = 'market-retirement-postgres-source-race';
 const actorPrincipalId = 'e4300000-0000-4000-8000-000000000001';
 const evaluatedAt = '2020-01-01T00:00:00.000Z';
 const compositionValidUntil = '2099-01-01T00:00:00.000Z';
@@ -45,6 +48,7 @@ const actionInvocationIds = {
   invalidExpiredProof: 'e4310000-0000-4000-8000-000000000009',
   invalidMissingProof: 'e4310000-0000-4000-8000-000000000010',
   invalidSubstitutedProof: 'e4310000-0000-4000-8000-000000000011',
+  raceReserve: 'e4310000-0000-4000-8000-000000000012',
   release: 'e4310000-0000-4000-8000-000000000003',
   secondReserve: 'e4310000-0000-4000-8000-000000000002',
   terminalRelease: 'e4310000-0000-4000-8000-000000000007',
@@ -66,6 +70,32 @@ interface ReservationRow extends Record<string, unknown> {
   readonly reservation_version: number;
   readonly source_evidence: unknown;
 }
+
+interface RetirementRaceState extends Record<string, unknown> {
+  readonly proposal_count: number;
+  readonly reservation_count: number;
+}
+
+const proposalFixtures = {
+  [firstTenantId]: {
+    actionInvocationId: 'e4330000-0000-4000-8000-000000000002',
+    canonicalHash: '1'.repeat(64),
+    id: 'e4330000-0000-4000-8000-000000000001',
+    resourceId: 'market-retirement-proposal-release',
+  },
+  [secondTenantId]: {
+    actionInvocationId: 'e4330000-0000-4000-8000-000000000004',
+    canonicalHash: '2'.repeat(64),
+    id: 'e4330000-0000-4000-8000-000000000003',
+    resourceId: 'market-retirement-proposal-commit',
+  },
+  [thirdTenantId]: {
+    actionInvocationId: 'e4330000-0000-4000-8000-000000000006',
+    canonicalHash: '3'.repeat(64),
+    id: 'e4330000-0000-4000-8000-000000000005',
+    resourceId: 'market-retirement-proposal-race',
+  },
+} as const;
 
 const one = <Row>(rows: readonly Row[]): Row => {
   const [row] = rows;
@@ -208,13 +238,27 @@ const isReservationConflict = (exit: Exit.Exit<unknown, unknown>): boolean =>
   Exit.isFailure(exit) &&
   Option.exists(Cause.findErrorOption(exit.cause), Schema.is(MarketRetirementReservationConflictError));
 
+const isReferenceGuardConflict = (exit: Exit.Exit<unknown, unknown>): boolean =>
+  Exit.isFailure(exit) &&
+  Option.exists(
+    findPostgresFailure(exit.cause),
+    ({ code, constraint }) => code === '55P03' && constraint === 'market_retirement_reservation_conflict',
+  );
+
 const cleanupReservations = (admin: CommerceCustomerContextTestDatabase) => () =>
   admin.transaction((transaction) =>
-    transaction.execute(
-      sql`delete from commerce_customer_context.market_retirement_reservations
-            where tenant_id in (${firstTenantId}::uuid, ${secondTenantId}::uuid)`,
-      'objects',
-    ),
+    Effect.gen(function* cleanMarketRetirementFixtures() {
+      yield* transaction.execute(
+        sql`delete from commerce_customer_context.market_retirement_reservations
+              where tenant_id in (${firstTenantId}::uuid, ${secondTenantId}::uuid, ${thirdTenantId}::uuid)`,
+        'objects',
+      );
+      yield* transaction.execute(
+        sql`delete from commerce_customer_context.purchase_proposal_revisions
+              where tenant_id in (${firstTenantId}::uuid, ${secondTenantId}::uuid, ${thirdTenantId}::uuid)`,
+        'objects',
+      );
+    }),
   );
 
 const mutateBootstrapReference = (
@@ -251,6 +295,71 @@ const mutateBootstrapReference = (
         })
       : insert;
   });
+
+const mutatePurchaseProposalReference = (
+  admin: CommerceCustomerContextTestDatabase,
+  tenantId: keyof typeof proposalFixtures,
+  legalEntityId: string,
+  marketId: string,
+  rollbackAfterInsert = false,
+) => {
+  const fixture = proposalFixtures[tenantId];
+  return inOwnerScope(admin, tenantId, legalEntityId, (transaction) => {
+    const insert = transaction.execute(
+      sql`insert into commerce_customer_context.purchase_proposal_revisions (
+            purchase_proposal_revision_id, tenant_id, legal_entity_id,
+            proposal_revision_resource_id, revision, proposal_sequence, buyer_principal_id,
+            counterparty_resource_ref, profile_resource_ref, storefront_id, proposal_snapshot,
+            source_revision_vector, canonicalization_version, canonical_hash, state,
+            approval_evaluation, expires_at, idempotency_key, action_invocation_id, actor_principal_id,
+            reason, recorded_at
+          ) values (
+            ${fixture.id}::uuid, ${tenantId}::uuid, ${legalEntityId}::uuid,
+            ${fixture.resourceId}, 1, 1, ${actorPrincipalId}::uuid,
+            'counterparty:market-retirement', 'profile:market-retirement', 'storefront-retirement',
+            jsonb_build_object('context', jsonb_build_object('marketId', ${marketId}::text)),
+            '[]'::jsonb, 'postgres-acceptance-v1', ${fixture.canonicalHash}, 'CURRENT',
+            'WITHIN_LIMIT', '2099-01-01T00:00:00.000Z'::timestamptz,
+            ${fixture.resourceId},
+            ${fixture.actionInvocationId}::uuid, ${actorPrincipalId}::uuid,
+            'PostgreSQL Market retirement proposal guard acceptance', statement_timestamp()
+          )`,
+      'objects',
+    );
+    return rollbackAfterInsert
+      ? Effect.gen(function* probeUnblockedProposalInsert() {
+          yield* transaction.execute(sql`savepoint market_retirement_proposal_guard_probe`, 'objects');
+          yield* insert;
+          yield* transaction.execute(sql`rollback to savepoint market_retirement_proposal_guard_probe`, 'objects');
+        })
+      : insert;
+  });
+};
+
+const readRetirementRaceState = (
+  admin: CommerceCustomerContextTestDatabase,
+  tenantId: string,
+  legalEntityId: string,
+  marketId: string,
+) =>
+  admin.transaction((transaction) =>
+    transaction
+      .execute<RetirementRaceState>(
+        sql`select
+              (select count(*)::integer
+                 from commerce_customer_context.market_retirement_reservations
+                where tenant_id = ${tenantId}::uuid
+                  and legal_entity_id = ${legalEntityId}::uuid
+                  and market_resource_id = ${marketId}) as reservation_count,
+              (select count(*)::integer
+                 from commerce_customer_context.purchase_proposal_revisions
+                where tenant_id = ${tenantId}::uuid
+                  and legal_entity_id = ${legalEntityId}::uuid
+                  and proposal_snapshot->'context'->>'marketId' = ${marketId}) as proposal_count`,
+        'objects',
+      )
+      .pipe(Effect.map(one)),
+  );
 
 it.live(
   'serializes competing reservations, preserves exact evidence, and releases the Market for a fresh reservation',
@@ -369,10 +478,18 @@ it.live(
         });
         expect(storedEvidence).toEqual(assessment.sourceEvidence);
 
+        const reservedBootstrapWrite = yield* Effect.exit(
+          mutateBootstrapReference(admin, firstTenantId, firstLegalEntityId, firstMarketId),
+        );
+        const reservedProposalWrite = yield* Effect.exit(
+          mutatePurchaseProposalReference(admin, firstTenantId, firstLegalEntityId, firstMarketId),
+        );
+        expect(isReferenceGuardConflict(reservedBootstrapWrite)).toBe(true);
         expect(
-          Exit.isFailure(
-            yield* Effect.exit(mutateBootstrapReference(admin, firstTenantId, firstLegalEntityId, firstMarketId)),
-          ),
+          isReferenceGuardConflict(reservedProposalWrite),
+          Exit.isFailure(reservedProposalWrite)
+            ? Cause.pretty(reservedProposalWrite.cause)
+            : 'proposal write succeeded',
         ).toBe(true);
 
         const winningActionInvocationId = firstSucceeded
@@ -413,6 +530,7 @@ it.live(
         expect(released).toMatchObject({ lifecycle: 'RELEASED', reservationVersion: 2 });
 
         yield* mutateBootstrapReference(admin, firstTenantId, firstLegalEntityId, firstMarketId, true);
+        yield* mutatePurchaseProposalReference(admin, firstTenantId, firstLegalEntityId, firstMarketId, true);
 
         const fresh = yield* execute(
           runtime,
@@ -465,10 +583,18 @@ it.live('makes COMMIT terminal and idempotent for the exact Action retry', () =>
       expect(committed).toMatchObject({ lifecycle: 'COMMITTED', reservationVersion: 2 });
       expect(retried).toEqual(committed);
 
+      const committedBootstrapWrite = yield* Effect.exit(
+        mutateBootstrapReference(admin, secondTenantId, secondLegalEntityId, secondMarketId),
+      );
+      const committedProposalWrite = yield* Effect.exit(
+        mutatePurchaseProposalReference(admin, secondTenantId, secondLegalEntityId, secondMarketId),
+      );
+      expect(isReferenceGuardConflict(committedBootstrapWrite)).toBe(true);
       expect(
-        Exit.isFailure(
-          yield* Effect.exit(mutateBootstrapReference(admin, secondTenantId, secondLegalEntityId, secondMarketId)),
-        ),
+        isReferenceGuardConflict(committedProposalWrite),
+        Exit.isFailure(committedProposalWrite)
+          ? Cause.pretty(committedProposalWrite.cause)
+          : 'proposal write succeeded',
       ).toBe(true);
 
       const terminalFailure = yield* Effect.exit(
@@ -481,6 +607,51 @@ it.live('makes COMMIT terminal and idempotent for the exact Action retry', () =>
         ),
       );
       expect(isReservationConflict(terminalFailure)).toBe(true);
+    }),
+  ),
+);
+
+it.live('serializes a purchase-proposal source mutation racing RESERVE without admitting stale evidence', () =>
+  Effect.scoped(
+    Effect.gen(function* localSourceRaceAcceptance() {
+      const { admin: adminPool, runtimePool } = yield* testDatabasePools;
+      const admin = yield* makeTestDatabaseFromPool(adminPool, commerceCustomerContextRelations);
+      const runtime = yield* makeTestDatabaseFromPool(runtimePool, commerceCustomerContextRelations);
+      const cleanup = cleanupReservations(admin);
+
+      yield* cleanup();
+      yield* Effect.addFinalizer(() => cleanup().pipe(Effect.orDie));
+
+      const assessment = yield* assess(runtime, thirdTenantId, thirdLegalEntityId, thirdMarketId, 31);
+      const [reserveAttempt, proposalWriteAttempt] = yield* Effect.all(
+        [
+          execute(
+            runtime,
+            thirdTenantId,
+            thirdLegalEntityId,
+            reserveInput(assessment),
+            actionInvocationIds.raceReserve,
+          ).pipe(Effect.exit),
+          mutatePurchaseProposalReference(admin, thirdTenantId, thirdLegalEntityId, thirdMarketId).pipe(Effect.exit),
+        ],
+        { concurrency: 'unbounded' },
+      );
+
+      expect(Exit.isSuccess(reserveAttempt)).not.toBe(Exit.isSuccess(proposalWriteAttempt));
+      expect(Exit.isFailure(reserveAttempt)).not.toBe(Exit.isFailure(proposalWriteAttempt));
+
+      const state = yield* readRetirementRaceState(admin, thirdTenantId, thirdLegalEntityId, thirdMarketId);
+      if (Exit.isSuccess(reserveAttempt)) {
+        expect(
+          isReferenceGuardConflict(proposalWriteAttempt),
+          Exit.isFailure(proposalWriteAttempt) ? Cause.pretty(proposalWriteAttempt.cause) : 'proposal write succeeded',
+        ).toBe(true);
+        expect(state).toEqual({ proposal_count: 0, reservation_count: 1 });
+      } else {
+        expect(isReservationConflict(reserveAttempt)).toBe(true);
+        expect(Exit.isSuccess(proposalWriteAttempt)).toBe(true);
+        expect(state).toEqual({ proposal_count: 1, reservation_count: 0 });
+      }
     }),
   ),
 );
