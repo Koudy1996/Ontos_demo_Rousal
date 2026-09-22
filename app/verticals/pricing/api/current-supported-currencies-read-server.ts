@@ -5,26 +5,28 @@ import { HttpApiBuilder } from '@modern-js/bff-effect/effect-edge';
 import { pricingApi } from '../shared/api.ts';
 import {
   CurrentSupportedCurrenciesAuthenticationProblemSchema,
-  CurrentSupportedCurrenciesConflictProblemSchema,
   CurrentSupportedCurrenciesForbiddenProblemSchema,
   CurrentSupportedCurrenciesInternalProblemSchema,
   CurrentSupportedCurrenciesInvalidProblemSchema,
   CurrentSupportedCurrenciesNotFoundProblemSchema,
+  CurrentSupportedCurrenciesPolicyConflictProblemSchema,
   CurrentSupportedCurrenciesPolicyProblemSchema,
   CurrentSupportedCurrenciesUnavailableProblemSchema,
 } from '../shared/apis/current-supported-currencies.ts';
 import { currentSupportedCurrenciesRead } from '../src/api/current-supported-currencies.read.ts';
 import { authenticateOperationPrincipal } from './auth/action-principal.ts';
+
 const problems = makeGovernedReadProblems({
   authentication: CurrentSupportedCurrenciesAuthenticationProblemSchema,
   forbidden: CurrentSupportedCurrenciesForbiddenProblemSchema,
   internal: CurrentSupportedCurrenciesInternalProblemSchema,
   invalid: CurrentSupportedCurrenciesInvalidProblemSchema,
   notFound: CurrentSupportedCurrenciesNotFoundProblemSchema,
-  policyConflict: CurrentSupportedCurrenciesConflictProblemSchema,
+  policyConflict: CurrentSupportedCurrenciesPolicyConflictProblemSchema,
   policyIneligible: CurrentSupportedCurrenciesPolicyProblemSchema,
   unavailable: CurrentSupportedCurrenciesUnavailableProblemSchema,
 });
+
 export const currentSupportedCurrenciesReadApiLive = HttpApiBuilder.group(
   pricingApi,
   'currentSupportedCurrencies',

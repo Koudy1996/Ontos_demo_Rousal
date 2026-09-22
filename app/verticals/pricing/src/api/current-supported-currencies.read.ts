@@ -4,11 +4,11 @@ import { ReadPermissionDenied, defineRead, defineTenantModuleEntrypoint } from '
 import {
   CurrentSupportedCurrenciesRequestSchema,
   CurrentSupportedCurrenciesResponseSchema,
-} from '@app/pricing-contracts/current-supported-currencies';
+} from '../../shared/apis/current-supported-currencies.ts';
 import type {
   CurrentSupportedCurrenciesRequest,
   CurrentSupportedCurrenciesResponse,
-} from '@app/pricing-contracts/current-supported-currencies';
+} from '../../shared/apis/current-supported-currencies.ts';
 import { DateTime, Effect, Option } from 'effect';
 import type { CurrencySupportPersistence, StoredCurrencySupport } from '../persistence/currency-support-persistence.ts';
 import { currencySupportPersistenceForScope } from '../persistence/currency-support-persistence.ts';
@@ -145,6 +145,9 @@ const handleCurrentSupportedCurrencies = Effect.fn('CurrentSupportedCurrenciesRe
   };
 });
 
+const currentSupportedCurrenciesPersistenceForScope: typeof currencySupportPersistenceForScope = (transaction, scope) =>
+  currencySupportPersistenceForScope(transaction, scope);
+
 export const currentSupportedCurrenciesRead = defineRead(
   {
     accessKind: 'detail',
@@ -163,6 +166,6 @@ export const currentSupportedCurrenciesRead = defineRead(
     schemaVersion: '1',
   },
   handleCurrentSupportedCurrencies,
-  currencySupportPersistenceForScope,
+  currentSupportedCurrenciesPersistenceForScope,
   () => ({ kind: 'module', moduleId: MODULE_KEY }),
 );

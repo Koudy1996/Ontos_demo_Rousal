@@ -27,21 +27,55 @@ export const pricingManifest: OntosModuleManifestInput = defineOntosModuleManife
       setSupportedCurrenciesAction,
       // </generated-module-manifest-actions>
     ],
-    api: { 'current-supported-currencies': CurrentSupportedCurrenciesApi },
-    businessPermissions: [],
-    components: {},
+    api: {
+      // <generated-module-manifest-apis>
+      'current-supported-currencies': CurrentSupportedCurrenciesApi,
+      // </generated-module-manifest-apis>
+    },
+    businessPermissions: [
+      // <generated-module-manifest-business-permissions>
+      // </generated-module-manifest-business-permissions>
+    ],
+    components: {
+      // <generated-module-manifest-components>
+      // </generated-module-manifest-components>
+    },
     events: [],
-    reports: [],
-    resourceTypes: [],
-    search: [],
+    reports: [
+      // <generated-module-manifest-reports>
+      // </generated-module-manifest-reports>
+    ],
+    resourceTypes: [
+      // <generated-module-manifest-resources>
+      // </generated-module-manifest-resources>
+    ],
+    search: [
+      // <generated-module-manifest-search>
+      // </generated-module-manifest-search>
+    ],
     shellContributions: {
       mediaAttachments: [],
-      navigation: [],
-      pages: [],
-      publicComponents: [],
-      reports: [],
+      navigation: [
+        // <generated-module-shell-navigation>
+        // </generated-module-shell-navigation>
+      ],
+      pages: [
+        // <generated-module-shell-pages>
+        // </generated-module-shell-pages>
+      ],
+      publicComponents: [
+        // <generated-module-shell-components>
+        // </generated-module-shell-components>
+      ],
+      reports: [
+        // <generated-module-shell-reports>
+        // </generated-module-shell-reports>
+      ],
       resourceDetails: [],
-      search: [],
+      search: [
+        // <generated-module-shell-search>
+        // </generated-module-shell-search>
+      ],
       timelines: [],
     },
   },

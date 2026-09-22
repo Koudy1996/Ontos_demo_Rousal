@@ -13,12 +13,31 @@ export const pricingRegistration = defineVerticalRuntimeRegistration({
     // </generated-module-registration-actions>
   ],
   entrypoints: {
-    api: { 'current-supported-currencies': () => import('./src/api/current-supported-currencies-client.ts') },
-    components: {},
-    pages: {},
-    reports: {},
-    search: {},
+    api: {
+      // <generated-module-registration-apis>
+      'current-supported-currencies': () => import('./src/api/current-supported-currencies-client.ts'),
+      // </generated-module-registration-apis>
+    },
+    components: {
+      // <generated-module-registration-components>
+      // </generated-module-registration-components>
+    },
+    pages: {
+      // <generated-module-registration-pages>
+      // </generated-module-registration-pages>
+    },
+    reports: {
+      // <generated-module-registration-reports>
+      // </generated-module-registration-reports>
+    },
+    search: {
+      // <generated-module-registration-search>
+      // </generated-module-registration-search>
+    },
   },
   manifest: pricingManifest,
-  outboxWorkers: [],
+  outboxWorkers: [
+    // <generated-module-registration-workers>
+    // </generated-module-registration-workers>
+  ],
 });
