@@ -37,6 +37,7 @@ interface VerificationRow {
 const EXPECTED_RUNTIME_ROUTINES = [
   'add_saved_address',
   'archive_customer_group',
+  'assess_market_retirement_affected_use',
   'assess_payment_term_entitlement_use',
   'assign_customer_group_membership',
   'assign_price_group',
@@ -121,6 +122,7 @@ const EXPECTED_RUNTIME_ROUTINES = [
   'remove_price_group_assignment',
   'remove_saved_address',
   'reroute_purchase_approval_request',
+  'reserve_market_retirement',
   'reserve_payment_term_retirement',
   'resolve_price_group_assignments',
   'resolve_profile_reconciliation',
@@ -164,6 +166,8 @@ const EXPECTED_TRIGGER_NAMES = [
   'ccc_reconciliation_owner_outcomes_append_only_trg',
   'customer_payment_term_entitlements_retirement_guard',
   'customer_payment_term_preferences_retirement_guard',
+  'market_bootstrap_policy_retirement_guard',
+  'purchase_proposal_market_retirement_guard',
 ] as const;
 
 const sameStrings = (actual: readonly string[], expected: readonly string[]): boolean =>
