@@ -16,6 +16,7 @@
     "locales/**/*.json",
     "package.json",
     "shared",
+    "shared/ultramodern-build.json",
     "src",
     "tests",
     "vertical.manifest.ts",
