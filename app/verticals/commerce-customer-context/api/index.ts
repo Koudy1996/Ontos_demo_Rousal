@@ -733,8 +733,7 @@ export const makeCommerceCustomerContextApiRuntime = (
   const actionPrincipalVerifierLive = GovernedActionPrincipalVerifierLive.pipe(
     Layer.provide(governedActionRuntimeLive),
   );
-  const apiHandlersLive = Layer.mergeAll(
-    commerceCustomerContextReadinessLayer,
+  const apiHandlerGroupsLive = Layer.mergeAll(
     portalAuthSessionApiLive.pipe(GovernedReadLayer.provide(portalAuthRuntimeLive)),
     portalAuthMfaApiLive.pipe(GovernedReadLayer.provide(portalAuthRuntimeLive)),
     portalAuthRecoveryApiLive.pipe(GovernedReadLayer.provide(portalAuthRuntimeLive)),
@@ -881,7 +880,9 @@ export const makeCommerceCustomerContextApiRuntime = (
     updateCustomerGroupActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     updateSavedAddressActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     // </generated-governed-http-handler-layers>
-  ).pipe(
+  );
+  const apiHandlersLive = commerceCustomerContextReadinessLayer.pipe(
+    Layer.provideMerge(apiHandlerGroupsLive),
     // Core revalidates a presented session binding's authentication namespace before any
     // authorization runs and answers `operation_context_unavailable` when no registry is reachable,
     // so every namespace-carrying gateway assertion this vertical is handed needs the registration
