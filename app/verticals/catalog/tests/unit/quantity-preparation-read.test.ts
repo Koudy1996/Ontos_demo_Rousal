@@ -31,6 +31,12 @@ const request = Schema.decodeUnknownSync(QuantityPreparationRequestSchema)({
 });
 
 describe('Catalog governed Quantity preparation', () => {
+  it('publishes the generated client wrapper for the owner-governed read', async () => {
+    const client = await import('../../src/api/catalog-client.ts');
+    expect(client.executeQuantityPreparation).toBeTypeOf('function');
+    expect(client.executeQuantityPreparationWithAuthorization).toBeTypeOf('function');
+  });
+
   it.effect('returns the purpose-scoped Catalog handoff without claiming a commercial verdict', () =>
     Effect.gen(function* preparesHandoff() {
       const observed: unknown[] = [];

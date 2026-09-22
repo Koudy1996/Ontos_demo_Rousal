@@ -1,4 +1,5 @@
 import { Option, Schema } from 'effect';
+import { OwnerVerifiableSetCompletenessEvidenceSchema } from '@app/shared-contracts';
 
 import { assessCatalogSelection } from './catalog-selection-assessment.ts';
 import type { CatalogSelectionCurrentFacts } from './catalog-selection-assessment.ts';
@@ -65,7 +66,7 @@ const packageContentRevisionSchema = Schema.Struct({
   unitRef: CatalogResourceRefSchema,
 });
 
-const CatalogQuantityHandoffReadySchema = Schema.Struct({
+const CatalogQuantityHandoffCoreReadySchema = Schema.Struct({
   divisible: Schema.Boolean,
   evidence: CatalogSelectionValidEvidenceSchema,
   packageContent: Schema.optionalKey(packageResolutionSchema),
@@ -75,12 +76,35 @@ const CatalogQuantityHandoffReadySchema = Schema.Struct({
   status: Schema.Literal('READY'),
   unitRef: CatalogResourceRefSchema,
 });
-export type CatalogQuantityHandoffReady = typeof CatalogQuantityHandoffReadySchema.Type;
+type CatalogQuantityHandoffCoreReady = typeof CatalogQuantityHandoffCoreReadySchema.Type;
 
 const CatalogQuantityHandoffFailureSchema = Schema.Struct({
   reason: Schema.String,
   status: Schema.Literals(['INVALID', 'UNVERIFIABLE', 'STALE']),
 });
+
+const ownerReference = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
+export const CatalogQuantityBasisSchema = Schema.Struct({
+  targetDivisibilityRevision: Schema.Int.check(Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })),
+  targetRef: CatalogResourceRefSchema,
+  unitRef: CatalogResourceRefSchema,
+  unitRuleRevision: Schema.Int.check(Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })),
+}).check(
+  Schema.makeFilter(({ targetRef, unitRef }) =>
+    targetRef.tenantId === unitRef.tenantId ? undefined : 'Quantity target and Unit must share one Tenant',
+  ),
+);
+export type CatalogQuantityBasis = typeof CatalogQuantityBasisSchema.Type;
+
+const CatalogQuantityHandoffReadySchema = Schema.Struct({
+  ...CatalogQuantityHandoffCoreReadySchema.fields,
+  completeness: Schema.toEncoded(OwnerVerifiableSetCompletenessEvidenceSchema),
+  equivalentSelectionKey: ownerReference,
+  hierarchyRevision: ownerReference,
+  ownerRevision: ownerReference,
+  quantityBasis: CatalogQuantityBasisSchema,
+});
+export type CatalogQuantityHandoffReady = typeof CatalogQuantityHandoffReadySchema.Type;
 
 /** Public Commerce handoff: exact Catalog facts and evidence, without a customer policy verdict. */
 export const CatalogQuantityHandoffSchema = Schema.Union([
@@ -88,6 +112,7 @@ export const CatalogQuantityHandoffSchema = Schema.Union([
   CatalogQuantityHandoffFailureSchema,
 ]);
 export type CatalogQuantityHandoff = typeof CatalogQuantityHandoffSchema.Type;
+type CatalogQuantityHandoffCore = CatalogQuantityHandoffCoreReady | typeof CatalogQuantityHandoffFailureSchema.Type;
 
 const sameSelection = Schema.toEquivalence(CatalogSelectionSchema);
 const matchesQuantityIdentity = (input: {
@@ -224,7 +249,7 @@ const hasQuantityBasis = (input: HandoffInput): boolean => {
   );
 };
 
-const packageFailure = (input: HandoffInput): Exclude<CatalogQuantityHandoff, { status: 'READY' }> | null => {
+const packageFailure = (input: HandoffInput): Exclude<CatalogQuantityHandoffCore, { status: 'READY' }> | null => {
   if (input.packageContent?.status === 'INVALID') {
     return { reason: input.packageContent.reason, status: 'INVALID' };
   }
@@ -246,7 +271,7 @@ const packageFailure = (input: HandoffInput): Exclude<CatalogQuantityHandoff, { 
 };
 
 /** Assemble facts only for the same exact selection; Commerce #333 owns customer-specific rules. */
-export const prepareCatalogQuantityHandoff = (input: HandoffInput): CatalogQuantityHandoff => {
+export const prepareCatalogQuantityHandoff = (input: HandoffInput): CatalogQuantityHandoffCore => {
   if (input.evidence.status === 'INDETERMINATE') {
     return { reason: input.evidence.reason, status: 'UNVERIFIABLE' };
   }
@@ -283,7 +308,7 @@ export const prepareCatalogQuantityHandoff = (input: HandoffInput): CatalogQuant
   ) {
     return { reason: 'Package content does not equal the prepared number of exact packages', status: 'STALE' };
   }
-  const ready: CatalogQuantityHandoffReady = {
+  const ready: CatalogQuantityHandoffCoreReady = {
     divisible: input.divisible,
     evidence: input.evidence,
     quantity: input.quantity,
@@ -327,6 +352,109 @@ export interface CatalogQuantityHandoffBasisFacts {
   };
   readonly variantRevision: number;
 }
+
+const fingerprint = (value: string): string => {
+  let hash = 14_695_981_039_346_656_037n;
+  for (const character of value) {
+    hash ^= BigInt(character.codePointAt(0) ?? 0);
+    hash = BigInt.asUintN(64, hash * 1_099_511_628_211n);
+  }
+  return hash.toString(16).padStart(16, '0');
+};
+
+const resourceIdentity = (ref: CatalogResourceRef): string =>
+  [ref.moduleId, ref.resourceType, ref.resourceId, ref.tenantId].join('|');
+
+const selectionIdentity = (selection: CatalogSelection): string =>
+  JSON.stringify({
+    configuration:
+      selection.configuration === undefined
+        ? null
+        : {
+            choices: [...selection.configuration.choices]
+              .map((choice) => ({
+                attributeDefinition:
+                  choice.attributeDefinition === undefined
+                    ? null
+                    : [resourceIdentity(choice.attributeDefinition.resourceRef), choice.attributeDefinition.revision],
+                choiceKey: choice.choiceKey,
+                unit:
+                  choice.unit === undefined ? null : [resourceIdentity(choice.unit.resourceRef), choice.unit.revision],
+                value: choice.value,
+              }))
+              .sort((left, right) => left.choiceKey.localeCompare(right.choiceKey)),
+            definition: [
+              resourceIdentity(selection.configuration.definition.resourceRef),
+              selection.configuration.definition.revision,
+            ],
+          },
+    packageOption:
+      selection.packageOption === undefined
+        ? null
+        : [resourceIdentity(selection.packageOption.optionRef), selection.packageOption.contentRevision.revision],
+    product: resourceIdentity(selection.productRef),
+    setComposition:
+      selection.setComposition === undefined
+        ? null
+        : [resourceIdentity(selection.setComposition.resourceRef), selection.setComposition.revision],
+    variant: resourceIdentity(selection.variantRef),
+  });
+
+const quantityOwnerMetadata = (input: {
+  readonly basis: CatalogQuantityHandoffBasisFacts;
+  readonly current: CatalogSelectionCurrentFacts;
+  readonly quantity: Extract<QuantityNormalization, { status: 'VALID' }>;
+  readonly selection: CatalogSelection;
+}) => {
+  const targetRef = input.selection.packageOption?.optionRef ?? input.selection.variantRef;
+  const unitRef = catalogResourceRef(
+    'commerce.catalog.product-unit',
+    input.basis.unit.id,
+    input.selection.productRef.tenantId,
+  );
+  const selectionKey = `commerce.catalog.selection:${fingerprint(selectionIdentity(input.selection))}`;
+  const hierarchyRevision = `commerce.catalog.hierarchy:${fingerprint(
+    JSON.stringify({
+      contentPath: input.basis.contentPath,
+      productRevision: input.basis.productRevision,
+      setCompositionRevision: input.basis.setCompositionRevision ?? null,
+      variantRevision: input.basis.variantRevision,
+    }),
+  )}`;
+  const ownerRevision = `commerce.catalog.quantity:${fingerprint(
+    JSON.stringify({
+      basis: input.current.basis,
+      hierarchyRevision,
+      membership: input.current.status === 'OBSERVED' ? input.current.membership : null,
+      quantity: input.quantity,
+      selectionKey,
+      unit: input.basis.unit,
+    }),
+  )}`;
+  const completeness: CatalogQuantityHandoffReady['completeness'] = {
+    observedAt: input.current.assessedAt,
+    ownerRevision,
+    scope: {
+      kind: 'EXACT_PREDICATE',
+      predicateRef: `commerce.catalog.quantity-preparation:${selectionKey}:${input.current.purpose}:${input.quantity.requested}`,
+    },
+  };
+  if (input.current.status === 'OBSERVED' && input.current.validUntil !== undefined) {
+    Object.assign(completeness, { nextApplicabilityBoundary: input.current.validUntil });
+  }
+  return {
+    completeness,
+    equivalentSelectionKey: selectionKey,
+    hierarchyRevision,
+    ownerRevision,
+    quantityBasis: {
+      targetDivisibilityRevision: input.basis.unit.targetDivisibilityRevision,
+      targetRef,
+      unitRef,
+      unitRuleRevision: input.basis.unit.ruleRevision,
+    },
+  } as const;
+};
 
 interface CatalogPackageFacts {
   readonly configurationKey?: string;
@@ -448,5 +576,17 @@ export const assembleCatalogQuantityHandoff = (input: {
   if (packageFacts.packageRevision !== undefined) {
     Object.assign(handoffInput, { packageRevision: packageFacts.packageRevision });
   }
-  return prepareCatalogQuantityHandoff(handoffInput);
+  const handoff = prepareCatalogQuantityHandoff(handoffInput);
+  if (handoff.status !== 'READY') {
+    return handoff;
+  }
+  return {
+    ...handoff,
+    ...quantityOwnerMetadata({
+      basis: input.basis,
+      current: input.current,
+      quantity: handoff.quantity,
+      selection: input.selection,
+    }),
+  };
 };

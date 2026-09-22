@@ -143,23 +143,45 @@ describe('Catalog quantity handoff seam', () => {
       const content: PackageContentRevision | undefined = packageRevision;
       const resolution: PackageResolution | undefined = packageContent;
       expect(result.quantity.resulting).toBe('2');
+      expect(result.quantityBasis).toEqual({
+        targetDivisibilityRevision: 1,
+        targetRef: packageRef,
+        unitRef,
+        unitRuleRevision: 1,
+      });
+      expect(result.ownerRevision).toMatch(/^commerce\.catalog\.quantity:/u);
+      expect(result.hierarchyRevision).toMatch(/^commerce\.catalog\.hierarchy:/u);
+      expect(result.equivalentSelectionKey).toMatch(/^commerce\.catalog\.selection:/u);
+      expect(result.completeness).toEqual({
+        observedAt: current.assessedAt,
+        ownerRevision: result.ownerRevision,
+        scope: {
+          kind: 'EXACT_PREDICATE',
+          predicateRef: `commerce.catalog.quantity-preparation:${result.equivalentSelectionKey}:purchase:2`,
+        },
+      });
       expect(content?.amount).toBe('10');
       expect(content?.reference).toEqual(pinned);
       expect(resolution?.amount).toBe('20');
       const keys = Object.keys(result);
       for (const key of [
         'divisible',
+        'completeness',
         'evidence',
+        'equivalentSelectionKey',
+        'hierarchyRevision',
+        'ownerRevision',
         'packageContent',
         'packageRevision',
         'quantity',
+        'quantityBasis',
         'selection',
         'status',
         'unitRef',
       ]) {
         expect(keys).toContain(key);
       }
-      expect(keys).toHaveLength(8);
+      expect(keys).toHaveLength(13);
       expect(() => Schema.encodeSync(CatalogQuantityHandoffSchema)(result)).not.toThrow();
       expect(JSON.stringify(result)).not.toMatch(/allowed|denied|minimum|multiple|customer/iu);
     }),

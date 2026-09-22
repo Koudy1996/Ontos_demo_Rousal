@@ -110,6 +110,11 @@ export {
   executeProductCategoryHistoryWithAuthorization,
 } from './product-category-history-client.ts';
 export type { ProductCategoryHistoryClientOptions } from './product-category-history-client.ts';
+export {
+  executeQuantityPreparation,
+  executeQuantityPreparationWithAuthorization,
+} from './quantity-preparation-client.ts';
+export type { QuantityPreparationClientOptions } from './quantity-preparation-client.ts';
 
 type CatalogApiGroups = typeof catalogApi extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Groups : never;
 
