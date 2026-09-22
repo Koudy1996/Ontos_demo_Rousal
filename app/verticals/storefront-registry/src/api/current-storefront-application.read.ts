@@ -9,7 +9,7 @@ import {
   CurrentStorefrontApplicationRequestSchema,
   CurrentStorefrontApplicationResponseSchema,
 } from '@app/storefront-registry-contracts';
-import { Effect, Option, Result } from 'effect';
+import { DateTime, Effect, Option, Result } from 'effect';
 import type {
   CurrentStorefrontApplicationPersistence,
   CurrentStorefrontApplicationPersistenceResult,
@@ -43,9 +43,10 @@ const resolveSnapshot = (
   }
   const current = result.snapshot.value;
   const ownerRevision = `storefront-application:${input.storefrontAppId}:r${current.revision}:g${current.generation}`;
-  const effectiveAt = Date.parse(input.effectiveAt);
-  const effectiveFrom = Date.parse(current.effectiveFrom);
-  const effectiveTo = current.effectiveTo === undefined ? undefined : Date.parse(current.effectiveTo);
+  const effectiveAt = DateTime.toEpochMillis(DateTime.makeUnsafe(input.effectiveAt));
+  const effectiveFrom = DateTime.toEpochMillis(DateTime.makeUnsafe(current.effectiveFrom));
+  const effectiveTo =
+    current.effectiveTo === undefined ? undefined : DateTime.toEpochMillis(DateTime.makeUnsafe(current.effectiveTo));
   if (current.lifecycle !== 'ACTIVE') {
     return {
       ...request,
@@ -75,16 +76,19 @@ const resolveSnapshot = (
     current.effectiveTo === undefined
       ? { effectiveFrom: current.effectiveFrom }
       : { effectiveFrom: current.effectiveFrom, effectiveTo: current.effectiveTo };
-  return {
+  const response: CurrentStorefrontApplicationResponse = {
     ...request,
     allowedChannels: current.allowedChannels,
     effectiveInterval,
     lifecycle: 'ACTIVE',
-    ...(current.effectiveTo === undefined ? {} : { nextApplicabilityBoundary: current.effectiveTo }),
     observedAt: current.observedAt,
     outcome: 'CURRENT',
     ownerRevision,
   };
+  if (current.effectiveTo !== undefined) {
+    Object.assign(response, { nextApplicabilityBoundary: current.effectiveTo });
+  }
+  return response;
 };
 
 export const handleCurrentStorefrontApplication = Effect.fn('CurrentStorefrontApplicationRead.handle')(

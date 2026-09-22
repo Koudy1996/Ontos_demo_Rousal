@@ -48,7 +48,7 @@ const context = (services: CurrentStorefrontApplicationPersistence, scopeOverrid
 
 describe('Current Storefront Application governed owner read', () => {
   it.effect('returns owner revision, currentness boundary, and channel applicability evidence', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* returnCurrentApplicationEvidence() {
       const output = yield* Option.some(active).pipe(persistence, context, (readContext) =>
         handleCurrentStorefrontApplication(request, readContext),
       );
@@ -71,7 +71,7 @@ describe('Current Storefront Application governed owner read', () => {
   );
 
   it.effect('distinguishes missing, lifecycle, channel, interval, and owner-unavailable outcomes', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* distinguishOwnerReadOutcomes() {
       const missing = yield* Option.none<CurrentStorefrontApplicationSnapshot>().pipe(
         persistence,
         context,
@@ -115,7 +115,7 @@ describe('Current Storefront Application governed owner read', () => {
   );
 
   it.effect('rejects a cross-Tenant request before owner persistence access', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* rejectCrossTenantRequest() {
       const calls: string[] = [];
       const services: CurrentStorefrontApplicationPersistence = {
         load: () => {

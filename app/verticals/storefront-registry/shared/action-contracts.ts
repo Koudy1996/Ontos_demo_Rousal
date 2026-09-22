@@ -3,7 +3,7 @@ import {
   StorefrontChannelSchema,
   StorefrontRegistryInstantSchema,
 } from '@app/storefront-registry-contracts';
-import { Schema } from 'effect';
+import { DateTime, Schema } from 'effect';
 import { StorefrontApplicationRefSchema } from './resources/storefront-application.ts';
 
 const strict = { parseOptions: { onExcessProperty: 'error' as const } };
@@ -23,7 +23,9 @@ export const StorefrontApplicationEffectiveIntervalSchema = Schema.Struct({
 })
   .check(
     Schema.makeFilter(({ effectiveFrom, effectiveTo }) =>
-      effectiveTo === undefined || Date.parse(effectiveFrom) < Date.parse(effectiveTo)
+      effectiveTo === undefined ||
+      DateTime.toEpochMillis(DateTime.makeUnsafe(effectiveFrom)) <
+        DateTime.toEpochMillis(DateTime.makeUnsafe(effectiveTo))
         ? undefined
         : 'Effective interval end must be after its start',
     ),

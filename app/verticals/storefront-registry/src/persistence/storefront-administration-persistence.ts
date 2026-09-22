@@ -4,15 +4,14 @@ import type {
   RegisterStorefrontApplicationPayload,
   ReviseStorefrontApplicationPayload,
 } from '../../shared/action-contracts.ts';
+import { StorefrontApplicationResourceIdSchema } from '../../shared/resources/storefront-application.ts';
 import { Effect, Schema } from 'effect';
 
 const positiveRevision = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 const generation = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const uuid = Schema.String.check(Schema.isUUID());
-const StorefrontApplicationIdSchema = uuid.pipe(
-  Schema.brand('StorefrontAdministrationApplicationId'),
-  Schema.decodeTo(uuid),
-);
+const ActionInvocationIdSchema = uuid.pipe(Schema.brand('StorefrontActionInvocationId'), Schema.decodeTo(uuid));
+const PrincipalIdSchema = uuid.pipe(Schema.brand('StorefrontPrincipalId'), Schema.decodeTo(uuid));
 
 const ConflictOutcomeSchema = Schema.Union([
   Schema.TaggedStruct('application_already_registered', {}),
@@ -26,13 +25,13 @@ const RegisterOutcomeSchema = Schema.Union([
     changed: Schema.Literal(true),
     generation,
     revision: Schema.Literal(1),
-    storefrontApplicationId: StorefrontApplicationIdSchema,
+    storefrontApplicationId: StorefrontApplicationResourceIdSchema,
   }),
   Schema.TaggedStruct('reused', {
     changed: Schema.Literal(false),
     generation,
     revision: Schema.Literal(1),
-    storefrontApplicationId: StorefrontApplicationIdSchema,
+    storefrontApplicationId: StorefrontApplicationResourceIdSchema,
   }),
 ]);
 const ReviseOutcomeSchema = Schema.Union([
@@ -42,14 +41,14 @@ const ReviseOutcomeSchema = Schema.Union([
     generation,
     previousRevision: positiveRevision,
     revision: positiveRevision,
-    storefrontApplicationId: StorefrontApplicationIdSchema,
+    storefrontApplicationId: StorefrontApplicationResourceIdSchema,
   }),
   Schema.TaggedStruct('reused', {
     changed: Schema.Literal(false),
     generation,
     previousRevision: positiveRevision,
     revision: positiveRevision,
-    storefrontApplicationId: StorefrontApplicationIdSchema,
+    storefrontApplicationId: StorefrontApplicationResourceIdSchema,
   }),
 ]);
 
@@ -83,11 +82,12 @@ export class StorefrontAdministrationPersistenceUnavailable extends Schema.Tagge
   },
 ) {}
 
-interface CommandContext {
-  readonly actionInvocationId: string;
-  readonly principalId: string;
-  readonly recordedAt: string;
-}
+const CommandContextSchema = Schema.Struct({
+  actionInvocationId: ActionInvocationIdSchema,
+  principalId: PrincipalIdSchema,
+  recordedAt: Schema.toEncoded(Schema.DateTimeUtcFromString),
+});
+type CommandContext = typeof CommandContextSchema.Type;
 type RegisterCommand = RegisterStorefrontApplicationPayload & CommandContext;
 type ReviseCommand = ReviseStorefrontApplicationPayload & CommandContext;
 type RegisterStorefrontApplicationOutcome = typeof RegisterOutcomeSchema.Type;

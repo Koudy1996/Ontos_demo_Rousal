@@ -11,6 +11,7 @@ import {
   reviseStorefrontApplicationAction,
 } from '../../src/actions/revise-storefront-application.action.ts';
 import type { StorefrontAdministrationService } from '../../src/services/storefront-administration.service.ts';
+import { StorefrontApplicationRefSchema } from '../../shared/resources/storefront-application.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const principalId = '22222222-2222-4222-8222-222222222222';
@@ -22,12 +23,12 @@ const scope = {
   principalId,
   tenantId,
 };
-const applicationRef = {
-  moduleId: 'commerce.storefront-registry' as const,
+const applicationRef = Schema.decodeSync(StorefrontApplicationRefSchema)({
+  moduleId: 'commerce.storefront-registry',
   resourceId: applicationId,
-  resourceType: 'commerce.storefront-registry.storefront-application' as const,
+  resourceType: 'commerce.storefront-registry.storefront-application',
   tenantId,
-};
+});
 const registerPayload = Schema.decodeSync(RegisterStorefrontApplicationPayloadSchema)({
   allowedChannels: ['B2C', 'B2B'],
   effectiveInterval: { effectiveFrom: '2026-09-22T10:00:00.000Z' },
@@ -47,7 +48,7 @@ const unexpected = () => Effect.die('unexpected Storefront administration servic
 const unavailableServices: StorefrontAdministrationService = { register: unexpected, revise: unexpected };
 
 const collectRegister = (changed: boolean) =>
-  Effect.gen(function* () {
+  Effect.gen(function* collectRegisterEvidence() {
     const collector = createActionCollector(
       registerStorefrontApplicationAction.descriptor.domainEvents,
       'commerce.storefront-registry',
@@ -70,14 +71,14 @@ const collectRegister = (changed: boolean) =>
                 changed: true as const,
                 generation: 1,
                 revision: 1 as const,
-                storefrontApplicationId: applicationId as never,
+                storefrontApplicationId: applicationRef.resourceId,
               })
             : Effect.succeed({
                 _tag: 'reused' as const,
                 changed: false as const,
                 generation: 1,
                 revision: 1 as const,
-                storefrontApplicationId: applicationId as never,
+                storefrontApplicationId: applicationRef.resourceId,
               }),
       },
     });
@@ -124,7 +125,7 @@ describe('Storefront Registry administration Actions', () => {
   });
 
   it.effect('records audit, access, domain, and outbox evidence once while idempotent replay stays quiet', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* recordAdministrationEvidence() {
       const created = yield* collectRegister(true);
       expect(created.result).toMatchObject({ created: true, generation: 1, revision: 1 });
       expect(created.evidence.auditEvidence).toMatchObject({ changed: true, operation: 'REGISTER', revision: 1 });
@@ -141,7 +142,7 @@ describe('Storefront Registry administration Actions', () => {
   );
 
   it.effect('requires the observed revision and publishes a lifecycle revision only after optimistic success', () =>
-    Effect.gen(function* () {
+    Effect.gen(function* reviseWithOptimisticConcurrency() {
       const conflictCollector = createActionCollector(
         reviseStorefrontApplicationAction.descriptor.domainEvents,
         'commerce.storefront-registry',
@@ -186,7 +187,7 @@ describe('Storefront Registry administration Actions', () => {
               generation: 2,
               previousRevision: 1,
               revision: 2,
-              storefrontApplicationId: applicationId as never,
+              storefrontApplicationId: applicationRef.resourceId,
             }),
         },
       });

@@ -4,7 +4,8 @@
 import { GatewayAssertionRedemptionService } from '@app/core-runtime/auth/gateway-assertion-redemption';
 import { makeMicroverticalHttpPrincipalAuthentication } from '@app/core-runtime/http/principal-authentication';
 import { bindGatewayPrincipalVerifier } from '@app/gateway-principal-verifier/server';
-import { Effect, Redacted } from 'effect';
+import type { Redacted } from 'effect';
+import { Effect } from 'effect';
 
 export const ACTION_GATEWAY_AUDIENCE = 'storefront-registry' as const;
 export { GatewayPrincipalVerifierLive as ActionPrincipalVerifierLive } from '@app/gateway-principal-verifier/server';

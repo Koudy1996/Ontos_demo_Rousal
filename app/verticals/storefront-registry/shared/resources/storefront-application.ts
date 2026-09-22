@@ -4,14 +4,23 @@
 import type { OntosResourceType } from '@app/core-runtime';
 import { Schema } from 'effect';
 
-const ResourceIdSchema = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100));
-const TenantIdSchema = Schema.String.check(Schema.isUUID());
+const resourceId = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100));
+const tenantId = Schema.String.check(Schema.isUUID());
+
+export const StorefrontApplicationResourceIdSchema = resourceId.pipe(
+  Schema.brand('StorefrontApplicationResourceId'),
+  Schema.decodeTo(resourceId),
+);
+export const StorefrontApplicationTenantIdSchema = tenantId.pipe(
+  Schema.brand('StorefrontApplicationTenantId'),
+  Schema.decodeTo(tenantId),
+);
 
 export const StorefrontApplicationRefSchema = Schema.Struct({
   moduleId: Schema.Literal('commerce.storefront-registry'),
-  resourceId: ResourceIdSchema,
+  resourceId: StorefrontApplicationResourceIdSchema,
   resourceType: Schema.Literal('commerce.storefront-registry.storefront-application'),
-  tenantId: TenantIdSchema,
+  tenantId: StorefrontApplicationTenantIdSchema,
 });
 export type StorefrontApplicationRef = typeof StorefrontApplicationRefSchema.Type;
 
