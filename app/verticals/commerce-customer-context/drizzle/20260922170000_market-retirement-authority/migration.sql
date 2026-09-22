@@ -108,7 +108,7 @@ BEGIN
         AND default_commerce_market_id = p_market_resource_id
         AND lifecycle IN ('ACTIVE', 'SCHEDULED')
         AND coalesce(applicable_to, effective_to, 'infinity'::timestamptz) > p_evaluated_at
-    ) AS references;
+    ) AS reference_rows;
 
   SELECT coalesce(jsonb_agg(reference ORDER BY reference->>'ownerResourceRevision', reference->'ownerResourceRef'->>'resourceId'), '[]'::jsonb)
     INTO v_bootstrap_retained
@@ -130,7 +130,7 @@ BEGIN
         AND legal_entity_id = p_legal_entity_id
         AND default_commerce_market_id = p_market_resource_id
         AND (lifecycle = 'RETIRED' OR coalesce(applicable_to, effective_to) <= p_evaluated_at)
-    ) AS references;
+    ) AS reference_rows;
 
   SELECT coalesce(jsonb_agg(reference ORDER BY reference->>'ownerResourceRevision', reference->'ownerResourceRef'->>'resourceId'), '[]'::jsonb)
     INTO v_proposal_live
@@ -153,7 +153,7 @@ BEGIN
         AND proposal_snapshot->'context'->>'marketId' = p_market_resource_id
         AND state = 'CURRENT'
         AND expires_at > p_evaluated_at
-    ) AS references;
+    ) AS reference_rows;
 
   SELECT coalesce(jsonb_agg(reference ORDER BY reference->>'ownerResourceRevision', reference->'ownerResourceRef'->>'resourceId'), '[]'::jsonb)
     INTO v_proposal_retained
@@ -175,7 +175,7 @@ BEGIN
         AND legal_entity_id = p_legal_entity_id
         AND proposal_snapshot->'context'->>'marketId' = p_market_resource_id
         AND (state <> 'CURRENT' OR expires_at <= p_evaluated_at)
-    ) AS references;
+    ) AS reference_rows;
 
   SELECT min(boundary)
     INTO v_next_boundary
