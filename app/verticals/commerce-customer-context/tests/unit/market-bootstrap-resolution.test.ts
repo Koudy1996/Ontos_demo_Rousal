@@ -91,6 +91,7 @@ const eligible = (
       ownerRevision: 'market-catalog:eligible:17',
       scope: { kind: 'EXACT_PREDICATE', predicateRef: 'market-catalog:shop-b2b:B2B:all-sellers' },
     },
+    effectiveAt: evaluatedAt,
     evaluatedAt,
     ...(nextApplicabilityBoundary === undefined ? {} : { nextApplicabilityBoundary }),
     outcome: 'ELIGIBLE_MARKET_TUPLES',
@@ -114,6 +115,7 @@ const resolved = (
       ownerRevision: 'market-catalog:resolution:17',
       scope: { kind: 'EXACT_PREDICATE', predicateRef: 'market-catalog:shop-b2b:B2B:all-sellers' },
     },
+    effectiveAt: evaluatedAt,
     evaluatedAt,
     marketDefinitionRevisionRef: selectedTuple.marketDefinitionRevisionRef,
     ...(nextApplicabilityBoundary === undefined ? {} : { nextApplicabilityBoundary }),
@@ -132,6 +134,7 @@ const selectionRequired = (
       ownerRevision: 'market-catalog:resolution:18',
       scope: { kind: 'EXACT_PREDICATE', predicateRef: 'market-catalog:shop-b2b:B2B:all-sellers' },
     },
+    effectiveAt: evaluatedAt,
     evaluatedAt,
     outcome: 'MARKET_SELECTION_REQUIRED',
   });
@@ -529,7 +532,7 @@ describe('Governed Market bootstrap resolution', () => {
         request(),
         context({
           loadEligibleTuples: (input) => {
-            eligibleAt = DateTime.formatIso(input.at);
+            eligibleAt = DateTime.formatIso(input.effectiveAt);
             return Effect.succeed(eligible([firstTuple], catalogBoundary));
           },
           loadPolicyCandidates: (_sellerIds, at) => {
@@ -545,7 +548,7 @@ describe('Governed Market bootstrap resolution', () => {
             );
           },
           resolveMarket: (input) => {
-            marketAt = DateTime.formatIso(input.at);
+            marketAt = DateTime.formatIso(input.effectiveAt);
             return Effect.succeed(resolved(firstTuple, 'BOOTSTRAP_DEFAULT', marketBoundary));
           },
         }),

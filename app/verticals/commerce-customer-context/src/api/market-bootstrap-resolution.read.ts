@@ -68,12 +68,12 @@ const completeOutcome = (
 
 const marketRequest = (
   input: MarketBootstrapResolutionRequest,
-  at: ResolveCommerceMarketRequest['at'],
+  effectiveAt: ResolveCommerceMarketRequest['effectiveAt'],
   bootstrapDefault?: ResolveCommerceMarketRequest['bootstrapDefault'],
 ): ResolveCommerceMarketRequest => {
   const request = {
-    at,
     channel: input.channel,
+    effectiveAt,
     storefrontRef: input.storefrontRef,
   };
   const withExplicit =
