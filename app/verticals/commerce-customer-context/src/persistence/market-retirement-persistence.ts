@@ -1,5 +1,4 @@
 import type {
-  OperationalScope,
   ScopedRoutineDefinition,
   ScopedRoutineInputValues,
   ScopedRoutineInvocationError,
@@ -17,7 +16,7 @@ import type {
   ReserveMarketRetirementPayload,
   ReserveMarketRetirementResult,
 } from '@app/customer-market-retirement-contracts';
-import { Effect, Option, Schema } from 'effect';
+import { Context, Effect, Option, Schema } from 'effect';
 
 const MODULE_KEY = 'commerce.customer-context' as const;
 const ROUTINE_SCHEMA = 'commerce_customer_context' as const;
@@ -77,25 +76,31 @@ export interface MarketRetirementScopedRoutineInvoker {
   ) => Effect.Effect<readonly RowSchema['Type'][], ScopedRoutineInvocationError>;
 }
 
-export class MarketRetirementReservationConflict extends Schema.TaggedError<MarketRetirementReservationConflict>()(
+export const MarketRetirementReservationConflictError = Schema.TaggedError<Error>()(
   'MarketRetirementReservationConflict',
   { reason: Schema.String },
-) {}
+);
+export type MarketRetirementReservationConflict = InstanceType<typeof MarketRetirementReservationConflictError>;
 
-export class MarketRetirementReservationInvalidRequest extends Schema.TaggedError<MarketRetirementReservationInvalidRequest>()(
+export const MarketRetirementReservationInvalidRequestError = Schema.TaggedError<Error>()(
   'MarketRetirementReservationInvalidRequest',
   { reason: Schema.String },
-) {}
+);
+export type MarketRetirementReservationInvalidRequest = InstanceType<
+  typeof MarketRetirementReservationInvalidRequestError
+>;
 
-export class MarketRetirementReservationNotFound extends Schema.TaggedError<MarketRetirementReservationNotFound>()(
+export const MarketRetirementReservationNotFoundError = Schema.TaggedError<Error>()(
   'MarketRetirementReservationNotFound',
   { reason: Schema.String },
-) {}
+);
+export type MarketRetirementReservationNotFound = InstanceType<typeof MarketRetirementReservationNotFoundError>;
 
-export class MarketRetirementReservationUnavailable extends Schema.TaggedError<MarketRetirementReservationUnavailable>()(
+export const MarketRetirementReservationUnavailableError = Schema.TaggedError<Error>()(
   'MarketRetirementReservationUnavailable',
   { reason: Schema.String },
-) {}
+);
+export type MarketRetirementReservationUnavailable = InstanceType<typeof MarketRetirementReservationUnavailableError>;
 
 export type MarketRetirementReservationFailure =
   | MarketRetirementReservationConflict
@@ -106,13 +111,13 @@ export type MarketRetirementReservationFailure =
 const decodeJson = <Result, Failure>(
   rows: readonly { readonly result: Schema.Json }[],
   schema: Schema.Decoder<Result>,
-  unavailable: (reason: string) => Failure,
+  unavailable: (reason: string, cause?: unknown) => Failure,
 ): Effect.Effect<Result, Failure> => {
   const [row] = rows;
   return row === undefined
     ? Effect.fail(unavailable('Market retirement owner routine returned no result'))
     : Schema.decodeEffect(schema)(row.result).pipe(
-        Effect.mapError(() => unavailable('Market retirement owner routine returned invalid evidence')),
+        Effect.mapError((cause) => unavailable('Market retirement owner routine returned invalid evidence', cause)),
       );
 };
 
@@ -122,13 +127,24 @@ export interface MarketAffectedUseAssessmentRepository {
   ) => Effect.Effect<MarketAffectedUseAssessmentResponse, ReadHandlerUnavailable>;
 }
 
-export const makeMarketAffectedUseAssessmentRepository = ({
-  invoker,
-  scope,
-}: {
-  readonly invoker: MarketRetirementScopedRoutineInvoker;
-  readonly scope: OperationalScope & { readonly legalEntityId: string };
-}): MarketAffectedUseAssessmentRepository => ({
+export class MarketAffectedUseAssessmentRepositoryService extends Context.Service<
+  MarketAffectedUseAssessmentRepositoryService,
+  MarketAffectedUseAssessmentRepository
+>()(
+  '@app/commerce-customer-context/persistence/market-retirement-persistence/MarketAffectedUseAssessmentRepositoryService',
+) {}
+
+const unavailableAffectedUse = (reason: string, cause?: unknown): ReadHandlerUnavailable => {
+  const failure = new ReadHandlerUnavailable({ code: 'read_handler_unavailable', reason });
+  if (cause !== undefined) {
+    Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  }
+  return failure;
+};
+
+export const marketAffectedUseAssessmentRepositoryForInvoker = (
+  invoker: MarketRetirementScopedRoutineInvoker,
+): MarketAffectedUseAssessmentRepository => ({
   assess: (input) =>
     invoker
       .invoke(assessMarketRetirementAffectedUseRoutine, [
@@ -137,23 +153,9 @@ export const makeMarketAffectedUseAssessmentRepository = ({
         input.evaluatedAt,
       ])
       .pipe(
-        Effect.mapError(
-          () =>
-            new ReadHandlerUnavailable({
-              code: 'read_handler_unavailable',
-              reason: 'Market affected-use evidence is unavailable',
-            }),
-        ),
-        Effect.flatMap((rows) =>
-          decodeJson(
-            rows,
-            MarketAffectedUseAssessmentResponseDecoder,
-            (reason) => new ReadHandlerUnavailable({ code: 'read_handler_unavailable', reason }),
-          ),
-        ),
-        Effect.withSpan('commerce.customer-context.market-retirement.assess-affected-use', {
-          attributes: { legalEntityId: scope.legalEntityId, tenantId: scope.tenantId },
-        }),
+        Effect.mapError((cause) => unavailableAffectedUse('Market affected-use evidence is unavailable', cause)),
+        Effect.flatMap((rows) => decodeJson(rows, MarketAffectedUseAssessmentResponseDecoder, unavailableAffectedUse)),
+        Effect.withSpan('commerce.customer-context.market-retirement.assess-affected-use'),
       ),
 });
 
@@ -168,53 +170,63 @@ const JsonValueSchema: Schema.Codec<Schema.Json> = Schema.suspend(() =>
   ]),
 );
 const JsonObjectSchema = Schema.Record(Schema.String, JsonValueSchema);
-type JsonObject = typeof JsonObjectSchema.Type;
+
+const withCause = <Failure extends object>(failure: Failure, cause?: unknown): Failure => {
+  if (cause !== undefined) {
+    Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+  }
+  return failure;
+};
 
 const mapReservationFailure = (failure: ScopedRoutineInvocationError): MarketRetirementReservationFailure => {
   const constraint = Option.getOrUndefined(failure.constraint);
   if (constraint === 'market_retirement_reservation_conflict') {
-    return new MarketRetirementReservationConflict({
+    return new MarketRetirementReservationConflictError({
       reason: 'Market affected-use evidence changed or another retirement reservation is active',
     });
   }
   if (constraint === 'market_retirement_reservation_not_found') {
-    return new MarketRetirementReservationNotFound({ reason: 'Market retirement reservation was not found' });
+    return new MarketRetirementReservationNotFoundError({ reason: 'Market retirement reservation was not found' });
   }
   if (constraint === 'market_retirement_reservation_invalid') {
-    return new MarketRetirementReservationInvalidRequest({
+    return new MarketRetirementReservationInvalidRequestError({
       reason: 'Market retirement reservation request is invalid',
     });
   }
-  return new MarketRetirementReservationUnavailable({ reason: 'Market retirement reservation persistence failed' });
+  return new MarketRetirementReservationUnavailableError({
+    reason: 'Market retirement reservation persistence failed',
+  });
 };
 
-export interface MarketRetirementReservationService {
+interface MarketRetirementReservationOperations {
   readonly execute: (
     payload: ReserveMarketRetirementPayload,
     attribution: Readonly<{ readonly actionInvocationId: string; readonly actorPrincipalId: string }>,
   ) => Effect.Effect<ReserveMarketRetirementResult, MarketRetirementReservationFailure>;
 }
 
-export const makeMarketRetirementReservationService = ({
-  invoker,
-  scope,
-}: {
-  readonly invoker: MarketRetirementScopedRoutineInvoker;
-  readonly scope: OperationalScope & { readonly legalEntityId: string };
-}): MarketRetirementReservationService => ({
+export const makeMarketRetirementReservationService = (
+  invoker: MarketRetirementScopedRoutineInvoker,
+): MarketRetirementReservationOperations => ({
   execute: (payload, attribution) =>
     Schema.encodeEffect(ReserveMarketRetirementPayloadCodec)(payload).pipe(
-      Effect.mapError(
-        () =>
-          new MarketRetirementReservationInvalidRequest({ reason: 'Market retirement reservation input is invalid' }),
+      Effect.mapError((cause) =>
+        withCause(
+          new MarketRetirementReservationInvalidRequestError({
+            reason: 'Market retirement reservation input is invalid',
+          }),
+          cause,
+        ),
       ),
       Effect.flatMap((encodedPayload) =>
         Schema.decodeEffect(JsonObjectSchema)({ ...encodedPayload, ...attribution }).pipe(
-          Effect.mapError(
-            () =>
-              new MarketRetirementReservationInvalidRequest({
+          Effect.mapError((cause) =>
+            withCause(
+              new MarketRetirementReservationInvalidRequestError({
                 reason: 'Market retirement reservation input is invalid',
               }),
+              cause,
+            ),
           ),
         ),
       ),
@@ -222,14 +234,10 @@ export const makeMarketRetirementReservationService = ({
         invoker.invoke(reserveMarketRetirementRoutine, [encoded]).pipe(Effect.mapError(mapReservationFailure)),
       ),
       Effect.flatMap((rows) =>
-        decodeJson(
-          rows,
-          ReserveMarketRetirementResultDecoder,
-          (reason) => new MarketRetirementReservationUnavailable({ reason }),
+        decodeJson(rows, ReserveMarketRetirementResultDecoder, (reason, cause) =>
+          withCause(new MarketRetirementReservationUnavailableError({ reason }), cause),
         ),
       ),
-      Effect.withSpan('commerce.customer-context.market-retirement.reserve', {
-        attributes: { legalEntityId: scope.legalEntityId, tenantId: scope.tenantId },
-      }),
+      Effect.withSpan('commerce.customer-context.market-retirement.reserve'),
     ),
 });

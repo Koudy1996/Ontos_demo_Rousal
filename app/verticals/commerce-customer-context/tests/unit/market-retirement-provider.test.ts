@@ -1,5 +1,10 @@
 import type { OperationalScope, ReadHandlerContext } from '@app/core-runtime';
-import { ReadHandlerUnavailable, ReadPermissionDenied, getVerticalRuntimeEntrypoints } from '@app/core-runtime';
+import {
+  ReadHandlerUnavailable,
+  ReadPermissionDenied,
+  ScopedRoutineInvocationError,
+  getVerticalRuntimeEntrypoints,
+} from '@app/core-runtime';
 import type {
   MarketAffectedUseAssessmentRequest,
   MarketAffectedUseAssessmentResponse,
@@ -16,14 +21,20 @@ import {
   handleMarketAffectedUseAssessment,
   makeMarketAffectedUseAssessmentServices,
 } from '../../src/api/market-affected-use-assessment.read.ts';
-import type { MarketAffectedUseAssessmentServices } from '../../src/api/market-affected-use-assessment.read.ts';
+import type {
+  MarketAffectedUseAssessmentServices,
+  MarketReferenceOwnerDeploymentStateAuthority,
+} from '../../src/api/market-affected-use-assessment.read.ts';
 import {
-  MarketRetirementReservationConflict,
-  makeMarketAffectedUseAssessmentRepository,
+  MarketRetirementReservationConflictError,
+  marketAffectedUseAssessmentRepositoryForInvoker,
   makeMarketRetirementReservationService,
   marketRetirementRoutineAllowlist,
 } from '../../src/persistence/market-retirement-persistence.ts';
-import type { MarketRetirementScopedRoutineInvoker } from '../../src/persistence/market-retirement-persistence.ts';
+import type {
+  MarketAffectedUseAssessmentRepository as MarketAffectedUseAssessmentRepositoryContract,
+  MarketRetirementScopedRoutineInvoker,
+} from '../../src/persistence/market-retirement-persistence.ts';
 import { commerceCustomerContextManifest } from '../../vertical.manifest.ts';
 import { commerceCustomerContextRegistration } from '../../vertical.registration.ts';
 
@@ -52,8 +63,8 @@ const sourceEvidence = (sourceId: string, ownerRevision = 'revision-7') => ({
     observedAt,
     ownerRevision,
     scope: {
-      kind: 'SAFELY_BROADER_SCOPE' as const,
       declaredScopeRef: `${sourceId}:all:${tenantId}`,
+      kind: 'SAFELY_BROADER_SCOPE' as const,
       predicateRef: `${sourceId}:market:${marketRef.resourceId}`,
     },
   },
@@ -64,8 +75,8 @@ const sourceEvidence = (sourceId: string, ownerRevision = 'revision-7') => ({
   sourceId,
 });
 
-const decodedSourceEvidence = (sourceId: string) => {
-  const encoded = sourceEvidence(sourceId);
+const decodedSourceEvidence = (sourceId: string, ownerRevision = 'revision-7') => {
+  const encoded = sourceEvidence(sourceId, ownerRevision);
   return {
     ...encoded,
     completenessEvidence: Schema.decodeSync(MarketAffectedUseSourceEvidenceSchema)(encoded).completenessEvidence,
@@ -110,7 +121,7 @@ const localAssessment: MarketAffectedUseAssessmentResponse = {
       ownerResourceRevision: 'proposal-revision-2',
     },
   ],
-  sourceEvidence: [sourceEvidence('commerce.customer-context.market-bootstrap-policy')],
+  sourceEvidence: [decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy')],
   tenantId,
 };
 
@@ -127,8 +138,7 @@ const scope = {
 const context = (
   services: MarketAffectedUseAssessmentServices,
 ): ReadHandlerContext<MarketAffectedUseAssessmentServices> => ({
-  operationId: '77777777-7777-4777-8777-777777777777',
-  recordDataAccess: () => Effect.void,
+  readKey: 'commerce.customer-context.api.market-affected-use-assessment',
   scope,
   services,
 });
@@ -140,6 +150,15 @@ const invokerReturning = (...results: readonly object[]): MarketRetirementScoped
     }).pipe(Effect.orDie),
 });
 
+const invokerFailing = (failure: ScopedRoutineInvocationError): MarketRetirementScopedRoutineInvoker => ({
+  invoke: () => Effect.fail(failure),
+});
+
+const assessmentServices = (
+  repository: MarketAffectedUseAssessmentRepositoryContract,
+  deploymentState: MarketReferenceOwnerDeploymentStateAuthority,
+) => makeMarketAffectedUseAssessmentServices(repository.assess, deploymentState.proveReferenceOwnerStates);
+
 it.effect('publishes the Market affected-use provider through the owner module contract', () =>
   Effect.gen(function* publishedProvider() {
     expect(commerceCustomerContextManifest.publicSurface.api).toHaveProperty('market-affected-use-assessment');
@@ -148,7 +167,7 @@ it.effect('publishes the Market affected-use provider through the owner module c
     ];
     expect(loadClient).toBeTypeOf('function');
     const client = yield* Effect.promise(loadClient);
-    expect(client.executeMarketAffectedUseAssessment).toBeTypeOf('function');
+    expect('executeMarketAffectedUseAssessment' in client).toBe(true);
   }),
 );
 
@@ -169,24 +188,21 @@ it('declares only the scoped affected-use and reservation routines', () => {
 
 it.effect('returns owner-classified live and retained references with authoritative absent-owner proofs', () =>
   Effect.gen(function* assessedReferences() {
-    expect(() => Schema.decodeSync(MarketAffectedUseAssessmentResponseSchema)(localAssessment)).not.toThrow();
+    expect(Schema.is(MarketAffectedUseAssessmentResponseSchema)(localAssessment)).toBe(true);
+    const encodedLocalAssessment = yield* Schema.encodeEffect(MarketAffectedUseAssessmentResponseSchema)(
+      localAssessment,
+    );
     const calls: unknown[] = [];
-    const repository = makeMarketAffectedUseAssessmentRepository({
-      invoker: {
-        invoke: (routine, values) => {
-          calls.push([routine.routineKey, values]);
-          return invokerReturning({ result: localAssessment }).invoke(routine, values);
-        },
+    const repository = marketAffectedUseAssessmentRepositoryForInvoker({
+      invoke: (routine, values) => {
+        calls.push([routine.routineKey, values]);
+        return invokerReturning({ result: encodedLocalAssessment }).invoke(routine, values);
       },
-      scope,
     });
-    const cartProof = sourceEvidence('application-composition:commerce.cart:UNIMPLEMENTED', 'composition-19');
-    const orderProof = sourceEvidence('application-composition:commerce.order:UNIMPLEMENTED', 'composition-19');
-    const services = makeMarketAffectedUseAssessmentServices({
-      deploymentState: {
-        proveReferenceOwnerStates: () => Effect.succeed({ sourceEvidence: [cartProof, orderProof] }),
-      },
-      repository,
+    const cartProof = decodedSourceEvidence('application-composition:commerce.cart:UNIMPLEMENTED', 'composition-19');
+    const orderProof = decodedSourceEvidence('application-composition:commerce.order:UNIMPLEMENTED', 'composition-19');
+    const services = assessmentServices(repository, {
+      proveReferenceOwnerStates: () => Effect.succeed({ sourceEvidence: [cartProof, orderProof] }),
     });
 
     const result = yield* services.assess(request);
@@ -210,8 +226,9 @@ it.effect('returns owner-classified live and retained references with authoritat
 
 it.effect('fails closed when authoritative deployment state cannot be proven', () =>
   Effect.gen(function* unavailableDeploymentState() {
-    const services = makeMarketAffectedUseAssessmentServices({
-      deploymentState: {
+    const services = assessmentServices(
+      { assess: () => Effect.succeed(localAssessment) },
+      {
         proveReferenceOwnerStates: () =>
           Effect.fail(
             new ReadHandlerUnavailable({
@@ -220,8 +237,7 @@ it.effect('fails closed when authoritative deployment state cannot be proven', (
             }),
           ),
       },
-      repository: { assess: () => Effect.succeed(localAssessment) },
-    });
+    );
 
     const failure = yield* services.assess(request).pipe(Effect.flip);
 
@@ -251,18 +267,22 @@ it.effect('preserves typed rejected, unavailable, and stale owner outcomes witho
       },
     ];
     let deploymentStateCalls = 0;
-    for (const outcome of outcomes) {
-      const services = makeMarketAffectedUseAssessmentServices({
-        deploymentState: {
-          proveReferenceOwnerStates: () => {
-            deploymentStateCalls += 1;
-            return Effect.succeed({ sourceEvidence: [] });
-          },
-        },
-        repository: { assess: () => Effect.succeed(outcome) },
-      });
-      expect(yield* services.assess(request)).toEqual(outcome);
-    }
+    yield* Effect.all(
+      outcomes.map((outcome) =>
+        Effect.gen(function* preservesOwnerOutcome() {
+          const services = assessmentServices(
+            { assess: () => Effect.succeed(outcome) },
+            {
+              proveReferenceOwnerStates: () => {
+                deploymentStateCalls += 1;
+                return Effect.succeed({ sourceEvidence: [] });
+              },
+            },
+          );
+          expect(yield* services.assess(request)).toEqual(outcome);
+        }),
+      ),
+    );
     expect(deploymentStateCalls).toBe(0);
   }),
 );
@@ -273,8 +293,8 @@ it.effect('rejects a cross-tenant affected-use read before owner persistence run
     const failure = yield* handleMarketAffectedUseAssessment(
       {
         ...request,
-        tenantId: '88888888-8888-4888-8888-888888888888',
         marketRef: { ...marketRef, tenantId: '88888888-8888-4888-8888-888888888888' },
+        tenantId: '88888888-8888-4888-8888-888888888888',
       },
       context({
         assess: () => {
@@ -301,21 +321,20 @@ it.effect('maps concurrent affected-use change to a retryable reservation confli
       sourceEvidence: [decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy')],
       tenantId,
     };
-    const service = makeMarketRetirementReservationService({
-      invoker: {
-        invoke: () =>
-          Effect.fail({
-            _tag: 'ScopedRoutineInvocationError' as const,
-            constraint: Schema.decodeUnknownSync(Schema.OptionFromNullOr(Schema.String))(
-              'market_retirement_reservation_conflict',
-            ),
-            postgresCode: Schema.decodeUnknownSync(Schema.OptionFromNullOr(Schema.String))('P0001'),
-            reason: 'sanitized',
-            routineKey: 'market-retirement.reserve',
-          }),
-      },
-      scope,
-    });
+    const service = makeMarketRetirementReservationService(
+      invokerFailing(
+        new ScopedRoutineInvocationError({
+          code: 'scoped_routine_invocation_failed',
+          constraint: Schema.decodeUnknownSync(Schema.OptionFromNullOr(Schema.String))(
+            'market_retirement_reservation_conflict',
+          ),
+          ownerModuleKey: 'commerce.customer-context',
+          postgresCode: Schema.decodeUnknownSync(Schema.OptionFromNullOr(Schema.String))('P0001'),
+          reason: 'sanitized',
+          routineKey: 'market-retirement.reserve',
+        }),
+      ),
+    );
 
     const failure = yield* service
       .execute(payload, {
@@ -324,7 +343,7 @@ it.effect('maps concurrent affected-use change to a retryable reservation confli
       })
       .pipe(Effect.flip);
 
-    expect(Schema.is(MarketRetirementReservationConflict)(failure)).toBe(true);
+    expect(Schema.is(MarketRetirementReservationConflictError)(failure)).toBe(true);
   }),
 );
 
@@ -351,13 +370,10 @@ it.effect('binds a reservation to exact Market revision, assessment evidence, an
     };
     const invocations: unknown[] = [];
     const service = makeMarketRetirementReservationService({
-      invoker: {
-        invoke: (routine, values) => {
-          invocations.push([routine.routineKey, values]);
-          return invokerReturning({ result }).invoke(routine, values);
-        },
+      invoke: (routine, values) => {
+        invocations.push([routine.routineKey, values]);
+        return invokerReturning({ result }).invoke(routine, values);
       },
-      scope,
     });
 
     expect(

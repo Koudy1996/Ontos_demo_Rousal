@@ -9,8 +9,14 @@ import {
   defineTenantModuleEntrypoint,
 } from '@app/core-runtime';
 import {
+  MarketAffectedUseSourceEvidenceSchema,
   MarketAffectedUseAssessmentRequestSchema,
   MarketAffectedUseAssessmentResponseSchema,
+  MarketBootstrapReferenceSchema,
+  MarketCurrentProposalReferenceSchema,
+  MarketRetainedHistoryReferenceSchema,
+  MarketRetirementInstantSchema,
+  MarketRevisionSchema,
 } from '../../shared/apis/market-affected-use-assessment.ts';
 import type {
   MarketAffectedUseAssessmentRequest,
@@ -18,12 +24,13 @@ import type {
   MarketAffectedUseSourceEvidence,
 } from '../../shared/apis/market-affected-use-assessment.ts';
 import { createHash } from 'node:crypto';
-import { Context, Effect, Option } from 'effect';
+import { DateTime, Context, Effect, Option, Schema } from 'effect';
+import { MarketRefSchema } from '@app/commerce-market-catalog/resources/market';
 
-import {
-  makeMarketAffectedUseAssessmentRepository,
-  type MarketAffectedUseAssessmentRepository,
-} from '../persistence/market-retirement-persistence.ts';
+import { marketAffectedUseAssessmentRepositoryForInvoker } from '../persistence/market-retirement-persistence.ts';
+import type { MarketAffectedUseAssessmentRepository } from '../persistence/market-retirement-persistence.ts';
+
+const MARKET_AFFECTED_USE_MODULE_KEY = 'commerce.customer-context';
 
 export interface MarketReferenceOwnerDeploymentStateAuthority {
   /**
@@ -52,35 +59,62 @@ export interface MarketAffectedUseAssessmentServices {
   ) => Effect.Effect<MarketAffectedUseAssessmentResponse, ReadHandlerUnavailable>;
 }
 
-const canonicalDigest = (assessment: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }>) =>
-  createHash('sha256')
-    .update(
-      JSON.stringify({
-        evaluatedAt: assessment.evaluatedAt,
-        liveBlockingReferences: assessment.liveBlockingReferences,
-        marketRef: assessment.marketRef,
-        marketRevision: assessment.marketRevision,
-        nextApplicabilityBoundary: assessment.nextApplicabilityBoundary,
-        observedAt: assessment.observedAt,
-        retainedHistoryReferences: assessment.retainedHistoryReferences,
-        sourceEvidence: assessment.sourceEvidence.toSorted((left, right) =>
-          left.sourceId.localeCompare(right.sourceId),
-        ),
-        tenantId: assessment.tenantId,
-      }),
-    )
-    .digest('hex');
+const CanonicalMarketAffectedUseDigestInputSchema = Schema.Struct({
+  evaluatedAt: MarketRetirementInstantSchema,
+  liveBlockingReferences: Schema.Struct({
+    bootstrapDefaults: Schema.Array(MarketBootstrapReferenceSchema),
+    currentProposals: Schema.Array(MarketCurrentProposalReferenceSchema),
+  }),
+  marketRef: MarketRefSchema,
+  marketRevision: MarketRevisionSchema,
+  nextApplicabilityBoundary: Schema.optionalKey(MarketRetirementInstantSchema),
+  observedAt: MarketRetirementInstantSchema,
+  retainedHistoryReferences: Schema.Array(MarketRetainedHistoryReferenceSchema),
+  sourceEvidence: Schema.Array(MarketAffectedUseSourceEvidenceSchema),
+  tenantId: MarketRefSchema.fields.tenantId,
+});
+const CanonicalMarketAffectedUseDigestJsonSchema = Schema.fromJsonString(CanonicalMarketAffectedUseDigestInputSchema);
+
+const canonicalDigest = (
+  assessment: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }>,
+) => {
+  const digestInput = {
+    evaluatedAt: assessment.evaluatedAt,
+    liveBlockingReferences: assessment.liveBlockingReferences,
+    marketRef: assessment.marketRef,
+    marketRevision: assessment.marketRevision,
+    observedAt: assessment.observedAt,
+    retainedHistoryReferences: assessment.retainedHistoryReferences,
+    sourceEvidence: assessment.sourceEvidence.toSorted((left, right) => left.sourceId.localeCompare(right.sourceId)),
+    tenantId: assessment.tenantId,
+  };
+  const completeDigestInput =
+    assessment.nextApplicabilityBoundary === undefined
+      ? digestInput
+      : { ...digestInput, nextApplicabilityBoundary: assessment.nextApplicabilityBoundary };
+  return Schema.encodeEffect(CanonicalMarketAffectedUseDigestJsonSchema)(completeDigestInput).pipe(
+    Effect.map((encoded) => createHash('sha256').update(encoded).digest('hex')),
+    Effect.mapError((cause) => {
+      const failure = new ReadHandlerUnavailable({
+        code: 'read_handler_unavailable',
+        reason: 'Market affected-use evidence could not be canonicalized',
+      });
+      Object.defineProperty(failure, 'cause', { configurable: true, value: cause });
+      return failure;
+    }),
+  );
+};
 
 const staleEvidenceSourceIds = (
   evaluatedAt: string,
   sourceEvidence: readonly MarketAffectedUseSourceEvidence[],
 ): readonly string[] => {
-  const evaluated = Date.parse(evaluatedAt);
+  const evaluated = DateTime.toEpochMillis(DateTime.makeUnsafe(evaluatedAt));
   const seen = new Set<string>();
   return sourceEvidence.flatMap((evidence) => {
-    const observed = Date.parse(String(evidence.completenessEvidence.observedAt));
+    const observed = DateTime.toEpochMillis(evidence.completenessEvidence.observedAt);
     const nextBoundary = evidence.completenessEvidence.nextApplicabilityBoundary;
-    const next = nextBoundary === undefined ? undefined : Date.parse(String(nextBoundary));
+    const next = nextBoundary === undefined ? undefined : DateTime.toEpochMillis(nextBoundary);
     const duplicated = seen.has(evidence.sourceId);
     seen.add(evidence.sourceId);
     return duplicated ||
@@ -92,17 +126,20 @@ const staleEvidenceSourceIds = (
   });
 };
 
-export const makeMarketAffectedUseAssessmentServices = (dependencies: {
-  readonly deploymentState: MarketReferenceOwnerDeploymentStateAuthority;
-  readonly repository: MarketAffectedUseAssessmentRepository;
-}): MarketAffectedUseAssessmentServices => ({
+type AssessLocalAffectedUse = MarketAffectedUseAssessmentRepository['assess'];
+type ProveReferenceOwnerStates = MarketReferenceOwnerDeploymentStateAuthority['proveReferenceOwnerStates'];
+
+export const makeMarketAffectedUseAssessmentServices = (
+  assessLocalAffectedUse: AssessLocalAffectedUse,
+  proveReferenceOwnerStates: ProveReferenceOwnerStates,
+): MarketAffectedUseAssessmentServices => ({
   assess: Effect.fn('MarketAffectedUseAssessment.assess')(function* assess(input) {
-    const local = yield* dependencies.repository.assess(input);
+    const local = yield* assessLocalAffectedUse(input);
     if (local.outcome !== 'VERIFIED') {
       return local;
     }
-    const deploymentState = yield* dependencies.deploymentState.proveReferenceOwnerStates(input);
-    const sourceEvidence = [...local.sourceEvidence, ...deploymentState.sourceEvidence].toSorted((left, right) =>
+    const ownerStates = yield* proveReferenceOwnerStates(input);
+    const sourceEvidence = [...local.sourceEvidence, ...ownerStates.sourceEvidence].toSorted((left, right) =>
       left.sourceId.localeCompare(right.sourceId),
     );
     const staleSourceIds = staleEvidenceSourceIds(input.evaluatedAt, sourceEvidence);
@@ -120,7 +157,7 @@ export const makeMarketAffectedUseAssessmentServices = (dependencies: {
       ...local,
       sourceEvidence,
     };
-    return { ...combined, assessmentDigest: canonicalDigest(combined) };
+    return { ...combined, assessmentDigest: yield* canonicalDigest(combined) };
   }),
 });
 
@@ -148,7 +185,7 @@ export const marketAffectedUseAssessmentEntrypoint = defineTenantModuleEntrypoin
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'market.catalog.read' },
   entrypointKey: 'commerce.customer-context.api.market-affected-use-assessment',
-  moduleKey: 'commerce.customer-context',
+  moduleKey: MARKET_AFFECTED_USE_MODULE_KEY,
   role: 'api',
 });
 
@@ -162,7 +199,7 @@ export const marketAffectedUseAssessmentRead = defineRead(
     },
     inputSchema: MarketAffectedUseAssessmentRequestSchema,
     legalEntityScope: 'required',
-    owningModuleKey: 'commerce.customer-context',
+    owningModuleKey: MARKET_AFFECTED_USE_MODULE_KEY,
     permissionTarget: 'module',
     policies: [],
     readKey: 'commerce.customer-context.api.market-affected-use-assessment',
@@ -185,26 +222,22 @@ export const marketAffectedUseAssessmentRead = defineRead(
       );
     }
     return Effect.gen(function* makeServices() {
-      const deploymentState = yield* Effect.serviceOption(MarketReferenceOwnerDeploymentStateAuthorityService);
-      return makeMarketAffectedUseAssessmentServices({
-        deploymentState: Option.match(deploymentState, {
-          onNone: () => ({
-            proveReferenceOwnerStates: () =>
-              Effect.fail(
-                new ReadHandlerUnavailable({
-                  code: 'read_handler_unavailable',
-                  reason: 'Authoritative Market-reference deployment state is not configured',
-                }),
-              ),
-          }),
-          onSome: (authority) => authority,
+      const deploymentStateService = yield* Effect.serviceOption(MarketReferenceOwnerDeploymentStateAuthorityService);
+      const deploymentState = Option.match(deploymentStateService, {
+        onNone: (): MarketReferenceOwnerDeploymentStateAuthority => ({
+          proveReferenceOwnerStates: () =>
+            Effect.fail(
+              new ReadHandlerUnavailable({
+                code: 'read_handler_unavailable',
+                reason: 'Authoritative Market-reference deployment state is not configured',
+              }),
+            ),
         }),
-        repository: makeMarketAffectedUseAssessmentRepository({
-          invoker: transaction,
-          scope: { ...scope, legalEntityId },
-        }),
+        onSome: (authority) => authority,
       });
+      const repository = marketAffectedUseAssessmentRepositoryForInvoker(transaction);
+      return makeMarketAffectedUseAssessmentServices(repository.assess, deploymentState.proveReferenceOwnerStates);
     });
   },
-  () => ({ kind: 'module', moduleId: 'commerce.customer-context' }),
+  () => ({ kind: 'module', moduleId: MARKET_AFFECTED_USE_MODULE_KEY }),
 );
