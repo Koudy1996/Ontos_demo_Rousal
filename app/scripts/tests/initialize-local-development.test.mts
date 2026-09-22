@@ -187,6 +187,36 @@ it.effect('publishes a schema-valid deterministic Czech Launch operator fixture'
       storefrontId: 'czech-launch-b2c',
       tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
     });
+    expect(CZECH_LAUNCH_COMMERCE_FIXTURE.policies.quantity.revision.value).toEqual({
+      basis: {
+        targetDivisibilityRevision: 1,
+        targetRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '76000000-0000-4000-8000-000000000010',
+          resourceType: 'commerce.catalog.variant',
+          tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
+        },
+        unitRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '76000000-0000-4000-8000-000000000020',
+          resourceType: 'commerce.catalog.product-unit',
+          tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
+        },
+        unitRuleRevision: 1,
+      },
+      constraintMode: 'REPLACEABLE_ENVELOPE',
+      envelope: { kind: 'BOUNDED', maximum: null, minimum: '1', multiple: '1' },
+      kind: 'COMMERCE_QUANTITY_RULE',
+      selector: {
+        kind: 'VARIANT',
+        variantRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '76000000-0000-4000-8000-000000000010',
+          resourceType: 'commerce.catalog.variant',
+          tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
+        },
+      },
+    });
   }),
 );
 

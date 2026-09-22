@@ -33,6 +33,18 @@ const marketRef = {
   tenantId,
 } as const;
 const storefrontRef = { appId: storefrontId, tenantId } as const;
+const catalogVariantRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: '76000000-0000-4000-8000-000000000010',
+  resourceType: 'commerce.catalog.variant',
+  tenantId,
+} as const;
+const catalogProductUnitRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: '76000000-0000-4000-8000-000000000020',
+  resourceType: 'commerce.catalog.product-unit',
+  tenantId,
+} as const;
 
 export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
   actionKeys: Object.freeze({
@@ -128,24 +140,15 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
         scope: { channelId: 'B2C', kind: 'CHANNEL_SELLER', sellingLegalEntityId },
         value: {
           basis: {
-            basisRef: {
-              moduleId: 'commerce.catalog',
-              resourceId: 'czech-launch-each-basis',
-              resourceType: 'commerce.catalog.quantity-basis',
-              tenantId,
-            },
-            ownerRevision: 'czech-launch-catalog-v1',
-            unitRef: {
-              moduleId: 'commerce.catalog',
-              resourceId: 'czech-launch-each',
-              resourceType: 'commerce.catalog.quantity-unit',
-              tenantId,
-            },
+            targetDivisibilityRevision: 1,
+            targetRef: catalogVariantRef,
+            unitRef: catalogProductUnitRef,
+            unitRuleRevision: 1,
           },
           constraintMode: 'REPLACEABLE_ENVELOPE',
           envelope: { kind: 'BOUNDED', maximum: null, minimum: '1', multiple: '1' },
           kind: 'COMMERCE_QUANTITY_RULE',
-          selector: { kind: 'ALL' },
+          selector: { kind: 'VARIANT', variantRef: catalogVariantRef },
         },
       },
     },
