@@ -16,3 +16,5 @@ export type OperationGatewayIssuer = SharedOperationGatewayIssuer<
 
 export const makeOperationGateway = (acquire: OperationGatewayIssuer = issueGatewayContext) =>
   makeSharedOperationGateway(ACTION_GATEWAY_AUDIENCE, acquire);
+
+export const operationGateway = makeOperationGateway();
