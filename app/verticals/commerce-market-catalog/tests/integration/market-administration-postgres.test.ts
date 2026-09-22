@@ -464,7 +464,7 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
   ),
 );
 
-it.live('exposes only the six governed mutations and one governed read over forced Tenant RLS', () =>
+it.live('exposes only the six governed mutations and three governed reads over forced Tenant RLS', () =>
   Effect.scoped(
     Effect.gen(function* marketSecurityCatalog() {
       const { admin: adminPool } = yield* testDatabasePools;
@@ -490,7 +490,7 @@ it.live('exposes only the six governed mutations and one governed read over forc
         'objects',
       );
       expect(catalog).toEqual({
-        executable_routines: 7,
+        executable_routines: 9,
         forced_tables: 6,
         private_routines_executable: false,
         runtime_table_grants: 0,
