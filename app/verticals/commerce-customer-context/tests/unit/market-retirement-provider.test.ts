@@ -15,7 +15,7 @@ import {
   MarketAffectedUseAssessmentResponseSchema,
   MarketAffectedUseSourceEvidenceSchema,
 } from '@app/customer-market-retirement-contracts';
-import { Effect, Match, Schema } from 'effect';
+import { DateTime, Effect, Match, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
 
 import { reserveMarketRetirementAction } from '../../src/actions/reserve-market-retirement.action.ts';
@@ -37,6 +37,12 @@ import type {
   MarketAffectedUseAssessmentRepository as MarketAffectedUseAssessmentRepositoryContract,
   MarketRetirementScopedRoutineInvoker,
 } from '../../src/persistence/market-retirement-persistence.ts';
+import {
+  MarketRetirementAssessmentStaleError,
+  MarketRetirementAssessmentUnavailableError,
+  MarketRetirementLiveReferenceConflictError,
+  marketRetirementReservationServiceFromAuthorities,
+} from '../../src/services/market-retirement-reservation.service.ts';
 import type { MarketRetirementReservationService } from '../../src/services/market-retirement-reservation.service.ts';
 import { commerceCustomerContextManifest } from '../../vertical.manifest.ts';
 import { commerceCustomerContextRegistration } from '../../vertical.registration.ts';
@@ -84,6 +90,35 @@ const decodedSourceEvidence = (sourceId: string, ownerRevision = 'revision-7') =
     ...encoded,
     completenessEvidence: Schema.decodeSync(MarketAffectedUseSourceEvidenceSchema)(encoded).completenessEvidence,
   };
+};
+
+const reservationAttribution = {
+  actionInvocationId: '99999999-9999-4999-8999-999999999999',
+  actorPrincipalId: principalId,
+} as const;
+
+const reservePayload: Extract<ReserveMarketRetirementPayload, { readonly operation: 'RESERVE' }> = {
+  assessmentDigest: digest,
+  evaluatedAt,
+  marketRef,
+  marketRevision: 7,
+  operation: 'RESERVE',
+  reason: 'Retire unused Czech Market',
+  sourceEvidence: [decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy')],
+  tenantId,
+};
+
+const reservableAssessment: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }> = {
+  assessmentDigest: digest,
+  evaluatedAt,
+  liveBlockingReferences: { bootstrapDefaults: [], currentProposals: [] },
+  marketRef,
+  marketRevision: 7,
+  observedAt,
+  outcome: 'VERIFIED',
+  retainedHistoryReferences: [],
+  sourceEvidence: reservePayload.sourceEvidence,
+  tenantId,
 };
 
 const localAssessment: MarketAffectedUseAssessmentResponse = {
@@ -156,6 +191,24 @@ const invokerReturning = (...results: readonly object[]): MarketRetirementScoped
 const invokerFailing = (failure: ScopedRoutineInvocationError): MarketRetirementScopedRoutineInvoker => ({
   invoke: () => Effect.fail(failure),
 });
+
+const reservationResult = {
+  assessmentDigest: digest,
+  lifecycle: 'RESERVED' as const,
+  marketRef,
+  marketRevision: 7,
+  reservationToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  reservationVersion: 1,
+  tenantId,
+};
+
+const reservationOperations = (calls: string[]) =>
+  marketRetirementReservationForTransaction({
+    invoke: (routine, values) => {
+      calls.push(routine.routineKey);
+      return invokerReturning({ result: reservationResult }).invoke(routine, values);
+    },
+  });
 
 const assessmentServices = (
   repository: MarketAffectedUseAssessmentRepositoryContract,
@@ -312,6 +365,148 @@ it.effect('rejects a cross-tenant affected-use read before owner persistence run
   }),
 );
 
+it.effect('reassesses exact current affected-use evidence before reserving', () =>
+  Effect.gen(function* reassessesBeforeReserve() {
+    const persistenceCalls: string[] = [];
+    const assessmentInputs: MarketAffectedUseAssessmentRequest[] = [];
+    const service = marketRetirementReservationServiceFromAuthorities(
+      {
+        assess: (input) => {
+          assessmentInputs.push(input);
+          return Effect.succeed(reservableAssessment);
+        },
+      },
+      reservationOperations(persistenceCalls),
+      Effect.succeed(DateTime.toEpochMillis(DateTime.makeUnsafe('2026-09-22T10:00:01.000Z'))),
+    );
+
+    expect(yield* service.execute(reservePayload, reservationAttribution)).toEqual(reservationResult);
+    expect(assessmentInputs).toEqual([request]);
+    expect(persistenceCalls).toEqual(['market-retirement.reserve']);
+  }),
+);
+
+it.effect('rejects changed digest or source evidence before reservation persistence', () =>
+  Effect.gen(function* rejectsChangedClaims() {
+    const changedEvidence = decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy', 'revision-8');
+    const scenarios = [
+      { ...reservableAssessment, assessmentDigest: 'b'.repeat(64) },
+      { ...reservableAssessment, sourceEvidence: [changedEvidence] },
+    ] satisfies readonly MarketAffectedUseAssessmentResponse[];
+
+    for (const assessment of scenarios) {
+      const persistenceCalls: string[] = [];
+      const service = marketRetirementReservationServiceFromAuthorities(
+        { assess: () => Effect.succeed(assessment) },
+        reservationOperations(persistenceCalls),
+        Effect.succeed(DateTime.toEpochMillis(DateTime.makeUnsafe('2026-09-22T10:00:01.000Z'))),
+      );
+
+      const failure = yield* service.execute(reservePayload, reservationAttribution).pipe(Effect.flip);
+      expect(Schema.is(MarketRetirementAssessmentStaleError)(failure)).toBe(true);
+      expect(persistenceCalls).toHaveLength(0);
+    }
+  }),
+);
+
+it.effect('rejects a proof that expired after assessment but before reservation', () =>
+  Effect.gen(function* rejectsExpiredProof() {
+    const evidence = decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy');
+    const expiringEvidence = {
+      ...evidence,
+      completenessEvidence: {
+        ...evidence.completenessEvidence,
+        nextApplicabilityBoundary: DateTime.makeUnsafe('2026-09-22T10:00:00.500Z'),
+      },
+    };
+    const expiringPayload = { ...reservePayload, sourceEvidence: [expiringEvidence] };
+    const persistenceCalls: string[] = [];
+    const service = marketRetirementReservationServiceFromAuthorities(
+      { assess: () => Effect.succeed({ ...reservableAssessment, sourceEvidence: [expiringEvidence] }) },
+      reservationOperations(persistenceCalls),
+      Effect.succeed(DateTime.toEpochMillis(DateTime.makeUnsafe('2026-09-22T10:00:01.000Z'))),
+    );
+
+    const failure = yield* service.execute(expiringPayload, reservationAttribution).pipe(Effect.flip);
+    expect(Schema.is(MarketRetirementAssessmentStaleError)(failure)).toBe(true);
+    expect(persistenceCalls).toHaveLength(0);
+  }),
+);
+
+it.effect('maps rejected and unavailable reassessments to typed reservation failures', () =>
+  Effect.gen(function* mapsReassessmentFailures() {
+    const outcomes: readonly MarketAffectedUseAssessmentResponse[] = [
+      { ...request, code: 'live-reference', outcome: 'REJECTED', reason: 'A live Market reference exists' },
+      {
+        ...request,
+        code: 'owner-unavailable',
+        outcome: 'UNAVAILABLE',
+        reason: 'Owner evidence is unavailable',
+        retryable: true,
+      },
+    ];
+    const expectedTags = ['MarketRetirementLiveReferenceConflict', 'MarketRetirementAssessmentUnavailable'] as const;
+
+    for (const [index, outcome] of outcomes.entries()) {
+      const persistenceCalls: string[] = [];
+      const service = marketRetirementReservationServiceFromAuthorities(
+        { assess: () => Effect.succeed(outcome) },
+        reservationOperations(persistenceCalls),
+      );
+      const failure = yield* service.execute(reservePayload, reservationAttribution).pipe(Effect.flip);
+      const failureTag = Match.value(failure).pipe(
+        Match.tag('MarketRetirementLiveReferenceConflict', () => 'MarketRetirementLiveReferenceConflict' as const),
+        Match.tag('MarketRetirementAssessmentUnavailable', () => 'MarketRetirementAssessmentUnavailable' as const),
+        Match.orElse(() => 'unexpected' as const),
+      );
+      expect(failureTag).toBe(expectedTags[index]);
+      expect(persistenceCalls).toHaveLength(0);
+    }
+  }),
+);
+
+it.effect('does not reassess COMMIT or RELEASE operations', () =>
+  Effect.gen(function* finishesWithoutReassessment() {
+    const persistenceCalls: string[] = [];
+    let assessmentCalls = 0;
+    const service = marketRetirementReservationServiceFromAuthorities(
+      {
+        assess: () => {
+          assessmentCalls += 1;
+          return Effect.die('finish operation reached affected-use reassessment');
+        },
+      },
+      reservationOperations(persistenceCalls),
+    );
+    const finishPayloads: readonly ReserveMarketRetirementPayload[] = [
+      {
+        marketRef,
+        marketRevision: 7,
+        operation: 'COMMIT',
+        reason: 'Market retirement committed',
+        reservationToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        reservationVersion: 1,
+        tenantId,
+      },
+      {
+        marketRef,
+        marketRevision: 7,
+        operation: 'RELEASE',
+        reason: 'Market retirement released',
+        reservationToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        reservationVersion: 1,
+        tenantId,
+      },
+    ];
+
+    yield* Effect.forEach(finishPayloads, (payload) => service.execute(payload, reservationAttribution), {
+      concurrency: 1,
+    });
+    expect(assessmentCalls).toBe(0);
+    expect(persistenceCalls).toEqual(['market-retirement.reserve', 'market-retirement.reserve']);
+  }),
+);
+
 it.effect('maps concurrent affected-use change to a retryable reservation conflict', () =>
   Effect.gen(function* reservationConflict() {
     const payload: ReserveMarketRetirementPayload = {
@@ -401,10 +596,67 @@ it.effect('binds a reservation to exact Market revision, assessment evidence, an
   }),
 );
 
+it.effect('maps reassessment failures to governed Action conflict and unavailable codes', () =>
+  Effect.gen(function* mapsGovernedFailureCodes() {
+    const scenarios = [
+      {
+        code: 'ASSESSMENT_STALE',
+        failure: new MarketRetirementAssessmentStaleError({ reason: 'Affected-use evidence changed' }),
+        retryable: false,
+      },
+      {
+        code: 'LIVE_REFERENCE_CONFLICT',
+        failure: new MarketRetirementLiveReferenceConflictError({ reason: 'A live Market reference exists' }),
+        retryable: false,
+      },
+      {
+        code: 'ASSESSMENT_UNAVAILABLE',
+        failure: new MarketRetirementAssessmentUnavailableError({ reason: 'Owner proof unavailable' }),
+        retryable: true,
+      },
+    ] as const;
+    const actionPrincipal = {
+      authBindingId: scope.authBindingId,
+      authContextRef: scope.authContextRef,
+      authMethod: scope.authMethod,
+      legalEntityId,
+      principalId,
+      tenantId,
+    } as const;
+
+    for (const [index, scenario] of scenarios.entries()) {
+      const service: MarketRetirementReservationService = {
+        execute: () => Effect.fail(scenario.failure),
+      };
+      const harness = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [bindActionTestServices(reserveMarketRetirementAction, service)],
+      });
+      const failure = yield* harness.runtime
+        .runAction({
+          payload: {
+            ...reservePayload,
+            sourceEvidence: [sourceEvidence('commerce.customer-context.market-bootstrap-policy')],
+          },
+          principal: actionPrincipal,
+          registration: reserveMarketRetirementAction,
+          transport: {
+            correlationId: `market-retirement-reassessment-${index}`,
+            idempotencyKey: `market-retirement-reassessment-${index}`,
+          },
+        })
+        .pipe(Effect.flip);
+
+      expect(failure).toMatchObject({ code: scenario.code, retryable: scenario.retryable });
+      expect(harness.snapshot().committed).toHaveLength(0);
+    }
+  }),
+);
+
 it.effect('runs RESERVE, COMMIT, and RELEASE through the governed owner Action runtime', () =>
   Effect.gen(function* governedReservationLifecycle() {
     const reservationToken = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-    const reservePayload = {
+    const governedReservePayload = {
       assessmentDigest: digest,
       evaluatedAt,
       marketRef,
@@ -470,7 +722,7 @@ it.effect('runs RESERVE, COMMIT, and RELEASE through the governed owner Action r
       principalId,
       tenantId,
     } as const;
-    const payloads = [reservePayload, ...finishPayloads];
+    const payloads = [governedReservePayload, ...finishPayloads];
     const results = yield* Effect.forEach(
       payloads,
       (payload, index) =>

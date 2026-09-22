@@ -26,7 +26,10 @@ class ReserveMarketRetirementRejected extends Schema.TaggedError<ReserveMarketRe
       'RETIREMENT_RESERVATION_CONFLICT',
       'RETIREMENT_RESERVATION_NOT_FOUND',
       'RESERVATION_STATE_CONFLICT',
+      'ASSESSMENT_STALE',
+      'LIVE_REFERENCE_CONFLICT',
       'SCOPE_MISMATCH',
+      'ASSESSMENT_UNAVAILABLE',
       'PERSISTENCE_UNAVAILABLE',
     ]),
     reason: Schema.String,
@@ -69,6 +72,12 @@ const handleReserveMarketRetirement = Effect.fn('ReserveMarketRetirementAction.h
     Effect.fail(reject('RETIREMENT_RESERVATION_NOT_FOUND', reason));
   const marketRetirementReservationUnavailable = ({ reason }: { readonly reason: string }) =>
     Effect.fail(reject('PERSISTENCE_UNAVAILABLE', reason, true));
+  const marketRetirementAssessmentStale = ({ reason }: { readonly reason: string }) =>
+    Effect.fail(reject('ASSESSMENT_STALE', reason));
+  const marketRetirementLiveReferenceConflict = ({ reason }: { readonly reason: string }) =>
+    Effect.fail(reject('LIVE_REFERENCE_CONFLICT', reason));
+  const marketRetirementAssessmentUnavailable = ({ reason }: { readonly reason: string }) =>
+    Effect.fail(reject('ASSESSMENT_UNAVAILABLE', reason, true));
   const result = yield* context.services
     .execute(payload, {
       actionInvocationId: context.actionInvocationId,
@@ -76,6 +85,9 @@ const handleReserveMarketRetirement = Effect.fn('ReserveMarketRetirementAction.h
     })
     .pipe(
       Effect.catchTags({
+        MarketRetirementAssessmentStale: marketRetirementAssessmentStale,
+        MarketRetirementAssessmentUnavailable: marketRetirementAssessmentUnavailable,
+        MarketRetirementLiveReferenceConflict: marketRetirementLiveReferenceConflict,
         MarketRetirementReservationConflict: marketRetirementReservationConflict,
         MarketRetirementReservationInvalidRequest: marketRetirementReservationInvalidRequest,
         MarketRetirementReservationNotFound: marketRetirementReservationNotFound,

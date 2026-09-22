@@ -28,11 +28,18 @@ type ProblemOf<Tag extends ReserveMarketRetirementActionProblem['_tag']> = Extra
   { readonly _tag: Tag }
 >;
 type DomainProblemIdentity =
-  | { readonly code: 'RESERVATION_STATE_CONFLICT' | 'RETIREMENT_RESERVATION_CONFLICT'; readonly kind: 'conflict' }
+  | {
+      readonly code:
+        | 'ASSESSMENT_STALE'
+        | 'LIVE_REFERENCE_CONFLICT'
+        | 'RESERVATION_STATE_CONFLICT'
+        | 'RETIREMENT_RESERVATION_CONFLICT';
+      readonly kind: 'conflict';
+    }
   | { readonly code: 'SCOPE_MISMATCH'; readonly kind: 'forbidden' }
   | { readonly code: 'INVALID_REQUEST'; readonly kind: 'ineligible' }
   | { readonly code: 'RETIREMENT_RESERVATION_NOT_FOUND'; readonly kind: 'notFound' }
-  | { readonly code: 'PERSISTENCE_UNAVAILABLE'; readonly kind: 'unavailable' };
+  | { readonly code: 'ASSESSMENT_UNAVAILABLE' | 'PERSISTENCE_UNAVAILABLE'; readonly kind: 'unavailable' };
 
 const problemStatus = {
   authentication: 401,
@@ -49,7 +56,10 @@ const problemStatus = {
 } as const;
 
 const reserveMarketRetirementRejectedProblemByCode = {
+  ASSESSMENT_STALE: { code: 'ASSESSMENT_STALE', kind: 'conflict' },
+  ASSESSMENT_UNAVAILABLE: { code: 'ASSESSMENT_UNAVAILABLE', kind: 'unavailable' },
   INVALID_REQUEST: { code: 'INVALID_REQUEST', kind: 'ineligible' },
+  LIVE_REFERENCE_CONFLICT: { code: 'LIVE_REFERENCE_CONFLICT', kind: 'conflict' },
   PERSISTENCE_UNAVAILABLE: { code: 'PERSISTENCE_UNAVAILABLE', kind: 'unavailable' },
   RESERVATION_STATE_CONFLICT: { code: 'RESERVATION_STATE_CONFLICT', kind: 'conflict' },
   RETIREMENT_RESERVATION_CONFLICT: { code: 'RETIREMENT_RESERVATION_CONFLICT', kind: 'conflict' },

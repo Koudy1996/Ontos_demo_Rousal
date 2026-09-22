@@ -48,6 +48,8 @@ export const ReserveMarketRetirementActionConflictProblemSchema = makeProblemDet
     code: Schema.Literals([
       'action_request_hash_conflict',
       'action_invocation_state_invalid',
+      'ASSESSMENT_STALE',
+      'LIVE_REFERENCE_CONFLICT',
       'RESERVATION_STATE_CONFLICT',
       'RETIREMENT_RESERVATION_CONFLICT',
     ]),
@@ -73,6 +75,7 @@ export const ReserveMarketRetirementActionUnavailableProblemSchema = makeRetryab
       'action_transaction_failed',
       'module_state_check_unavailable',
       'operation_context_unavailable',
+      'ASSESSMENT_UNAVAILABLE',
       'PERSISTENCE_UNAVAILABLE',
     ]),
   },
