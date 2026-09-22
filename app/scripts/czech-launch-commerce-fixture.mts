@@ -1,6 +1,6 @@
 import { Effect, Schema } from 'effect';
 
-import { CurrentSupportedCurrenciesSuccessSchema } from '@app/pricing-contracts';
+import { CurrentSupportedCurrenciesSuccessSchema } from '../packages/pricing-contracts/src/apis/current-supported-currencies.ts';
 
 import { CurrentPaymentTermsResponseSchema } from '../packages/payment-term-catalog-contracts/src/apis/current-payment-terms.ts';
 import {
