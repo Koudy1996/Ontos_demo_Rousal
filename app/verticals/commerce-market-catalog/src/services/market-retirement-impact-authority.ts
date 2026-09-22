@@ -1,4 +1,4 @@
-import { Context, Effect, Option } from 'effect';
+import { Effect } from 'effect';
 
 import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 import type { MarketRef } from '../../shared/resources/market.ts';
@@ -6,7 +6,7 @@ import type { MarketRetirementImpactAssessmentRejected } from '../actions/market
 import type { MarketRetirementImpactAssessmentStale } from '../actions/market-retirement-impact-assessment-stale.ts';
 import type { MarketRetirementImpactAssessmentUnavailable } from '../actions/market-retirement-impact-assessment-unavailable.ts';
 
-export type MarketRetirementImpactFailure =
+type MarketRetirementImpactFailure =
   | MarketRetirementImpactAssessmentRejected
   | MarketRetirementImpactAssessmentStale
   | MarketRetirementImpactAssessmentUnavailable;
@@ -20,21 +20,3 @@ export interface MarketRetirementImpactAuthority {
     readonly reservationToken: string;
   }) => Effect.Effect<MarketRetirementImpactAssessment, MarketRetirementImpactFailure>;
 }
-
-export class MarketRetirementImpactAuthorityService extends Context.Service<
-  MarketRetirementImpactAuthorityService,
-  MarketRetirementImpactAuthority
->()(
-  '@app/commerce-market-catalog/services/market-retirement-impact-authority/MarketRetirementImpactAuthorityService',
-) {}
-
-export const requiredMarketRetirementImpactAuthority = <Failure>(onUnavailable: () => Failure) =>
-  Effect.serviceOption(MarketRetirementImpactAuthorityService).pipe(
-    Effect.flatMap(
-      Option.match({
-        onNone: () => Effect.fail(onUnavailable()),
-        onSome: Effect.succeed,
-      }),
-    ),
-    Effect.withSpan('MarketRetirementImpactAuthority.required'),
-  );

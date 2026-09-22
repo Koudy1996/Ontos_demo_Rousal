@@ -44,16 +44,7 @@ export { RetireMarketPayloadSchema } from '../../shared/action-contracts.ts';
 export type { RetireMarketPayload } from '../../shared/action-contracts.ts';
 
 export { MarketRetirementImpactAssessmentRejected } from './market-retirement-impact-assessment-rejected.ts';
-export { MarketRetirementImpactAssessmentStale } from './market-retirement-impact-assessment-stale.ts';
 export { MarketRetirementImpactAssessmentUnavailable } from './market-retirement-impact-assessment-unavailable.ts';
-export {
-  MarketRetirementImpactAuthorityService,
-  requiredMarketRetirementImpactAuthority,
-} from '../services/market-retirement-impact-authority.ts';
-export type {
-  MarketRetirementImpactAuthority,
-  MarketRetirementImpactFailure,
-} from '../services/market-retirement-impact-authority.ts';
 
 const ErrorSchema = Schema.Union([
   MarketCommandRejected,

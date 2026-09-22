@@ -13,11 +13,10 @@ const positiveRevision = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 const referenceCount = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const utcInstant = Schema.toEncoded(Schema.DateTimeUtcFromString);
 
-export const MarketRetirementReferenceEvidenceSchema = Schema.Struct({
+const MarketRetirementReferenceEvidenceSchema = Schema.Struct({
   count: referenceCount,
   evidenceReference: nonEmptyText,
 }).annotate(strict);
-export type MarketRetirementReferenceEvidence = typeof MarketRetirementReferenceEvidenceSchema.Type;
 
 export const MarketRetirementProviderAssessmentSchema = Schema.Struct({
   completenessEvidenceReference: nonEmptyText,

@@ -233,14 +233,3 @@ export const makeMarketRetirementReservationService = ({
       }),
     ),
 });
-
-export const marketRetirementPersistenceForTransaction = ({
-  invoker,
-  scope,
-}: {
-  readonly invoker: MarketRetirementScopedRoutineInvoker;
-  readonly scope: OperationalScope & { readonly legalEntityId: string };
-}) => ({
-  assessment: makeMarketAffectedUseAssessmentRepository({ invoker, scope }),
-  reservation: makeMarketRetirementReservationService({ invoker, scope }),
-});
