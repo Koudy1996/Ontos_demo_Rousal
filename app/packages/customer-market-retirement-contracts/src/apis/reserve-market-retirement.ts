@@ -1,7 +1,8 @@
-import { MarketRefSchema } from '@app/commerce-market-catalog/resources/market';
 import { makeProblemDetailsSchema, makeRetryableProblemDetailsSchema } from '@app/shared-contracts';
 import { Schema } from 'effect';
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+
+import { MarketRefSchema } from '../market-reference.ts';
 
 import {
   MarketAffectedUseSourceEvidenceSchema,

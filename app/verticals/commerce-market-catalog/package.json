@@ -38,7 +38,6 @@
     "typecheck": "node ../../scripts/ultramodern-typecheck.mts --project tsconfig.json"
   },
   "dependencies": {
-    "@app/commerce-customer-context": "workspace:*",
     "@app/core-runtime": "workspace:*",
     "@app/customer-market-retirement-contracts": "workspace:*",
     "@app/gateway-principal-verifier": "workspace:*",

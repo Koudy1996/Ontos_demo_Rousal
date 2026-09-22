@@ -564,9 +564,6 @@ importers:
 
   packages/customer-market-retirement-contracts:
     dependencies:
-      '@app/commerce-market-catalog':
-        specifier: workspace:*
-        version: link:../../verticals/commerce-market-catalog
       '@app/shared-contracts':
         specifier: workspace:*
         version: link:../shared-contracts
@@ -1023,9 +1020,6 @@ importers:
 
   verticals/commerce-market-catalog:
     dependencies:
-      '@app/commerce-customer-context':
-        specifier: workspace:*
-        version: link:../commerce-customer-context
       '@app/core-runtime':
         specifier: workspace:*
         version: link:../../packages/core-runtime

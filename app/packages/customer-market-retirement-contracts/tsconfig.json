@@ -13,7 +13,6 @@
   },
   "include": ["src", "tests"],
   "references": [
-    { "path": "../../verticals/commerce-market-catalog" },
     { "path": "../shared-contracts" }
   ]
 }
