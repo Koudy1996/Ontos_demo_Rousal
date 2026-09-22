@@ -4,7 +4,9 @@
     "commerce-customer-context": "http://localhost:4101/.well-known/ontos-module-manifest.json",
     "party-registry": "http://localhost:4102/.well-known/ontos-module-manifest.json",
     "payment-term-catalog": "http://localhost:4103/.well-known/ontos-module-manifest.json",
-    "catalog": "http://localhost:4105/.well-known/ontos-module-manifest.json"
+    "catalog": "http://localhost:4105/.well-known/ontos-module-manifest.json",
+    "pricing": "http://localhost:4106/.well-known/ontos-module-manifest.json",
+    "storefront-registry": "http://localhost:4107/.well-known/ontos-module-manifest.json"
   },
   "schemaVersion": 1,
   "environment": "development",
