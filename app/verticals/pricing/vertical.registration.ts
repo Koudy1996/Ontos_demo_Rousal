@@ -3,8 +3,15 @@
 // @ontos-module-id commerce.pricing
 import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
 import { pricingManifest } from './vertical.manifest.ts';
+// <generated-module-registration-imports>
+import { setSupportedCurrenciesAction } from './src/actions/set-supported-currencies.action.ts';
+// </generated-module-registration-imports>
 export const pricingRegistration = defineVerticalRuntimeRegistration({
-  actions: [],
+  actions: [
+    // <generated-module-registration-actions>
+    setSupportedCurrenciesAction,
+    // </generated-module-registration-actions>
+  ],
   entrypoints: {
     api: { 'current-supported-currencies': () => import('./src/api/current-supported-currencies-client.ts') },
     components: {},

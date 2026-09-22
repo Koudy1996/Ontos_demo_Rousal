@@ -3,7 +3,10 @@
 // @ontos-module-id commerce.pricing
 import { defineOntosModuleManifest } from '@app/core-runtime';
 import type { OntosModuleManifestInput } from '@app/core-runtime';
+// <generated-module-manifest-imports>
 import { CurrentSupportedCurrenciesApi } from './shared/apis/current-supported-currencies.ts';
+import { setSupportedCurrenciesAction } from './src/actions/set-supported-currencies.action.ts';
+// </generated-module-manifest-imports>
 export const pricingManifest: OntosModuleManifestInput = defineOntosModuleManifest({
   activation: {
     defaultState: 'inactive',
@@ -19,7 +22,11 @@ export const pricingManifest: OntosModuleManifestInput = defineOntosModuleManife
     kind: 'business_module',
   },
   publicSurface: {
-    actions: [],
+    actions: [
+      // <generated-module-manifest-actions>
+      setSupportedCurrenciesAction,
+      // </generated-module-manifest-actions>
+    ],
     api: { 'current-supported-currencies': CurrentSupportedCurrenciesApi },
     businessPermissions: [],
     components: {},
