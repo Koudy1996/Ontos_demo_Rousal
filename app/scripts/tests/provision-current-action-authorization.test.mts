@@ -204,6 +204,7 @@ const addedVerticalActionKeys = [
   'commerce.customer-context.repeat-retail-order',
   'commerce.customer-context.reroute-purchase-approval-request',
   'commerce.customer-context.resend-counterparty-access-invitation',
+  'commerce.customer-context.reserve-market-retirement',
   'commerce.customer-context.reserve-payment-term-retirement',
   'commerce.customer-context.resolve-profile-reconciliation',
   'commerce.customer-context.revalidate-purchase-approval',
