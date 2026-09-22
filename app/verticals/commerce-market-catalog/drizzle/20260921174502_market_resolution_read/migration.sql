@@ -8,11 +8,19 @@ security definer
 set search_path = pg_catalog, pg_temp
 as $$
 declare
-  v_at timestamptz;
+  v_effective_at timestamptz;
+  v_allowed_channels text[];
+  v_allowed_market_ids uuid[];
+  v_allowed_seller_ids uuid[];
   v_channel text;
   v_observed_at timestamptz := statement_timestamp();
   v_selling_legal_entity_id uuid;
   v_storefront_app_id text;
+  v_subject_decision text;
+  v_subject_identity_ref text;
+  v_subject_kind text;
+  v_subject_owner_revision text;
+  v_subject_profile_state text;
 begin
   if p_tenant_id is null
      or p_tenant_id is distinct from nullif(current_setting('ontos.tenant_id', true), '')::uuid then
@@ -23,21 +31,43 @@ begin
   end if;
 
   begin
-    v_at := (p_payload->>'at')::timestamptz;
+    v_effective_at := (p_payload->>'effectiveAt')::timestamptz;
     v_channel := p_payload->>'channel';
     v_selling_legal_entity_id := nullif(p_payload->>'sellingLegalEntityId', '')::uuid;
     v_storefront_app_id := p_payload->>'storefrontAppId';
+    v_subject_decision := p_payload->>'subjectDecision';
+    v_subject_identity_ref := p_payload->>'subjectIdentityRef';
+    v_subject_kind := p_payload->>'subjectKind';
+    v_subject_owner_revision := p_payload->>'subjectOwnerRevision';
+    v_subject_profile_state := p_payload->>'subjectProfileState';
+    select array_agg(value::uuid) into v_allowed_seller_ids
+    from jsonb_array_elements_text(coalesce(p_payload->'allowedSellerIds', '[]'::jsonb));
+    select array_agg(value::uuid) into v_allowed_market_ids
+    from jsonb_array_elements_text(coalesce(p_payload->'allowedMarketIds', '[]'::jsonb));
+    select array_agg(value) into v_allowed_channels
+    from jsonb_array_elements_text(coalesce(p_payload->'allowedChannels', '[]'::jsonb));
   exception when invalid_text_representation or datetime_field_overflow then
     raise exception using errcode = '22023', message = 'market eligibility input is invalid';
   end;
 
-  if v_at is null
+  if v_effective_at is null
      or v_channel is null
      or v_channel not in ('B2C', 'B2B')
      or v_storefront_app_id is null
      or v_storefront_app_id <> btrim(v_storefront_app_id)
      or length(v_storefront_app_id) = 0 then
     raise exception using errcode = '22023', message = 'market eligibility input is invalid';
+  end if;
+  if v_subject_kind is not null and (
+    v_subject_kind not in ('RETAIL_PROFILE', 'COUNTERPARTY')
+    or v_subject_identity_ref is null
+    or v_subject_owner_revision is null
+    or v_subject_decision not in ('ALLOWED', 'DENIED')
+    or v_subject_profile_state not in ('ACTIVE', 'SUSPENDED', 'ARCHIVED')
+    or v_allowed_seller_ids is null
+    or v_allowed_channels is null
+  ) then
+    raise exception using errcode = '22023', message = 'subject restriction evidence is invalid';
   end if;
 
   return query
@@ -50,15 +80,20 @@ begin
       ) as applicability_rank
     from commerce_market_catalog.storefront_association_revisions association
     where association.tenant_id = p_tenant_id
-      and association.effective_from <= v_at
-      and (association.effective_to is null or association.effective_to > v_at)
-      and (association.removed_at is null or association.removed_at > v_at)
+      and association.effective_from <= v_effective_at
+      and (association.effective_to is null or association.effective_to > v_effective_at)
+      and (association.removed_at is null or association.removed_at > v_effective_at)
   ),
   current_associations as (
     select association.*
     from current_association_candidates association
     where association.applicability_rank = 1
       and association.storefront_app_id = v_storefront_app_id
+      and association.channel = v_channel
+      and (v_subject_decision is null or (v_subject_decision = 'ALLOWED' and v_subject_profile_state = 'ACTIVE'))
+      and (v_allowed_channels is null or association.channel = any(v_allowed_channels))
+      and (v_allowed_market_ids is null or association.market_id = any(v_allowed_market_ids))
+      and (v_allowed_seller_ids is null or association.selling_legal_entity_id = any(v_allowed_seller_ids))
       and (
         v_selling_legal_entity_id is null
         or association.selling_legal_entity_id = v_selling_legal_entity_id
@@ -83,8 +118,8 @@ begin
       from commerce_market_catalog.market_definition_revisions definition
       where definition.tenant_id = p_tenant_id
         and definition.market_id = association.market_id
-        and definition.effective_from <= v_at
-        and (definition.effective_to is null or definition.effective_to > v_at)
+        and definition.effective_from <= v_effective_at
+        and (definition.effective_to is null or definition.effective_to > v_effective_at)
       order by definition.revision_number desc, definition.market_definition_revision_id desc
       limit 1
     ) definition on true
@@ -93,8 +128,8 @@ begin
       from commerce_market_catalog.market_lifecycle_periods lifecycle
       where lifecycle.tenant_id = p_tenant_id
         and lifecycle.market_id = association.market_id
-        and lifecycle.effective_from <= v_at
-        and (lifecycle.effective_to is null or lifecycle.effective_to > v_at)
+        and lifecycle.effective_from <= v_effective_at
+        and (lifecycle.effective_to is null or lifecycle.effective_to > v_effective_at)
       order by lifecycle.revision_number desc, lifecycle.market_lifecycle_period_id desc
       limit 1
     ) lifecycle on true
@@ -106,6 +141,8 @@ begin
     where association.tenant_id = p_tenant_id
       and association.storefront_app_id = v_storefront_app_id
       and association.channel = v_channel
+      and (v_allowed_market_ids is null or association.market_id = any(v_allowed_market_ids))
+      and (v_allowed_seller_ids is null or association.selling_legal_entity_id = any(v_allowed_seller_ids))
       and (
         v_selling_legal_entity_id is null
         or association.selling_legal_entity_id = v_selling_legal_entity_id
@@ -123,6 +160,23 @@ begin
     from predicate_association_rows association
   ),
   predicate_material as (
+    select
+      'subject-restrictions' as material_key,
+      jsonb_build_object(
+        'kind', 'subject-restrictions',
+        'subjectKind', v_subject_kind,
+        'subjectIdentityRef', v_subject_identity_ref,
+        'ownerRevision', v_subject_owner_revision,
+        'decision', v_subject_decision,
+        'profileState', v_subject_profile_state,
+        'allowedChannels', to_jsonb(v_allowed_channels),
+        'allowedMarketIds', to_jsonb(v_allowed_market_ids),
+        'allowedSellerIds', to_jsonb(v_allowed_seller_ids)
+      ) as material
+    where v_subject_kind is not null
+
+    union all
+
     select
       'association:' || association.storefront_association_id::text || ':' || association.revision_number::text as material_key,
       jsonb_build_object(
@@ -185,7 +239,7 @@ begin
     cross join lateral (
       values (association.effective_from), (association.effective_to), (association.removed_at)
     ) candidate(boundary)
-    where boundary > greatest(v_at, v_observed_at)
+    where boundary > greatest(v_effective_at, v_observed_at)
 
     union all
 
@@ -194,7 +248,7 @@ begin
     join predicate_markets relevant on relevant.market_id = definition.market_id
     cross join lateral (values (definition.effective_from), (definition.effective_to)) candidate(boundary)
     where definition.tenant_id = p_tenant_id
-      and boundary > greatest(v_at, v_observed_at)
+      and boundary > greatest(v_effective_at, v_observed_at)
 
     union all
 
@@ -203,7 +257,7 @@ begin
     join predicate_markets relevant on relevant.market_id = lifecycle.market_id
     cross join lateral (values (lifecycle.effective_from), (lifecycle.effective_to)) candidate(boundary)
     where lifecycle.tenant_id = p_tenant_id
-      and boundary > greatest(v_at, v_observed_at)
+      and boundary > greatest(v_effective_at, v_observed_at)
   )
   select jsonb_build_object(
     'generation', coalesce(

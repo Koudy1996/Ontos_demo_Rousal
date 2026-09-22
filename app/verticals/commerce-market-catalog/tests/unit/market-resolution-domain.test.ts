@@ -56,17 +56,20 @@ const snapshot = (
   facts: readonly Readonly<{ readonly lifecycle: MarketLifecycle; readonly tuple: EligibleMarketTuple }>[],
 ): MarketEligibilitySnapshot => ({
   completenessEvidence: Schema.decodeUnknownSync(OwnerVerifiableSetCompletenessEvidenceSchema)(completenessEvidence),
-  evaluatedAt: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.at)(at),
+  effectiveAt: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.effectiveAt)(at),
+  evaluatedAt: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.effectiveAt)(
+    '2030-06-01T00:00:01.000Z',
+  ),
   facts,
-  nextApplicabilityBoundary: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.at)(
+  nextApplicabilityBoundary: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.effectiveAt)(
     completenessEvidence.nextApplicabilityBoundary,
   ),
 });
 
 const request = (overrides: Partial<typeof ResolveCommerceMarketRequestSchema.Encoded> = {}) =>
   Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
-    at,
     channel: 'B2C',
+    effectiveAt: at,
     storefrontRef,
     ...overrides,
   });

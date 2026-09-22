@@ -10,15 +10,19 @@ import type {
   ResolveCommerceMarketRequest,
   ResolveCommerceMarketResponse,
 } from '../../shared/apis/resolve-commerce-market.ts';
-import type { SafeSubjectRestrictionEvidenceSchema } from '../../shared/market-contracts.ts';
 import { resolveCommerceMarket } from '../domain/market-resolution.ts';
 import type {
   MarketResolutionPersistence,
   MarketResolutionPersistenceResult,
 } from '../persistence/market-resolution-persistence.ts';
 import { marketResolutionPersistenceForScope } from '../persistence/market-resolution-persistence.ts';
+import type {
+  MarketSubjectRestrictionSnapshot,
+  MarketSubjectRestrictionsReader,
+} from '../integrations/market-subject-restrictions.ts';
+import { marketSubjectRestrictionsReaderFromPublishedClient } from '../integrations/market-subject-restrictions.ts';
 
-type SafeSubjectRestrictionEvidence = typeof SafeSubjectRestrictionEvidenceSchema.Type;
+type ResolveCommerceMarketServices = MarketResolutionPersistence & MarketSubjectRestrictionsReader;
 
 const commerceMarketCatalogModuleKey = 'commerce.market-catalog';
 
@@ -36,10 +40,10 @@ const unavailable = (): ResolveCommerceMarketResponse => ({
   retryable: true,
 });
 
-const trustedSubjectRestriction = (
+const validateTrustedScope = (
   input: ResolveCommerceMarketRequest,
-  context: ReadHandlerContext<MarketResolutionPersistence>,
-): Effect.Effect<Option.Option<SafeSubjectRestrictionEvidence>, ReadPermissionDenied> => {
+  context: ReadHandlerContext<ResolveCommerceMarketServices>,
+) => {
   if (
     input.storefrontRef.tenantId !== context.scope.tenantId ||
     context.scope.trustedStorefrontId === undefined ||
@@ -52,64 +56,80 @@ const trustedSubjectRestriction = (
       }),
     );
   }
-  const restriction = input.sellingLegalEntityRestriction;
   if (
-    restriction !== undefined &&
-    (restriction.tenantId !== context.scope.tenantId || restriction.resourceId !== context.scope.legalEntityId)
+    input.sellingLegalEntityRestriction?.tenantId !== undefined &&
+    input.sellingLegalEntityRestriction.tenantId !== context.scope.tenantId
   ) {
     return Effect.fail(
       new ReadPermissionDenied({
         code: 'read_permission_denied',
-        reason: 'The seller restriction is not owner-issued by the trusted operational context',
+        reason: 'The seller restriction belongs to another Tenant',
       }),
     );
   }
-  if (input.channel === 'B2B' && input.subject?.kind === 'COUNTERPARTY' && restriction === undefined) {
+  if (
+    input.subject !== undefined &&
+    input.subject.kind !== 'GUEST' &&
+    input.subject.profileRef.tenantId !== context.scope.tenantId
+  ) {
     return Effect.fail(
       new ReadPermissionDenied({
         code: 'read_permission_denied',
-        reason: 'Counterparty resolution requires an owner-issued seller restriction',
+        reason: 'The purchasing subject belongs to another Tenant',
       }),
     );
   }
-  return restriction === undefined || input.subject === undefined
-    ? Effect.succeedNone
-    : Effect.succeedSome({
-        decision: 'ALLOWED',
-        evidenceRef: `trusted-seller-scope:${restriction.resourceId}`,
-        ownerRevision: `trusted-principal-context:${context.scope.principalId}`,
-        subjectKind: input.subject.kind,
-      });
+  return Effect.void;
 };
 
 const resolveSnapshot = (
   input: ResolveCommerceMarketRequest,
   snapshot: Option.Option<MarketResolutionPersistenceResult>,
-  subjectRestrictionEvidence: Option.Option<SafeSubjectRestrictionEvidence>,
+  subjectRestrictions: Option.Option<MarketSubjectRestrictionSnapshot>,
 ): ResolveCommerceMarketResponse => {
   if (Option.isNone(snapshot)) {
     return unavailable();
   }
-  if (Option.isNone(subjectRestrictionEvidence)) {
+  if (
+    Option.isNone(subjectRestrictions) ||
+    subjectRestrictions.value.decision !== 'ALLOWED' ||
+    subjectRestrictions.value.profileState !== 'ACTIVE'
+  ) {
     return resolveCommerceMarket({ request: input, snapshot: snapshot.value });
   }
   return resolveCommerceMarket({
     request: input,
     snapshot: snapshot.value,
-    subjectRestrictionEvidence: subjectRestrictionEvidence.value,
+    subjectRestrictionEvidence: {
+      decision: 'ALLOWED',
+      evidenceRefs: subjectRestrictions.value.evidenceRefs,
+      observedAt: subjectRestrictions.value.observedAt,
+      ownerRevision: subjectRestrictions.value.ownerRevision,
+      profileState: 'ACTIVE',
+      subjectKind: subjectRestrictions.value.subjectKind,
+    },
   });
 };
 
 export const handleResolveCommerceMarket = Effect.fn('ResolveCommerceMarketRead.handle')(
   function* handleResolveCommerceMarketEffect(
     input: ResolveCommerceMarketRequest,
-    context: ReadHandlerContext<MarketResolutionPersistence>,
+    context: ReadHandlerContext<ResolveCommerceMarketServices>,
   ) {
-    const subjectRestrictionEvidence = yield* trustedSubjectRestriction(input, context);
+    yield* validateTrustedScope(input, context);
+    const subjectRestrictions =
+      input.subject === undefined || input.subject.kind === 'GUEST'
+        ? Option.none()
+        : yield* context.services.current(input.subject, context.scope.correlationId).pipe(Effect.option);
+    if (input.subject !== undefined && input.subject.kind !== 'GUEST' && Option.isNone(subjectRestrictions)) {
+      return { evidence: { resultCount: 0 }, result: unavailable() };
+    }
     // Authorization must complete before any owner persistence access; these Effects are intentionally sequential.
     // oxlint-disable-next-line effect-native/no-sequential-independent-yields -- Preserves the fail-closed authorization-before-I/O boundary.
-    const snapshot = yield* context.services.load(input).pipe(Effect.option);
-    const result = resolveSnapshot(input, snapshot, subjectRestrictionEvidence);
+    const snapshot = yield* context.services
+      .load(input, Option.getOrUndefined(subjectRestrictions))
+      .pipe(Effect.option);
+    const result = resolveSnapshot(input, snapshot, subjectRestrictions);
     return { evidence: { resultCount: 1 }, result };
   },
 );
@@ -132,6 +152,9 @@ export const resolveCommerceMarketRead = defineRead(
     schemaVersion: '1',
   },
   handleResolveCommerceMarket,
-  (transaction, scope) => marketResolutionPersistenceForScope(transaction, scope),
+  (transaction, scope) =>
+    marketResolutionPersistenceForScope(transaction, scope).pipe(
+      Effect.map((persistence) => ({ ...persistence, ...marketSubjectRestrictionsReaderFromPublishedClient })),
+    ),
   () => ({ kind: 'module', moduleId: commerceMarketCatalogModuleKey }),
 );

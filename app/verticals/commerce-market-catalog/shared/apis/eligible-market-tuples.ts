@@ -11,8 +11,8 @@ import {
 } from '../market-contracts.ts';
 
 export const EligibleMarketTuplesRequestSchema = Schema.Struct({
-  at: Schema.DateTimeUtcFromString,
   channel: MarketChannelSchema,
+  effectiveAt: Schema.DateTimeUtcFromString,
   sellingLegalEntityRestriction: Schema.optionalKey(SellingLegalEntityRefSchema),
   storefrontRef: StorefrontRefSchema,
   subject: Schema.optionalKey(PurchasingSubjectRefSchema),

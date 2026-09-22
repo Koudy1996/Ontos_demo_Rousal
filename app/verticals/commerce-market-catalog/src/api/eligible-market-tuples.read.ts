@@ -13,6 +13,10 @@ import type {
 import { discoverEligibleMarketTuples } from '../domain/market-resolution.ts';
 import type { MarketResolutionPersistence } from '../persistence/market-resolution-persistence.ts';
 import { marketResolutionPersistenceForScope } from '../persistence/market-resolution-persistence.ts';
+import type { MarketSubjectRestrictionsReader } from '../integrations/market-subject-restrictions.ts';
+import { marketSubjectRestrictionsReaderFromPublishedClient } from '../integrations/market-subject-restrictions.ts';
+
+type EligibleMarketTuplesServices = MarketResolutionPersistence & MarketSubjectRestrictionsReader;
 
 const commerceMarketCatalogModuleKey = 'commerce.market-catalog';
 
@@ -32,7 +36,7 @@ const unavailable = (): EligibleMarketTuplesResponse => ({
 
 const validateTrustedScope = (
   input: EligibleMarketTuplesRequest,
-  context: ReadHandlerContext<MarketResolutionPersistence>,
+  context: ReadHandlerContext<EligibleMarketTuplesServices>,
 ) => {
   if (
     input.storefrontRef.tenantId !== context.scope.tenantId ||
@@ -47,26 +51,25 @@ const validateTrustedScope = (
     );
   }
   if (
-    input.sellingLegalEntityRestriction !== undefined &&
-    (input.sellingLegalEntityRestriction.tenantId !== context.scope.tenantId ||
-      input.sellingLegalEntityRestriction.resourceId !== context.scope.legalEntityId)
+    input.sellingLegalEntityRestriction?.tenantId !== undefined &&
+    input.sellingLegalEntityRestriction.tenantId !== context.scope.tenantId
   ) {
     return Effect.fail(
       new ReadPermissionDenied({
         code: 'read_permission_denied',
-        reason: 'The seller restriction is not owner-issued by the trusted operational context',
+        reason: 'The seller restriction belongs to another Tenant',
       }),
     );
   }
   if (
-    input.channel === 'B2B' &&
-    input.subject?.kind === 'COUNTERPARTY' &&
-    input.sellingLegalEntityRestriction === undefined
+    input.subject !== undefined &&
+    input.subject.kind !== 'GUEST' &&
+    input.subject.profileRef.tenantId !== context.scope.tenantId
   ) {
     return Effect.fail(
       new ReadPermissionDenied({
         code: 'read_permission_denied',
-        reason: 'Counterparty discovery requires an owner-issued seller restriction',
+        reason: 'The purchasing subject belongs to another Tenant',
       }),
     );
   }
@@ -76,10 +79,19 @@ const validateTrustedScope = (
 export const handleEligibleMarketTuples = Effect.fn('EligibleMarketTuplesRead.handle')(
   function* handleEligibleMarketTuplesEffect(
     input: EligibleMarketTuplesRequest,
-    context: ReadHandlerContext<MarketResolutionPersistence>,
+    context: ReadHandlerContext<EligibleMarketTuplesServices>,
   ) {
     yield* validateTrustedScope(input, context);
-    const snapshot = yield* context.services.load(input).pipe(Effect.option);
+    const subjectRestrictions =
+      input.subject === undefined || input.subject.kind === 'GUEST'
+        ? Option.none()
+        : yield* context.services.current(input.subject, context.scope.correlationId).pipe(Effect.option);
+    if (input.subject !== undefined && input.subject.kind !== 'GUEST' && Option.isNone(subjectRestrictions)) {
+      return { evidence: { resultCount: 0 }, result: unavailable() };
+    }
+    const snapshot = yield* context.services
+      .load(input, Option.getOrUndefined(subjectRestrictions))
+      .pipe(Effect.option);
     const result = Option.isNone(snapshot) ? unavailable() : discoverEligibleMarketTuples(input, snapshot.value);
     return {
       evidence: { resultCount: result.outcome === 'ELIGIBLE_MARKET_TUPLES' ? result.tuples.length : 0 },
@@ -106,6 +118,9 @@ export const eligibleMarketTuplesRead = defineRead(
     schemaVersion: '1',
   },
   handleEligibleMarketTuples,
-  (transaction, scope) => marketResolutionPersistenceForScope(transaction, scope),
+  (transaction, scope) =>
+    marketResolutionPersistenceForScope(transaction, scope).pipe(
+      Effect.map((persistence) => ({ ...persistence, ...marketSubjectRestrictionsReaderFromPublishedClient })),
+    ),
   () => ({ kind: 'module', moduleId: commerceMarketCatalogModuleKey }),
 );

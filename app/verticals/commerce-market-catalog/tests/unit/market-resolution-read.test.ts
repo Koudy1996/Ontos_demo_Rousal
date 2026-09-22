@@ -1,7 +1,7 @@
 import type { OperationalScope } from '@app/core-runtime';
 import { ReadPermissionDenied, TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { OwnerVerifiableSetCompletenessEvidenceSchema } from '@app/shared-contracts';
-import { Effect, Schema } from 'effect';
+import { DateTime, Effect, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import { EligibleMarketTuplesRequestSchema } from '../../shared/apis/eligible-market-tuples.ts';
@@ -12,10 +12,17 @@ import { handleResolveCommerceMarket } from '../../src/api/resolve-commerce-mark
 import type { MarketEligibilitySnapshot } from '../../src/domain/market-resolution.ts';
 import { MarketResolutionPersistenceUnavailable } from '../../src/persistence/market-resolution-persistence.ts';
 import type { MarketResolutionPersistence } from '../../src/persistence/market-resolution-persistence.ts';
+import type {
+  MarketSubjectRestrictionSnapshot,
+  MarketSubjectRestrictionsReader,
+} from '../../src/integrations/market-subject-restrictions.ts';
+import { MarketSubjectRestrictionsUnavailable } from '../../src/integrations/market-subject-restrictions.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const sellerId = '22222222-2222-4222-8222-222222222222';
 const principalId = '33333333-3333-4333-8333-333333333333';
+const profileId = '99999999-9999-4999-8999-999999999999';
+const counterpartyId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const storefrontRef = { appId: 'shop', tenantId } as const;
 const at = '2030-06-01T00:00:00.000Z';
 const sellerRef = {
@@ -53,7 +60,10 @@ const snapshot: MarketEligibilitySnapshot = {
     ownerRevision: 'market-eligibility:v1:proof',
     scope: { kind: 'EXACT_PREDICATE', predicateRef: 'market-eligibility:v1:shop:B2B:seller' },
   }),
-  evaluatedAt: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.at)(at),
+  effectiveAt: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.effectiveAt)(at),
+  evaluatedAt: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.effectiveAt)(
+    '2030-06-01T00:00:01.000Z',
+  ),
   facts: [{ lifecycle: 'ACTIVE', tuple: eligibleTuple }],
 };
 const scope: OperationalScope = {
@@ -81,23 +91,61 @@ const unavailable: MarketResolutionPersistence = {
       }),
     ),
 };
-const context = (services: MarketResolutionPersistence, scopeOverride: OperationalScope = scope) => ({
+const ownerRestrictions: MarketSubjectRestrictionSnapshot = {
+  allowedChannels: ['B2B'],
+  allowedSellerIds: [sellerId],
+  decision: 'ALLOWED',
+  evidenceRefs: ['commerce-customer-context:counterparty-profile:revision:7'],
+  observedAt: Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema.fields.effectiveAt)(
+    '2030-06-01T00:00:00.500Z',
+  ),
+  ownerRevision: 'counterparty-profile:7',
+  profileState: 'ACTIVE',
+  subjectIdentityRef: profileId,
+  subjectKind: 'COUNTERPARTY',
+};
+const reader = { current: () => Effect.succeed(ownerRestrictions) };
+const context = (
+  services: MarketResolutionPersistence,
+  scopeOverride: OperationalScope = scope,
+  subjectReader: MarketSubjectRestrictionsReader = reader,
+) => ({
   readKey: 'commerce.market-catalog.api.resolve-commerce-market',
   scope: scopeOverride,
-  services,
+  services: { ...services, ...subjectReader },
 });
+
+const counterpartySubject = {
+  counterpartyRef: {
+    moduleId: 'party.registry' as const,
+    resourceId: counterpartyId,
+    resourceType: 'party.registry.counterparty' as const,
+    tenantId,
+  },
+  kind: 'COUNTERPARTY' as const,
+  profileRef: {
+    moduleId: 'commerce.customer-context' as const,
+    resourceId: profileId,
+    resourceType: 'commerce.customer-context.counterparty-purchasing-profile' as const,
+    tenantId,
+  },
+};
 
 describe('Commerce Market governed resolution reads', () => {
   it.effect('returns safe complete eligible tuples under trusted Storefront context', () =>
     Effect.gen(function* eligibleRead() {
       const input = Schema.decodeUnknownSync(EligibleMarketTuplesRequestSchema)({
-        at,
         channel: 'B2B',
+        effectiveAt: at,
         sellingLegalEntityRestriction: sellerRef,
         storefrontRef,
       });
       const result = yield* handleEligibleMarketTuples(input, context(available));
       expect(result.result).toMatchObject({ outcome: 'ELIGIBLE_MARKET_TUPLES', tuples: [eligibleTuple] });
+      if (result.result.outcome === 'ELIGIBLE_MARKET_TUPLES') {
+        expect(DateTime.formatIso(result.result.effectiveAt)).toBe(at);
+        expect(DateTime.formatIso(result.result.evaluatedAt)).toBe('2030-06-01T00:00:01.000Z');
+      }
       expect(result.evidence.resultCount).toBe(1);
     }),
   );
@@ -105,8 +153,8 @@ describe('Commerce Market governed resolution reads', () => {
   it.effect('fails closed when the Storefront differs from trusted operational context', () =>
     Effect.gen(function* deniedStorefront() {
       const input = Schema.decodeUnknownSync(EligibleMarketTuplesRequestSchema)({
-        at,
         channel: 'B2C',
+        effectiveAt: at,
         storefrontRef: { ...storefrontRef, appId: 'untrusted-shop' },
       });
       const error = yield* Effect.flip(handleEligibleMarketTuples(input, context(available)));
@@ -114,49 +162,132 @@ describe('Commerce Market governed resolution reads', () => {
     }),
   );
 
-  it.effect('fails closed when a seller restriction is not the trusted Legal Entity', () =>
-    Effect.gen(function* deniedSeller() {
+  it.effect('uses owner restrictions instead of treating trusted principal seller scope as authority', () =>
+    Effect.gen(function* ownerRestrictedSeller() {
       const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
-        at,
         channel: 'B2B',
+        effectiveAt: at,
         sellingLegalEntityRestriction: {
           ...sellerRef,
           resourceId: '88888888-8888-4888-8888-888888888888',
         },
         storefrontRef,
-        subject: { kind: 'COUNTERPARTY', subjectRef: 'counterparty:safe-reference' },
+        subject: counterpartySubject,
       });
-      const error = yield* Effect.flip(handleResolveCommerceMarket(input, context(available)));
-      expect(Schema.is(ReadPermissionDenied)(error)).toBe(true);
+      const result = yield* handleResolveCommerceMarket(input, context(available));
+      expect(result.result).toMatchObject({ outcome: 'MARKET_NOT_ALLOWED_FOR_SUBJECT_OR_CHANNEL' });
     }),
   );
 
   it.effect('attaches only safe owner-issued subject restriction evidence', () =>
     Effect.gen(function* restrictedResolution() {
       const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
-        at,
         channel: 'B2B',
+        effectiveAt: at,
         sellingLegalEntityRestriction: sellerRef,
         storefrontRef,
-        subject: { kind: 'COUNTERPARTY', subjectRef: 'private-subject-not-returned' },
+        subject: counterpartySubject,
       });
       const result = yield* handleResolveCommerceMarket(input, context(available));
       expect(result.result).toMatchObject({
         outcome: 'MARKET_RESOLVED',
         subjectRestrictionEvidence: {
           decision: 'ALLOWED',
-          evidenceRef: `trusted-seller-scope:${sellerId}`,
-          ownerRevision: `trusted-principal-context:${principalId}`,
+          evidenceRefs: ['commerce-customer-context:counterparty-profile:revision:7'],
+          ownerRevision: 'counterparty-profile:7',
           subjectKind: 'COUNTERPARTY',
         },
       });
-      expect(JSON.stringify(result.result)).not.toContain('private-subject-not-returned');
+      if (result.result.outcome === 'MARKET_RESOLVED') {
+        expect(DateTime.formatIso(result.result.effectiveAt)).toBe(at);
+        expect(DateTime.formatIso(result.result.evaluatedAt)).toBe('2030-06-01T00:00:01.000Z');
+      }
+      expect(JSON.stringify(result.result)).not.toContain(profileId);
+    }),
+  );
+
+  it.effect(
+    'returns retryable inability without querying Market persistence when subject ownership is unavailable',
+    () =>
+      Effect.gen(function* unavailableSubjectOwner() {
+        let persistenceCalls = 0;
+        const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
+          channel: 'B2B',
+          effectiveAt: at,
+          storefrontRef,
+          subject: counterpartySubject,
+        });
+        const result = yield* handleResolveCommerceMarket(
+          input,
+          context(
+            {
+              load: () => {
+                persistenceCalls += 1;
+                return Effect.succeed({ ...snapshot, generation: 7 });
+              },
+            },
+            scope,
+            {
+              current: () =>
+                Effect.fail(
+                  new MarketSubjectRestrictionsUnavailable({
+                    code: 'market_subject_restrictions_unavailable',
+                    reason: 'owner unavailable',
+                  }),
+                ),
+            },
+          ),
+        );
+        expect(result.result).toEqual({
+          outcome: 'MARKET_ELIGIBILITY_UNAVAILABLE',
+          reason: 'Current Commerce Market eligibility could not be established',
+          retryable: true,
+        });
+        expect(persistenceCalls).toBe(0);
+      }),
+  );
+
+  it.effect('invalidates completeness when the owner subject revision changes', () =>
+    Effect.gen(function* changedSubjectRevision() {
+      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
+        channel: 'B2B',
+        effectiveAt: at,
+        storefrontRef,
+        subject: counterpartySubject,
+      });
+      const ownerAwarePersistence: MarketResolutionPersistence = {
+        load: (_request, restrictions) =>
+          Effect.succeed({
+            ...snapshot,
+            completenessEvidence: {
+              ...snapshot.completenessEvidence,
+              ownerRevision: `market-eligibility:v2:${restrictions?.ownerRevision ?? 'none'}`,
+            },
+            generation: 7,
+          }),
+      };
+      const before = yield* handleResolveCommerceMarket(input, context(ownerAwarePersistence));
+      const after = yield* handleResolveCommerceMarket(
+        input,
+        context(ownerAwarePersistence, scope, {
+          current: () => Effect.succeed({ ...ownerRestrictions, ownerRevision: 'counterparty-profile:8' }),
+        }),
+      );
+      if (before.result.outcome === 'MARKET_RESOLVED' && after.result.outcome === 'MARKET_RESOLVED') {
+        expect(before.result.completenessEvidence.ownerRevision).not.toBe(
+          after.result.completenessEvidence.ownerRevision,
+        );
+      }
     }),
   );
 
   it.effect('returns a separate retryable inability when owner completeness cannot be established', () =>
     Effect.gen(function* unavailableResolution() {
-      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({ at, channel: 'B2C', storefrontRef });
+      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
+        effectiveAt: at,
+        channel: 'B2C',
+        storefrontRef,
+      });
       const result = yield* handleResolveCommerceMarket(input, context(unavailable));
       expect(result.result).toEqual({
         outcome: 'MARKET_ELIGIBILITY_UNAVAILABLE',
@@ -168,7 +299,11 @@ describe('Commerce Market governed resolution reads', () => {
 
   it.effect('invalidates prior completeness after a material lifecycle or association revision changes', () =>
     Effect.gen(function* invalidatedCompleteness() {
-      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({ at, channel: 'B2B', storefrontRef });
+      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
+        effectiveAt: at,
+        channel: 'B2B',
+        storefrontRef,
+      });
       const changedSnapshot: MarketEligibilitySnapshot = {
         ...snapshot,
         completenessEvidence: {
@@ -191,7 +326,11 @@ describe('Commerce Market governed resolution reads', () => {
 
   it.effect('keeps exact predicate completeness stable across an unrelated tenant generation change', () =>
     Effect.gen(function* stableExactPredicate() {
-      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({ at, channel: 'B2B', storefrontRef });
+      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
+        effectiveAt: at,
+        channel: 'B2B',
+        storefrontRef,
+      });
       const before = yield* handleResolveCommerceMarket(input, context(withSnapshot(snapshot, 7)));
       const after = yield* handleResolveCommerceMarket(input, context(withSnapshot(snapshot, 99)));
       if (before.result.outcome === 'MARKET_RESOLVED' && after.result.outcome === 'MARKET_RESOLVED') {

@@ -6,6 +6,7 @@ import { DateTime, Effect, Option, Schema } from 'effect';
 import type { EligibleMarketTuplesRequest } from '../../shared/apis/eligible-market-tuples.ts';
 import { EligibleMarketTupleSchema, MarketLifecycleSchema } from '../../shared/market-contracts.ts';
 import type { MarketEligibilityFact, MarketEligibilitySnapshot } from '../domain/market-resolution.ts';
+import type { MarketSubjectRestrictionSnapshot } from '../integrations/market-subject-restrictions.ts';
 
 const nonEmpty = Schema.String.check(Schema.isMinLength(1), Schema.isTrimmed());
 const uuid = Schema.String.check(Schema.isUUID());
@@ -64,6 +65,7 @@ export interface MarketResolutionPersistenceResult extends MarketEligibilitySnap
 export interface MarketResolutionPersistence {
   readonly load: (
     input: EligibleMarketTuplesRequest,
+    subjectRestrictions?: MarketSubjectRestrictionSnapshot,
   ) => Effect.Effect<MarketResolutionPersistenceResult, MarketResolutionPersistenceUnavailable>;
 }
 
@@ -123,26 +125,50 @@ const decodeInstant = (value: string) =>
   Schema.decodeEffect(Schema.DateTimeUtcFromString)(value).pipe(Effect.mapError(unavailable));
 
 interface MarketEligibilityRoutineInput {
-  at: string;
+  allowedChannels?: readonly ('B2B' | 'B2C')[];
+  allowedMarketIds?: readonly string[];
+  allowedSellerIds?: readonly string[];
   channel: EligibleMarketTuplesRequest['channel'];
+  effectiveAt: string;
   sellingLegalEntityId?: string;
   storefrontAppId: string;
+  subjectIdentityRef?: string;
+  subjectKind?: 'COUNTERPARTY' | 'RETAIL_PROFILE';
+  subjectOwnerRevision?: string;
+  subjectDecision?: 'ALLOWED' | 'DENIED';
+  subjectProfileState?: 'ACTIVE' | 'ARCHIVED' | 'SUSPENDED';
 }
 
-const routineInput = (input: EligibleMarketTuplesRequest) => {
+const routineInput = (
+  input: EligibleMarketTuplesRequest,
+  subjectRestrictions: MarketSubjectRestrictionSnapshot | undefined,
+) => {
   const value: MarketEligibilityRoutineInput = {
-    at: DateTime.formatIso(input.at),
     channel: input.channel,
+    effectiveAt: DateTime.formatIso(input.effectiveAt),
     storefrontAppId: input.storefrontRef.appId,
   };
   if (input.sellingLegalEntityRestriction !== undefined) {
     value.sellingLegalEntityId = input.sellingLegalEntityRestriction.resourceId;
+  }
+  if (subjectRestrictions !== undefined) {
+    value.allowedChannels = subjectRestrictions.allowedChannels;
+    value.allowedSellerIds = subjectRestrictions.allowedSellerIds;
+    value.subjectIdentityRef = subjectRestrictions.subjectIdentityRef;
+    value.subjectKind = subjectRestrictions.subjectKind;
+    value.subjectOwnerRevision = subjectRestrictions.ownerRevision;
+    value.subjectDecision = subjectRestrictions.decision;
+    value.subjectProfileState = subjectRestrictions.profileState;
+    if (subjectRestrictions.allowedMarketIds !== undefined) {
+      value.allowedMarketIds = subjectRestrictions.allowedMarketIds;
+    }
   }
   return value;
 };
 
 const decodeSnapshotRow = Effect.fn('MarketResolutionPersistence.decodeSnapshotRow')(function* decodeSnapshot(
   input: EligibleMarketTuplesRequest,
+  subjectRestrictions: MarketSubjectRestrictionSnapshot | undefined,
   tenantId: string,
   row: typeof SnapshotRowSchema.Type,
 ): Effect.fn.Return<MarketResolutionPersistenceResult, MarketResolutionPersistenceUnavailable> {
@@ -164,16 +190,33 @@ const decodeSnapshotRow = Effect.fn('MarketResolutionPersistence.decodeSnapshotR
         input.storefrontRef.appId,
         input.channel,
         input.sellingLegalEntityRestriction?.resourceId ?? 'all-sellers',
+        subjectRestrictions?.subjectKind ?? 'guest-or-unrestricted',
+        subjectRestrictions?.ownerRevision ?? 'none',
+        subjectRestrictions?.profileState ?? 'none',
       ].join(':'),
     },
   };
   const completenessEvidence =
     nextApplicabilityBoundary === undefined ? evidenceBase : { ...evidenceBase, nextApplicabilityBoundary };
+  const subjectRestrictionStatus: 'ALLOWED' | 'DENIED' =
+    subjectRestrictions === undefined ||
+    (subjectRestrictions.decision === 'ALLOWED' && subjectRestrictions.profileState === 'ACTIVE')
+      ? 'ALLOWED'
+      : 'DENIED';
   const result = {
-    completenessEvidence,
-    evaluatedAt: input.at,
+    completenessEvidence: {
+      ...completenessEvidence,
+      observedAt: subjectRestrictions?.observedAt ?? observedAt,
+      ownerRevision:
+        subjectRestrictions === undefined
+          ? evidenceBase.ownerRevision
+          : `${evidenceBase.ownerRevision}:subject:${subjectRestrictions.ownerRevision}:${subjectRestrictions.profileState}`,
+    },
+    effectiveAt: input.effectiveAt,
+    evaluatedAt: observedAt,
     facts,
     generation: row.payload.generation,
+    subjectRestrictionStatus,
   };
   return nextApplicabilityBoundary === undefined ? result : { ...result, nextApplicabilityBoundary };
 });
@@ -182,13 +225,13 @@ const marketResolutionPersistenceForTransaction = (
   transaction: ScopedTransaction,
   scope: Pick<OperationalScope, 'tenantId'>,
 ): MarketResolutionPersistence => ({
-  load: (input) =>
-    transaction.invoke(readMarketEligibilitySnapshotRoutine, [routineInput(input)]).pipe(
+  load: (input, subjectRestrictions) =>
+    transaction.invoke(readMarketEligibilitySnapshotRoutine, [routineInput(input, subjectRestrictions)]).pipe(
       Effect.mapError((cause: ScopedRoutineInvocationError) => unavailable(cause)),
       Effect.flatMap(([row]) =>
         row === undefined
           ? Effect.fail(unavailable('The owner eligibility routine returned no snapshot'))
-          : decodeSnapshotRow(input, scope.tenantId, row),
+          : decodeSnapshotRow(input, subjectRestrictions, scope.tenantId, row),
       ),
     ),
 });

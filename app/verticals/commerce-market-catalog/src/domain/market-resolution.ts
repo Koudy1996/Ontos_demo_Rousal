@@ -19,9 +19,11 @@ export interface MarketEligibilityFact {
 
 export interface MarketEligibilitySnapshot {
   readonly completenessEvidence: OwnerVerifiableSetCompletenessEvidence;
+  readonly effectiveAt: DateTime.Utc;
   readonly evaluatedAt: DateTime.Utc;
   readonly facts: readonly MarketEligibilityFact[];
   readonly nextApplicabilityBoundary?: DateTime.Utc;
+  readonly subjectRestrictionStatus?: 'ALLOWED' | 'DENIED';
 }
 
 export interface MarketResolutionInput {
@@ -63,13 +65,15 @@ const eligibleFacts = (
   request: Pick<ResolveCommerceMarketRequest, 'channel' | 'sellingLegalEntityRestriction'>,
   snapshot: MarketEligibilitySnapshot,
 ): readonly MarketEligibilityFact[] =>
-  snapshot.facts.filter(
-    ({ lifecycle, tuple }) =>
-      lifecycle === 'ACTIVE' &&
-      tuple.channel === request.channel &&
-      (request.sellingLegalEntityRestriction === undefined ||
-        sameRef(tuple.sellingLegalEntityRef, request.sellingLegalEntityRestriction)),
-  );
+  snapshot.subjectRestrictionStatus === 'DENIED'
+    ? []
+    : snapshot.facts.filter(
+        ({ lifecycle, tuple }) =>
+          lifecycle === 'ACTIVE' &&
+          tuple.channel === request.channel &&
+          (request.sellingLegalEntityRestriction === undefined ||
+            sameRef(tuple.sellingLegalEntityRef, request.sellingLegalEntityRestriction)),
+      );
 
 const duplicateMaterialTuple = (facts: readonly MarketEligibilityFact[]): boolean => {
   const keys = facts.map(({ tuple }) => tupleKey(tuple));
@@ -83,6 +87,7 @@ export const discoverEligibleMarketTuples = (
   const tuples = eligibleFacts(request, snapshot).map(({ tuple }) => tuple);
   const result = {
     completenessEvidence: snapshot.completenessEvidence,
+    effectiveAt: snapshot.effectiveAt,
     evaluatedAt: snapshot.evaluatedAt,
     outcome: 'ELIGIBLE_MARKET_TUPLES',
     tuples,
@@ -144,6 +149,7 @@ const resolved = (
   const base = {
     associationRevision: tuple.associationRevision,
     completenessEvidence: snapshot.completenessEvidence,
+    effectiveAt: snapshot.effectiveAt,
     evaluatedAt: snapshot.evaluatedAt,
     marketDefinitionRevisionRef: tuple.marketDefinitionRevisionRef,
     outcome: 'MARKET_RESOLVED' as const,
@@ -164,6 +170,12 @@ export const resolveCommerceMarket = ({
   snapshot,
   subjectRestrictionEvidence,
 }: MarketResolutionInput): MarketResolutionOutcome => {
+  if (snapshot.subjectRestrictionStatus === 'DENIED') {
+    return failure(
+      'MARKET_NOT_ALLOWED_FOR_SUBJECT_OR_CHANNEL',
+      'The purchasing subject is not currently eligible for the requested Market or Channel',
+    );
+  }
   const eligible = eligibleFacts(request, snapshot);
   if (duplicateMaterialTuple(eligible)) {
     return failure(
@@ -193,6 +205,12 @@ export const resolveCommerceMarket = ({
   }
 
   if (eligible.length === 0) {
+    if (request.subject !== undefined && request.subject.kind !== 'GUEST') {
+      return failure(
+        'MARKET_NOT_ALLOWED_FOR_SUBJECT_OR_CHANNEL',
+        'No Current Market association satisfies the owner-issued purchasing-subject restrictions',
+      );
+    }
     return failure(
       'MARKET_CONFIGURATION_MISSING_OR_INCONSISTENT',
       'No Current eligible Market association exists for the trusted Storefront and Channel',
@@ -217,6 +235,7 @@ export const resolveCommerceMarket = ({
   const result = {
     choices,
     completenessEvidence: snapshot.completenessEvidence,
+    effectiveAt: snapshot.effectiveAt,
     evaluatedAt: snapshot.evaluatedAt,
     outcome: 'MARKET_SELECTION_REQUIRED' as const,
   };

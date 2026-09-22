@@ -204,6 +204,7 @@ describe('Commerce Market public contracts', () => {
   it('requires owner-verifiable completeness for positive and empty eligible sets', () => {
     const completeEmpty = {
       completenessEvidence,
+      effectiveAt: '2026-09-21T09:00:00.000Z',
       evaluatedAt: '2026-09-21T10:00:00.000Z',
       outcome: 'ELIGIBLE_MARKET_TUPLES',
       tuples: [],
@@ -229,7 +230,7 @@ describe('Commerce Market public contracts', () => {
 
   it('discovers sellers without requiring a preselected Legal Entity and accepts an optional exact restriction', () => {
     const baseRequest = {
-      at: '2026-09-21T10:00:00.000Z',
+      effectiveAt: '2026-09-21T10:00:00.000Z',
       channel: 'B2B',
       storefrontRef,
     } as const;
@@ -252,6 +253,31 @@ describe('Commerce Market public contracts', () => {
     expect(resolveCommerceMarketRead.descriptor.legalEntityScope).toBe('optional');
   });
 
+  it('separates requested applicability time from owner observation time', () => {
+    const request = {
+      channel: 'B2C',
+      effectiveAt: '2026-09-21T09:00:00.000Z',
+      storefrontRef,
+    } as const;
+    expect(() => Schema.decodeUnknownSync(EligibleMarketTuplesRequestSchema)(request)).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EligibleMarketTuplesRequestSchema)({
+        at: request.effectiveAt,
+        channel: request.channel,
+        storefrontRef,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EligibleMarketTupleSetSchema)({
+        completenessEvidence,
+        effectiveAt: request.effectiveAt,
+        evaluatedAt: '2026-09-21T10:00:00.000Z',
+        outcome: 'ELIGIBLE_MARKET_TUPLES',
+        tuples: [],
+      }),
+    ).not.toThrow();
+  });
+
   it('publishes only the specified resolution outcomes and no AMBIGUOUS_MARKET path', () => {
     const unavailable = {
       outcome: 'MARKET_ELIGIBILITY_UNAVAILABLE',
@@ -265,6 +291,7 @@ describe('Commerce Market public contracts', () => {
       Schema.decodeUnknownSync(MarketResolutionOutcomeSchema)({
         choices: [eligibleTuple, eligibleTuple],
         completenessEvidence,
+        effectiveAt: '2026-09-21T09:00:00.000Z',
         evaluatedAt: '2026-09-21T10:00:00.000Z',
         outcome: 'MARKET_SELECTION_REQUIRED',
       }),
@@ -273,6 +300,7 @@ describe('Commerce Market public contracts', () => {
       Schema.decodeUnknownSync(MarketResolutionOutcomeSchema)({
         associationRevision: 2,
         completenessEvidence,
+        effectiveAt: '2026-09-21T09:00:00.000Z',
         evaluatedAt: '2026-09-21T10:00:00.000Z',
         marketDefinitionRevisionRef: definitionRevisionRef,
         outcome: 'MARKET_RESOLVED',
@@ -287,6 +315,7 @@ describe('Commerce Market public contracts', () => {
     expect(
       decode({
         completenessEvidence,
+        effectiveAt: '2026-09-21T09:00:00.000Z',
         evaluatedAt: '2026-09-21T10:00:00.000Z',
         outcome: 'ELIGIBLE_MARKET_TUPLES',
         tuples: [eligibleTuple],
@@ -295,6 +324,7 @@ describe('Commerce Market public contracts', () => {
     expect(() =>
       decode({
         completenessEvidence,
+        effectiveAt: '2026-09-21T09:00:00.000Z',
         evaluatedAt: '2026-09-21T10:00:00.000Z',
         outcome: 'ELIGIBLE_MARKET_TUPLES',
         rawRestrictionEvidence: { query: 'private owner predicate' },

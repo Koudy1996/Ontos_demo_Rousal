@@ -17,7 +17,6 @@ const marketCandidate = Schema.Struct({
 }).annotate({ parseOptions: { onExcessProperty: 'error' } });
 
 export const ResolveCommerceMarketRequestSchema = Schema.Struct({
-  at: Schema.DateTimeUtcFromString,
   bootstrapDefault: Schema.optionalKey(
     Schema.Struct({
       ...marketCandidate.fields,
@@ -25,6 +24,7 @@ export const ResolveCommerceMarketRequestSchema = Schema.Struct({
     }).annotate({ parseOptions: { onExcessProperty: 'error' } }),
   ),
   channel: MarketChannelSchema,
+  effectiveAt: Schema.DateTimeUtcFromString,
   explicitSelection: Schema.optionalKey(marketCandidate),
   sellingLegalEntityRestriction: Schema.optionalKey(SellingLegalEntityRefSchema),
   storefrontRef: StorefrontRefSchema,

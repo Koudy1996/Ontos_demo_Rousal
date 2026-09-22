@@ -149,16 +149,51 @@ export const StorefrontAssociationDefinitionSchema = Schema.Struct({
   )
   .annotate(strict);
 
-export const PurchasingSubjectRefSchema = Schema.Struct({
-  kind: Schema.Literals(['GUEST', 'RETAIL_PROFILE', 'COUNTERPARTY']),
-  subjectRef: boundedText,
+const CustomerContextProfileRefSchema = <const ResourceType extends string>(resourceType: ResourceType) =>
+  Schema.Struct({
+    moduleId: Schema.Literal('commerce.customer-context'),
+    resourceId: boundedText,
+    resourceType: Schema.Literal(resourceType),
+    tenantId: checkedUuid,
+  }).annotate(strict);
+
+const CounterpartyRefSchema = Schema.Struct({
+  moduleId: Schema.Literal('party.registry'),
+  resourceId: boundedText,
+  resourceType: Schema.Literal('party.registry.counterparty'),
+  tenantId: checkedUuid,
 }).annotate(strict);
+
+export const PurchasingSubjectKindSchema = Schema.Literals(['GUEST', 'RETAIL_PROFILE', 'COUNTERPARTY']);
+
+export const PurchasingSubjectRefSchema = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal('GUEST'), subjectRef: boundedText }).annotate(strict),
+  Schema.Struct({
+    kind: Schema.Literal('RETAIL_PROFILE'),
+    profileRef: CustomerContextProfileRefSchema('commerce.customer-context.retail-customer-profile'),
+  }).annotate(strict),
+  Schema.Struct({
+    counterpartyRef: CounterpartyRefSchema,
+    kind: Schema.Literal('COUNTERPARTY'),
+    profileRef: CustomerContextProfileRefSchema('commerce.customer-context.counterparty-purchasing-profile'),
+  })
+    .check(
+      Schema.makeFilter(({ counterpartyRef, profileRef }) =>
+        counterpartyRef.tenantId === profileRef.tenantId
+          ? undefined
+          : 'Counterparty and Purchasing Profile must belong to the same Tenant',
+      ),
+    )
+    .annotate(strict),
+]);
 
 export const SafeSubjectRestrictionEvidenceSchema = Schema.Struct({
   decision: Schema.Literal('ALLOWED'),
-  evidenceRef: boundedText,
+  evidenceRefs: Schema.Array(boundedText).check(Schema.isMinLength(1)),
+  observedAt: Schema.DateTimeUtcFromString,
   ownerRevision: boundedText,
-  subjectKind: PurchasingSubjectRefSchema.fields.kind,
+  profileState: Schema.Literal('ACTIVE'),
+  subjectKind: PurchasingSubjectKindSchema,
 }).annotate(strict);
 
 export const EligibleMarketTupleSchema = Schema.Struct({
@@ -183,6 +218,7 @@ export type EligibleMarketTuple = typeof EligibleMarketTupleSchema.Type;
 
 export const EligibleMarketTupleSetSchema = Schema.Struct({
   completenessEvidence: OwnerVerifiableSetCompletenessEvidenceSchema,
+  effectiveAt: Schema.DateTimeUtcFromString,
   evaluatedAt: Schema.DateTimeUtcFromString,
   nextApplicabilityBoundary: Schema.optionalKey(Schema.DateTimeUtcFromString),
   outcome: Schema.Literal('ELIGIBLE_MARKET_TUPLES'),
@@ -194,6 +230,7 @@ const resolved = Schema.Struct({
   associationRevision: positiveRevision,
   bootstrapPolicyRevision: Schema.optionalKey(boundedText),
   completenessEvidence: OwnerVerifiableSetCompletenessEvidenceSchema,
+  effectiveAt: Schema.DateTimeUtcFromString,
   evaluatedAt: Schema.DateTimeUtcFromString,
   marketDefinitionRevisionRef: MarketDefinitionRevisionRefSchema,
   nextApplicabilityBoundary: Schema.optionalKey(Schema.DateTimeUtcFromString),
@@ -216,6 +253,7 @@ const resolved = Schema.Struct({
 const selectionRequired = Schema.Struct({
   choices: Schema.Array(EligibleMarketTupleSchema).check(Schema.isMinLength(2)),
   completenessEvidence: OwnerVerifiableSetCompletenessEvidenceSchema,
+  effectiveAt: Schema.DateTimeUtcFromString,
   evaluatedAt: Schema.DateTimeUtcFromString,
   nextApplicabilityBoundary: Schema.optionalKey(Schema.DateTimeUtcFromString),
   outcome: Schema.Literal('MARKET_SELECTION_REQUIRED'),
