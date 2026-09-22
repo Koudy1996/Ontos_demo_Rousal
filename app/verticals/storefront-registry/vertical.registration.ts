@@ -2,21 +2,52 @@
 // @ontos-deployment-app-id storefront-registry
 // @ontos-module-id commerce.storefront-registry
 import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
+import { storefrontRegistryManifest } from './vertical.manifest.ts';
+// <generated-module-registration-imports>
 import { registerStorefrontApplicationAction } from './src/actions/register-storefront-application.action.ts';
 import { reviseStorefrontApplicationAction } from './src/actions/revise-storefront-application.action.ts';
-import { storefrontRegistryManifest } from './vertical.manifest.ts';
+// </generated-module-registration-imports>
 
 export const storefrontRegistryRegistration = defineVerticalRuntimeRegistration({
-  actions: [registerStorefrontApplicationAction, reviseStorefrontApplicationAction],
+  actions: [
+    // <generated-module-registration-actions>
+    registerStorefrontApplicationAction,
+    reviseStorefrontApplicationAction,
+    // </generated-module-registration-actions>
+  ],
   entrypoints: {
     api: {
-      'current-storefront-application': () => import('./src/api/storefront-registry-client.ts'),
+      // <generated-module-registration-apis>
+      'current-storefront-application': () => import('./src/api/current-storefront-application-client.ts'),
+      // </generated-module-registration-apis>
     },
-    components: {},
-    pages: {},
-    reports: {},
-    search: {},
+    components: {
+      // <generated-module-registration-components>
+      // </generated-module-registration-components>
+    },
+    pages: {
+      // <generated-module-registration-pages>
+      // </generated-module-registration-pages>
+    },
+    reports: {
+      // <generated-module-registration-reports>
+      // </generated-module-registration-reports>
+    },
+    search: {
+      // <generated-module-registration-search>
+      // </generated-module-registration-search>
+    },
   },
   manifest: storefrontRegistryManifest,
-  outboxWorkers: [],
+  outboxWorkers: [
+    // <generated-module-registration-workers>
+    // </generated-module-registration-workers>
+  ],
 });
+
+// <generated-public-component-registrations>
+// </generated-public-component-registrations>
+// <generated-search-registrations>
+// </generated-search-registrations>
+// <generated-report-registrations>
+// </generated-report-registrations>

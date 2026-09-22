@@ -3,10 +3,12 @@
 // @ontos-module-id commerce.storefront-registry
 import { defineOntosModuleManifest } from '@app/core-runtime';
 import type { OntosModuleManifestInput } from '@app/core-runtime';
-import { CurrentStorefrontApplicationApi } from '@app/storefront-registry-contracts/current-storefront-application';
+// <generated-module-manifest-imports>
+import { CurrentStorefrontApplicationApi } from './shared/apis/current-storefront-application.ts';
 import { storefrontApplicationResourceDescriptor } from './shared/resources/storefront-application.ts';
 import { registerStorefrontApplicationAction } from './src/actions/register-storefront-application.action.ts';
 import { reviseStorefrontApplicationAction } from './src/actions/revise-storefront-application.action.ts';
+// </generated-module-manifest-imports>
 
 export const storefrontRegistryManifest: OntosModuleManifestInput = defineOntosModuleManifest({
   activation: {
@@ -23,22 +25,62 @@ export const storefrontRegistryManifest: OntosModuleManifestInput = defineOntosM
     kind: 'business_module',
   },
   publicSurface: {
-    actions: [registerStorefrontApplicationAction, reviseStorefrontApplicationAction],
-    api: { 'current-storefront-application': CurrentStorefrontApplicationApi },
-    businessPermissions: [],
-    components: {},
+    actions: [
+      // <generated-module-manifest-actions>
+      registerStorefrontApplicationAction,
+      reviseStorefrontApplicationAction,
+      // </generated-module-manifest-actions>
+    ],
+    api: {
+      // <generated-module-manifest-apis>
+      'current-storefront-application': CurrentStorefrontApplicationApi,
+      // </generated-module-manifest-apis>
+    },
+    businessPermissions: [
+      // <generated-module-manifest-business-permissions>
+      // </generated-module-manifest-business-permissions>
+    ],
+    components: {
+      // <generated-module-manifest-components>
+      // </generated-module-manifest-components>
+    },
     events: [],
-    reports: [],
-    resourceTypes: [storefrontApplicationResourceDescriptor],
-    search: [],
+    reports: [
+      // <generated-module-manifest-reports>
+      // </generated-module-manifest-reports>
+    ],
+    resourceTypes: [
+      // <generated-module-manifest-resources>
+      storefrontApplicationResourceDescriptor,
+      // </generated-module-manifest-resources>
+    ],
+    search: [
+      // <generated-module-manifest-search>
+      // </generated-module-manifest-search>
+    ],
     shellContributions: {
       mediaAttachments: [],
-      navigation: [],
-      pages: [],
-      publicComponents: [],
-      reports: [],
+      navigation: [
+        // <generated-module-shell-navigation>
+        // </generated-module-shell-navigation>
+      ],
+      pages: [
+        // <generated-module-shell-pages>
+        // </generated-module-shell-pages>
+      ],
+      publicComponents: [
+        // <generated-module-shell-components>
+        // </generated-module-shell-components>
+      ],
+      reports: [
+        // <generated-module-shell-reports>
+        // </generated-module-shell-reports>
+      ],
       resourceDetails: [],
-      search: [],
+      search: [
+        // <generated-module-shell-search>
+        // </generated-module-shell-search>
+      ],
       timelines: [],
     },
   },

@@ -18,7 +18,7 @@ import { currentStorefrontApplicationPersistenceForScope } from '../persistence/
 
 const moduleKey = 'commerce.storefront-registry';
 
-const entrypoint = defineTenantModuleEntrypoint({
+const currentStorefrontApplicationEntrypoint = defineTenantModuleEntrypoint({
   access: 'read',
   authorization: { kind: 'context_permission', permission: 'module.access' },
   entrypointKey: 'commerce.storefront-registry.api.current-storefront-application',
@@ -99,15 +99,14 @@ export const handleCurrentStorefrontApplication = Effect.fn('CurrentStorefrontAp
       });
     }
     const persistence = yield* context.services.load(input).pipe(Effect.result);
-    const result: CurrentStorefrontApplicationResponse =
-      Result.isFailure(persistence)
-        ? {
-            ...identity(input),
-            outcome: 'UNAVAILABLE',
-            reason: 'Current Storefront application authority is temporarily unavailable',
-            retryable: true,
-          }
-        : resolveSnapshot(input, persistence.success);
+    const result: CurrentStorefrontApplicationResponse = Result.isFailure(persistence)
+      ? {
+          ...identity(input),
+          outcome: 'UNAVAILABLE',
+          reason: 'Current Storefront application authority is temporarily unavailable',
+          retryable: true,
+        }
+      : resolveSnapshot(input, persistence.success);
     return { evidence: { resultCount: 1 }, result };
   },
 );
@@ -115,7 +114,7 @@ export const handleCurrentStorefrontApplication = Effect.fn('CurrentStorefrontAp
 export const currentStorefrontApplicationRead = defineRead(
   {
     accessKind: 'detail',
-    entrypoint,
+    entrypoint: currentStorefrontApplicationEntrypoint,
     evidencePolicy: {
       captureMode: 'metadata_only',
       policyKey: 'commerce.storefront-registry.api.current-storefront-application.evidence.v1',
@@ -130,6 +129,6 @@ export const currentStorefrontApplicationRead = defineRead(
     schemaVersion: '1',
   },
   handleCurrentStorefrontApplication,
-  currentStorefrontApplicationPersistenceForScope,
+  (transaction, scope) => currentStorefrontApplicationPersistenceForScope(transaction, scope),
   () => ({ kind: 'module', moduleId: moduleKey }),
 );
