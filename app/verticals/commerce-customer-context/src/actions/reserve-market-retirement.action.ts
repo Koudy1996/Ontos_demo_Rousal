@@ -3,7 +3,10 @@
 // @ontos-action-slug reserve-market-retirement
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { OperationContextUnavailable, defineAction, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import type { ReserveMarketRetirementPayload } from '../../shared/actions/reserve-market-retirement.ts';
+import type {
+  ReserveMarketRetirementPayload,
+  ReserveMarketRetirementResult,
+} from '../../shared/actions/reserve-market-retirement.ts';
 import {
   ReserveMarketRetirementPayloadSchema,
   ReserveMarketRetirementResultSchema,
@@ -78,7 +81,7 @@ const handleReserveMarketRetirement = Effect.fn('ReserveMarketRetirementAction.h
     Effect.fail(reject('LIVE_REFERENCE_CONFLICT', reason));
   const marketRetirementAssessmentUnavailable = ({ reason }: { readonly reason: string }) =>
     Effect.fail(reject('ASSESSMENT_UNAVAILABLE', reason, true));
-  const result = yield* context.services
+  const result: ReserveMarketRetirementResult = yield* context.services
     .execute(payload, {
       actionInvocationId: context.actionInvocationId,
       actorPrincipalId: context.scope.principalId,

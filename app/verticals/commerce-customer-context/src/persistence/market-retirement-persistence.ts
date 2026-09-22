@@ -244,6 +244,3 @@ export const marketRetirementReservationForTransaction = (
       Effect.withSpan('commerce.customer-context.market-retirement.reserve'),
     ),
 });
-
-/** @deprecated Use the transaction-owned factory name at production composition sites. */
-export const makeMarketRetirementReservationService = marketRetirementReservationForTransaction;

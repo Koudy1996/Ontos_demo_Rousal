@@ -16,4 +16,3 @@ export const MarketRefSchema = Schema.Struct({
   resourceType: Schema.Literal('commerce.market-catalog.market'),
   tenantId: TenantIdSchema,
 });
-export type MarketRef = typeof MarketRefSchema.Type;

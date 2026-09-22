@@ -110,8 +110,6 @@ export const ReserveMarketRetirementIneligibleProblemSchema = makeProblemDetails
   422,
   { code: Schema.Literals(['action_policy_denied', 'INVALID_REQUEST']) },
 );
-/** @deprecated Use ReserveMarketRetirementIneligibleProblemSchema. */
-export const ReserveMarketRetirementPolicyProblemSchema = ReserveMarketRetirementIneligibleProblemSchema;
 export const ReserveMarketRetirementPreconditionProblemSchema = makeProblemDetailsSchema(
   'ReserveMarketRetirementActionPreconditionProblem',
   428,
