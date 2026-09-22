@@ -541,9 +541,12 @@ interface OutputPipeExpression {
 
 const outputPipeExpression = (source: string): OutputPipeExpression | undefined => {
   const structure = maskNonCode(source);
-  const match = [...structure.matchAll(/\.pipe\s*\(/gu)]
-    .filter((candidate) => candidate.index !== undefined && codeDepthBeforePosition(source, candidate.index) === 0)
-    .at(-1);
+  let match: RegExpExecArray | undefined;
+  for (const candidate of structure.matchAll(/\.pipe\s*\(/gu)) {
+    if (candidate.index !== undefined && codeDepthBeforePosition(source, candidate.index) === 0) {
+      match = candidate;
+    }
+  }
   if (match?.index === undefined) {
     return undefined;
   }
@@ -574,7 +577,7 @@ const outputCompositionIncludes = (
   source: string,
   expression: string,
   expectedLayer: string,
-  seen: Set<string> = new Set(),
+  seen: Set<string> = new Set<string>(),
   depth = 0,
 ): boolean => {
   if (depth >= MAX_OUTPUT_COMPOSITION_DEPTH) {

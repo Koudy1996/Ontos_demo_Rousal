@@ -188,6 +188,7 @@ const sharedContractsPackagePath = 'packages/shared-contracts';
 const sharedContractsNodeModulePath = 'node_modules/@app/shared-contracts';
 
 const partyGovernedContractPath = 'verticals/party-registry/shared/api.ts';
+const partyGovernedHandlerPath = 'verticals/party-registry/api/index.ts';
 
 interface FixtureVertical {
   readonly appId: string;
@@ -6178,9 +6179,7 @@ it.live(
   'typed injected governed runtime stays bound to the exported owner composition',
   Effect.fn(function* mergedScenario99() {
     const shared = yield* Effect.promise(() => readFile(path.join(appRoot, partyGovernedContractPath), 'utf-8'));
-    const handler = yield* Effect.promise(() =>
-      readFile(path.join(appRoot, 'verticals/party-registry/api/index.ts'), 'utf-8'),
-    );
+    const handler = yield* Effect.promise(() => readFile(path.join(appRoot, partyGovernedHandlerPath), 'utf-8'));
     expect(hasValidGovernedHttpCompositionRoot(shared, handler)).toBe(true);
     const typedShared = shared.replace(
       'export const partyRegistryApi = HttpApi.make(',
@@ -6228,9 +6227,7 @@ it.live(
   'assembled governed runtime rejects disconnected handler pipelines and counterfeit assemblers',
   Effect.fn(function* mergedScenario100() {
     const shared = yield* Effect.promise(() => readFile(path.join(appRoot, partyGovernedContractPath), 'utf-8'));
-    const handler = yield* Effect.promise(() =>
-      readFile(path.join(appRoot, 'verticals/party-registry/api/index.ts'), 'utf-8'),
-    );
+    const handler = yield* Effect.promise(() => readFile(path.join(appRoot, partyGovernedHandlerPath), 'utf-8'));
     for (const [before, after] of [
       [
         'const resolvedApiHandlersLive = apiHandlersLive.pipe(',
@@ -6249,9 +6246,7 @@ it.live(
   'assembled governed runtime follows output-bearing merges without accepting dependency-only handlers',
   Effect.fn(function* mergedScenario101() {
     const shared = yield* Effect.promise(() => readFile(path.join(appRoot, partyGovernedContractPath), 'utf-8'));
-    const handler = yield* Effect.promise(() =>
-      readFile(path.join(appRoot, 'verticals/party-registry/api/index.ts'), 'utf-8'),
-    );
+    const handler = yield* Effect.promise(() => readFile(path.join(appRoot, partyGovernedHandlerPath), 'utf-8'));
     const renamed = handler.replace(
       'const apiHandlersLive = Layer.mergeAll(',
       'const apiHandlerGroupsLive = Layer.mergeAll(',
