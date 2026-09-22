@@ -1,4 +1,5 @@
-import { ReadHandlerUnavailable } from '@app/core-runtime';
+import type { OperationalScope } from '@app/core-runtime';
+import { ReadHandlerUnavailable, TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { DateTime, Effect, Schema } from 'effect';
 import { TestClock } from 'effect/testing';
 import { describe, expect, it } from 'effect-rstest';
@@ -39,13 +40,16 @@ const sellerRef = {
 
 const scope = { tenantId };
 const operationalScope = {
-  authContextRef: 'subject-restrictions-test',
-  authMethod: 'service' as const,
+  ...Schema.decodeUnknownSync(TrustedPrincipalContextSchema)({
+    authBindingId: '44444444-4444-4444-8444-444444444444',
+    authContextRef: 'better-auth-session:subject-restrictions-test',
+    authMethod: 'session',
+    legalEntityId: sellerId,
+    principalId: '33333333-3333-4333-8333-333333333333',
+    tenantId,
+  }),
   correlationId: 'subject-restrictions-test',
-  legalEntityId: sellerId,
-  principalId: '33333333-3333-4333-8333-333333333333',
-  tenantId,
-};
+} satisfies OperationalScope;
 
 describe('Current Market subject restrictions owner read', () => {
   it.effect('issues fixed Retail seller and B2C evidence from the Current owner profile', () =>

@@ -10,6 +10,18 @@ import { RetailCustomerProfileRefSchema } from '../resources/retail-customer-pro
 
 const strict = { parseOptions: { onExcessProperty: 'error' as const } };
 const boundedOwnerReference = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
+const RestrictionModuleIdSchema = boundedOwnerReference.pipe(
+  Schema.brand('MarketSubjectRestrictionModuleId'),
+  Schema.decodeTo(Schema.String),
+);
+const RestrictionResourceIdSchema = boundedOwnerReference.pipe(
+  Schema.brand('MarketSubjectRestrictionResourceId'),
+  Schema.decodeTo(Schema.String),
+);
+const RestrictionTenantIdSchema = Schema.String.check(Schema.isUUID()).pipe(
+  Schema.brand('MarketSubjectRestrictionTenantId'),
+  Schema.decodeTo(Schema.String),
+);
 
 export const MarketRestrictionSubjectSchema = Schema.Union([
   Schema.Struct({
@@ -51,10 +63,10 @@ export const MarketSubjectSellerConstraintSchema = Schema.Union([
 ]);
 
 const RestrictionResourceRefSchema = Schema.Struct({
-  moduleId: boundedOwnerReference,
-  resourceId: boundedOwnerReference,
+  moduleId: RestrictionModuleIdSchema,
+  resourceId: RestrictionResourceIdSchema,
   resourceType: boundedOwnerReference,
-  tenantId: Schema.String.check(Schema.isUUID()),
+  tenantId: RestrictionTenantIdSchema,
 }).annotate(strict);
 
 export const MarketSubjectMarketConstraintSchema = Schema.Union([
@@ -109,7 +121,7 @@ const CurrentRestrictionsSchema = Schema.Struct({
   )
   .annotate(strict);
 
-const SubjectRestrictionsFailureSchema = <const Outcome extends string, const Retryable extends boolean>(
+const subjectRestrictionsFailureSchema = <const Outcome extends string, const Retryable extends boolean>(
   outcome: Outcome,
   retryable: Retryable,
 ) =>
@@ -121,8 +133,8 @@ const SubjectRestrictionsFailureSchema = <const Outcome extends string, const Re
 
 export const MarketSubjectRestrictionsCurrentResponseSchema = Schema.Union([
   CurrentRestrictionsSchema,
-  SubjectRestrictionsFailureSchema('SUBJECT_RESTRICTIONS_UNVERIFIABLE', false),
-  SubjectRestrictionsFailureSchema('SUBJECT_RESTRICTIONS_UNAVAILABLE', true),
+  subjectRestrictionsFailureSchema('SUBJECT_RESTRICTIONS_UNVERIFIABLE', false),
+  subjectRestrictionsFailureSchema('SUBJECT_RESTRICTIONS_UNAVAILABLE', true),
 ]);
 export type MarketSubjectRestrictionsCurrentResponse = typeof MarketSubjectRestrictionsCurrentResponseSchema.Type;
 

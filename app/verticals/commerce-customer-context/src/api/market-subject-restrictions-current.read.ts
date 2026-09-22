@@ -62,8 +62,9 @@ const subjectMatchesObservation = (
     subject.profileRef.resourceId !== observation.profileRef.resourceId ||
     subject.profileRef.tenantId !== observation.profileRef.tenantId ||
     subject.profileRef.resourceType !== observation.profileRef.resourceType
-  )
+  ) {
     return false;
+  }
   return subject.kind === 'RETAIL_PROFILE'
     ? observation.counterpartyResourceId === undefined
     : observation.counterpartyResourceId === subject.counterpartyRef.resourceId;
@@ -126,9 +127,13 @@ export const readCurrentMarketSubjectRestrictionsFromServices = Effect.fn(
     return unverifiable('The Purchasing Subject is outside the trusted Tenant');
   }
   const maybeResult = yield* services.readRestrictionProfile(input).pipe(Effect.option);
-  if (Option.isNone(maybeResult)) return unavailable();
+  if (Option.isNone(maybeResult)) {
+    return unavailable();
+  }
   const result = maybeResult.value;
-  if (result.outcome === 'PROFILE_UNVERIFIABLE') return unverifiable(result.reason);
+  if (result.outcome === 'PROFILE_UNVERIFIABLE') {
+    return unverifiable(result.reason);
+  }
   if (!subjectMatchesObservation(input.subject, result.observation)) {
     return unverifiable('The requested Purchasing Subject does not match the Current owner profile');
   }
