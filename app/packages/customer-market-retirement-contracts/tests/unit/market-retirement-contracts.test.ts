@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'effect-rstest';
-import { Effect, Exit, Schema } from 'effect';
+import { DateTime, Effect, Exit, Schema } from 'effect';
 
 import {
   MarketAffectedUseAssessmentRequestSchema,
   MarketAffectedUseAssessmentResponseSchema,
+  MarketAffectedUseSourceEvidenceSchema,
   ReserveMarketRetirementPayloadSchema,
   ReserveMarketRetirementResultSchema,
   executeMarketAffectedUseAssessment,
@@ -32,7 +33,14 @@ const completenessEvidence = {
   scope: { kind: 'EXACT_PREDICATE' as const, predicateRef: 'market:cz-launch:affected-use' },
 };
 const sourceEvidence = {
-  completenessEvidence,
+  completenessEvidence: Schema.decodeSync(MarketAffectedUseSourceEvidenceSchema)({
+    completenessEvidence,
+    currentness: 'CURRENT',
+    digest: 'a'.repeat(64),
+    generation: 'customer-context-generation-19',
+    ownerRevision: 'customer-context:41',
+    sourceId: 'customer-commerce-policy',
+  }).completenessEvidence,
   currentness: 'CURRENT' as const,
   digest: 'a'.repeat(64),
   generation: 'customer-context-generation-19',
@@ -50,7 +58,10 @@ describe('Customer-owned Market retirement public contracts', () => {
   it('strictly binds the governed read to Tenant, exact Market revision, and evaluation instant', () => {
     expect(Schema.decodeSync(MarketAffectedUseAssessmentRequestSchema)(request)).toEqual(request);
     expect(() =>
-      Schema.decodeSync(MarketAffectedUseAssessmentRequestSchema)({ ...request, tenantId: crypto.randomUUID() }),
+      Schema.decodeSync(MarketAffectedUseAssessmentRequestSchema)({
+        ...request,
+        tenantId: '33333333-3333-4333-8333-333333333333',
+      }),
     ).toThrow();
     expect(() =>
       Schema.decodeSync(MarketAffectedUseAssessmentRequestSchema)({
@@ -58,7 +69,9 @@ describe('Customer-owned Market retirement public contracts', () => {
         evaluatedAt: '2026-09-22T10:00:00Z',
       }),
     ).toThrow();
-    expect(() => Schema.decodeSync(MarketAffectedUseAssessmentRequestSchema)({ ...request, extra: true })).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(MarketAffectedUseAssessmentRequestSchema)({ ...request, extra: true }),
+    ).toThrow();
   });
 
   it('separates live blockers from retained history and preserves owner-verifiable source versions', () => {
@@ -89,9 +102,17 @@ describe('Customer-owned Market retirement public contracts', () => {
           ownerResourceRevision: 'policy:3',
         },
       ],
-      sourceEvidence: [sourceEvidence],
+      sourceEvidence: [{ ...sourceEvidence, completenessEvidence }],
     };
-    expect(Schema.decodeSync(MarketAffectedUseAssessmentResponseSchema)(verified)).toEqual(verified);
+    const decoded = Schema.decodeSync(MarketAffectedUseAssessmentResponseSchema)(verified);
+    expect(decoded.outcome).toBe('VERIFIED');
+    if (decoded.outcome !== 'VERIFIED') throw new Error('Expected verified assessment');
+    expect(DateTime.formatIso(decoded.sourceEvidence[0]!.completenessEvidence.observedAt)).toBe(
+      completenessEvidence.observedAt,
+    );
+    const nextBoundary = decoded.sourceEvidence[0]!.completenessEvidence.nextApplicabilityBoundary;
+    if (nextBoundary === undefined) throw new Error('Expected next applicability boundary');
+    expect(DateTime.formatIso(nextBoundary)).toBe(completenessEvidence.nextApplicabilityBoundary);
     expect(() =>
       Schema.decodeSync(MarketAffectedUseAssessmentResponseSchema)({
         ...verified,
@@ -103,7 +124,15 @@ describe('Customer-owned Market retirement public contracts', () => {
         ...verified,
         liveBlockingReferences: {
           ...verified.liveBlockingReferences,
-          bootstrapDefaults: [{ ...verified.liveBlockingReferences.bootstrapDefaults[0], marketRevision: 6 }],
+          bootstrapDefaults: [
+            {
+              kind: 'BOOTSTRAP_DEFAULT',
+              marketRef,
+              marketRevision: 6,
+              ownerResourceRef,
+              ownerResourceRevision: 'policy:12',
+            },
+          ],
         },
       }),
     ).toThrow();
@@ -122,7 +151,9 @@ describe('Customer-owned Market retirement public contracts', () => {
         staleSourceIds: ['customer-commerce-policy'],
       },
     ]) {
-      expect(Schema.decodeSync(MarketAffectedUseAssessmentResponseSchema)(outcome).outcome).toBe(outcome.outcome);
+      expect(Schema.decodeUnknownSync(MarketAffectedUseAssessmentResponseSchema)(outcome).outcome).toBe(
+        outcome.outcome,
+      );
     }
   });
 
@@ -132,12 +163,17 @@ describe('Customer-owned Market retirement public contracts', () => {
       assessmentDigest: 'b'.repeat(64),
       operation: 'RESERVE' as const,
       reason: 'Retire Market',
-      sourceEvidence: [sourceEvidence],
+      sourceEvidence: [{ ...sourceEvidence, completenessEvidence }],
     };
-    expect(Schema.decodeSync(ReserveMarketRetirementPayloadSchema)(reserve)).toEqual(reserve);
+    const decodedReserve = Schema.decodeSync(ReserveMarketRetirementPayloadSchema)(reserve);
+    expect(decodedReserve.operation).toBe('RESERVE');
+    if (decodedReserve.operation !== 'RESERVE') throw new Error('Expected reservation payload');
+    expect(DateTime.formatIso(decodedReserve.sourceEvidence[0]!.completenessEvidence.observedAt)).toBe(
+      completenessEvidence.observedAt,
+    );
     for (const operation of ['COMMIT', 'RELEASE'] as const) {
       expect(() =>
-        Schema.decodeSync(ReserveMarketRetirementPayloadSchema)({
+        Schema.decodeUnknownSync(ReserveMarketRetirementPayloadSchema)({
           marketRef,
           marketRevision: 7,
           operation,

@@ -33,14 +33,21 @@ export const executeReserveMarketRetirementWithAuthorization = (
         },
         options,
       ).pipe(
-        Effect.flatMap((client) =>
-          client.reserveMarketRetirement.execute({
+        Effect.flatMap((client) => {
+          const request = {
             headers: { 'idempotency-key': options.idempotencyKey },
             params: {},
-            payload: encoded,
             query: {},
-          }),
-        ),
+          } as const;
+          switch (encoded.operation) {
+            case 'RESERVE':
+              return client.reserveMarketRetirement.execute({ ...request, payload: encoded });
+            case 'COMMIT':
+              return client.reserveMarketRetirement.execute({ ...request, payload: encoded });
+            case 'RELEASE':
+              return client.reserveMarketRetirement.execute({ ...request, payload: encoded });
+          }
+        }),
       ),
     ),
   );

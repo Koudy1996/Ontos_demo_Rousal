@@ -112,7 +112,7 @@ export const ReserveMarketRetirementApi = HttpApi.make('ReserveMarketRetirementA
       ],
       headers: {},
       params: {},
-      payload: ReserveMarketRetirementPayloadSchema,
+      payload: Schema.toEncoded(ReserveMarketRetirementPayloadSchema),
       query: {},
       success: ReserveMarketRetirementResultSchema,
     }),
