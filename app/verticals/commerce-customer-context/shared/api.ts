@@ -1,5 +1,4 @@
 import { identity } from 'effect';
-import { MarketAffectedUseAssessmentApi } from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
 import {
   MicroVerticalBuildMarkerSchema,
   MicroVerticalReadinessSchema,
@@ -69,6 +68,7 @@ import { GuestPaymentTermsResolutionApi } from './apis/guest-payment-terms-resol
 import { InvoiceRecipientResolutionApi } from './apis/invoice-recipient-resolution.ts';
 import { MarketBootstrapPolicyCurrentApi } from './apis/market-bootstrap-policy-current.ts';
 import { MarketBootstrapResolutionApi } from './apis/market-bootstrap-resolution.ts';
+import { MarketAffectedUseAssessmentApi } from './apis/market-affected-use-assessment.ts';
 import { MarketSubjectRestrictionsCurrentApi } from './apis/market-subject-restrictions-current.ts';
 import { MigrateCounterpartyPriceGroupActionApi } from './apis/migrate-counterparty-price-group-action.ts';
 import { MigrateCustomerPriceGroupActionApi } from './apis/migrate-customer-price-group-action.ts';
@@ -138,7 +138,7 @@ export const commerceCustomerContextFoundationApi = HttpApi.make('CommerceCustom
   ),
 );
 export * from './apis/payment-term-affected-use-assessment.ts';
-export * from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
+export * from './apis/market-affected-use-assessment.ts';
 export * from './apis/commerce-quantity-resolution.ts';
 export * from './apis/market-bootstrap-policy-current.ts';
 export * from './apis/market-bootstrap-resolution.ts';

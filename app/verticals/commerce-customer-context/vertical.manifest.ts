@@ -93,7 +93,7 @@ import { MarketBootstrapPolicyCurrentApi } from './shared/apis/market-bootstrap-
 import { marketBootstrapPolicyResourceDescriptor } from './shared/resources/market-bootstrap-policy.ts';
 import { MarketBootstrapResolutionApi } from './shared/apis/market-bootstrap-resolution.ts';
 import { MarketSubjectRestrictionsCurrentApi } from './shared/apis/market-subject-restrictions-current.ts';
-import { MarketAffectedUseAssessmentApi } from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
+import { MarketAffectedUseAssessmentApi } from './shared/apis/market-affected-use-assessment.ts';
 import { migrateCounterpartyPriceGroupAction } from './src/actions/migrate-counterparty-price-group.action.ts';
 import { migrateCustomerPriceGroupAction } from './src/actions/migrate-customer-price-group.action.ts';
 import { openProfileReconciliationAction } from './src/actions/open-profile-reconciliation.action.ts';

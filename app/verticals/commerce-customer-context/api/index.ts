@@ -881,8 +881,10 @@ export const makeCommerceCustomerContextApiRuntime = (
     updateSavedAddressActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     // </generated-governed-http-handler-layers>
   );
-  const apiHandlersLive = commerceCustomerContextReadinessLayer.pipe(
-    Layer.provideMerge(apiHandlerGroupsLive),
+  const apiHandlersLive = Layer.mergeAll(
+    commerceCustomerContextReadinessLayer.pipe(Layer.provide(apiHandlerGroupsLive)),
+    apiHandlerGroupsLive,
+  ).pipe(
     // Core revalidates a presented session binding's authentication namespace before any
     // authorization runs and answers `operation_context_unavailable` when no registry is reachable,
     // so every namespace-carrying gateway assertion this vertical is handed needs the registration
