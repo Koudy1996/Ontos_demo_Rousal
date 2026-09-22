@@ -10,11 +10,23 @@
     "outDir": "../../node_modules/.cache/tsgo/declarations/verticals__storefront-registry",
     "tsBuildInfoFile": "../../node_modules/.cache/tsgo/verticals__storefront-registry.tsbuildinfo"
   },
-  "include": ["api", "shared", "src", "tests", "vertical.manifest.ts", "vertical.registration.ts"],
+  "include": [
+    "api",
+    "locales/**/*.json",
+    "package.json",
+    "shared",
+    "shared/ultramodern-build.json",
+    "server",
+    "src",
+    "tests",
+    "vertical.manifest.ts",
+    "vertical.registration.ts"
+  ],
   "references": [
     { "path": "../../packages/core-runtime" },
     { "path": "../../packages/gateway-principal-verifier" },
     { "path": "../../packages/shared-contracts" },
+    { "path": "../../packages/shared-design-tokens" },
     { "path": "../../packages/storefront-registry-contracts" }
   ]
 }
