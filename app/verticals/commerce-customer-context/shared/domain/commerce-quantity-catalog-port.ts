@@ -1,4 +1,5 @@
-/* oxlint-disable effect-native/no-unbranded-identifier-schema, sonarjs/no-duplicate-string -- Catalog owns these opaque identifiers; this consumer preserves them without assigning local business meaning; tracked in: #333; remove-when: Catalog publishes branded quantity-selection refs. */
+/* oxlint-disable effect-native/no-unbranded-identifier-schema, sonarjs/no-duplicate-string -- Catalog owns these opaque evidence references; this consumer preserves them without assigning local business meaning; tracked in: #333. */
+import { CatalogSelectionSchema } from '@app/catalog/domain/catalog-selection-evidence';
 import { Effect, Schema } from 'effect';
 import { OwnerVerifiableSetCompletenessEvidenceSchema } from '@app/shared-contracts';
 import {
@@ -9,63 +10,31 @@ import {
 
 const stableReference = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
 
-const CommerceQuantityCatalogSelectionRefSchema = Schema.Struct({
-  moduleId: Schema.Literal('commerce.catalog'),
-  resourceId: stableReference,
-  resourceType: Schema.Literal('commerce.catalog.selection'),
-  tenantId: CustomerCommercePolicyTenantIdSchema,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
-const CatalogProductRefSchema = Schema.Struct({
-  moduleId: Schema.Literal('commerce.catalog'),
-  resourceId: stableReference,
-  resourceType: Schema.Literal('commerce.catalog.product'),
-  tenantId: CustomerCommercePolicyTenantIdSchema,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
-
-const CatalogVariantRefSchema = Schema.Struct({
-  moduleId: Schema.Literal('commerce.catalog'),
-  resourceId: stableReference,
-  resourceType: Schema.Literal('commerce.catalog.variant'),
-  tenantId: CustomerCommercePolicyTenantIdSchema,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
-
-const CatalogPackageOptionRefSchema = Schema.Struct({
-  moduleId: Schema.Literal('commerce.catalog'),
-  resourceId: stableReference,
-  resourceType: Schema.Literal('commerce.catalog.package-option'),
-  tenantId: CustomerCommercePolicyTenantIdSchema,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
-
 /**
  * Exact Current Catalog facts consumed by quantity resolution. Every identity and revision is
  * issued by Catalog; Customer Context never traverses Catalog hierarchy or normalizes Quantity.
  */
 const CurrentCommerceQuantityCatalogSelectionSchema = Schema.Struct({
   basis: CommerceQuantityBasisSchema,
+  catalogSelection: CatalogSelectionSchema,
   completeness: Schema.toEncoded(OwnerVerifiableSetCompletenessEvidenceSchema),
-  configurationRevision: Schema.optionalKey(stableReference),
+  divisible: Schema.Boolean,
   equivalentSelectionKey: stableReference,
   hierarchyRevision: stableReference,
   normalizedQuantity: ExactPositiveCommerceQuantitySchema,
   ownerRevision: stableReference,
-  packageOptionRef: Schema.optionalKey(CatalogPackageOptionRefSchema),
   physicalMultiple: ExactPositiveCommerceQuantitySchema,
-  productRef: CatalogProductRefSchema,
   requestedQuantity: ExactPositiveCommerceQuantitySchema,
-  selectionRef: CommerceQuantityCatalogSelectionRefSchema,
-  setConstituentRevision: Schema.optionalKey(stableReference),
-  variantRef: Schema.optionalKey(CatalogVariantRefSchema),
 }).check(
   Schema.makeFilter((selection) => {
     const tenantIds = [
-      selection.selectionRef.tenantId,
-      selection.productRef.tenantId,
-      selection.variantRef?.tenantId,
-      selection.packageOptionRef?.tenantId,
-      selection.basis.basisRef.tenantId,
+      selection.catalogSelection.productRef.tenantId,
+      selection.catalogSelection.variantRef.tenantId,
+      selection.catalogSelection.packageOption?.optionRef.tenantId,
+      selection.basis.targetRef.tenantId,
       selection.basis.unitRef.tenantId,
     ].filter((tenantId): tenantId is string => tenantId !== undefined);
-    return tenantIds.every((tenantId) => tenantId === selection.selectionRef.tenantId)
+    return tenantIds.every((tenantId) => tenantId === selection.catalogSelection.productRef.tenantId)
       ? undefined
       : 'Catalog selection, hierarchy, and Quantity basis must belong to one Tenant';
   }),
@@ -75,7 +44,7 @@ export type CurrentCommerceQuantityCatalogSelection = typeof CurrentCommerceQuan
 export const CommerceQuantityCatalogLineRequestSchema = Schema.Struct({
   lineId: stableReference,
   requestedQuantity: ExactPositiveCommerceQuantitySchema,
-  selectionRef: CommerceQuantityCatalogSelectionRefSchema,
+  selection: CatalogSelectionSchema,
 }).annotate({ parseOptions: { onExcessProperty: 'error' } });
 type CommerceQuantityCatalogLineRequest = typeof CommerceQuantityCatalogLineRequestSchema.Type;
 
@@ -86,7 +55,13 @@ export const CurrentCommerceQuantityCatalogLineSchema = Schema.Struct({
 export type CurrentCommerceQuantityCatalogLine = typeof CurrentCommerceQuantityCatalogLineSchema.Type;
 
 export const CommerceQuantityCatalogUnavailableSchema = Schema.TaggedStruct('CommerceQuantityCatalogUnavailable', {
-  code: Schema.Literals(['catalog_selection_unavailable', 'catalog_quantity_normalization_unavailable']),
+  code: Schema.Literals([
+    'catalog_selection_invalid',
+    'catalog_selection_stale',
+    'catalog_selection_unavailable',
+    'catalog_selection_unverifiable',
+    'catalog_quantity_normalization_unavailable',
+  ]),
   reason: Schema.String,
   retryable: Schema.Literal(true),
 });

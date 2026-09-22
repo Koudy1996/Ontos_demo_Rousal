@@ -27,6 +27,9 @@
   ],
   "references": [
     {
+      "path": "../catalog"
+    },
+    {
       "path": "../../packages/core-runtime"
     },
     {

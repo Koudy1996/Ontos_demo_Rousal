@@ -1,4 +1,5 @@
 import { Result, Schema } from 'effect';
+import { CatalogResourceRefSchema } from '@app/catalog/domain/catalog-revision-reference';
 import { CurrencyCodeSchema } from './currency.ts';
 import { ProfileInstantSchema } from './profile-contracts.ts';
 
@@ -209,7 +210,7 @@ const CatalogVariantRefSchema = Schema.Struct({
 const CatalogPackageOptionRefSchema = Schema.Struct({
   moduleId: Schema.Literal(commerceCatalogModuleId),
   resourceId: CustomerCommercePolicyResourceIdSchema,
-  resourceType: Schema.Literal('commerce.catalog.package-option'),
+  resourceType: Schema.Literal('commerce.catalog.package-definition'),
   tenantId: CustomerCommercePolicyTenantIdSchema,
 }).annotate({ parseOptions: { onExcessProperty: 'error' } });
 
@@ -234,28 +235,16 @@ export const ExactPositiveCommerceQuantitySchema = Schema.String.check(
 ).pipe(Schema.brand('ExactPositiveCommerceQuantity'));
 export type ExactPositiveCommerceQuantity = typeof ExactPositiveCommerceQuantitySchema.Type;
 
-const CatalogQuantityBasisRefSchema = Schema.Struct({
-  moduleId: Schema.Literal(commerceCatalogModuleId),
-  resourceId: CustomerCommercePolicyResourceIdSchema,
-  resourceType: Schema.Literal('commerce.catalog.quantity-basis'),
-  tenantId: CustomerCommercePolicyTenantIdSchema,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
-const CatalogQuantityUnitRefSchema = Schema.Struct({
-  moduleId: Schema.Literal(commerceCatalogModuleId),
-  resourceId: CustomerCommercePolicyResourceIdSchema,
-  resourceType: Schema.Literal('commerce.catalog.quantity-unit'),
-  tenantId: CustomerCommercePolicyTenantIdSchema,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
-
 export const CommerceQuantityBasisSchema = Schema.Struct({
-  basisRef: CatalogQuantityBasisRefSchema,
-  ownerRevision: stableReference,
-  unitRef: CatalogQuantityUnitRefSchema,
+  targetDivisibilityRevision: Schema.Int.check(Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })),
+  targetRef: CatalogResourceRefSchema,
+  unitRef: CatalogResourceRefSchema,
+  unitRuleRevision: Schema.Int.check(Schema.isBetween({ maximum: 2_147_483_647, minimum: 1 })),
 }).check(
-  Schema.makeFilter(({ basisRef, unitRef }) =>
-    basisRef.tenantId === unitRef.tenantId
+  Schema.makeFilter(({ targetRef, unitRef }) =>
+    targetRef.tenantId === unitRef.tenantId
       ? undefined
-      : [{ issue: 'Quantity basis and Unit must belong to the same Tenant', path: ['unitRef', 'tenantId'] }],
+      : [{ issue: 'Quantity target and Unit must belong to the same Tenant', path: ['unitRef', 'tenantId'] }],
   ),
 );
 export type CommerceQuantityBasis = typeof CommerceQuantityBasisSchema.Type;

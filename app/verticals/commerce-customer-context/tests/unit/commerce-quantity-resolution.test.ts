@@ -27,7 +27,7 @@ const profileRef = {
 };
 const productRef = {
   moduleId: 'commerce.catalog' as const,
-  resourceId: 'product-1',
+  resourceId: '50000000-0000-4000-8000-000000000001',
   resourceType: 'commerce.catalog.product' as const,
   tenantId,
 };
@@ -38,19 +38,20 @@ const variantRef = (resourceId: string) => ({
   tenantId,
 });
 const basis = {
-  basisRef: {
+  targetDivisibilityRevision: 7,
+  targetRef: {
     moduleId: 'commerce.catalog' as const,
-    resourceId: 'count',
-    resourceType: 'commerce.catalog.quantity-basis' as const,
+    resourceId: '50000000-0000-4000-8000-000000000002',
+    resourceType: 'commerce.catalog.variant' as const,
     tenantId,
   },
-  ownerRevision: 'basis:7',
   unitRef: {
     moduleId: 'commerce.catalog' as const,
-    resourceId: 'piece',
-    resourceType: 'commerce.catalog.quantity-unit' as const,
+    resourceId: '50000000-0000-4000-8000-000000000003',
+    resourceType: 'commerce.catalog.product-unit' as const,
     tenantId,
   },
+  unitRuleRevision: 9,
 };
 const completeness = (ownerRevision: string, nextApplicabilityBoundary?: string) => ({
   ...(nextApplicabilityBoundary === undefined ? {} : { nextApplicabilityBoundary }),
@@ -65,11 +66,9 @@ const request = Schema.decodeUnknownSync(CommerceQuantityResolutionRequestSchema
     {
       lineId: 'line-1',
       requestedQuantity: '5',
-      selectionRef: {
-        moduleId: 'commerce.catalog',
-        resourceId: 'selection-1',
-        resourceType: 'commerce.catalog.selection',
-        tenantId,
+      selection: {
+        productRef,
+        variantRef: variantRef('50000000-0000-4000-8000-000000000002'),
       },
     },
   ],
@@ -88,15 +87,15 @@ const catalogLine = (overrides: Record<string, unknown> = {}) =>
     lineId: 'line-1',
     selection: {
       basis,
+      catalogSelection: request.lines[0]?.selection,
       completeness: completeness('catalog:12'),
+      divisible: true,
       equivalentSelectionKey: 'selection-equivalence:1',
       hierarchyRevision: 'hierarchy:4',
       normalizedQuantity: '5',
       ownerRevision: 'selection:12',
       physicalMultiple: '1',
-      productRef,
       requestedQuantity: '5',
-      selectionRef: request.lines[0]?.selectionRef,
       ...overrides,
     },
   });
@@ -314,7 +313,7 @@ describe('Commerce Quantity resolution', () => {
     const secondRequestLine = {
       lineId: 'line-2',
       requestedQuantity: '4',
-      selectionRef: { ...request.lines[0]?.selectionRef, resourceId: 'selection-2' },
+      selection: request.lines[0]?.selection,
     };
     const twoLineRequest = Schema.decodeUnknownSync(CommerceQuantityResolutionRequestSchema)({
       ...request,
@@ -327,7 +326,6 @@ describe('Commerce Quantity resolution', () => {
           lineId: 'line-2',
           selection: {
             ...catalogLine({ normalizedQuantity: '4', requestedQuantity: '4' }).selection,
-            selectionRef: secondRequestLine.selectionRef,
           },
         }),
       ],
@@ -341,45 +339,45 @@ describe('Commerce Quantity resolution', () => {
   });
 
   it('does not pool different Variants, configurations, or set constituents', () => {
+    const firstVariant = variantRef('50000000-0000-4000-8000-000000000004');
+    const secondVariant = variantRef('50000000-0000-4000-8000-000000000005');
     const variantOneRule = rule(uuids[0], {
       envelope: { kind: 'BOUNDED', maximum: null, minimum: '5', multiple: null },
-      selector: { kind: 'VARIANT', variantRef: variantRef('variant-1') },
+      selector: { kind: 'VARIANT', variantRef: firstVariant },
     });
     const variantTwoRule = rule(uuids[1], {
       envelope: { kind: 'BOUNDED', maximum: null, minimum: '5', multiple: null },
-      selector: { kind: 'VARIANT', variantRef: variantRef('variant-2') },
+      selector: { kind: 'VARIANT', variantRef: secondVariant },
     });
     const secondRequestLine = {
       lineId: 'line-2',
       requestedQuantity: '4',
-      selectionRef: { ...request.lines[0]?.selectionRef, resourceId: 'selection-2' },
+      selection: { productRef, variantRef: secondVariant },
     };
     const twoLineRequest = Schema.decodeUnknownSync(CommerceQuantityResolutionRequestSchema)({
       ...request,
-      lines: [{ ...request.lines[0], requestedQuantity: '4' }, secondRequestLine],
+      lines: [
+        { ...request.lines[0], requestedQuantity: '4', selection: { productRef, variantRef: firstVariant } },
+        secondRequestLine,
+      ],
     });
     const outcome = resolve([variantOneRule, variantTwoRule], {
       catalogLines: [
         catalogLine({
-          configurationRevision: 'configuration:1',
+          catalogSelection: { productRef, variantRef: firstVariant },
           equivalentSelectionKey: 'variant-1:configuration-1',
           normalizedQuantity: '4',
           requestedQuantity: '4',
-          setConstituentRevision: 'constituent:1',
-          variantRef: variantRef('variant-1'),
         }),
         Schema.decodeUnknownSync(CurrentCommerceQuantityCatalogLineSchema)({
           lineId: 'line-2',
           selection: {
             ...catalogLine({
-              configurationRevision: 'configuration:2',
+              catalogSelection: { productRef, variantRef: secondVariant },
               equivalentSelectionKey: 'variant-2:configuration-2',
               normalizedQuantity: '4',
               requestedQuantity: '4',
-              setConstituentRevision: 'constituent:2',
-              variantRef: variantRef('variant-2'),
             }).selection,
-            selectionRef: secondRequestLine.selectionRef,
           },
         }),
       ],

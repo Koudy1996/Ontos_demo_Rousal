@@ -153,6 +153,7 @@
     "db:portal-auth:bootstrap-runtime-role": "node scripts/bootstrap-portal-auth-runtime-role.mts"
   },
   "dependencies": {
+    "@app/catalog": "workspace:*",
     "@app/core-runtime": "workspace:*",
     "@app/commerce-market-catalog": "workspace:*",
     "@app/customer-payment-term-contracts": "workspace:*",

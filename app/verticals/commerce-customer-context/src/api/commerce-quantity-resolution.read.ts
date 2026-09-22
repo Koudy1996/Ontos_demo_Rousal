@@ -38,6 +38,7 @@ import {
 import type { CommerceQuantityResolutionSubject } from '../../shared/domain/commerce-quantity-resolution.ts';
 import { CustomerCommercePolicyInstantSchema } from '../../shared/domain/customer-commerce-policy.ts';
 import { customerCommercePolicyAdministrationServiceFactory } from '../services/customer-commerce-policy-administration.service.ts';
+import { catalogQuantityPortFromEnvironment } from '../integrations/catalog-quantity.ts';
 
 const moduleKey = 'commerce.customer-context';
 const decodePolicyInstant = (value: string) =>
@@ -199,25 +200,35 @@ export const commerceQuantityResolutionRead = defineRead(
   },
   handleCommerceQuantityResolution,
   (transaction, scope) =>
-    customerCommercePolicyAdministrationServiceFactory(transaction, scope).pipe(
-      Effect.map((policyService) =>
-        commerceQuantityResolutionServicesFromPorts(unavailableCommerceQuantityCatalogPort(), {
-          readCurrent: (at) =>
-            policyService.readCurrentCommerceQuantityPolicy(at).pipe(
-              Effect.mapError((cause) =>
-                Object.defineProperty(
-                  {
-                    _tag: 'CommerceQuantityPolicyUnavailable' as const,
-                    reason: 'The Current Commerce Quantity Policy repository is unavailable',
-                    retryable: true as const,
-                  },
-                  'cause',
-                  { configurable: true, value: cause },
-                ),
+    Effect.gen(function* makeCommerceQuantityResolutionServices() {
+      const legalEntityId = scope.legalEntityId;
+      if (legalEntityId === undefined) {
+        return yield* new ReadHandlerUnavailable({
+          code: 'read_handler_unavailable',
+          reason: 'Commerce Quantity Resolution requires a trusted Legal Entity context',
+        });
+      }
+      const catalog = yield* catalogQuantityPortFromEnvironment({
+        legalEntityId,
+        requestCorrelation: scope.correlationId,
+      });
+      const policyService = yield* customerCommercePolicyAdministrationServiceFactory(transaction, scope);
+      return commerceQuantityResolutionServicesFromPorts(catalog, {
+        readCurrent: (at) =>
+          policyService.readCurrentCommerceQuantityPolicy(at).pipe(
+            Effect.mapError((cause) =>
+              Object.defineProperty(
+                {
+                  _tag: 'CommerceQuantityPolicyUnavailable' as const,
+                  reason: 'The Current Commerce Quantity Policy repository is unavailable',
+                  retryable: true as const,
+                },
+                'cause',
+                { configurable: true, value: cause },
               ),
             ),
-        }),
-      ),
-    ),
+          ),
+      });
+    }),
   commerceQuantityResolutionPermission,
 );

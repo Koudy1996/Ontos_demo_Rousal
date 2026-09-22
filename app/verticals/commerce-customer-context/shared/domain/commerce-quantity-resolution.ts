@@ -1,6 +1,7 @@
 /* oxlint-disable anti-slop/require-safety-comment-for-type-assertion, effect-native/no-sync-schema-codec, effect-native/no-unbranded-identifier-schema, effect-native/prefer-match-over-tag-switch, eslint/default-case, eslint/no-nested-ternary, eslint/prefer-destructuring, react-doctor/js-cache-property-access, react-doctor/js-combine-iterations, sonarjs/too-many-break-or-continue-in-loop, typescript/array-type, typescript/consistent-return, typescript/no-unsafe-type-assertion, unicorn/no-array-reduce, unicorn/no-array-sort, unicorn/switch-case-braces -- This pure, schema-validated resolver is the explicit policy decision table; tracked in: #333; remove-when: the resolver is generated from the approved quantity-policy contract. */
 import { Schema } from 'effect';
 import { OwnerVerifiableSetCompletenessEvidenceSchema } from '@app/shared-contracts';
+import { CatalogSelectionSchema } from '@app/catalog/domain/catalog-selection-evidence';
 import { CounterpartyPurchasingProfileRefSchema } from '../resources/counterparty-purchasing-profile.ts';
 import { RetailCustomerProfileRefSchema } from '../resources/retail-customer-profile.ts';
 import type {
@@ -33,6 +34,7 @@ import type {
 
 const stableReference = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
 const exactPositiveQuantity = Schema.decodeUnknownSync(ExactPositiveCommerceQuantitySchema);
+const sameCatalogSelection = Schema.toEquivalence(CatalogSelectionSchema);
 
 const CommerceQuantityPurchasingContextSchema = Schema.Struct({
   channelId: CustomerCommercePolicyChannelIdSchema,
@@ -61,7 +63,9 @@ export const CommerceQuantityResolutionRequestSchema = Schema.Struct({
   subject: CommerceQuantityResolutionSubjectSchema,
 }).check(
   Schema.makeFilter(({ lines, purchasingContext, subject }) => {
-    const lineTenantsMatch = lines.every(({ selectionRef }) => selectionRef.tenantId === purchasingContext.tenantId);
+    const lineTenantsMatch = lines.every(
+      ({ selection }) => selection.productRef.tenantId === purchasingContext.tenantId,
+    );
     const profileTenantMatches = subject.kind === 'GUEST' || subject.profileRef.tenantId === purchasingContext.tenantId;
     return lineTenantsMatch && profileTenantMatches
       ? undefined
@@ -207,12 +211,13 @@ const selectorMatches = (
     case 'ALL':
       return true;
     case 'PRODUCT':
-      return refEquals(selector.productRef, selection.productRef);
+      return refEquals(selector.productRef, selection.catalogSelection.productRef);
     case 'VARIANT':
-      return selection.variantRef !== undefined && refEquals(selector.variantRef, selection.variantRef);
+      return refEquals(selector.variantRef, selection.catalogSelection.variantRef);
     case 'PACKAGE_OPTION':
       return (
-        selection.packageOptionRef !== undefined && refEquals(selector.packageOptionRef, selection.packageOptionRef)
+        selection.catalogSelection.packageOption !== undefined &&
+        refEquals(selector.packageOptionRef, selection.catalogSelection.packageOption.optionRef)
       );
   }
 };
@@ -255,8 +260,9 @@ const profileMatches = (
   refEquals(assignment.profile.profileRef, subject.profileRef);
 
 const basisEquals = (left: CommerceQuantityBasis, right: CommerceQuantityBasis): boolean =>
-  left.ownerRevision === right.ownerRevision &&
-  refEquals(left.basisRef, right.basisRef) &&
+  left.targetDivisibilityRevision === right.targetDivisibilityRevision &&
+  left.unitRuleRevision === right.unitRuleRevision &&
+  refEquals(left.targetRef, right.targetRef) &&
   refEquals(left.unitRef, right.unitRef);
 
 const completenessCurrentAt = (
@@ -268,13 +274,14 @@ const completenessCurrentAt = (
 
 const basisKey = (basis: CommerceQuantityBasis): string =>
   [
-    basis.basisRef.moduleId,
-    basis.basisRef.resourceType,
-    basis.basisRef.resourceId,
+    basis.targetRef.moduleId,
+    basis.targetRef.resourceType,
+    basis.targetRef.resourceId,
+    basis.targetDivisibilityRevision,
     basis.unitRef.moduleId,
     basis.unitRef.resourceType,
     basis.unitRef.resourceId,
-    basis.ownerRevision,
+    basis.unitRuleRevision,
   ].join('|');
 
 const candidateAssignments = (
@@ -327,7 +334,7 @@ const lineSetMatches = (input: CommerceQuantityResolutionInput): boolean => {
     input.catalogLines.some(
       (catalogLine) =>
         catalogLine.lineId === requestLine.lineId &&
-        refEquals(catalogLine.selection.selectionRef, requestLine.selectionRef) &&
+        sameCatalogSelection(catalogLine.selection.catalogSelection, requestLine.selection) &&
         catalogLine.selection.requestedQuantity === requestLine.requestedQuantity,
     ),
   );
@@ -468,11 +475,10 @@ export const resolveCommerceQuantity = (input: CommerceQuantityResolutionInput):
       continue;
     }
     for (const line of lines) {
+      const requestedSelection = input.request.lines.find(({ lineId }) => lineId === line.lineId)?.selection;
       if (
-        !refEquals(
-          line.selection.selectionRef,
-          input.request.lines.find(({ lineId }) => lineId === line.lineId)?.selectionRef ?? line.selection.selectionRef,
-        )
+        requestedSelection === undefined ||
+        !sameCatalogSelection(line.selection.catalogSelection, requestedSelection)
       ) {
         return { _tag: 'COMMERCE_QUANTITY_POLICY_UNVERIFIABLE', reason: 'CATALOG_SELECTION_MISMATCH' };
       }

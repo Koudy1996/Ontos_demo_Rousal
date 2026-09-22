@@ -20,15 +20,23 @@ import {
 const tenantId = '10000000-0000-4000-8000-000000000001';
 const sellingLegalEntityId = '20000000-0000-4000-8000-000000000001';
 const storefrontId = 'akros-cz';
-const selectionRef = {
-  moduleId: 'commerce.catalog' as const,
-  resourceId: 'selection-1',
-  resourceType: 'commerce.catalog.selection' as const,
-  tenantId,
+const selection = {
+  productRef: {
+    moduleId: 'commerce.catalog' as const,
+    resourceId: '50000000-0000-4000-8000-000000000001',
+    resourceType: 'commerce.catalog.product' as const,
+    tenantId,
+  },
+  variantRef: {
+    moduleId: 'commerce.catalog' as const,
+    resourceId: '50000000-0000-4000-8000-000000000002',
+    resourceType: 'commerce.catalog.variant' as const,
+    tenantId,
+  },
 };
 const request = Schema.decodeUnknownSync(CommerceQuantityResolutionRequestSchema)({
   at: '2020-01-01T00:00:00.000Z',
-  lines: [{ lineId: 'line-1', requestedQuantity: '7', selectionRef }],
+  lines: [{ lineId: 'line-1', requestedQuantity: '7', selection }],
   purchasingContext: {
     channelId: 'web',
     commerceMarketId: 'cz',
