@@ -200,20 +200,25 @@ export const commerceQuantityResolutionRead = defineRead(
     schemaVersion: '1',
   },
   handleCommerceQuantityResolution,
-  (transaction, scope) =>
-    Effect.gen(function* makeCommerceQuantityResolutionServices() {
-      const legalEntityId = scope.legalEntityId;
+  Effect.fn('CommerceQuantityResolutionRead.makeServices')(
+    function* makeCommerceQuantityResolutionServices(transaction, scope) {
+      const { legalEntityId } = scope;
       if (legalEntityId === undefined) {
         return yield* new OperationContextUnavailable({
           code: 'operation_context_unavailable',
           reason: 'Commerce Quantity Resolution requires a trusted Legal Entity context',
         });
       }
-      const catalog = yield* catalogQuantityPortFromEnvironment({
-        legalEntityId,
-        requestCorrelation: scope.correlationId,
-      });
-      const policyService = yield* customerCommercePolicyAdministrationServiceFactory(transaction, scope);
+      const [catalog, policyService] = yield* Effect.all(
+        [
+          catalogQuantityPortFromEnvironment({
+            legalEntityId,
+            requestCorrelation: scope.correlationId,
+          }),
+          customerCommercePolicyAdministrationServiceFactory(transaction, scope),
+        ],
+        { concurrency: 2 },
+      );
       return commerceQuantityResolutionServicesFromPorts(catalog, {
         readCurrent: (at) =>
           policyService.readCurrentCommerceQuantityPolicy(at).pipe(
@@ -230,6 +235,7 @@ export const commerceQuantityResolutionRead = defineRead(
             ),
           ),
       });
-    }),
+    },
+  ),
   commerceQuantityResolutionPermission,
 );

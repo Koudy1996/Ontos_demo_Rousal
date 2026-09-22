@@ -1,6 +1,10 @@
-import { ConfigProvider, Effect, Layer, Match, Redacted } from 'effect';
+import { ConfigProvider, Effect, Layer, Match, Redacted, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
+import {
+  CZECH_LAUNCH_COMMERCE_FIXTURE,
+  validateCzechLaunchActivation,
+} from '../../../../scripts/czech-launch-commerce-fixture.mts';
 import {
   catalogQuantityGatewayCredentialLive,
   makeCatalogQuantityGatewayCredentialLayer,
@@ -9,28 +13,10 @@ import {
   CatalogQuantityGatewayCredentialService,
   unavailableCatalogQuantityGatewayCredentialIssuer,
 } from '../../shared/domain/catalog-quantity-gateway-credential.ts';
+import { CommerceQuantityCatalogLineRequestSchema } from '../../shared/domain/commerce-quantity-catalog-port.ts';
 import { catalogQuantityPortFromEnvironment } from '../../src/integrations/catalog-quantity.ts';
 
-const tenantId = '10000000-0000-4000-8000-000000000001';
-const productRef = {
-  moduleId: 'commerce.catalog' as const,
-  resourceId: '50000000-0000-4000-8000-000000000001',
-  resourceType: 'commerce.catalog.product' as const,
-  tenantId,
-};
-const variantRef = {
-  moduleId: 'commerce.catalog' as const,
-  resourceId: '50000000-0000-4000-8000-000000000002',
-  resourceType: 'commerce.catalog.variant' as const,
-  tenantId,
-};
-const unitRef = {
-  moduleId: 'commerce.catalog' as const,
-  resourceId: '50000000-0000-4000-8000-000000000003',
-  resourceType: 'commerce.catalog.product-unit' as const,
-  tenantId,
-};
-const selection = { productRef, variantRef };
+const { tenantId } = CZECH_LAUNCH_COMMERCE_FIXTURE.scope;
 const gateway = Layer.succeed(CatalogQuantityGatewayCredentialService, {
   issue: () =>
     Effect.succeed({
@@ -39,25 +25,33 @@ const gateway = Layer.succeed(CatalogQuantityGatewayCredentialService, {
     }),
 });
 
-const ready = {
-  completeness: {
-    observedAt: '2026-09-22T10:00:00.000Z',
-    ownerRevision: 'catalog:42',
-    scope: { kind: 'EXACT_PREDICATE', predicateRef: 'quantity:selection:1' },
-  },
-  divisible: true,
-  equivalentSelectionKey: 'selection:equivalent:1',
-  hierarchyRevision: 'hierarchy:9',
-  ownerRevision: 'catalog:42',
-  quantity: { requested: '7', resulting: '10', status: 'VALID', step: '5' },
-  quantityBasis: {
-    targetDivisibilityRevision: 8,
-    targetRef: variantRef,
-    unitRef,
-    unitRuleRevision: 11,
-  },
+const { catalogQuantity: rawCatalogQuantity } = CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts;
+const { selection } = rawCatalogQuantity;
+const line = Schema.decodeUnknownSync(CommerceQuantityCatalogLineRequestSchema)({
+  lineId: 'line-1',
+  requestedQuantity: '7',
   selection,
-  status: 'READY',
+});
+const decodeReady = validateCzechLaunchActivation(CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts).pipe(
+  Effect.flatMap(({ catalogQuantity }) => {
+    if (catalogQuantity.status !== 'READY') {
+      return Effect.die('Validated Czech Launch Catalog Quantity evidence must be READY');
+    }
+    return Effect.succeed({
+      ...catalogQuantity,
+      quantity: { ...catalogQuantity.quantity, requested: '7', resulting: '10', step: '5' },
+    });
+  }),
+);
+
+const expectedFailureCode = (status: 'INVALID' | 'STALE' | 'UNVERIFIABLE') => {
+  if (status === 'INVALID') {
+    return 'catalog_selection_invalid';
+  }
+  if (status === 'STALE') {
+    return 'catalog_selection_stale';
+  }
+  return 'catalog_selection_unverifiable';
 };
 
 describe('Catalog Quantity production adapter', () => {
@@ -90,16 +84,17 @@ describe('Catalog Quantity production adapter', () => {
   it.effect('uses the production gateway composition and retains exact selection, basis, and normalization', () => {
     const gatewayRequests: unknown[] = [];
     return Effect.gen(function* resolvesOwnerFacts() {
+      const ready = yield* decodeReady;
       const calls: unknown[] = [];
       const port = yield* catalogQuantityPortFromEnvironment(
         { legalEntityId: '20000000-0000-4000-8000-000000000001', requestCorrelation: 'quantity-test' },
         (payload, credential, correlation, options) => {
-          calls.push({ correlation, credential, options, payload });
-          return Effect.succeed(ready as never);
+          calls.push({ correlation, credential: Redacted.value(credential), options, payload });
+          return Effect.succeed(ready);
         },
       );
       const result = yield* port.resolveCurrentSelections({
-        lines: [{ lineId: 'line-1', requestedQuantity: '7', selection }],
+        lines: [line],
         observedAt: '2026-09-22T10:00:00.000Z',
         tenantId,
       });
@@ -160,17 +155,18 @@ describe('Catalog Quantity production adapter', () => {
 
   it.effect('fails closed before the owner read when production gateway configuration is unavailable', () =>
     Effect.gen(function* rejectsMissingConfiguration() {
+      const ready = yield* decodeReady;
       let ownerReadExecuted = false;
       const port = yield* catalogQuantityPortFromEnvironment(
         { legalEntityId: '20000000-0000-4000-8000-000000000001', requestCorrelation: 'quantity-test' },
         () => {
           ownerReadExecuted = true;
-          return Effect.succeed(ready as never);
+          return Effect.succeed(ready);
         },
       );
       const failure = yield* port
         .resolveCurrentSelections({
-          lines: [{ lineId: 'line-1', requestedQuantity: '7', selection }],
+          lines: [line],
           observedAt: '2026-09-22T10:00:00.000Z',
           tenantId,
         })
@@ -193,45 +189,32 @@ describe('Catalog Quantity production adapter', () => {
       for (const status of ['INVALID', 'STALE', 'UNVERIFIABLE'] as const) {
         const port = yield* catalogQuantityPortFromEnvironment(
           { legalEntityId: '20000000-0000-4000-8000-000000000001', requestCorrelation: 'quantity-test' },
-          () => Effect.succeed({ reason: `${status} owner result`, status } as never),
+          () => Effect.succeed({ reason: `${status} owner result`, status }),
         );
         const failure = yield* port
           .resolveCurrentSelections({
-            lines: [{ lineId: 'line-1', requestedQuantity: '7', selection }],
+            lines: [line],
             observedAt: '2026-09-22T10:00:00.000Z',
             tenantId,
           })
           .pipe(Effect.flip);
-        expect(failure.code).toBe(
-          status === 'INVALID'
-            ? 'catalog_selection_invalid'
-            : status === 'STALE'
-              ? 'catalog_selection_stale'
-              : 'catalog_selection_unverifiable',
-        );
+        expect(failure.code).toBe(expectedFailureCode(status));
       }
     }).pipe(Effect.provide(gateway)),
   );
 
   it.effect('rejects an owner response outside the trusted Tenant', () =>
     Effect.gen(function* rejectsForeignTenant() {
-      const foreignTenantId = '10000000-0000-4000-8000-000000000099';
+      const ready = yield* decodeReady;
       const port = yield* catalogQuantityPortFromEnvironment(
         { legalEntityId: '20000000-0000-4000-8000-000000000001', requestCorrelation: 'quantity-test' },
-        () =>
-          Effect.succeed({
-            ...ready,
-            selection: {
-              productRef: { ...productRef, tenantId: foreignTenantId },
-              variantRef: { ...variantRef, tenantId: foreignTenantId },
-            },
-          } as never),
+        () => Effect.succeed(ready),
       );
       const failure = yield* port
         .resolveCurrentSelections({
-          lines: [{ lineId: 'line-1', requestedQuantity: '7', selection }],
+          lines: [line],
           observedAt: '2026-09-22T10:00:00.000Z',
-          tenantId,
+          tenantId: '10000000-0000-4000-8000-000000000099',
         })
         .pipe(Effect.flip);
       expect(failure).toMatchObject({ code: 'catalog_selection_invalid', retryable: true });

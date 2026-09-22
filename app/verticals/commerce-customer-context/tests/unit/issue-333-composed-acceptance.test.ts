@@ -1,4 +1,5 @@
-import { CurrentPaymentTermsResponseSchema, type PaymentTermDefinition } from '@app/payment-term-catalog-contracts';
+import { CurrentPaymentTermsResponseSchema } from '@app/payment-term-catalog-contracts';
+import type { PaymentTermDefinition } from '@app/payment-term-catalog-contracts';
 import { CurrentSupportedCurrenciesResponseSchema } from '@app/pricing-contracts';
 import { Effect, Layer, Redacted, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
@@ -9,6 +10,7 @@ import {
   validateCzechLaunchFixtureContracts,
 } from '../../../../scripts/czech-launch-commerce-fixture.mts';
 import { CatalogQuantityGatewayCredentialService } from '../../shared/domain/catalog-quantity-gateway-credential.ts';
+import { CommerceQuantityCatalogLineRequestSchema } from '../../shared/domain/commerce-quantity-catalog-port.ts';
 import { PaymentTermCatalogGatewayCredentialService } from '../../shared/domain/payment-term-catalog-gateway-credential.ts';
 import { unavailablePurchaseCurrencyPurchasingContextPort } from '../../shared/domain/purchase-currency-context-port.ts';
 import { PurchaseCurrencyDependencyUnavailable } from '../../shared/domain/purchase-currency-dependency.ts';
@@ -162,7 +164,7 @@ it.effect('uses the Payment Term production adapter with the exact owner referen
         requestCorrelation: 'czech-launch-payment-term',
       },
       (payload, credential, correlation) => {
-        ownerCalls.push({ credential: Redacted.value(credential), correlation, payload });
+        ownerCalls.push({ correlation, credential: Redacted.value(credential), payload });
         return Effect.succeed(ownerResponse);
       },
     );
@@ -215,24 +217,29 @@ it.effect('uses the Payment Term production adapter with the exact owner referen
 it.effect('uses the Catalog production adapter and preserves owner quantity evidence and revisions', () => {
   const gatewayRequests: unknown[] = [];
   const ownerCalls: unknown[] = [];
-  const catalogOwnerResponse = CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.catalogQuantity;
 
   return Effect.gen(function* catalogQuantityOwnerAdapter() {
+    const catalogOwnerResponse = yield* validateCzechLaunchActivation(CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts).pipe(
+      Effect.flatMap(({ catalogQuantity }) =>
+        catalogQuantity.status === 'READY'
+          ? Effect.succeed(catalogQuantity)
+          : Effect.die('Validated Czech Launch Catalog Quantity evidence must be READY'),
+      ),
+    );
+    const catalogLine = Schema.decodeUnknownSync(CommerceQuantityCatalogLineRequestSchema)({
+      lineId: 'czech-launch-line-1',
+      requestedQuantity: catalogOwnerResponse.quantity.requested,
+      selection: catalogOwnerResponse.selection,
+    });
     const port = yield* catalogQuantityPortFromEnvironment(
       { legalEntityId: fixtureScope.sellingLegalEntityId, requestCorrelation: 'czech-launch-catalog-quantity' },
       (payload, credential, correlation, options) => {
-        ownerCalls.push({ correlation, credential, options, payload });
-        return Effect.succeed(catalogOwnerResponse as never);
+        ownerCalls.push({ correlation, credential: Redacted.value(credential), options, payload });
+        return Effect.succeed(catalogOwnerResponse);
       },
     );
     const lines = yield* port.resolveCurrentSelections({
-      lines: [
-        {
-          lineId: 'czech-launch-line-1',
-          requestedQuantity: catalogOwnerResponse.quantity.requested,
-          selection: catalogOwnerResponse.selection,
-        },
-      ],
+      lines: [catalogLine],
       observedAt: effectiveAt,
       tenantId: fixtureScope.tenantId,
     });
