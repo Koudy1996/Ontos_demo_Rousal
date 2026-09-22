@@ -3,7 +3,7 @@
 // @ontos-action-slug revise-storefront-association
 import type { ActionHandlerContext } from '@app/core-runtime';
 import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
-import { Effect, Match, Schema } from 'effect';
+import { DateTime, Effect, Match, Schema } from 'effect';
 import {
   MarketCommandRejected,
   ReviseStorefrontAssociationPayloadSchema,
@@ -11,6 +11,13 @@ import {
 } from '../../shared/action-contracts.ts';
 import type { ReviseStorefrontAssociationPayload } from '../../shared/action-contracts.ts';
 import { OutboxPayloadSchema as StorefrontAssociationRevisedOutboxPayloadSchema } from '../../shared/outbox/commerce-market-catalog-storefront-association-revised-v1.ts';
+import type { CurrentStorefrontApplicationAuthority } from '../integrations/current-storefront-application.ts';
+import {
+  StorefrontApplicationEvidenceStale,
+  StorefrontApplicationNotCurrent,
+  StorefrontApplicationValidationUnavailable,
+  currentStorefrontApplicationAuthority,
+} from '../integrations/current-storefront-application.ts';
 import type { MarketAdministrationService } from '../services/market-administration.service.ts';
 import {
   MarketAdministrationPersistenceUnavailable,
@@ -28,16 +35,43 @@ import {
 
 export type { ReviseStorefrontAssociationPayload } from '../../shared/action-contracts.ts';
 
-const ErrorSchema = Schema.Union([MarketCommandRejected, MarketAdministrationPersistenceUnavailable]);
+const ErrorSchema = Schema.Union([
+  MarketCommandRejected,
+  MarketAdministrationPersistenceUnavailable,
+  StorefrontApplicationEvidenceStale,
+  StorefrontApplicationNotCurrent,
+  StorefrontApplicationValidationUnavailable,
+]);
 const domainEvents = {
   'commerce.market-catalog.storefront-association-revised.v1': StorefrontAssociationRevisedOutboxPayloadSchema,
 } as const;
 
+export type ReviseStorefrontAssociationServices = MarketAdministrationService & CurrentStorefrontApplicationAuthority;
+
+const makeReviseStorefrontAssociationServices: (
+  transaction: Parameters<typeof marketAdministrationService>[0],
+  scope: Parameters<typeof marketAdministrationService>[1],
+) => Effect.Effect<ReviseStorefrontAssociationServices, Effect.Error<ReturnType<typeof marketAdministrationService>>> =
+  Effect.fn('ReviseStorefrontAssociationAction.makeServices')(function* makeServices(transaction, scope) {
+    const catalog = yield* marketAdministrationService(transaction, scope);
+    return { ...catalog, ...currentStorefrontApplicationAuthority } satisfies ReviseStorefrontAssociationServices;
+  });
+
 const handleReviseStorefrontAssociation = Effect.fn('ReviseStorefrontAssociationAction.handle')(
   function* reviseStorefrontAssociation(
     payload: ReviseStorefrontAssociationPayload,
-    context: ActionHandlerContext<typeof domainEvents, MarketAdministrationService>,
+    context: ActionHandlerContext<typeof domainEvents, ReviseStorefrontAssociationServices>,
   ) {
+    const effectiveAt = DateTime.formatIso(payload.effectivePeriod.startsAt);
+    const storefrontEvidence = yield* context.services.validateCurrent(
+      {
+        effectiveAt,
+        requestedChannel: payload.channel,
+        storefrontAppId: payload.storefrontRef.appId,
+        tenantId: payload.storefrontRef.tenantId,
+      },
+      context.scope.correlationId,
+    );
     const recordedAt = yield* marketRecordedAt;
     const outcome = yield* context.services.reviseStorefrontAssociation({
       ...payload,
@@ -76,6 +110,15 @@ const handleReviseStorefrontAssociation = Effect.fn('ReviseStorefrontAssociation
       operation: 'REVISE_STOREFRONT_ASSOCIATION',
       reason: payload.reason,
       revision: success.revision,
+    });
+    yield* context.recordDataAccess({
+      accessKind: 'read',
+      queryHash: `storefront-application-current:${payload.storefrontRef.tenantId}:${payload.storefrontRef.appId}:${payload.channel}:${effectiveAt}:${storefrontEvidence.ownerRevision}:${storefrontEvidence.observedAt}`,
+      resultCount: 1,
+      servingModuleKey: 'commerce.storefront-registry',
+      targetModuleKey: MODULE_KEY,
+      targetResourceId: payload.associationRef.resourceId,
+      targetResourceType: payload.associationRef.resourceType,
     });
     yield* context.recordDataAccess(
       marketDataAccessEvidence({
@@ -139,5 +182,5 @@ export const reviseStorefrontAssociationAction = defineAction(
     schemaVersion: '1',
   },
   handleReviseStorefrontAssociation,
-  marketAdministrationService,
+  makeReviseStorefrontAssociationServices,
 );
