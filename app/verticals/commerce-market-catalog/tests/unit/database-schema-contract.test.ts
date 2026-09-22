@@ -147,4 +147,16 @@ describe('Commerce Market Catalog database contract', () => {
     );
     expect(migration).not.toMatch(/grant\s+(?:select|insert|update|delete)\s+on/iu);
   });
+
+  it('requires the server-issued reservation token, version, and digest before persisting retirement', () => {
+    const migration = readFileSync(
+      new URL('../../drizzle/20260922160411_market_retirement_reservation_evidence/migration.sql', import.meta.url),
+      'utf-8',
+    );
+    expect(migration).toContain("v_retirement_impact->>'assessmentDigest'");
+    expect(migration).toContain("v_retirement_impact#>>'{reservation,token}'");
+    expect(migration).toContain("v_retirement_impact#>'{reservation,version}'");
+    expect(migration).toContain('then v_retirement_impact else null end');
+    expect(migration).not.toContain("v_retirement_impact->>'reservationToken'");
+  });
 });

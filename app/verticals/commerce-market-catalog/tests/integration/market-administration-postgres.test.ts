@@ -70,6 +70,7 @@ const reference = (resourceId: string, resourceType: string, scopeTenantId = ten
 
 const marketRef = reference(marketId, 'commerce.market-catalog.market');
 const retirementImpactAssessment = (marketRevision: number, effectiveAt: string) => ({
+  assessmentDigest: 'a'.repeat(64),
   assessedMarketRef: marketRef,
   assessedMarketRevision: marketRevision,
   effectiveAt,
@@ -87,7 +88,10 @@ const retirementImpactAssessment = (marketRevision: number, effectiveAt: string)
     },
   ],
   requiredProviderModuleKeys: ['commerce.customer-context'],
-  reservationToken: 'market-retirement:reservation:12',
+  reservation: {
+    token: 'e3464000-0000-4000-8000-000000000001',
+    version: 7,
+  },
 });
 const sellerRef = {
   moduleId: 'core.identity',
@@ -332,6 +336,7 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
         actionId: string,
         effectiveAt: string,
         expectedRevision: number,
+        retirementImpactOverride?: unknown,
       ) => {
         const payload: ReturnType<typeof command> & {
           effectiveAt: ReturnType<typeof retirementImpactAssessment>['effectiveAt'];
@@ -340,7 +345,7 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
           lifecycle: 'ACTIVE' | 'RETIRED' | 'SUSPENDED';
           marketId: string;
           reason: string;
-          retirementImpactAssessment?: ReturnType<typeof retirementImpactAssessment>;
+          retirementImpactAssessment?: unknown;
           tenantId: string;
         } = {
           ...command(actionId),
@@ -353,7 +358,8 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
           tenantId,
         };
         if (lifecycle === 'RETIRED') {
-          payload.retirementImpactAssessment = retirementImpactAssessment(expectedRevision, effectiveAt);
+          payload.retirementImpactAssessment =
+            retirementImpactOverride ?? retirementImpactAssessment(expectedRevision, effectiveAt);
         }
         return scoped(runtime, (transaction) =>
           transaction.execute(
@@ -381,8 +387,27 @@ it.live('enforces CAS, idempotency, temporal associations, terminal retirement, 
         'transitioned',
         { changed: true, generation: 7, lifecycle: 'ACTIVE', revision: 4 },
       );
+      const retirementEffectiveAt = '2032-01-01T00:00:00.000Z';
+      const validRetirementImpact = retirementImpactAssessment(4, retirementEffectiveAt);
+      const { reservation: _reservation, ...impactWithoutReservation } = validRetirementImpact;
+      for (const [actionId, invalidImpact] of [
+        [
+          'e3463000-0000-4000-8000-000000000014',
+          { ...impactWithoutReservation, reservationToken: validRetirementImpact.reservation.token },
+        ],
+        ['e3463000-0000-4000-8000-000000000015', { ...validRetirementImpact, assessmentDigest: 'invalid' }],
+        [
+          'e3463000-0000-4000-8000-000000000016',
+          { ...validRetirementImpact, reservation: { ...validRetirementImpact.reservation, version: 0 } },
+        ],
+      ] as const) {
+        expectOutcome(
+          oneOutcome(yield* transition('RETIRED', actionId, retirementEffectiveAt, 4, invalidImpact)),
+          'replacement_impact_unresolved',
+        );
+      }
       expectOutcome(
-        oneOutcome(yield* transition('RETIRED', 'e3463000-0000-4000-8000-000000000012', '2032-01-01T00:00:00.000Z', 4)),
+        oneOutcome(yield* transition('RETIRED', 'e3463000-0000-4000-8000-000000000012', retirementEffectiveAt, 4)),
         'transitioned',
         { changed: true, generation: 8, lifecycle: 'RETIRED', revision: 5 },
       );
