@@ -22,13 +22,12 @@ const effectiveAt = '2026-12-01T00:00:00.000Z';
 const observedAt = '2026-11-30T23:59:59.000Z';
 const nextApplicabilityBoundary = '2027-01-01T00:00:00.000Z';
 const assessmentDigest = 'a'.repeat(64);
-const reservationToken = 'market-retirement:reservation:12';
+const reservationToken = '99999999-9999-4999-8999-999999999999';
 const input = {
   actionInvocationId: '33333333-3333-4333-8333-333333333333',
   effectiveAt,
   expectedMarketRevision: 3,
   marketRef,
-  reservationToken,
 } as const;
 const request: MarketAffectedUseAssessmentRequest = {
   evaluatedAt: effectiveAt,
@@ -97,6 +96,7 @@ describe('Market retirement production authority', () => {
 
         expect(calls).toEqual([{ payload: request, requestCorrelation: input.actionInvocationId }]);
         expect(result).toEqual({
+          assessmentDigest,
           assessedMarketRef: marketRef,
           assessedMarketRevision: 3,
           effectiveAt,
@@ -121,9 +121,124 @@ describe('Market retirement production authority', () => {
             },
           ],
           requiredProviderModuleKeys: ['commerce.customer-context'],
-          reservationToken,
         });
       }),
+  );
+
+  it.effect('reserves exact fresh evidence and commits or releases with server-issued token and version', () =>
+    Effect.gen(function* reservationLifecycle() {
+      const calls: {
+        readonly idempotencyKey: string;
+        readonly payload: unknown;
+        readonly requestCorrelation: string;
+      }[] = [];
+      const authority = makeMarketRetirementImpactAuthority(
+        () => Effect.succeed(verified),
+        (payload, requestCorrelation, idempotencyKey) => {
+          calls.push({ idempotencyKey, payload, requestCorrelation });
+          return Effect.succeed({
+            assessmentDigest,
+            lifecycle:
+              payload.operation === 'RESERVE'
+                ? ('RESERVED' as const)
+                : payload.operation === 'COMMIT'
+                  ? ('COMMITTED' as const)
+                  : ('RELEASED' as const),
+            marketRef,
+            marketRevision: 3,
+            reservationToken,
+            reservationVersion: payload.operation === 'RESERVE' ? 7 : payload.reservationVersion + 1,
+            tenantId,
+          });
+        },
+      );
+
+      const reserved = yield* authority.reserveRetirementImpact({ ...input, reason: 'Retire replaced Market.' });
+      expect(reserved).toMatchObject({
+        assessmentDigest,
+        reservation: { token: reservationToken, version: 7 },
+      });
+      expect(calls[0]).toEqual({
+        idempotencyKey: `${input.actionInvocationId}:reserve`,
+        payload: {
+          assessmentDigest,
+          evaluatedAt: effectiveAt,
+          marketRef,
+          marketRevision: 3,
+          operation: 'RESERVE',
+          reason: 'Retire replaced Market.',
+          sourceEvidence: verified.sourceEvidence,
+          tenantId,
+        },
+        requestCorrelation: input.actionInvocationId,
+      });
+
+      yield* authority.commitRetirementImpact({
+        actionInvocationId: input.actionInvocationId,
+        assessment: reserved,
+        reason: 'Retire replaced Market.',
+      });
+      yield* authority.releaseRetirementImpact({
+        actionInvocationId: input.actionInvocationId,
+        assessment: reserved,
+        reason: 'Retire replaced Market.',
+      });
+      expect(calls.slice(1).map(({ idempotencyKey, payload }) => ({ idempotencyKey, payload }))).toEqual([
+        {
+          idempotencyKey: `${input.actionInvocationId}:commit`,
+          payload: {
+            marketRef,
+            marketRevision: 3,
+            operation: 'COMMIT',
+            reason: 'Retire replaced Market.',
+            reservationToken,
+            reservationVersion: 7,
+            tenantId,
+          },
+        },
+        {
+          idempotencyKey: `${input.actionInvocationId}:release`,
+          payload: {
+            marketRef,
+            marketRevision: 3,
+            operation: 'RELEASE',
+            reason: 'Retire replaced Market.',
+            reservationToken,
+            reservationVersion: 7,
+            tenantId,
+          },
+        },
+      ]);
+    }),
+  );
+
+  it.effect('fails closed when reservation evidence is unavailable or mismatched', () =>
+    Effect.gen(function* reservationFailures() {
+      const unavailableFailure = yield* makeMarketRetirementImpactAuthority(
+        () => Effect.succeed(verified),
+        () => Effect.fail({ code: 'gateway_offline', reason: 'offline' }),
+      )
+        .reserveRetirementImpact({ ...input, reason: 'Retire replaced Market.' })
+        .pipe(Effect.flip);
+      expect(Predicate.isTagged(unavailableFailure, 'MarketRetirementImpactAssessmentUnavailable')).toBe(true);
+
+      const mismatchedFailure = yield* makeMarketRetirementImpactAuthority(
+        () => Effect.succeed(verified),
+        () =>
+          Effect.succeed({
+            assessmentDigest: 'f'.repeat(64),
+            lifecycle: 'RESERVED' as const,
+            marketRef,
+            marketRevision: 3,
+            reservationToken,
+            reservationVersion: 1,
+            tenantId,
+          }),
+      )
+        .reserveRetirementImpact({ ...input, reason: 'Retire replaced Market.' })
+        .pipe(Effect.flip);
+      expect(Predicate.isTagged(mismatchedFailure, 'MarketRetirementImpactAssessmentStale')).toBe(true);
+    }),
   );
 
   it.effect('keeps owner rejection, stale evidence, and owner unavailability distinct', () =>

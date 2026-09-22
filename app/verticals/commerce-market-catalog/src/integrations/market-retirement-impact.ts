@@ -3,12 +3,18 @@ import type {
   MarketAffectedUseAssessmentResponse,
 } from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
 import { executeMarketAffectedUseAssessmentWithAuthorization } from '@app/customer-market-retirement-contracts/market-affected-use-assessment/client';
-import { TenantModuleStateService } from '@app/core-runtime';
-import type { TenantModuleStateServiceContract } from '@app/core-runtime';
+import type {
+  ReserveMarketRetirementPayload,
+  ReserveMarketRetirementResult,
+} from '@app/customer-market-retirement-contracts/reserve-market-retirement';
+import { executeReserveMarketRetirementWithAuthorization } from '@app/customer-market-retirement-contracts/reserve-market-retirement/client';
 import { issueGatewayContext } from '@app/shared-contracts';
 import { Config, DateTime, Effect, Layer, Match, Option, Schema } from 'effect';
 
-import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
+import type {
+  MarketRetirementImpactAssessment,
+  ReservedMarketRetirementImpactAssessment,
+} from '../../shared/domain/market-retirement-impact.ts';
 import { MarketRetirementImpactAssessmentRejected } from '../actions/market-retirement-impact-assessment-rejected.ts';
 import { MarketRetirementImpactAssessmentStale } from '../actions/market-retirement-impact-assessment-stale.ts';
 import { MarketRetirementImpactAssessmentUnavailable } from '../actions/market-retirement-impact-assessment-unavailable.ts';
@@ -20,10 +26,13 @@ type ExecuteMarketAffectedUseAssessment<Failure> = (
   requestCorrelation: string,
 ) => Effect.Effect<MarketAffectedUseAssessmentResponse, Failure>;
 
-type MarketRetirementModuleStateInventory = Pick<TenantModuleStateServiceContract, 'getTenantModuleStates'>;
+type ExecuteMarketRetirementReservation<Failure> = (
+  payload: ReserveMarketRetirementPayload,
+  requestCorrelation: string,
+  idempotencyKey: string,
+) => Effect.Effect<ReserveMarketRetirementResult, Failure>;
 
 const CUSTOMER_CONTEXT_MODULE_KEY = 'commerce.customer-context' as const;
-const MATERIAL_REFERENCE_OWNER_MODULE_KEYS = [CUSTOMER_CONTEXT_MODULE_KEY, 'commerce.cart', 'commerce.order'] as const;
 const httpUrl = Schema.URLFromString.check(
   Schema.makeFilter((url) =>
     (url.protocol === 'http:' || url.protocol === 'https:') &&
@@ -38,6 +47,11 @@ const httpUrl = Schema.URLFromString.check(
 const productionClientConfiguration = Config.all({
   customerContextBaseUrl: Config.schema(httpUrl, 'ONTOS_COMMERCE_CUSTOMER_CONTEXT_BASE_URL'),
   shellGatewayBaseUrl: Config.schema(httpUrl, 'ONTOS_SHELL_GATEWAY_BASE_URL'),
+});
+const GatewayFailureSchema = Schema.Struct({
+  code: Schema.optionalKey(Schema.String),
+  message: Schema.optionalKey(Schema.String),
+  reason: Schema.optionalKey(Schema.String),
 });
 
 const unavailable = (reason: string, cause?: unknown): MarketRetirementImpactAssessmentUnavailable => {
@@ -62,6 +76,29 @@ const rejected = (reason: string): MarketRetirementImpactAssessmentRejected =>
     code: 'market_retirement_impact_assessment_rejected',
     reason,
   });
+
+const errorText = (cause: unknown): string => {
+  if (Schema.is(GatewayFailureSchema)(cause)) {
+    if (cause.reason !== undefined && cause.reason.length > 0) {
+      return cause.reason;
+    }
+    if (cause.message !== undefined && cause.message.length > 0) {
+      return cause.message;
+    }
+  }
+  return 'The Customer Context Market retirement reservation gateway is unavailable';
+};
+
+const mapReservationFailure = (
+  cause: unknown,
+): MarketRetirementImpactAssessmentRejected | MarketRetirementImpactAssessmentUnavailable => {
+  const code = Schema.is(GatewayFailureSchema)(cause) ? cause.code : undefined;
+  return code === 'RETIREMENT_RESERVATION_CONFLICT' ||
+    code === 'RESERVATION_STATE_CONFLICT' ||
+    code === 'action_request_hash_conflict'
+    ? rejected(errorText(cause))
+    : unavailable(errorText(cause), cause);
+};
 
 const identityMatches = (
   request: MarketAffectedUseAssessmentRequest,
@@ -123,8 +160,6 @@ const hasCompleteCurrentSourceEvidence = (
 
 const verifiedAssessment = (
   response: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }>,
-  reservationToken: string,
-  undeployedOwnerModuleKeys: ReadonlySet<string>,
 ): Effect.Effect<
   MarketRetirementImpactAssessment,
   MarketRetirementImpactAssessmentStale | MarketRetirementImpactAssessmentUnavailable
@@ -134,14 +169,6 @@ const verifiedAssessment = (
   }
   if (!hasCompleteCurrentSourceEvidence(response)) {
     return Effect.fail(unavailable('Customer Context returned incomplete retirement-impact source evidence'));
-  }
-  for (const moduleKey of undeployedOwnerModuleKeys) {
-    const expectedSourceId = `application-composition:${moduleKey}:UNIMPLEMENTED`;
-    if (!response.sourceEvidence.some(({ sourceId }) => sourceId === expectedSourceId)) {
-      return Effect.fail(
-        unavailable(`Customer Context did not prove that retirement-impact owner ${moduleKey} is undeployed`),
-      );
-    }
   }
   const liveReferenceCount =
     response.liveBlockingReferences.bootstrapDefaults.length + response.liveBlockingReferences.currentProposals.length;
@@ -167,26 +194,19 @@ const verifiedAssessment = (
       ? providerWithoutBoundary
       : { ...providerWithoutBoundary, nextBoundaryAt: response.nextApplicabilityBoundary };
   return Effect.succeed({
+    assessmentDigest: response.assessmentDigest,
     assessedMarketRef: response.marketRef,
     assessedMarketRevision: response.marketRevision,
     effectiveAt: response.evaluatedAt,
     providers: [provider],
     requiredProviderModuleKeys: [CUSTOMER_CONTEXT_MODULE_KEY],
-    reservationToken,
   });
 };
 
-const toMarketAssessment = (
+const toVerifiedAssessment = (
   request: MarketAffectedUseAssessmentRequest,
   response: MarketAffectedUseAssessmentResponse,
-  reservationToken: string,
-  undeployedOwnerModuleKeys: ReadonlySet<string>,
-): Effect.Effect<
-  MarketRetirementImpactAssessment,
-  | MarketRetirementImpactAssessmentRejected
-  | MarketRetirementImpactAssessmentStale
-  | MarketRetirementImpactAssessmentUnavailable
-> => {
+) => {
   if (!identityMatches(request, response)) {
     return Effect.fail(
       stale('Customer Context retirement-impact evidence does not match the requested Market revision'),
@@ -197,77 +217,141 @@ const toMarketAssessment = (
     Match.discriminator('outcome')('STALE', ({ reason }) => Effect.fail(stale(reason))),
     Match.discriminator('outcome')('UNAVAILABLE', ({ reason }) => Effect.fail(unavailable(reason))),
     Match.discriminator('outcome')('VERIFIED', (verified) =>
-      verifiedAssessment(verified, reservationToken, undeployedOwnerModuleKeys),
+      verifiedAssessment(verified).pipe(Effect.map((assessment) => ({ assessment, response: verified }))),
     ),
     Match.exhaustive,
   );
 };
 
-const inventoryMaterialReferenceOwners = (
-  inventory: MarketRetirementModuleStateInventory,
-  tenantId: string,
-): Effect.Effect<ReadonlySet<string>, MarketRetirementImpactAssessmentUnavailable> =>
-  inventory.getTenantModuleStates(tenantId, MATERIAL_REFERENCE_OWNER_MODULE_KEYS).pipe(
-    Effect.mapError((cause) => unavailable('The Market retirement provider inventory is unavailable', cause)),
-    Effect.flatMap((records) => {
-      const statesByModuleKey = new Map(records.map((record) => [record.moduleKey, record.state]));
-      if (statesByModuleKey.size !== records.length) {
-        return Effect.fail(unavailable('The Market retirement provider inventory contains duplicate owners'));
-      }
-      if (statesByModuleKey.get(CUSTOMER_CONTEXT_MODULE_KEY) !== 'active') {
-        return Effect.fail(unavailable('The Customer Context retirement-impact provider is not active'));
-      }
-      for (const moduleKey of MATERIAL_REFERENCE_OWNER_MODULE_KEYS) {
-        if (moduleKey !== CUSTOMER_CONTEXT_MODULE_KEY && statesByModuleKey.get(moduleKey) === 'active') {
-          return Effect.fail(
-            unavailable(
-              `The active retirement-impact provider ${moduleKey} is not reachable through a published client`,
-            ),
-          );
-        }
-      }
-      return Effect.succeed(
-        new Set(
-          MATERIAL_REFERENCE_OWNER_MODULE_KEYS.filter(
-            (moduleKey) => moduleKey !== CUSTOMER_CONTEXT_MODULE_KEY && !statesByModuleKey.has(moduleKey),
-          ),
-        ),
-      );
-    }),
-  );
-
-export const makeMarketRetirementImpactAuthority = <Failure>(
-  execute: ExecuteMarketAffectedUseAssessment<Failure>,
-  moduleStateInventory?: MarketRetirementModuleStateInventory,
-): MarketRetirementImpactAuthority => ({
-  assessRetirementImpact: (input) => {
-    const request: MarketAffectedUseAssessmentRequest = {
-      evaluatedAt: input.effectiveAt,
-      marketRef: input.marketRef,
-      marketRevision: input.expectedMarketRevision,
-      tenantId: input.marketRef.tenantId,
-    };
-    const undeployedOwnerModuleKeys =
-      moduleStateInventory === undefined
-        ? Effect.succeed(new Set<string>())
-        : inventoryMaterialReferenceOwners(moduleStateInventory, input.marketRef.tenantId);
-    return undeployedOwnerModuleKeys.pipe(
-      Effect.flatMap((undeployedOwners) =>
-        execute(request, input.actionInvocationId).pipe(
-          Effect.mapError((cause) =>
-            unavailable('The Customer Context Market retirement-impact authority is unavailable', cause),
-          ),
-          Effect.flatMap((response) => toMarketAssessment(request, response, input.reservationToken, undeployedOwners)),
-        ),
-      ),
-      Effect.withSpan('MarketRetirementImpactAuthority.assessRetirementImpact'),
-    );
-  },
+const requestFor = (input: {
+  readonly effectiveAt: string;
+  readonly expectedMarketRevision: number;
+  readonly marketRef: MarketAffectedUseAssessmentRequest['marketRef'];
+}): MarketAffectedUseAssessmentRequest => ({
+  evaluatedAt: input.effectiveAt,
+  marketRef: input.marketRef,
+  marketRevision: input.expectedMarketRevision,
+  tenantId: input.marketRef.tenantId,
 });
 
-export const makeMarketRetirementImpactAuthorityFromPublishedClient = (
-  moduleStateInventory: MarketRetirementModuleStateInventory,
-) =>
+const reservationResultMatches = (
+  result: ReserveMarketRetirementResult,
+  assessment: MarketRetirementImpactAssessment,
+): boolean =>
+  result.assessmentDigest === assessment.assessmentDigest &&
+  result.marketRevision === assessment.assessedMarketRevision &&
+  result.tenantId === assessment.assessedMarketRef.tenantId &&
+  result.marketRef.moduleId === assessment.assessedMarketRef.moduleId &&
+  result.marketRef.resourceId === assessment.assessedMarketRef.resourceId &&
+  result.marketRef.resourceType === assessment.assessedMarketRef.resourceType &&
+  result.marketRef.tenantId === assessment.assessedMarketRef.tenantId;
+
+const finishedReservationMatches = (
+  result: ReserveMarketRetirementResult,
+  assessment: ReservedMarketRetirementImpactAssessment,
+  lifecycle: 'COMMITTED' | 'RELEASED',
+): boolean =>
+  reservationResultMatches(result, assessment) &&
+  result.lifecycle === lifecycle &&
+  result.reservationToken === assessment.reservation.token &&
+  result.reservationVersion === assessment.reservation.version + 1;
+
+export const makeMarketRetirementImpactAuthority = <AssessmentFailure, ReservationFailure = never>(
+  executeAssessment: ExecuteMarketAffectedUseAssessment<AssessmentFailure>,
+  executeReservation?: ExecuteMarketRetirementReservation<ReservationFailure>,
+): MarketRetirementImpactAuthority => {
+  const load = (input: {
+    readonly actionInvocationId: string;
+    readonly effectiveAt: string;
+    readonly expectedMarketRevision: number;
+    readonly marketRef: MarketAffectedUseAssessmentRequest['marketRef'];
+  }) => {
+    const request = requestFor(input);
+    return executeAssessment(request, input.actionInvocationId).pipe(
+      Effect.mapError((cause) =>
+        unavailable('The Customer Context Market retirement-impact authority is unavailable', cause),
+      ),
+      Effect.flatMap((response) => toVerifiedAssessment(request, response)),
+    );
+  };
+  const unavailableReservation = () =>
+    Effect.fail(unavailable('The Customer Context Market retirement reservation authority is unavailable'));
+  const finishReservation = (
+    operation: 'COMMIT' | 'RELEASE',
+    input: {
+      readonly actionInvocationId: string;
+      readonly assessment: ReservedMarketRetirementImpactAssessment;
+      readonly reason: string;
+    },
+  ) => {
+    if (executeReservation === undefined) {
+      return unavailableReservation();
+    }
+    const payload: ReserveMarketRetirementPayload = {
+      marketRef: input.assessment.assessedMarketRef,
+      marketRevision: input.assessment.assessedMarketRevision,
+      operation,
+      reason: input.reason,
+      reservationToken: input.assessment.reservation.token,
+      reservationVersion: input.assessment.reservation.version,
+      tenantId: input.assessment.assessedMarketRef.tenantId,
+    };
+    return executeReservation(
+      payload,
+      input.actionInvocationId,
+      `${input.actionInvocationId}:${operation.toLowerCase()}`,
+    ).pipe(
+      Effect.mapError(mapReservationFailure),
+      Effect.flatMap((result) =>
+        finishedReservationMatches(result, input.assessment, operation === 'COMMIT' ? 'COMMITTED' : 'RELEASED')
+          ? Effect.void
+          : Effect.fail(stale(`Customer Context returned mismatched ${operation} reservation evidence`)),
+      ),
+    );
+  };
+  return {
+    assessRetirementImpact: (input) =>
+      load(input).pipe(
+        Effect.map(({ assessment }) => assessment),
+        Effect.withSpan('MarketRetirementImpactAuthority.assessRetirementImpact'),
+      ),
+    commitRetirementImpact: (input) => finishReservation('COMMIT', input),
+    releaseRetirementImpact: (input) => finishReservation('RELEASE', input),
+    reserveRetirementImpact: (input) => {
+      if (executeReservation === undefined) {
+        return unavailableReservation();
+      }
+      return load(input).pipe(
+        Effect.flatMap(({ assessment, response }) => {
+          const payload: ReserveMarketRetirementPayload = {
+            assessmentDigest: response.assessmentDigest,
+            evaluatedAt: response.evaluatedAt,
+            marketRef: response.marketRef,
+            marketRevision: response.marketRevision,
+            operation: 'RESERVE',
+            reason: input.reason,
+            sourceEvidence: response.sourceEvidence,
+            tenantId: response.tenantId,
+          };
+          return executeReservation(payload, input.actionInvocationId, `${input.actionInvocationId}:reserve`).pipe(
+            Effect.mapError(mapReservationFailure),
+            Effect.flatMap((result) =>
+              result.lifecycle === 'RESERVED' && reservationResultMatches(result, assessment)
+                ? Effect.succeed({
+                    ...assessment,
+                    reservation: { token: result.reservationToken, version: result.reservationVersion },
+                  })
+                : Effect.fail(stale('Customer Context returned mismatched RESERVED reservation evidence')),
+            ),
+          );
+        }),
+        Effect.withSpan('MarketRetirementImpactAuthority.reserveRetirementImpact'),
+      );
+    },
+  };
+};
+
+export const makeMarketRetirementImpactAuthorityFromPublishedClient = () =>
   makeMarketRetirementImpactAuthority(
     (payload, requestCorrelation) =>
       productionClientConfiguration.pipe(
@@ -281,10 +365,22 @@ export const makeMarketRetirementImpactAuthorityFromPublishedClient = (
           ),
         ),
       ),
-    moduleStateInventory,
+    (payload, requestCorrelation, idempotencyKey) =>
+      productionClientConfiguration.pipe(
+        Effect.flatMap(({ customerContextBaseUrl, shellGatewayBaseUrl }) =>
+          issueGatewayContext({ audience: 'commerce-customer-context' }, { baseUrl: shellGatewayBaseUrl }).pipe(
+            Effect.flatMap(({ token }) =>
+              executeReserveMarketRetirementWithAuthorization(payload, `Bearer ${token}`, requestCorrelation, {
+                baseUrl: customerContextBaseUrl,
+                idempotencyKey,
+              }),
+            ),
+          ),
+        ),
+      ),
   );
 
-export const MarketRetirementImpactAuthorityLive = Layer.effect(
+export const MarketRetirementImpactAuthorityLive = Layer.succeed(
   MarketRetirementImpactAuthorityService,
-  TenantModuleStateService.pipe(Effect.map(makeMarketRetirementImpactAuthorityFromPublishedClient)),
+  makeMarketRetirementImpactAuthorityFromPublishedClient(),
 );

@@ -65,6 +65,18 @@ const makeRetireMarketServices: (
       MarketRetirementImpactAuthorityService.pipe(
         Effect.flatMap((authority) => authority.assessRetirementImpact(input)),
       ),
+    commitRetirementImpact: (input) =>
+      MarketRetirementImpactAuthorityService.pipe(
+        Effect.flatMap((authority) => authority.commitRetirementImpact(input)),
+      ),
+    releaseRetirementImpact: (input) =>
+      MarketRetirementImpactAuthorityService.pipe(
+        Effect.flatMap((authority) => authority.releaseRetirementImpact(input)),
+      ),
+    reserveRetirementImpact: (input) =>
+      MarketRetirementImpactAuthorityService.pipe(
+        Effect.flatMap((authority) => authority.reserveRetirementImpact(input)),
+      ),
   };
   return {
     ...catalog,
@@ -131,12 +143,6 @@ const validateAssessment = Effect.fn('RetireMarketAction.validateAssessment')(fu
   assessment: MarketRetirementImpactAssessment,
 ) {
   const effectiveAt = DateTime.formatIso(payload.effectiveAt);
-  if (assessment.reservationToken !== payload.retirementImpactReservationToken) {
-    return yield* new MarketRetirementImpactAssessmentRejected({
-      code: 'market_retirement_impact_assessment_rejected',
-      reason: 'The Market retirement assessment does not match the reserved owner evidence',
-    });
-  }
   if (!refsMatch(assessment.assessedMarketRef, payload.marketRef)) {
     return yield* new MarketRetirementImpactAssessmentRejected({
       code: 'market_retirement_impact_assessment_rejected',
@@ -167,53 +173,70 @@ const handleRetireMarket = Effect.fn('RetireMarketAction.handle')(function* reti
     effectiveAt: changedAt,
     expectedMarketRevision: payload.expectedRevision,
     marketRef: payload.marketRef,
-    reservationToken: payload.retirementImpactReservationToken,
   });
-  const verifiedImpact = yield* validateAssessment(payload, authoritativeImpact);
+  yield* validateAssessment(payload, authoritativeImpact);
+  const verifiedImpact = authoritativeImpact;
   if (verifiedImpact.providers.some(({ liveBlockingReferences }) => liveBlockingReferences.count > 0)) {
     return yield* rejectMarketCommand(
       'replacement_impact_unresolved',
       'Retirement is blocked while a material live owner reference still depends on this Market',
     );
   }
-  const revalidatedImpact = yield* context.services.assessRetirementImpact({
+  const reservedImpact = yield* context.services.reserveRetirementImpact({
     actionInvocationId: context.actionInvocationId,
     effectiveAt: changedAt,
     expectedMarketRevision: payload.expectedRevision,
     marketRef: payload.marketRef,
-    reservationToken: payload.retirementImpactReservationToken,
+    reason: payload.reason,
   });
-  const transitionImpact = yield* validateAssessment(payload, revalidatedImpact);
+  const releaseReservation = () =>
+    context.services
+      .releaseRetirementImpact({
+        actionInvocationId: context.actionInvocationId,
+        assessment: reservedImpact,
+        reason: payload.reason,
+      })
+      .pipe(Effect.ignore);
+  yield* validateAssessment(payload, reservedImpact).pipe(Effect.tapError(releaseReservation));
+  const transitionImpact = reservedImpact;
   if (transitionImpact.providers.some(({ liveBlockingReferences }) => liveBlockingReferences.count > 0)) {
+    yield* releaseReservation();
     return yield* rejectMarketCommand(
       'replacement_impact_unresolved',
       'Retirement is blocked because authoritative affected use changed during transition revalidation',
     );
   }
-  const recordedAt = yield* marketRecordedAt;
-  const outcome = yield* context.services.transitionLifecycle({
+  const success = yield* Effect.gen(function* transitionReservedMarket() {
+    const recordedAt = yield* marketRecordedAt;
+    const outcome = yield* context.services.transitionLifecycle({
+      actionInvocationId: context.actionInvocationId,
+      effectiveAt: changedAt,
+      expectedCurrentDefinitionRevisionId: payload.expectedCurrentDefinitionRevisionRef.resourceId,
+      expectedRevision: payload.expectedRevision,
+      lifecycle: 'RETIRED',
+      marketId: payload.marketRef.resourceId,
+      principalId: context.scope.principalId,
+      reason: payload.reason,
+      recordedAt,
+      retirementImpactAssessment: transitionImpact,
+      tenantId: context.scope.tenantId,
+    });
+    return yield* Match.value(outcome).pipe(
+      Match.tag('transitioned', (value) => Effect.succeed(value)),
+      Match.tag('revision_conflict', () =>
+        rejectMarketCommand('revision_conflict', 'The observed Market revision is stale'),
+      ),
+      Match.tag('invalid_lifecycle_transition', () =>
+        rejectMarketCommand('invalid_lifecycle_transition', 'The requested Market retirement is invalid'),
+      ),
+      Match.orElse(() => rejectMarketCommand('cross_tenant_reference', 'The Market lifecycle scope is inconsistent')),
+    );
+  }).pipe(Effect.tapError(releaseReservation));
+  yield* context.services.commitRetirementImpact({
     actionInvocationId: context.actionInvocationId,
-    effectiveAt: changedAt,
-    expectedCurrentDefinitionRevisionId: payload.expectedCurrentDefinitionRevisionRef.resourceId,
-    expectedRevision: payload.expectedRevision,
-    lifecycle: 'RETIRED',
-    marketId: payload.marketRef.resourceId,
-    principalId: context.scope.principalId,
+    assessment: transitionImpact,
     reason: payload.reason,
-    recordedAt,
-    retirementImpactAssessment: transitionImpact,
-    tenantId: context.scope.tenantId,
   });
-  const success = yield* Match.value(outcome).pipe(
-    Match.tag('transitioned', (value) => Effect.succeed(value)),
-    Match.tag('revision_conflict', () =>
-      rejectMarketCommand('revision_conflict', 'The observed Market revision is stale'),
-    ),
-    Match.tag('invalid_lifecycle_transition', () =>
-      rejectMarketCommand('invalid_lifecycle_transition', 'The requested Market retirement is invalid'),
-    ),
-    Match.orElse(() => rejectMarketCommand('cross_tenant_reference', 'The Market lifecycle scope is inconsistent')),
-  );
   const result = {
     changed: success.changed,
     definitionRevisionRef: definitionRevisionRef(context.scope.tenantId, success.definitionRevisionId),

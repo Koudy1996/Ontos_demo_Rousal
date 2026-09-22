@@ -3,7 +3,6 @@ import type {
   MarketAffectedUseAssessmentResponse,
   MarketAffectedUseSourceEvidence,
 } from '@app/customer-market-retirement-contracts';
-import type { TenantModuleStateRecord } from '@app/core-runtime';
 import { DateTime, Effect, Predicate } from 'effect';
 import { expect, it } from 'effect-rstest';
 
@@ -18,7 +17,6 @@ const marketRef = {
 } as const;
 const effectiveAt = '2026-12-01T00:00:00.000Z';
 const observedAt = '2026-11-30T23:59:59.000Z';
-const observedAtUtc = DateTime.makeUnsafe(observedAt);
 const request: MarketAffectedUseAssessmentRequest = {
   evaluatedAt: effectiveAt,
   marketRef,
@@ -30,33 +28,27 @@ const input = {
   effectiveAt,
   expectedMarketRevision: 3,
   marketRef,
-  reservationToken: 'market-retirement:reservation:12',
 } as const;
 
-const sourceEvidence = (sourceId: string): MarketAffectedUseSourceEvidence => ({
+const compositionEvidence: MarketAffectedUseSourceEvidence = {
   completenessEvidence: {
-    observedAt: observedAtUtc,
+    nextApplicabilityBoundary: DateTime.makeUnsafe('2027-01-01T00:00:00.000Z'),
+    observedAt: DateTime.makeUnsafe(observedAt),
     ownerRevision: 'composition:19',
     scope: {
-      declaredScopeRef: `${sourceId}:all:${tenantId}`,
+      declaredScopeRef: `active-composition:19:${tenantId}`,
       kind: 'SAFELY_BROADER_SCOPE',
-      predicateRef: `${sourceId}:market:${marketRef.resourceId}`,
+      predicateRef: `market-reference-owner-deployment-state:${tenantId}`,
     },
   },
   currentness: 'CURRENT',
   digest: 'b'.repeat(64),
   generation: 'composition:19',
   ownerRevision: 'composition:19',
-  sourceId,
-});
+  sourceId: 'commerce.customer-context.authoritative-owner-deployment-state',
+};
 
-const verified = (
-  sourceIds: readonly string[] = [
-    'application-composition:commerce.cart:UNIMPLEMENTED',
-    'application-composition:commerce.order:UNIMPLEMENTED',
-    'commerce.customer-context.market-bootstrap-policy',
-  ],
-): Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }> => ({
+const verified: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome: 'VERIFIED' }> = {
   assessmentDigest: 'a'.repeat(64),
   evaluatedAt: effectiveAt,
   liveBlockingReferences: { bootstrapDefaults: [], currentProposals: [] },
@@ -65,74 +57,52 @@ const verified = (
   observedAt,
   outcome: 'VERIFIED',
   retainedHistoryReferences: [],
-  sourceEvidence: sourceIds.map(sourceEvidence),
+  sourceEvidence: [compositionEvidence],
   tenantId,
-});
+};
 
-const moduleStateInventory = (records: readonly TenantModuleStateRecord[]) => ({
-  getTenantModuleStates: () => Effect.succeed(records),
-});
-
-it.effect('accepts CCC and authoritative proofs for genuinely undeployed Cart and Order owners', () =>
-  Effect.gen(function* acceptsUndeployedOwners() {
+it.effect('delegates installed-owner completeness to the Customer Context authoritative assessment', () =>
+  Effect.gen(function* delegatesOwnerInventory() {
     const calls: unknown[] = [];
-    const authority = makeMarketRetirementImpactAuthority(
-      (payload, correlation) => {
-        calls.push({ correlation, payload });
-        return Effect.succeed(verified());
-      },
-      moduleStateInventory([{ moduleKey: 'commerce.customer-context', state: 'active' }]),
-    );
+    const authority = makeMarketRetirementImpactAuthority((payload, correlation) => {
+      calls.push({ correlation, payload });
+      return Effect.succeed(verified);
+    });
 
     const result = yield* authority.assessRetirementImpact(input);
 
     expect(calls).toEqual([{ correlation: input.actionInvocationId, payload: request }]);
+    expect(result.assessmentDigest).toBe(verified.assessmentDigest);
     expect(result.requiredProviderModuleKeys).toEqual(['commerce.customer-context']);
-    expect(result.providers.map(({ ownerModuleKey }) => ownerModuleKey)).toEqual(['commerce.customer-context']);
   }),
 );
 
-it.effect('fails closed for an active but unreachable Cart or Order owner before calling CCC', () =>
-  Effect.gen(function* rejectsUnreachableOwners() {
-    for (const moduleKey of ['commerce.cart', 'commerce.order'] as const) {
-      let calls = 0;
-      const authority = makeMarketRetirementImpactAuthority(
-        () => {
-          calls += 1;
-          return Effect.succeed(verified());
-        },
-        moduleStateInventory([
-          { moduleKey: 'commerce.customer-context', state: 'active' },
-          { moduleKey, state: 'active' },
-        ]),
-      );
+it.effect('does not require magic UNIMPLEMENTED source IDs from authoritative composition evidence', () =>
+  Effect.gen(function* acceptsContractEvidence() {
+    const result = yield* makeMarketRetirementImpactAuthority(() => Effect.succeed(verified)).assessRetirementImpact(
+      input,
+    );
 
-      const failure = yield* authority.assessRetirementImpact(input).pipe(Effect.flip);
-
-      expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentUnavailable')).toBe(true);
-      expect(failure.reason).toContain(moduleKey);
-      expect(calls).toBe(0);
-    }
+    expect(result.providers).toHaveLength(1);
+    expect(result.providers[0]?.ownerRevision).toBe(verified.assessmentDigest);
   }),
 );
 
-it.effect('requires active CCC and explicit undeployed-owner evidence instead of assuming empty', () =>
-  Effect.gen(function* rejectsMissingAuthority() {
-    const missingCcc = yield* makeMarketRetirementImpactAuthority(
-      () => Effect.succeed(verified()),
-      moduleStateInventory([]),
+it.effect('fails closed when Customer Context reports installed-owner evidence unavailable', () =>
+  Effect.gen(function* rejectsUnavailableAuthority() {
+    const failure = yield* makeMarketRetirementImpactAuthority(() =>
+      Effect.succeed({
+        ...request,
+        code: 'installed-owner-provider-unavailable',
+        outcome: 'UNAVAILABLE' as const,
+        reason: 'An installed Market-reference owner has no affected-use provider',
+        retryable: true,
+      }),
     )
       .assessRetirementImpact(input)
       .pipe(Effect.flip);
-    expect(Predicate.isTagged(missingCcc, 'MarketRetirementImpactAssessmentUnavailable')).toBe(true);
 
-    const missingProof = yield* makeMarketRetirementImpactAuthority(
-      () => Effect.succeed(verified(['commerce.customer-context.market-bootstrap-policy'])),
-      moduleStateInventory([{ moduleKey: 'commerce.customer-context', state: 'active' }]),
-    )
-      .assessRetirementImpact(input)
-      .pipe(Effect.flip);
-    expect(Predicate.isTagged(missingProof, 'MarketRetirementImpactAssessmentUnavailable')).toBe(true);
-    expect(missingProof.reason).toContain('commerce.cart');
+    expect(Predicate.isTagged(failure, 'MarketRetirementImpactAssessmentUnavailable')).toBe(true);
+    expect(failure.reason).toContain('installed');
   }),
 );

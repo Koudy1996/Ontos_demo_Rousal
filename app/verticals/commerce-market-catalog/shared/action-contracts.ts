@@ -128,10 +128,7 @@ export const SuspendMarketPayloadSchema = Schema.Struct(lifecyclePayloadFields)
   )
   .annotate(strict);
 export type SuspendMarketPayload = typeof SuspendMarketPayloadSchema.Type;
-export const RetireMarketPayloadSchema = Schema.Struct({
-  ...lifecyclePayloadFields,
-  retirementImpactReservationToken: reason,
-})
+export const RetireMarketPayloadSchema = Schema.Struct(lifecyclePayloadFields)
   .check(
     Schema.makeFilter(({ expectedCurrentDefinitionRevisionRef, marketRef }) =>
       expectedCurrentDefinitionRevisionRef.tenantId === marketRef.tenantId ? undefined : expectedRevisionTenantMismatch,

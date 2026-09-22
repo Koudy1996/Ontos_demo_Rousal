@@ -7,6 +7,7 @@ const strict = { parseOptions: { onExcessProperty: 'error' as const } };
 const nonEmptyText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500), Schema.isTrimmed());
 const positiveRevision = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
 const referenceCount = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+const sha256Digest = Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/u));
 const utcInstant = Schema.toEncoded(Schema.DateTimeUtcFromString);
 
 const MarketRetirementReferenceEvidenceSchema = Schema.Struct({
@@ -28,12 +29,21 @@ export const MarketRetirementProviderAssessmentSchema = Schema.Struct({
 }).annotate(strict);
 export type MarketRetirementProviderAssessment = typeof MarketRetirementProviderAssessmentSchema.Type;
 
+const MarketRetirementReservationSchema = Schema.Struct({
+  token: nonEmptyText,
+  version: positiveRevision,
+}).annotate(strict);
+
 export const MarketRetirementImpactAssessmentSchema = Schema.Struct({
+  assessmentDigest: sha256Digest,
   assessedMarketRef: MarketRefSchema,
   assessedMarketRevision: positiveRevision,
   effectiveAt: utcInstant,
   providers: Schema.Array(MarketRetirementProviderAssessmentSchema).check(Schema.isMaxLength(32)),
   requiredProviderModuleKeys: Schema.Array(OntosModuleIdSchema).check(Schema.isMinLength(1), Schema.isMaxLength(32)),
-  reservationToken: nonEmptyText,
+  reservation: Schema.optionalKey(MarketRetirementReservationSchema),
 }).annotate(strict);
 export type MarketRetirementImpactAssessment = typeof MarketRetirementImpactAssessmentSchema.Type;
+export type ReservedMarketRetirementImpactAssessment = MarketRetirementImpactAssessment & {
+  readonly reservation: typeof MarketRetirementReservationSchema.Type;
+};
