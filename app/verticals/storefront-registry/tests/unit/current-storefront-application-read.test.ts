@@ -14,7 +14,7 @@ import type {
 import { StorefrontRegistryPersistenceUnavailable } from '../../src/persistence/current-storefront-application-persistence.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
-const request = Schema.decodeUnknownSync(CurrentStorefrontApplicationRequestSchema)({
+const request = Schema.decodeSync(CurrentStorefrontApplicationRequestSchema)({
   effectiveAt: '2026-09-22T10:00:00.000Z',
   requestedChannel: 'B2C',
   storefrontAppId: 'shop-cz',
@@ -47,7 +47,11 @@ const context = (services: CurrentStorefrontApplicationPersistence, scopeOverrid
 describe('Current Storefront Application governed owner read', () => {
   it.effect('returns owner revision, currentness boundary, and channel applicability evidence', () =>
     Effect.gen(function* () {
-      const output = yield* handleCurrentStorefrontApplication(request, context(persistence(Option.some(active))));
+      const output = yield* Option.some(active).pipe(
+        persistence,
+        context,
+        (readContext) => handleCurrentStorefrontApplication(request, readContext),
+      );
       expect(output.result).toEqual({
         ...request,
         allowedChannels: ['B2C', 'B2B'],
@@ -68,24 +72,31 @@ describe('Current Storefront Application governed owner read', () => {
 
   it.effect('distinguishes missing, lifecycle, channel, interval, and owner-unavailable outcomes', () =>
     Effect.gen(function* () {
-      const missing = yield* handleCurrentStorefrontApplication(request, context(persistence(Option.none())));
+      const missing = yield* Option.none<CurrentStorefrontApplicationSnapshot>().pipe(
+        persistence,
+        context,
+        (readContext) => handleCurrentStorefrontApplication(request, readContext),
+      );
       expect(missing.result.outcome).toBe('NOT_FOUND');
 
-      const inactive = yield* handleCurrentStorefrontApplication(
-        request,
-        context(persistence(Option.some({ ...active, lifecycle: 'SUSPENDED' }))),
+      const inactive = yield* Option.some({ ...active, lifecycle: 'SUSPENDED' } as const).pipe(
+        persistence,
+        context,
+        (readContext) => handleCurrentStorefrontApplication(request, readContext),
       );
       expect(inactive.result).toMatchObject({ lifecycle: 'SUSPENDED', outcome: 'NOT_CURRENT' });
 
-      const channel = yield* handleCurrentStorefrontApplication(
-        request,
-        context(persistence(Option.some({ ...active, allowedChannels: ['B2B'] }))),
+      const channel = yield* Option.some({ ...active, allowedChannels: ['B2B'] } as const).pipe(
+        persistence,
+        context,
+        (readContext) => handleCurrentStorefrontApplication(request, readContext),
       );
       expect(channel.result).toMatchObject({ allowedChannels: ['B2B'], outcome: 'CHANNEL_NOT_ALLOWED' });
 
-      const interval = yield* handleCurrentStorefrontApplication(
-        request,
-        context(persistence(Option.some({ ...active, effectiveFrom: '2026-09-23T00:00:00.000Z' }))),
+      const interval = yield* Option.some({ ...active, effectiveFrom: '2026-09-23T00:00:00.000Z' }).pipe(
+        persistence,
+        context,
+        (readContext) => handleCurrentStorefrontApplication(request, readContext),
       );
       expect(interval.result.outcome).toBe('UNVERIFIABLE');
 

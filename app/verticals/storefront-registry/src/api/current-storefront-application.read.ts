@@ -93,12 +93,10 @@ export const handleCurrentStorefrontApplication = Effect.fn('CurrentStorefrontAp
     context: ReadHandlerContext<CurrentStorefrontApplicationPersistence>,
   ) {
     if (input.tenantId !== context.scope.tenantId) {
-      return yield* Effect.fail(
-        new ReadPermissionDenied({
-          code: 'read_permission_denied',
-          reason: 'The requested Storefront Tenant is outside the trusted operational context',
-        }),
-      );
+      return yield* new ReadPermissionDenied({
+        code: 'read_permission_denied',
+        reason: 'The requested Storefront Tenant is outside the trusted operational context',
+      });
     }
     const persistence = yield* context.services.load(input).pipe(Effect.result);
     const result: CurrentStorefrontApplicationResponse =
