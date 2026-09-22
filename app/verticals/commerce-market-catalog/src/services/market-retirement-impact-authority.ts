@@ -1,4 +1,5 @@
-import { Effect } from 'effect';
+import type { Effect } from 'effect';
+import { Context } from 'effect';
 
 import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 import type { MarketRef } from '../../shared/resources/market.ts';
@@ -11,12 +12,19 @@ type MarketRetirementImpactFailure =
   | MarketRetirementImpactAssessmentStale
   | MarketRetirementImpactAssessmentUnavailable;
 
-export interface MarketRetirementImpactAuthority {
+export interface MarketRetirementImpactAuthority<Requirements = never> {
   readonly assessRetirementImpact: (input: {
     readonly actionInvocationId: string;
     readonly effectiveAt: string;
     readonly expectedMarketRevision: number;
     readonly marketRef: MarketRef;
     readonly reservationToken: string;
-  }) => Effect.Effect<MarketRetirementImpactAssessment, MarketRetirementImpactFailure>;
+  }) => Effect.Effect<MarketRetirementImpactAssessment, MarketRetirementImpactFailure, Requirements>;
 }
+
+export class MarketRetirementImpactAuthorityService extends Context.Service<
+  MarketRetirementImpactAuthorityService,
+  MarketRetirementImpactAuthority
+>()(
+  '@app/commerce-market-catalog/services/market-retirement-impact-authority/MarketRetirementImpactAuthorityService',
+) {}

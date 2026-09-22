@@ -1,9 +1,10 @@
 import type {
   MarketAffectedUseAssessmentRequest,
   MarketAffectedUseAssessmentResponse,
+  MarketAffectedUseSourceEvidence,
 } from '@app/commerce-customer-context/api';
 import { describe, expect, it } from 'effect-rstest';
-import { Effect, Predicate } from 'effect';
+import { DateTime, Effect, Predicate } from 'effect';
 
 import {
   makeMarketRetirementImpactAuthority,
@@ -19,6 +20,7 @@ const marketRef = {
 } as const;
 const effectiveAt = '2026-12-01T00:00:00.000Z';
 const observedAt = '2026-11-30T23:59:59.000Z';
+const nextApplicabilityBoundary = '2027-01-01T00:00:00.000Z';
 const assessmentDigest = 'a'.repeat(64);
 const reservationToken = 'market-retirement:reservation:12';
 const input = {
@@ -34,10 +36,10 @@ const request: MarketAffectedUseAssessmentRequest = {
   marketRevision: 3,
   tenantId,
 };
-const sourceEvidence = {
+const sourceEvidence: MarketAffectedUseSourceEvidence = {
   completenessEvidence: {
-    nextApplicabilityBoundary: '2027-01-01T00:00:00.000Z',
-    observedAt,
+    nextApplicabilityBoundary: DateTime.makeUnsafe(nextApplicabilityBoundary),
+    observedAt: DateTime.makeUnsafe(observedAt),
     ownerRevision: 'customer-context:revision:17',
     scope: {
       kind: 'EXACT_PREDICATE' as const,
@@ -59,7 +61,7 @@ const verified: Extract<MarketAffectedUseAssessmentResponse, { readonly outcome:
   },
   marketRef,
   marketRevision: 3,
-  nextApplicabilityBoundary: '2027-01-01T00:00:00.000Z',
+  nextApplicabilityBoundary,
   observedAt,
   outcome: 'VERIFIED',
   retainedHistoryReferences: [
@@ -203,7 +205,7 @@ describe('Market retirement production authority', () => {
               },
             ],
           },
-        ] as unknown as readonly MarketAffectedUseAssessmentResponse[];
+        ] satisfies readonly MarketAffectedUseAssessmentResponse[];
 
         for (const response of cases) {
           const failure = yield* makeMarketRetirementImpactAuthority(() => Effect.succeed(response))

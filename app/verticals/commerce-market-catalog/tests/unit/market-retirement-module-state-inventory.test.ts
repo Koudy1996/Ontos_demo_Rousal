@@ -4,7 +4,7 @@ import type {
   MarketAffectedUseSourceEvidence,
 } from '@app/commerce-customer-context/api';
 import type { TenantModuleStateRecord } from '@app/core-runtime';
-import { Effect, Predicate } from 'effect';
+import { DateTime, Effect, Predicate } from 'effect';
 import { expect, it } from 'effect-rstest';
 
 import { makeMarketRetirementImpactAuthority } from '../../src/integrations/market-retirement-impact.ts';
@@ -18,6 +18,7 @@ const marketRef = {
 } as const;
 const effectiveAt = '2026-12-01T00:00:00.000Z';
 const observedAt = '2026-11-30T23:59:59.000Z';
+const observedAtUtc = DateTime.makeUnsafe(observedAt);
 const request: MarketAffectedUseAssessmentRequest = {
   evaluatedAt: effectiveAt,
   marketRef,
@@ -34,7 +35,7 @@ const input = {
 
 const sourceEvidence = (sourceId: string): MarketAffectedUseSourceEvidence => ({
   completenessEvidence: {
-    observedAt,
+    observedAt: observedAtUtc,
     ownerRevision: 'composition:19',
     scope: {
       declaredScopeRef: `${sourceId}:all:${tenantId}`,

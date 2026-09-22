@@ -2,12 +2,7 @@
 // @ontos-action-owner commerce.market-catalog
 // @ontos-action-slug retire-market
 import type { ActionHandlerContext } from '@app/core-runtime';
-import {
-  defineAction,
-  defineActionResourcePermission,
-  defineTenantModuleEntrypoint,
-  makeTenantModuleStateService,
-} from '@app/core-runtime';
+import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
 import { DateTime, Effect, Match, Schema } from 'effect';
 import {
   MarketCommandRejected,
@@ -26,7 +21,7 @@ import {
   marketAdministrationService,
 } from '../services/market-administration.service.ts';
 import type { MarketRetirementImpactAuthority } from '../services/market-retirement-impact-authority.ts';
-import { makeMarketRetirementImpactAuthorityFromPublishedClient } from '../integrations/market-retirement-impact.ts';
+import { MarketRetirementImpactAuthorityService } from '../services/market-retirement-impact-authority.ts';
 import { createRetireMarketCommerceMarketCatalogMarketRetiredV1OutboxMessage as createOutboxMessage } from './retire-market-commerce-market-catalog-market-retired-v1.outbox-message.ts';
 import {
   MODULE_KEY,
@@ -55,7 +50,8 @@ const ErrorSchema = Schema.Union([
 ]);
 const domainEvents = { 'commerce.market-catalog.market-retired.v1': MarketRetiredOutboxPayloadSchema } as const;
 
-export type RetireMarketServices = MarketAdministrationService & MarketRetirementImpactAuthority;
+export type RetireMarketServices = MarketAdministrationService &
+  MarketRetirementImpactAuthority<MarketRetirementImpactAuthorityService>;
 
 const makeRetireMarketServices: (
   transaction: Parameters<typeof marketAdministrationService>[0],
@@ -64,10 +60,15 @@ const makeRetireMarketServices: (
   'RetireMarketAction.makeServices',
 )(function* makeServices(transaction, scope) {
   const catalog = yield* marketAdministrationService(transaction, scope);
-  const moduleStateInventory = makeTenantModuleStateService({ executor: transaction });
+  const retirementImpact: MarketRetirementImpactAuthority<MarketRetirementImpactAuthorityService> = {
+    assessRetirementImpact: (input) =>
+      MarketRetirementImpactAuthorityService.pipe(
+        Effect.flatMap((authority) => authority.assessRetirementImpact(input)),
+      ),
+  };
   return {
     ...catalog,
-    ...makeMarketRetirementImpactAuthorityFromPublishedClient(moduleStateInventory),
+    ...retirementImpact,
   } satisfies RetireMarketServices;
 });
 
@@ -89,39 +90,41 @@ const staleAssessment = (reason: string) =>
     reason,
   });
 
-const validateProviderSet = Effect.fn('RetireMarketAction.validateProviderSet')(function* validateProviderSet(
+const validateProviderSet = (
   assessment: MarketRetirementImpactAssessment,
-) {
+): Effect.Effect<void, MarketRetirementImpactAssessmentUnavailable> => {
   const requiredOwners = new Set(assessment.requiredProviderModuleKeys);
   const assessedOwners = new Set(assessment.providers.map(({ ownerModuleKey }) => ownerModuleKey));
-  if (
-    requiredOwners.size !== assessment.requiredProviderModuleKeys.length ||
+  return requiredOwners.size !== assessment.requiredProviderModuleKeys.length ||
     assessedOwners.size !== assessment.providers.length ||
     requiredOwners.size !== assessedOwners.size ||
     [...requiredOwners].some((owner) => !assessedOwners.has(owner))
-  ) {
-    return yield* unavailableAssessment('The authoritative Market retirement inventory is missing a required owner');
-  }
-});
+    ? Effect.fail(unavailableAssessment('The authoritative Market retirement inventory is missing a required owner'))
+    : Effect.void;
+};
 
-const validateProviderCurrentness = Effect.fn('RetireMarketAction.validateProviderCurrentness')(
-  function* validateProviderCurrentness(provider: MarketRetirementProviderAssessment, effectiveAt: string) {
-    if (provider.effectiveAt !== effectiveAt) {
-      return yield* staleAssessment('A provider assessed Market retirement for a different effective instant');
-    }
-    if (provider.nextBoundaryAt !== undefined && provider.nextBoundaryAt <= effectiveAt) {
-      return yield* staleAssessment('A provider retirement-impact assessment crossed its next material boundary');
-    }
-    if (
-      provider.completenessEvidenceReference.length === 0 ||
-      provider.currentnessEvidenceReference.length === 0 ||
-      provider.ownerRevision.length === 0 ||
-      provider.versionToken.length === 0
-    ) {
-      return yield* unavailableAssessment('A provider did not supply complete owner-verifiable retirement evidence');
-    }
-  },
-);
+const validateProviderCurrentness = (
+  provider: MarketRetirementProviderAssessment,
+  effectiveAt: string,
+): Effect.Effect<void, MarketRetirementImpactAssessmentStale | MarketRetirementImpactAssessmentUnavailable> => {
+  if (provider.effectiveAt !== effectiveAt) {
+    return Effect.fail(staleAssessment('A provider assessed Market retirement for a different effective instant'));
+  }
+  if (provider.nextBoundaryAt !== undefined && provider.nextBoundaryAt <= effectiveAt) {
+    return Effect.fail(staleAssessment('A provider retirement-impact assessment crossed its next material boundary'));
+  }
+  if (
+    provider.completenessEvidenceReference.length === 0 ||
+    provider.currentnessEvidenceReference.length === 0 ||
+    provider.ownerRevision.length === 0 ||
+    provider.versionToken.length === 0
+  ) {
+    return Effect.fail(
+      unavailableAssessment('A provider did not supply complete owner-verifiable retirement evidence'),
+    );
+  }
+  return Effect.void;
+};
 
 const validateAssessment = Effect.fn('RetireMarketAction.validateAssessment')(function* validateAssessment(
   payload: RetireMarketPayload,

@@ -3,15 +3,17 @@ import type {
   MarketAffectedUseAssessmentResponse,
 } from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
 import { executeMarketAffectedUseAssessmentWithAuthorization } from '@app/customer-market-retirement-contracts/market-affected-use-assessment/client';
+import { TenantModuleStateService } from '@app/core-runtime';
 import type { TenantModuleStateServiceContract } from '@app/core-runtime';
 import { issueGatewayContext } from '@app/shared-contracts';
-import { Config, DateTime, Effect, Schema } from 'effect';
+import { Config, DateTime, Effect, Layer, Match, Option, Schema } from 'effect';
 
 import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 import { MarketRetirementImpactAssessmentRejected } from '../actions/market-retirement-impact-assessment-rejected.ts';
 import { MarketRetirementImpactAssessmentStale } from '../actions/market-retirement-impact-assessment-stale.ts';
 import { MarketRetirementImpactAssessmentUnavailable } from '../actions/market-retirement-impact-assessment-unavailable.ts';
 import type { MarketRetirementImpactAuthority } from '../services/market-retirement-impact-authority.ts';
+import { MarketRetirementImpactAuthorityService } from '../services/market-retirement-impact-authority.ts';
 
 type ExecuteMarketAffectedUseAssessment<Failure> = (
   payload: MarketAffectedUseAssessmentRequest,
@@ -73,26 +75,21 @@ const identityMatches = (
   response.marketRef.resourceType === request.marketRef.resourceType &&
   response.marketRef.tenantId === request.marketRef.tenantId;
 
-const normalizeInstant = (value: unknown): string | undefined => {
-  if (typeof value === 'string') {
-    return value;
-  }
-  try {
-    return DateTime.formatIso(value as Parameters<typeof DateTime.formatIso>[0]);
-  } catch {
-    return undefined;
-  }
-};
+const normalizeInstant = (value: DateTime.DateTime | string): string =>
+  DateTime.isDateTime(value) ? DateTime.formatIso(value) : value;
 
 const isCurrentAt = (observedAt: string, nextBoundaryAt: string | undefined, effectiveAt: string): boolean => {
-  const observed = Date.parse(observedAt);
-  const effective = Date.parse(effectiveAt);
-  const boundary = nextBoundaryAt === undefined ? undefined : Date.parse(nextBoundaryAt);
+  const observed = DateTime.make(observedAt);
+  const effective = DateTime.make(effectiveAt);
+  const boundary = nextBoundaryAt === undefined ? Option.none() : DateTime.make(nextBoundaryAt);
+  if (Option.isNone(observed) || Option.isNone(effective)) {
+    return false;
+  }
+  const observedEpoch = DateTime.toEpochMillis(observed.value);
+  const effectiveEpoch = DateTime.toEpochMillis(effective.value);
   return (
-    Number.isFinite(observed) &&
-    Number.isFinite(effective) &&
-    observed <= effective &&
-    (boundary === undefined || (Number.isFinite(boundary) && effective < boundary))
+    observedEpoch <= effectiveEpoch &&
+    (Option.isNone(boundary) || effectiveEpoch < DateTime.toEpochMillis(boundary.value))
   );
 };
 
@@ -108,8 +105,6 @@ const hasCompleteCurrentSourceEvidence = (
     const boundary = evidence.completenessEvidence.nextApplicabilityBoundary;
     const nextBoundaryAt = boundary === undefined ? undefined : normalizeInstant(boundary);
     if (
-      observedAt === undefined ||
-      (boundary !== undefined && nextBoundaryAt === undefined) ||
       sourceIds.has(evidence.sourceId) ||
       evidence.currentness !== 'CURRENT' ||
       evidence.ownerRevision.length === 0 ||
@@ -150,7 +145,7 @@ const verifiedAssessment = (
   }
   const liveReferenceCount =
     response.liveBlockingReferences.bootstrapDefaults.length + response.liveBlockingReferences.currentProposals.length;
-  const provider = {
+  const providerWithoutBoundary = {
     completenessEvidenceReference: `customer-context:market-affected-use:${response.assessmentDigest}`,
     currentnessEvidenceReference: `customer-context:market-affected-use:${response.observedAt}:${response.assessmentDigest}`,
     effectiveAt: response.evaluatedAt,
@@ -158,7 +153,6 @@ const verifiedAssessment = (
       count: liveReferenceCount,
       evidenceReference: `customer-context:market-live-references:${response.assessmentDigest}`,
     },
-    ...(response.nextApplicabilityBoundary === undefined ? {} : { nextBoundaryAt: response.nextApplicabilityBoundary }),
     observedAt: response.observedAt,
     ownerModuleKey: CUSTOMER_CONTEXT_MODULE_KEY,
     ownerRevision: response.assessmentDigest,
@@ -168,6 +162,10 @@ const verifiedAssessment = (
     },
     versionToken: response.assessmentDigest,
   };
+  const provider =
+    response.nextApplicabilityBoundary === undefined
+      ? providerWithoutBoundary
+      : { ...providerWithoutBoundary, nextBoundaryAt: response.nextApplicabilityBoundary };
   return Effect.succeed({
     assessedMarketRef: response.marketRef,
     assessedMarketRevision: response.marketRevision,
@@ -194,16 +192,15 @@ const toMarketAssessment = (
       stale('Customer Context retirement-impact evidence does not match the requested Market revision'),
     );
   }
-  switch (response.outcome) {
-    case 'REJECTED':
-      return Effect.fail(rejected(response.reason));
-    case 'STALE':
-      return Effect.fail(stale(response.reason));
-    case 'UNAVAILABLE':
-      return Effect.fail(unavailable(response.reason));
-    case 'VERIFIED':
-      return verifiedAssessment(response, reservationToken, undeployedOwnerModuleKeys);
-  }
+  return Match.value(response).pipe(
+    Match.discriminator('outcome')('REJECTED', ({ reason }) => Effect.fail(rejected(reason))),
+    Match.discriminator('outcome')('STALE', ({ reason }) => Effect.fail(stale(reason))),
+    Match.discriminator('outcome')('UNAVAILABLE', ({ reason }) => Effect.fail(unavailable(reason))),
+    Match.discriminator('outcome')('VERIFIED', (verified) =>
+      verifiedAssessment(verified, reservationToken, undeployedOwnerModuleKeys),
+    ),
+    Match.exhaustive,
+  );
 };
 
 const inventoryMaterialReferenceOwners = (
@@ -286,3 +283,8 @@ export const makeMarketRetirementImpactAuthorityFromPublishedClient = (
       ),
     moduleStateInventory,
   );
+
+export const MarketRetirementImpactAuthorityLive = Layer.effect(
+  MarketRetirementImpactAuthorityService,
+  TenantModuleStateService.pipe(Effect.map(makeMarketRetirementImpactAuthorityFromPublishedClient)),
+);
