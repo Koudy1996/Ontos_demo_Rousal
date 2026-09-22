@@ -10,8 +10,8 @@ import { CurrentMarketCatalogResponseSchema } from '../../shared/apis/current-ma
 import type { MarketHistoryResponse } from '../../shared/apis/market-history.ts';
 import { MarketHistoryResponseSchema } from '../../shared/apis/market-history.ts';
 
-const CurrentCatalogRowSchema = Schema.Struct({ payload: CurrentMarketCatalogResponseSchema });
-const MarketHistoryRowSchema = Schema.Struct({ payload: MarketHistoryResponseSchema });
+const CurrentCatalogRowSchema = Schema.Struct({ payload: Schema.Unknown });
+const MarketHistoryRowSchema = Schema.Struct({ payload: Schema.Unknown });
 const ownerModuleKey = 'commerce.market-catalog';
 const schema = 'commerce_market_catalog';
 const parameters = [
