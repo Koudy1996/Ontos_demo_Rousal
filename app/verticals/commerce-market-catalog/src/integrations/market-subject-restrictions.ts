@@ -1,6 +1,6 @@
-import { MarketSubjectRestrictionsCurrentRequestSchema } from '@app/commerce-customer-context/api';
-import type { MarketSubjectRestrictionsCurrentResponse } from '@app/commerce-customer-context/api';
-import { executeMarketSubjectRestrictionsCurrent } from '@app/commerce-customer-context/api/client';
+import { MarketSubjectRestrictionsCurrentRequestSchema } from '@app/commerce-customer-context/api/market-subject-restrictions-current';
+import type { MarketSubjectRestrictionsCurrentResponse } from '@app/commerce-customer-context/api/market-subject-restrictions-current';
+import { executeMarketSubjectRestrictionsCurrent } from '@app/commerce-customer-context/api/market-subject-restrictions-current/client';
 import { Effect, Schema } from 'effect';
 
 import type { PurchasingSubjectRefSchema } from '../../shared/market-contracts.ts';

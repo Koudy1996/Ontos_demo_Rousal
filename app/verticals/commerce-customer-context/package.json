@@ -6,6 +6,8 @@
   "exports": {
     "./api": "./shared/api.ts",
     "./api/client": "./src/api/commerce-customer-context-client.ts",
+    "./api/market-subject-restrictions-current": "./shared/apis/market-subject-restrictions-current.ts",
+    "./api/market-subject-restrictions-current/client": "./src/api/market-subject-restrictions-current-client.ts",
     "./outbox/commerce-customer-context-approval-consumed-v1": "./shared/outbox/commerce-customer-context-approval-consumed-v1.ts",
     "./outbox/commerce-customer-context-approval-decision-recorded-v1": "./shared/outbox/commerce-customer-context-approval-decision-recorded-v1.ts",
     "./outbox/commerce-customer-context-approval-hierarchy-created-v1": "./shared/outbox/commerce-customer-context-approval-hierarchy-created-v1.ts",
