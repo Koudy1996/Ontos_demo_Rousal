@@ -1,0 +1,42 @@
+import { makeGovernedReadHttpHandler } from '@app/core-runtime/http/governed-read';
+import {
+  MarketAffectedUseAssessmentAuthenticationProblemSchema,
+  MarketAffectedUseAssessmentConflictProblemSchema,
+  MarketAffectedUseAssessmentForbiddenProblemSchema,
+  MarketAffectedUseAssessmentInternalProblemSchema,
+  MarketAffectedUseAssessmentInvalidProblemSchema,
+  MarketAffectedUseAssessmentNotFoundProblemSchema,
+  MarketAffectedUseAssessmentPolicyProblemSchema,
+  MarketAffectedUseAssessmentUnavailableProblemSchema,
+} from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
+import { makeGovernedReadProblems } from '@app/shared-contracts/server/effect-bff-runtime';
+import { HttpApiBuilder } from '@modern-js/bff-effect/effect-edge';
+
+import { commerceCustomerContextApi } from '../shared/api.ts';
+import { marketAffectedUseAssessmentRead } from '../src/api/market-affected-use-assessment.read.ts';
+import { authenticateOperationPrincipal } from './auth/action-principal.ts';
+
+const problems = makeGovernedReadProblems({
+  authentication: MarketAffectedUseAssessmentAuthenticationProblemSchema,
+  forbidden: MarketAffectedUseAssessmentForbiddenProblemSchema,
+  internal: MarketAffectedUseAssessmentInternalProblemSchema,
+  invalid: MarketAffectedUseAssessmentInvalidProblemSchema,
+  notFound: MarketAffectedUseAssessmentNotFoundProblemSchema,
+  policyConflict: MarketAffectedUseAssessmentConflictProblemSchema,
+  policyIneligible: MarketAffectedUseAssessmentPolicyProblemSchema,
+  unavailable: MarketAffectedUseAssessmentUnavailableProblemSchema,
+});
+
+export const marketAffectedUseAssessmentReadApiLive = HttpApiBuilder.group(
+  commerceCustomerContextApi,
+  'marketAffectedUseAssessment',
+  (handlers) =>
+    handlers.handle(
+      'execute',
+      makeGovernedReadHttpHandler({
+        authenticatePrincipal: authenticateOperationPrincipal,
+        problems,
+        registration: marketAffectedUseAssessmentRead,
+      }),
+    ),
+);
