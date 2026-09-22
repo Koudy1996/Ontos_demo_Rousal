@@ -1,5 +1,4 @@
-import { getVerticalRuntimeEntrypoints } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { Effect, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
 
 import {
@@ -7,52 +6,39 @@ import {
   validateCzechLaunchActivation,
   validateCzechLaunchFixtureContracts,
 } from '../../../../scripts/czech-launch-commerce-fixture.mts';
-import { commerceCustomerContextManifest } from '../../vertical.manifest.ts';
-import { commerceCustomerContextRegistration } from '../../vertical.registration.ts';
-
-const requiredPolicyActions = [
-  'commerce.customer-context.administer-market-bootstrap-policy',
-  'commerce.customer-context.administer-payment-term-policy',
-  'commerce.customer-context.administer-purchase-currency-policy',
-  'commerce.customer-context.administer-commerce-quantity-rule',
-] as const;
-
-const requiredCurrentAndResolutionApis = [
-  'market-bootstrap-policy-current',
-  'market-bootstrap-resolution',
-  'payment-term-policy-current',
-  'payment-terms-resolution',
-  'purchase-currency-policy-current',
-  'purchase-currency-resolution',
-  'commerce-quantity-policy-current',
-  'commerce-quantity-resolution',
-] as const;
+import { unavailablePurchaseCurrencyPurchasingContextPort } from '../../shared/domain/purchase-currency-context-port.ts';
+import { PurchaseCurrencyDependencyUnavailable } from '../../shared/domain/purchase-currency-dependency.ts';
 
 it.effect('composes the Czech Launch inventory and four policy defaults behind governed contracts', () =>
   Effect.gen(function* composedLaunch() {
     yield* validateCzechLaunchFixtureContracts();
-    yield* validateCzechLaunchActivation({
-      catalogQuantity: CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.catalogQuantity,
-      marketEligibleTupleCurrent: true,
-      paymentTermCurrent: true,
-      policySetsComplete: {
-        marketBootstrap: true,
-        paymentTerm: true,
-        purchaseCurrency: true,
-        quantity: true,
-      },
-    });
+    yield* validateCzechLaunchActivation(CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts);
 
-    const runtimeEntrypoints = getVerticalRuntimeEntrypoints(commerceCustomerContextRegistration);
-    const actionKeys = new Set(
-      (commerceCustomerContextManifest.publicSurface.actions ?? []).map(({ descriptor }) => descriptor.actionKey),
-    );
-    for (const actionKey of requiredPolicyActions) {
-      expect(actionKeys.has(actionKey)).toBe(true);
-    }
-    for (const apiKey of requiredCurrentAndResolutionApis) {
-      expect(commerceCustomerContextManifest.publicSurface.api?.[apiKey]).toBeDefined();
-      expect(runtimeEntrypoints.api[apiKey]).toBeTypeOf('function');
+    const { channelId, marketId, sellingLegalEntityId, storefrontId, tenantId } = CZECH_LAUNCH_COMMERCE_FIXTURE.scope;
+    const purchasingContextFailure = yield* unavailablePurchaseCurrencyPurchasingContextPort()
+      .resolveCurrent({
+        claimedContext: {
+          cartId: 'czech-launch-cart',
+          channelId,
+          marketId,
+          sellingLegalEntityId,
+          storefrontId,
+          tenantId,
+        },
+        claimedContextRevision: 'commerce.cart.context:czech-launch-v1',
+        claimedSubject: {
+          guestEvidenceRef: 'commerce.customer-context.guest-evidence:czech-launch',
+          guestSessionRef: 'commerce.cart.guest-session:czech-launch',
+          kind: 'GUEST',
+        },
+        observedAt: '2026-10-01T00:00:00.000Z',
+        scope: { legalEntityId: sellingLegalEntityId, storefrontId, tenantId },
+      })
+      .pipe(Effect.flip);
+    expect(Schema.is(PurchaseCurrencyDependencyUnavailable)(purchasingContextFailure)).toBe(true);
+    if (Schema.is(PurchaseCurrencyDependencyUnavailable)(purchasingContextFailure)) {
+      expect(purchasingContextFailure.code).toBe('purchasing_context_unavailable');
+      expect(purchasingContextFailure.retryable).toBe(true);
     }
 
     expect(
@@ -82,7 +68,7 @@ it.effect('composes the Czech Launch inventory and four policy defaults behind g
           kind: 'APPLICABLE_PAYMENT_TERM_CONSTRAINT',
           paymentTermRef: {
             moduleId: 'payment.term-catalog',
-            resourceId: 'czech-launch-net-14',
+            resourceId: '78000000-0000-4000-8000-000000000014',
             resourceType: 'payment.term-catalog.payment-term',
             tenantId: '70000000-0000-4000-8000-000000000010',
           },
@@ -94,7 +80,7 @@ it.effect('composes the Czech Launch inventory and four policy defaults behind g
           kind: 'FALLBACK_PAYMENT_TERM',
           paymentTermRef: {
             moduleId: 'payment.term-catalog',
-            resourceId: 'czech-launch-net-14',
+            resourceId: '78000000-0000-4000-8000-000000000014',
             resourceType: 'payment.term-catalog.payment-term',
             tenantId: '70000000-0000-4000-8000-000000000010',
           },

@@ -1,5 +1,8 @@
 import { Effect, Schema } from 'effect';
 
+import { CurrentPaymentTermsResponseSchema } from '@app/payment-term-catalog-contracts';
+import { CurrentSupportedCurrenciesSuccessSchema } from '@app/pricing-contracts';
+
 import {
   AssociateStorefrontPayloadSchema,
   CreateMarketPayloadSchema,
@@ -8,10 +11,15 @@ import { MarketDefinitionRevisionRefSchema } from '../verticals/commerce-market-
 import type { MarketDefinitionRevisionRef } from '../verticals/commerce-market-catalog/shared/resources/market-definition-revision.ts';
 import {
   CommerceQuantityRuleAdministrationPayloadSchema,
+  CurrentCommerceQuantityPolicySetSchema,
+  CurrentPaymentTermPolicySetSchema,
+  CurrentPurchaseCurrencyPolicySetSchema,
   MarketBootstrapPolicyAdministrationPayloadSchema,
+  MarketBootstrapPolicyBatchCurrentResponseSchema,
   PaymentTermPolicyAdministrationPayloadSchema,
   PurchaseCurrencyPolicyAdministrationPayloadSchema,
 } from '../verticals/commerce-customer-context/shared/domain/customer-commerce-policy-administration.ts';
+import { CurrentMarketCatalogResponseSchema } from '../verticals/commerce-market-catalog/shared/apis/current-market-catalog.ts';
 import { QuantityPreparationResponseSchema } from '../verticals/catalog/shared/apis/quantity-preparation.ts';
 import type { QuantityPreparationResponse } from '../verticals/catalog/shared/apis/quantity-preparation.ts';
 
@@ -143,9 +151,218 @@ const catalogQuantityEvidence = {
 } as const;
 const paymentTermRef = {
   moduleId: 'payment.term-catalog',
-  resourceId: 'czech-launch-net-14',
+  resourceId: '78000000-0000-4000-8000-000000000014',
   resourceType: 'payment.term-catalog.payment-term',
   tenantId,
+} as const;
+
+const marketDefinitionRevisionRef = {
+  moduleId: 'commerce.market-catalog',
+  resourceId: '74000000-0000-4000-8000-000000000011',
+  resourceType: 'commerce.market-catalog.market-definition-revision',
+  tenantId,
+} as const;
+const storefrontAssociationRef = {
+  moduleId: 'commerce.market-catalog',
+  resourceId: '74000000-0000-4000-8000-000000000020',
+  resourceType: 'commerce.market-catalog.storefront-association',
+  tenantId,
+} as const;
+const ownerCompleteness = (ownerRevision: string, predicateRef: string) => ({
+  observedAt: effectiveFrom,
+  ownerRevision,
+  scope: { kind: 'EXACT_PREDICATE' as const, predicateRef },
+});
+
+const marketCatalogOwnerEvidence = {
+  associations: [
+    {
+      associationRef: storefrontAssociationRef,
+      channel: 'B2C',
+      effectivePeriod: { startsAt: effectiveFrom },
+      marketDefinitionRevisionRef,
+      marketRef,
+      provenance: { kind: 'CONFIGURATION_ACTION', reference: 'czech-launch-fixture-v1' },
+      revision: 1,
+      sellingLegalEntityRef,
+      storefrontRef,
+    },
+  ],
+  completenessEvidence: ownerCompleteness(
+    'commerce.market-catalog.current:czech-launch-v1',
+    'commerce.market-catalog.current:czech-launch',
+  ),
+  markets: [
+    {
+      channels: ['B2C'],
+      definitionRevisionRef: marketDefinitionRevisionRef,
+      effectivePeriod: { startsAt: effectiveFrom },
+      jurisdictions: [{ code: 'CZ', kind: 'COUNTRY' }],
+      lifecycle: 'ACTIVE',
+      marketCode: 'CZ_B2C',
+      marketRef,
+      purpose: 'Czech Launch B2C commerce',
+      revision: 1,
+      sellingLegalEntityRef,
+      supportedLocales: ['cs-CZ'],
+    },
+  ],
+  observedAt: effectiveFrom,
+} as const;
+
+const paymentTermCatalogOwnerEvidence = {
+  current: [
+    {
+      code: 'NET_14',
+      compatibilityId: 'net_days.invoice_issued_at.calendar_days_utc.v1',
+      compatibleWith: ['customer-payment-terms.v1'],
+      created: {
+        actionInvocationId: 'czech-launch-payment-term-v1',
+        actorPrincipalId: 'czech-launch-fixture',
+        at: effectiveFrom,
+        reason,
+      },
+      definitionRevisionId: '78000000-0000-4000-8000-000000000114',
+      description: 'Payment is due fourteen UTC calendar days after invoice issue.',
+      lifecycle: { effectiveFrom, effectiveTo: null, state: 'ACTIVE' },
+      metadataRevision: 1,
+      name: 'Net 14',
+      paymentTermRef,
+      retired: null,
+      semanticFingerprint: 'c'.repeat(64),
+      semanticRevisionId: '78000000-0000-4000-8000-000000000214',
+      semantics: {
+        calculationRuleVersion: 1,
+        calendarRule: 'CALENDAR_DAYS_UTC',
+        days: 14,
+        dueDateAnchor: 'INVOICE_ISSUED_AT',
+        kind: 'NET_DAYS',
+      },
+      updated: {
+        actionInvocationId: 'czech-launch-payment-term-v1',
+        actorPrincipalId: 'czech-launch-fixture',
+        at: effectiveFrom,
+        reason,
+      },
+    },
+  ],
+  effectiveAt: effectiveFrom,
+  observedAt: effectiveFrom,
+  referenceOutcomes: [],
+  truncated: false,
+} as const;
+
+const pricingCurrencyOwnerEvidence = {
+  completenessEvidence: ownerCompleteness(
+    'commerce.pricing.supported-currencies:czech-launch-v1',
+    'commerce.pricing.supported-currencies.current:czech-launch',
+  ),
+  effectiveAt: effectiveFrom,
+  observedAt: effectiveFrom,
+  outcome: 'SUPPORTED_CURRENCIES_CURRENT',
+  pricingRevision: 'commerce.pricing.supported-currencies:czech-launch-v1',
+  supportedCurrencies: ['CZK'],
+} as const;
+
+const customerCommercePolicyOwnerEvidence = {
+  marketBootstrap: {
+    sellers: [
+      {
+        candidates: [
+          {
+            defaultTuple: {
+              channelId: 'B2C',
+              commerceMarketId: marketId,
+              sellingLegalEntityId,
+            },
+            policyRevisionId: '75000000-0000-4000-8000-000000000010',
+            scope: { channelId: 'B2C', kind: 'CHANNEL_SELLER', sellingLegalEntityId },
+          },
+        ],
+        completeness: ownerCompleteness(
+          `MARKET_BOOTSTRAP:${tenantId}:${sellingLegalEntityId}:1`,
+          `commerce.customer-context.policy.market_bootstrap.current:${sellingLegalEntityId}`,
+        ),
+        sellingLegalEntityId,
+      },
+    ],
+  },
+  paymentTerm: {
+    candidates: [
+      {
+        effectiveFrom,
+        effectiveTo: null,
+        policyRevisionId: '75000000-0000-4000-8000-000000000030',
+        scope: { kind: 'SELLER', sellingLegalEntityId },
+        value: { kind: 'APPLICABLE_PAYMENT_TERM_CONSTRAINT', paymentTermRef },
+      },
+      {
+        effectiveFrom,
+        effectiveTo: null,
+        policyRevisionId: '75000000-0000-4000-8000-000000000031',
+        scope: { kind: 'SELLER', sellingLegalEntityId },
+        value: { kind: 'FALLBACK_PAYMENT_TERM', paymentTermRef },
+      },
+    ],
+    completeness: ownerCompleteness('PAYMENT_TERM:2', 'commerce.customer-context.policy.payment_term.current'),
+  },
+  purchaseCurrency: {
+    candidates: [
+      {
+        effectiveFrom,
+        effectiveTo: null,
+        policyRevisionId: '75000000-0000-4000-8000-000000000020',
+        scope: { kind: 'SELLER', sellingLegalEntityId },
+        value: { currencyCode: 'CZK', kind: 'ALLOWED_CURRENCY_CONSTRAINT' },
+      },
+      {
+        effectiveFrom,
+        effectiveTo: null,
+        policyRevisionId: '75000000-0000-4000-8000-000000000021',
+        scope: { kind: 'SELLER', sellingLegalEntityId },
+        value: { currencyCode: 'CZK', kind: 'DEFAULT_CURRENCY' },
+      },
+    ],
+    completeness: ownerCompleteness(
+      'PURCHASE_CURRENCY:2',
+      'commerce.customer-context.policy.purchase_currency.current',
+    ),
+  },
+  quantity: {
+    assignmentSet: {
+      assignments: [],
+      completeness: ownerCompleteness(
+        'COMMERCE_QUANTITY_ASSIGNMENT:0',
+        'commerce.customer-context.policy.commerce_quantity_assignment.current',
+      ),
+    },
+    ruleSet: {
+      candidates: [
+        {
+          effectiveFrom,
+          effectiveTo: null,
+          policyRevisionId: '75000000-0000-4000-8000-000000000040',
+          scope: { channelId: 'B2C', kind: 'CHANNEL_SELLER', sellingLegalEntityId },
+          value: {
+            basis: {
+              targetDivisibilityRevision: 1,
+              targetRef: catalogPackageOptionRef,
+              unitRef: catalogProductUnitRef,
+              unitRuleRevision: 1,
+            },
+            constraintMode: 'REPLACEABLE_ENVELOPE',
+            envelope: { kind: 'BOUNDED', maximum: null, minimum: '1', multiple: '1' },
+            kind: 'COMMERCE_QUANTITY_RULE',
+            selector: { kind: 'PACKAGE_OPTION', packageOptionRef: catalogPackageOptionRef },
+          },
+        },
+      ],
+      completeness: ownerCompleteness(
+        'COMMERCE_QUANTITY_RULE:1',
+        'commerce.customer-context.policy.commerce_quantity_rule.current',
+      ),
+    },
+  },
 } as const;
 
 export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
@@ -171,6 +388,10 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
   },
   ownerFacts: {
     catalogQuantity: catalogQuantityEvidence,
+    customerCommercePolicies: customerCommercePolicyOwnerEvidence,
+    marketCatalog: marketCatalogOwnerEvidence,
+    paymentTermCatalog: paymentTermCatalogOwnerEvidence,
+    pricingCurrencies: pricingCurrencyOwnerEvidence,
   },
   policies: {
     marketBootstrap: {
@@ -308,45 +529,83 @@ const CurrentCatalogQuantityEvidenceSchema = QuantityPreparationResponseSchema.c
   ),
 );
 
+const currentCzechLaunchOwnerEvidenceFields = {
+  customerCommercePolicies: Schema.Struct({
+    marketBootstrap: MarketBootstrapPolicyBatchCurrentResponseSchema,
+    paymentTerm: CurrentPaymentTermPolicySetSchema,
+    purchaseCurrency: CurrentPurchaseCurrencyPolicySetSchema,
+    quantity: CurrentCommerceQuantityPolicySetSchema,
+  }),
+  marketCatalog: CurrentMarketCatalogResponseSchema,
+  paymentTermCatalog: CurrentPaymentTermsResponseSchema,
+  pricingCurrencies: CurrentSupportedCurrenciesSuccessSchema,
+} as const;
+
 const CzechLaunchActivationEvidenceSchema = Schema.Struct({
   catalogQuantity: CurrentCatalogQuantityEvidenceSchema,
-  marketEligibleTupleCurrent: Schema.Literal(true),
-  paymentTermCurrent: Schema.Literal(true),
-  policySetsComplete: Schema.Struct({
-    marketBootstrap: Schema.Literal(true),
-    paymentTerm: Schema.Literal(true),
-    purchaseCurrency: Schema.Literal(true),
-    quantity: Schema.Literal(true),
-  }),
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+  ...currentCzechLaunchOwnerEvidenceFields,
+})
+  .check(
+    Schema.makeFilter(({ customerCommercePolicies, marketCatalog, paymentTermCatalog, pricingCurrencies }) => {
+      const market = marketCatalog.markets.find(({ marketRef: candidate }) => candidate.resourceId === marketId);
+      const association = marketCatalog.associations.find(
+        ({ marketRef: candidate, storefrontRef: candidateStorefront }) =>
+          candidate.resourceId === marketId && candidateStorefront.appId === storefrontId,
+      );
+      const paymentTerm = paymentTermCatalog.current.find(
+        ({ paymentTermRef: candidate }) => candidate.resourceId === paymentTermRef.resourceId,
+      );
+      const bootstrapPartition = customerCommercePolicies.marketBootstrap.sellers.find(
+        ({ sellingLegalEntityId: candidate }) => candidate === sellingLegalEntityId,
+      );
+      const currencyRevisionIds = customerCommercePolicies.purchaseCurrency.candidates.map(
+        ({ policyRevisionId }) => policyRevisionId,
+      );
+      const paymentRevisionIds = customerCommercePolicies.paymentTerm.candidates.map(
+        ({ policyRevisionId }) => policyRevisionId,
+      );
+      const quantityRevisionIds = customerCommercePolicies.quantity.ruleSet.candidates.map(
+        ({ policyRevisionId }) => policyRevisionId,
+      );
+      return market?.definitionRevisionRef.resourceId === marketDefinitionRevisionRef.resourceId &&
+        market.lifecycle === 'ACTIVE' &&
+        association?.marketDefinitionRevisionRef.resourceId === marketDefinitionRevisionRef.resourceId &&
+        paymentTerm?.lifecycle.state === 'ACTIVE' &&
+        pricingCurrencies.pricingRevision === 'commerce.pricing.supported-currencies:czech-launch-v1' &&
+        pricingCurrencies.supportedCurrencies.length === 1 &&
+        pricingCurrencies.supportedCurrencies[0] === 'CZK' &&
+        bootstrapPartition?.candidates.some(
+          ({ policyRevisionId }) => policyRevisionId === '75000000-0000-4000-8000-000000000010',
+        ) === true &&
+        currencyRevisionIds.includes('75000000-0000-4000-8000-000000000020') &&
+        currencyRevisionIds.includes('75000000-0000-4000-8000-000000000021') &&
+        paymentRevisionIds.includes('75000000-0000-4000-8000-000000000030') &&
+        paymentRevisionIds.includes('75000000-0000-4000-8000-000000000031') &&
+        quantityRevisionIds.includes('75000000-0000-4000-8000-000000000040')
+        ? undefined
+        : 'Czech Launch activation requires the exact Current owner revisions for Market, Payment Term, Pricing, and Customer Commerce Policy';
+    }),
+  )
+  .annotate({ parseOptions: { onExcessProperty: 'error' } });
 
 export class CzechLaunchActivationRejected extends Schema.TaggedError<CzechLaunchActivationRejected>()(
   'CzechLaunchActivationRejected',
   { reason: Schema.String },
 ) {}
 
-export interface CzechLaunchActivationCandidate {
-  readonly catalogQuantity: Extract<QuantityPreparationResponse, { readonly status: 'READY' }>;
-  readonly marketEligibleTupleCurrent: boolean;
-  readonly paymentTermCurrent: boolean;
-  readonly policySetsComplete: {
-    readonly marketBootstrap: boolean;
-    readonly paymentTerm: boolean;
-    readonly purchaseCurrency: boolean;
-    readonly quantity: boolean;
-  };
-}
+export type CzechLaunchActivationCandidate = typeof CzechLaunchActivationEvidenceSchema.Encoded;
 
 /**
  * Operator-only activation guard. The fixture is never applied from application startup: callers must first obtain
- * Current owner evidence for the Market tuple, Payment Term, Catalog quantity basis, and every complete policy set.
+ * schema-valid Current owner evidence for the Market tuple, Payment Term, Pricing currencies, Catalog quantity basis,
+ * and every complete Customer Commerce policy set.
  */
 export const validateCzechLaunchActivation = (evidence: CzechLaunchActivationCandidate) =>
   Schema.decodeUnknownEffect(CzechLaunchActivationEvidenceSchema)(evidence).pipe(
     Effect.mapError(
-      () =>
+      (cause) =>
         new CzechLaunchActivationRejected({
-          reason: 'Czech Launch activation requires current owner inventory and complete four-field policy evidence',
+          reason: `Czech Launch activation requires schema-valid Current owner inventory and policy revisions: ${String(cause)}`,
         }),
     ),
   );

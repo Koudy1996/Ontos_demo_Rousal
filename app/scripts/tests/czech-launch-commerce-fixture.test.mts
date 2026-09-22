@@ -64,7 +64,7 @@ it.effect('publishes complete Payment Term applicability and an independently re
     expect(applicability.revision.value.paymentTermRef).toEqual(fallback.revision.value.paymentTermRef);
     expect(applicability.revision.value.paymentTermRef).toEqual({
       moduleId: 'payment.term-catalog',
-      resourceId: 'czech-launch-net-14',
+      resourceId: '78000000-0000-4000-8000-000000000014',
       resourceType: 'payment.term-catalog.payment-term',
       tenantId: CZECH_LAUNCH_COMMERCE_FIXTURE.scope.tenantId,
     });
@@ -118,16 +118,6 @@ it.effect('publishes exact Catalog-owner selection, Unit, normalization, and div
     });
     expect('catalogQuantityBasisCurrent' in CZECH_LAUNCH_COMMERCE_FIXTURE).toBe(false);
 
-    yield* validateCzechLaunchActivation({
-      catalogQuantity,
-      marketEligibleTupleCurrent: true,
-      paymentTermCurrent: true,
-      policySetsComplete: {
-        marketBootstrap: true,
-        paymentTerm: true,
-        purchaseCurrency: true,
-        quantity: true,
-      },
-    });
+    yield* validateCzechLaunchActivation(CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts);
   }),
 );
