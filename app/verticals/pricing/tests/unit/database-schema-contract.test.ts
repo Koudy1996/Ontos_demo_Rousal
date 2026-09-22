@@ -1,6 +1,7 @@
+// @effect-diagnostics nodeBuiltinImport:off -- Migration contract reads checked-in Pricing SQL; expires: 2027-03-31.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from '@rstest/core';
+import { describe, expect, it } from 'effect-rstest';
 import { PRICING_SCHEMA_NAME, PRICING_TABLE_INVENTORY } from '../../src/database/schema.ts';
 
 const migration = readFileSync(
