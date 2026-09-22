@@ -9,7 +9,19 @@ const strict = { parseOptions: { onExcessProperty: 'error' as const } };
 const boundedText = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
 const positiveRevision = Schema.Finite.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1));
 const sha256Digest = Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/u));
-const tenantId = MarketRefSchema.fields.tenantId;
+const { tenantId } = MarketRefSchema.fields;
+const AffectedOwnerModuleIdSchema = boundedText.pipe(
+  Schema.brand('AffectedOwnerModuleId'),
+  Schema.decodeTo(boundedText),
+);
+const AffectedOwnerResourceIdSchema = boundedText.pipe(
+  Schema.brand('AffectedOwnerResourceId'),
+  Schema.decodeTo(boundedText),
+);
+const MarketAffectedUseSourceIdSchema = boundedText.pipe(
+  Schema.brand('MarketAffectedUseSourceId'),
+  Schema.decodeTo(boundedText),
+);
 
 export const MarketRetirementInstantSchema = Schema.String.check(
   Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u),
@@ -44,8 +56,8 @@ export const MarketAffectedUseAssessmentRequestSchema = Schema.Struct({
 export type MarketAffectedUseAssessmentRequest = typeof MarketAffectedUseAssessmentRequestSchema.Type;
 
 const AffectedOwnerResourceRefSchema = Schema.Struct({
-  moduleId: boundedText,
-  resourceId: boundedText,
+  moduleId: AffectedOwnerModuleIdSchema,
+  resourceId: AffectedOwnerResourceIdSchema,
   resourceType: boundedText,
   tenantId,
 }).annotate(strict);
@@ -77,7 +89,7 @@ export const MarketAffectedUseSourceEvidenceSchema = Schema.Struct({
   digest: sha256Digest,
   generation: boundedText,
   ownerRevision: boundedText,
-  sourceId: boundedText,
+  sourceId: MarketAffectedUseSourceIdSchema,
 }).annotate(strict);
 export type MarketAffectedUseSourceEvidence = typeof MarketAffectedUseSourceEvidenceSchema.Type;
 
@@ -118,10 +130,20 @@ const MarketAffectedUseVerifiedSchema = Schema.Struct({
         : 'Every affected-use reference must identify the assessed Tenant, Market, and revision';
     }),
     Schema.makeFilter(({ evaluatedAt, nextApplicabilityBoundary, observedAt }) => {
-      const evaluated = Date.parse(evaluatedAt);
-      const observed = Date.parse(observedAt);
-      const boundary = nextApplicabilityBoundary === undefined ? undefined : Date.parse(nextApplicabilityBoundary);
-      return observed <= evaluated && (boundary === undefined || evaluated < boundary)
+      const evaluated = DateTime.make(evaluatedAt);
+      const observed = DateTime.make(observedAt);
+      const boundary =
+        nextApplicabilityBoundary === undefined ? Option.none() : DateTime.make(nextApplicabilityBoundary);
+      if (Option.isNone(evaluated) || Option.isNone(observed)) {
+        return 'Verified evidence timestamps must be valid instants';
+      }
+      const evaluatedMillis = DateTime.toEpochMillis(evaluated.value);
+      const observedMillis = DateTime.toEpochMillis(observed.value);
+      const boundaryMillis = Option.match(boundary, {
+        onNone: () => null,
+        onSome: (value) => DateTime.toEpochMillis(value),
+      });
+      return observedMillis <= evaluatedMillis && (boundaryMillis === null || evaluatedMillis < boundaryMillis)
         ? undefined
         : 'Verified evidence must be observed by and current at the evaluation instant';
     }),
@@ -147,7 +169,7 @@ const stale = Schema.Struct({
   observedAt: MarketRetirementInstantSchema,
   outcome: Schema.Literal('STALE'),
   reason: boundedText,
-  staleSourceIds: Schema.Array(boundedText).check(Schema.isMinLength(1)),
+  staleSourceIds: Schema.Array(MarketAffectedUseSourceIdSchema).check(Schema.isMinLength(1)),
 }).annotate(strict);
 
 export const MarketAffectedUseAssessmentResponseSchema = Schema.Union([

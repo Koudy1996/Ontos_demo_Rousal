@@ -1,5 +1,5 @@
 import { makeGovernedEffectBffClient } from '@app/shared-contracts/client-runtime';
-import { Effect, Redacted, Schema } from 'effect';
+import { Effect, Match, Redacted, Schema } from 'effect';
 
 import { ReserveMarketRetirementApi, ReserveMarketRetirementPayloadSchema } from '../apis/reserve-market-retirement.ts';
 import type { ReserveMarketRetirementPayload } from '../apis/reserve-market-retirement.ts';
@@ -39,14 +39,18 @@ export const executeReserveMarketRetirementWithAuthorization = (
             params: {},
             query: {},
           } as const;
-          switch (encoded.operation) {
-            case 'RESERVE':
-              return client.reserveMarketRetirement.execute({ ...request, payload: encoded });
-            case 'COMMIT':
-              return client.reserveMarketRetirement.execute({ ...request, payload: encoded });
-            case 'RELEASE':
-              return client.reserveMarketRetirement.execute({ ...request, payload: encoded });
-          }
+          return Match.value(encoded).pipe(
+            Match.when({ operation: 'COMMIT' }, (commitPayload) =>
+              client.reserveMarketRetirement.execute({ ...request, payload: commitPayload }),
+            ),
+            Match.when({ operation: 'RELEASE' }, (releasePayload) =>
+              client.reserveMarketRetirement.execute({ ...request, payload: releasePayload }),
+            ),
+            Match.when({ operation: 'RESERVE' }, (reservePayload) =>
+              client.reserveMarketRetirement.execute({ ...request, payload: reservePayload }),
+            ),
+            Match.exhaustive,
+          );
         }),
       ),
     ),

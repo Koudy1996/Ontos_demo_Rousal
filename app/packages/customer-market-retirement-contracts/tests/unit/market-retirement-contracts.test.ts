@@ -106,12 +106,20 @@ describe('Customer-owned Market retirement public contracts', () => {
     };
     const decoded = Schema.decodeSync(MarketAffectedUseAssessmentResponseSchema)(verified);
     expect(decoded.outcome).toBe('VERIFIED');
-    if (decoded.outcome !== 'VERIFIED') throw new Error('Expected verified assessment');
-    expect(DateTime.formatIso(decoded.sourceEvidence[0]!.completenessEvidence.observedAt)).toBe(
+    if (decoded.outcome !== 'VERIFIED') {
+      throw new Error('Expected verified assessment');
+    }
+    const [decodedSourceEvidence] = decoded.sourceEvidence;
+    if (decodedSourceEvidence === undefined) {
+      throw new Error('Expected source evidence');
+    }
+    expect(DateTime.formatIso(decodedSourceEvidence.completenessEvidence.observedAt)).toBe(
       completenessEvidence.observedAt,
     );
-    const nextBoundary = decoded.sourceEvidence[0]!.completenessEvidence.nextApplicabilityBoundary;
-    if (nextBoundary === undefined) throw new Error('Expected next applicability boundary');
+    const { nextApplicabilityBoundary: nextBoundary } = decodedSourceEvidence.completenessEvidence;
+    if (nextBoundary === undefined) {
+      throw new Error('Expected next applicability boundary');
+    }
     expect(DateTime.formatIso(nextBoundary)).toBe(completenessEvidence.nextApplicabilityBoundary);
     expect(() =>
       Schema.decodeSync(MarketAffectedUseAssessmentResponseSchema)({
@@ -167,8 +175,14 @@ describe('Customer-owned Market retirement public contracts', () => {
     };
     const decodedReserve = Schema.decodeSync(ReserveMarketRetirementPayloadSchema)(reserve);
     expect(decodedReserve.operation).toBe('RESERVE');
-    if (decodedReserve.operation !== 'RESERVE') throw new Error('Expected reservation payload');
-    expect(DateTime.formatIso(decodedReserve.sourceEvidence[0]!.completenessEvidence.observedAt)).toBe(
+    if (decodedReserve.operation !== 'RESERVE') {
+      throw new Error('Expected reservation payload');
+    }
+    const [decodedReserveEvidence] = decodedReserve.sourceEvidence;
+    if (decodedReserveEvidence === undefined) {
+      throw new Error('Expected reservation source evidence');
+    }
+    expect(DateTime.formatIso(decodedReserveEvidence.completenessEvidence.observedAt)).toBe(
       completenessEvidence.observedAt,
     );
     for (const operation of ['COMMIT', 'RELEASE'] as const) {
@@ -207,14 +221,22 @@ describe('Customer-owned Market retirement public contracts', () => {
   });
 
   it.effect('strictly decodes payloads before either governed client executor can invoke HTTP', () =>
-    Effect.gen(function* () {
-      const invalid = { ...request, evaluatedAt: 'not-an-instant' } as never;
+    Effect.gen(function* verifyStrictClientPayloadDecoding() {
+      const invalidRead = { ...request, evaluatedAt: 'not-an-instant' };
       const readExit = yield* Effect.exit(
-        executeMarketAffectedUseAssessmentWithAuthorization(invalid, 'credential', 'correlation'),
+        executeMarketAffectedUseAssessmentWithAuthorization(invalidRead, 'credential', 'correlation'),
       );
       expect(Exit.isFailure(readExit)).toBe(true);
+      const invalidReservation = {
+        ...request,
+        assessmentDigest: 'b'.repeat(64),
+        evaluatedAt: 'not-an-instant',
+        operation: 'RESERVE' as const,
+        reason: 'Retire Market',
+        sourceEvidence: [sourceEvidence],
+      };
       const actionExit = yield* Effect.exit(
-        executeReserveMarketRetirementWithAuthorization(invalid, 'credential', 'correlation', {
+        executeReserveMarketRetirementWithAuthorization(invalidReservation, 'credential', 'correlation', {
           idempotencyKey: 'idempotency-key',
         }),
       );
