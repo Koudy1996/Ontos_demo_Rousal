@@ -8,14 +8,6 @@ import { MarketHistoryRequestSchema } from '../../shared/apis/market-history.ts'
 import { handleCurrentMarketCatalog } from '../../src/api/current-market-catalog.read.ts';
 import { handleMarketHistory } from '../../src/api/market-history.read.ts';
 import {
-  marketCatalogCompletenessGenerations,
-  marketDefinitionRevisions,
-  marketLifecyclePeriods,
-  markets,
-  storefrontAssociationRevisions,
-  storefrontAssociations,
-} from '../../src/database/schema.ts';
-import {
   MarketCatalogReadPersistenceUnavailable,
   marketCatalogReadPersistenceForScope,
 } from '../../src/persistence/market-catalog-read-persistence.ts';
@@ -29,9 +21,8 @@ const marketId = '55555555-5555-4555-8555-555555555555';
 const definitionRevisionOneId = '66666666-6666-4666-8666-666666666666';
 const definitionRevisionTwoId = '77777777-7777-4777-8777-777777777777';
 const associationId = '88888888-8888-4888-8888-888888888888';
-const actionId = '99999999-9999-4999-8999-999999999999';
-const january = new Date('2030-01-01T00:00:00.000Z');
-const february = new Date('2030-02-01T00:00:00.000Z');
+const january = '2030-01-01T00:00:00.000Z';
+const february = '2030-02-01T00:00:00.000Z';
 const march = '2030-03-01T00:00:00.000Z';
 
 const scope: OperationalScope = {
@@ -46,193 +37,126 @@ const scope: OperationalScope = {
   correlationId: 'market-catalog-owner-reads-test',
 };
 
-const marketRows = [
-  {
-    aggregateRevision: 3,
-    businessCode: 'CZ_MAIN',
-    createdAt: january,
-    createdByActionInvocationId: actionId,
-    createdByPrincipalId: principalId,
-    currentDefinitionRevision: 2,
-    currentDefinitionRevisionId: definitionRevisionTwoId,
-    marketId,
-    sellingLegalEntityId: sellerId,
-    tenantId,
-  },
-] as const;
+const marketRef = {
+  moduleId: 'commerce.market-catalog',
+  resourceId: marketId,
+  resourceType: 'commerce.market-catalog.market',
+  tenantId,
+} as const;
+const sellerRef = {
+  moduleId: 'core.identity',
+  resourceId: sellerId,
+  resourceType: 'core.identity.legal-entity',
+  tenantId,
+} as const;
+const definitionRef = (resourceId: string) => ({
+  moduleId: 'commerce.market-catalog' as const,
+  resourceId,
+  resourceType: 'commerce.market-catalog.market-definition-revision' as const,
+  tenantId,
+});
+const associationRef = {
+  moduleId: 'commerce.market-catalog',
+  resourceId: associationId,
+  resourceType: 'commerce.market-catalog.storefront-association',
+  tenantId,
+} as const;
+const storefrontRef = { appId: 'czech-storefront', tenantId } as const;
 
-const definitionRows = [
-  {
-    actingPrincipalId: principalId,
-    actionInvocationId: actionId,
-    changeReason: 'Initial definition',
-    channels: ['B2C'],
-    effectiveFrom: january,
-    effectiveTo: null,
-    jurisdictions: [{ code: 'CZ', kind: 'COUNTRY' }],
-    marketDefinitionRevisionId: definitionRevisionOneId,
-    marketId,
-    purpose: 'Initial Czech commerce',
-    recordedAt: january,
-    revisionNumber: 1,
-    sellingLegalEntityId: sellerId,
-    supportedLocales: ['cs-CZ'],
-    tenantId,
-  },
-  {
-    actingPrincipalId: principalId,
-    actionInvocationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-    changeReason: 'Add business channel',
-    channels: ['B2C', 'B2B'],
-    effectiveFrom: february,
-    effectiveTo: null,
-    jurisdictions: [{ code: 'CZ', kind: 'COUNTRY' }],
-    marketDefinitionRevisionId: definitionRevisionTwoId,
-    marketId,
-    purpose: 'Czech retail and business commerce',
-    recordedAt: february,
-    revisionNumber: 2,
-    sellingLegalEntityId: sellerId,
-    supportedLocales: ['cs-CZ', 'en-CZ'],
-    tenantId,
-  },
-] as const;
+const definitionOne = {
+  channels: ['B2C'],
+  definitionRevisionRef: definitionRef(definitionRevisionOneId),
+  effectivePeriod: { startsAt: january },
+  jurisdictions: [{ code: 'CZ', kind: 'COUNTRY' }],
+  lifecycle: 'ACTIVE',
+  marketCode: 'CZ_MAIN',
+  marketRef,
+  purpose: 'Initial Czech commerce',
+  revision: 1,
+  sellingLegalEntityRef: sellerRef,
+  supportedLocales: ['cs-CZ'],
+} as const;
+const definitionTwo = {
+  ...definitionOne,
+  channels: ['B2C', 'B2B'],
+  definitionRevisionRef: definitionRef(definitionRevisionTwoId),
+  effectivePeriod: { startsAt: february },
+  previousDefinitionRevisionRef: definitionRef(definitionRevisionOneId),
+  purpose: 'Czech retail and business commerce',
+  revision: 2,
+  supportedLocales: ['cs-CZ', 'en-CZ'],
+} as const;
+const associationOne = {
+  associationRef,
+  channel: 'B2C',
+  effectivePeriod: { startsAt: january },
+  marketDefinitionRevisionRef: definitionRef(definitionRevisionOneId),
+  marketRef,
+  provenance: { kind: 'CONFIGURATION_ACTION', reference: 'fixture:v1' },
+  revision: 1,
+  sellingLegalEntityRef: sellerRef,
+  storefrontRef,
+} as const;
+const associationTwo = {
+  ...associationOne,
+  channel: 'B2B',
+  effectivePeriod: { startsAt: february },
+  marketDefinitionRevisionRef: definitionRef(definitionRevisionTwoId),
+  previousAssociationRevision: 1,
+  provenance: { kind: 'CONFIGURATION_ACTION', reference: 'fixture:v2' },
+  revision: 2,
+} as const;
 
-const lifecycleRows = [
-  {
-    actingPrincipalId: principalId,
-    actionInvocationId: actionId,
-    effectiveFrom: january,
-    effectiveTo: null,
-    lifecycle: 'ACTIVE',
-    marketId,
-    marketLifecyclePeriodId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-    reason: 'Initial activation',
-    recordedAt: january,
-    retirementImpactAssessment: null,
-    revisionNumber: 1,
-    sellingLegalEntityId: sellerId,
-    tenantId,
+const currentPayload = {
+  associations: [associationTwo],
+  completenessEvidence: {
+    observedAt: march,
+    ownerRevision: 'commerce.market-catalog.current:v1:generation:7',
+    scope: {
+      kind: 'EXACT_PREDICATE',
+      predicateRef: `commerce.market-catalog.current:v1:${tenantId}:${sellerId}:${march}`,
+    },
   },
-] as const;
+  markets: [definitionTwo],
+  observedAt: march,
+} as const;
+const historyPayload = {
+  associations: [associationOne, associationTwo],
+  definitions: [definitionOne, definitionTwo],
+  marketRef,
+} as const;
 
-const associationHeadRows = [
-  {
-    createdAt: january,
-    createdByActionInvocationId: actionId,
-    createdByPrincipalId: principalId,
-    currentRevision: 2,
-    sellingLegalEntityId: sellerId,
-    storefrontAssociationId: associationId,
-    tenantId,
-  },
-] as const;
-
-const associationRows = [
-  {
-    actingPrincipalId: principalId,
-    actionInvocationId: actionId,
-    channel: 'B2C',
-    effectiveFrom: january,
-    effectiveTo: null,
-    marketDefinitionRevisionId: definitionRevisionOneId,
-    marketId,
-    provenanceKind: 'CONFIGURATION_ACTION',
-    provenanceReference: 'fixture:v1',
-    reason: 'Initial association',
-    recordedAt: january,
-    removedAt: null,
-    revisionNumber: 1,
-    sellingLegalEntityId: sellerId,
-    storefrontAppId: 'czech-storefront',
-    storefrontAssociationId: associationId,
-    storefrontAssociationRevisionId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-    tenantId,
-  },
-  {
-    actingPrincipalId: principalId,
-    actionInvocationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-    channel: 'B2B',
-    effectiveFrom: february,
-    effectiveTo: null,
-    marketDefinitionRevisionId: definitionRevisionTwoId,
-    marketId,
-    provenanceKind: 'CONFIGURATION_ACTION',
-    provenanceReference: 'fixture:v2',
-    reason: 'Enable business association',
-    recordedAt: february,
-    removedAt: null,
-    revisionNumber: 2,
-    sellingLegalEntityId: sellerId,
-    storefrontAppId: 'czech-storefront',
-    storefrontAssociationId: associationId,
-    storefrontAssociationRevisionId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
-    tenantId,
-  },
-] as const;
-
-type ReadTable =
-  | typeof marketCatalogCompletenessGenerations
-  | typeof marketDefinitionRevisions
-  | typeof marketLifecyclePeriods
-  | typeof markets
-  | typeof storefrontAssociationRevisions
-  | typeof storefrontAssociations;
-
-interface RowsOptions {
-  readonly definitions?: readonly object[];
-  readonly unavailableTable?: ReadTable;
+interface RoutineStub {
+  readonly routineKey: string;
 }
 
-const rowsFor = (table: ReadTable, options: RowsOptions): readonly object[] => {
-  if (table === markets) {
-    return marketRows;
-  }
-  if (table === marketDefinitionRevisions) {
-    return options.definitions ?? definitionRows;
-  }
-  if (table === marketLifecyclePeriods) {
-    return lifecycleRows;
-  }
-  if (table === storefrontAssociations) {
-    return associationHeadRows;
-  }
-  if (table === storefrontAssociationRevisions) {
-    return associationRows;
-  }
-  if (table === marketCatalogCompletenessGenerations) {
-    return [{ generation: 7, lastActionInvocationId: actionId, tenantId, updatedAt: february }];
-  }
-  return [];
-};
+interface TransactionOptions {
+  readonly malformedCurrent?: boolean;
+  readonly missingHistory?: boolean;
+  readonly unavailable?: boolean;
+}
 
-const transactionFor = (options: RowsOptions = {}) => ({
-  select: () => ({
-    from: (table: ReadTable) => ({
-      where: () =>
-        table === options.unavailableTable
-          ? Effect.fail(new Error('Owner read unavailable'))
-          : Effect.succeed(rowsFor(table, options)),
-    }),
-  }),
+const transactionFor = (options: TransactionOptions = {}) => ({
+  invoke: (routine: RoutineStub) => {
+    if (options.unavailable === true) {
+      return Effect.fail({ _tag: 'ScopedRoutineInvocationError' });
+    }
+    if (routine.routineKey === 'market-catalog-read.current') {
+      return Effect.succeed([{ payload: options.malformedCurrent === true ? { markets: [] } : currentPayload }]);
+    }
+    return Effect.succeed(options.missingHistory === true ? [] : [{ payload: historyPayload }]);
+  },
 });
 
-const persistenceFor = (options: RowsOptions = {}) =>
-  // @ts-expect-error Only the exercised owner-local Drizzle select chains are mocked.
+const persistenceFor = (options: TransactionOptions = {}) =>
+  // @ts-expect-error Only the exercised owner-local governed routine invocation is mocked.
   marketCatalogReadPersistenceForScope(transactionFor(options), scope);
 
 const currentInput = Schema.decodeUnknownSync(CurrentMarketCatalogRequestSchema)({ at: march });
-const historyInput = Schema.decodeUnknownSync(MarketHistoryRequestSchema)({
-  marketRef: {
-    moduleId: 'commerce.market-catalog',
-    resourceId: marketId,
-    resourceType: 'commerce.market-catalog.market',
-    tenantId,
-  },
-});
+const historyInput = Schema.decodeUnknownSync(MarketHistoryRequestSchema)({ marketRef });
 
 describe('Commerce Market Catalog owner reads', () => {
-  it.effect('returns the latest applicable owner facts with generation-backed completeness', () =>
+  it.effect('decodes the governed Current owner snapshot with generation-backed completeness', () =>
     Effect.gen(function* currentOwnerFacts() {
       const persistence = yield* persistenceFor();
       const result = yield* persistence.current(currentInput);
@@ -244,22 +168,18 @@ describe('Commerce Market Catalog owner reads', () => {
         previousDefinitionRevisionRef: { resourceId: definitionRevisionOneId },
         revision: 2,
       });
-      expect(result.associations).toHaveLength(1);
       expect(result.associations[0]).toMatchObject({
         channel: 'B2B',
         marketDefinitionRevisionRef: { resourceId: definitionRevisionTwoId },
         previousAssociationRevision: 1,
         revision: 2,
       });
-      expect(result.completenessEvidence).toMatchObject({
-        ownerRevision: 'commerce.market-catalog.current:v1:generation:7',
-        scope: { kind: 'EXACT_PREDICATE' },
-      });
+      expect(result.completenessEvidence.ownerRevision).toBe('commerce.market-catalog.current:v1:generation:7');
       expect(result.completenessEvidence.scope.predicateRef).toContain(sellerId);
     }),
   );
 
-  it.effect('retains immutable definition and association revisions in owner history', () =>
+  it.effect('decodes immutable definition and association revisions from the governed history routine', () =>
     Effect.gen(function* retainedHistory() {
       const persistence = yield* persistenceFor();
       const result = yield* persistence.history(marketId);
@@ -275,27 +195,33 @@ describe('Commerce Market Catalog owner reads', () => {
     }),
   );
 
-  it.effect('fails closed for incomplete revision chains and owner persistence failures', () =>
+  it.effect('fails closed for malformed routine payloads and invocation failures', () =>
     Effect.gen(function* failClosed() {
-      const incomplete = yield* persistenceFor({ definitions: [definitionRows[1]] });
-      const incompleteError = yield* incomplete.current(currentInput).pipe(Effect.flip);
-      expect(Schema.is(MarketCatalogReadPersistenceUnavailable)(incompleteError)).toBe(true);
+      const malformed = yield* persistenceFor({ malformedCurrent: true });
+      const malformedError = yield* malformed.current(currentInput).pipe(Effect.flip);
+      expect(Schema.is(MarketCatalogReadPersistenceUnavailable)(malformedError)).toBe(true);
 
-      const unavailable = yield* persistenceFor({ unavailableTable: markets });
+      const unavailable = yield* persistenceFor({ unavailable: true });
       const unavailableError = yield* unavailable.current(currentInput).pipe(Effect.flip);
       expect(Schema.is(MarketCatalogReadPersistenceUnavailable)(unavailableError)).toBe(true);
     }),
   );
 
-  it.effect('maps owner persistence inability and cross-Tenant history lookup to governed read failures', () =>
+  it.effect('maps missing and cross-Tenant history to governed not-found failures', () =>
     Effect.gen(function* governedFailures() {
-      const failure = new MarketCatalogReadPersistenceUnavailable({
-        code: 'market_catalog_read_persistence_unavailable',
-        reason: 'fixture unavailable',
-      });
+      const persistence = yield* persistenceFor({ missingHistory: true });
+      const missing = yield* persistence.history(marketId);
+      expect(Option.isNone(missing)).toBe(true);
+
       const unavailableServices: MarketCatalogReadPersistence = {
-        current: () => Effect.fail(failure),
-        history: () => Effect.fail(failure),
+        current: () =>
+          Effect.fail(
+            new MarketCatalogReadPersistenceUnavailable({
+              code: 'market_catalog_read_persistence_unavailable',
+              reason: 'fixture unavailable',
+            }),
+          ),
+        history: () => Effect.succeed(Option.none()),
       };
       const context = { readKey: 'market-catalog-owner-reads', scope, services: unavailableServices };
       const currentError = yield* handleCurrentMarketCatalog(currentInput, context).pipe(Effect.flip);
