@@ -192,8 +192,8 @@ it.effect('publishes a schema-valid deterministic Czech Launch operator fixture'
         targetDivisibilityRevision: 1,
         targetRef: {
           moduleId: 'commerce.catalog',
-          resourceId: '76000000-0000-4000-8000-000000000010',
-          resourceType: 'commerce.catalog.variant',
+          resourceId: '76000000-0000-4000-8000-000000000015',
+          resourceType: 'commerce.catalog.package-definition',
           tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
         },
         unitRef: {
@@ -208,11 +208,11 @@ it.effect('publishes a schema-valid deterministic Czech Launch operator fixture'
       envelope: { kind: 'BOUNDED', maximum: null, minimum: '1', multiple: '1' },
       kind: 'COMMERCE_QUANTITY_RULE',
       selector: {
-        kind: 'VARIANT',
-        variantRef: {
+        kind: 'PACKAGE_OPTION',
+        packageOptionRef: {
           moduleId: 'commerce.catalog',
-          resourceId: '76000000-0000-4000-8000-000000000010',
-          resourceType: 'commerce.catalog.variant',
+          resourceId: '76000000-0000-4000-8000-000000000015',
+          resourceType: 'commerce.catalog.package-definition',
           tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
         },
       },
@@ -224,31 +224,15 @@ it.effect('fails Czech Launch activation closed without every current owner proo
   Effect.gen(function* validateActivation() {
     expect(
       yield* validateCzechLaunchActivation({
-        catalogQuantityBasisCurrent: true,
-        marketEligibleTupleCurrent: true,
-        paymentTermCurrent: false,
-        policySetsComplete: {
-          marketBootstrap: true,
-          paymentTerm: true,
-          purchaseCurrency: true,
-          quantity: true,
+        ...CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts,
+        paymentTermCatalog: {
+          ...CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.paymentTermCatalog,
+          current: [],
         },
       }).pipe(Effect.flip),
     ).toBeInstanceOf(CzechLaunchActivationRejected);
 
-    expect(
-      yield* validateCzechLaunchActivation({
-        catalogQuantityBasisCurrent: true,
-        marketEligibleTupleCurrent: true,
-        paymentTermCurrent: true,
-        policySetsComplete: {
-          marketBootstrap: true,
-          paymentTerm: true,
-          purchaseCurrency: true,
-          quantity: true,
-        },
-      }),
-    ).toBeDefined();
+    expect(yield* validateCzechLaunchActivation(CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts)).toBeDefined();
   }),
 );
 
