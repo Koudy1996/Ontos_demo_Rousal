@@ -139,6 +139,7 @@ export const commerceCustomerContextFoundationApi = HttpApi.make('CommerceCustom
 );
 export * from './apis/payment-term-affected-use-assessment.ts';
 export * from './apis/market-affected-use-assessment.ts';
+export * from './apis/commerce-quantity-policy-current.ts';
 export * from './apis/commerce-quantity-resolution.ts';
 export * from './apis/market-bootstrap-policy-current.ts';
 export * from './apis/market-bootstrap-resolution.ts';
