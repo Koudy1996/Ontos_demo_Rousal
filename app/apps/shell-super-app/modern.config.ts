@@ -228,6 +228,14 @@ export default defineConfig(
             },
             {
               binding:
+                getOptionalBuildConfig('VERTICAL_COMMERCE_MARKET_CATALOG_WORKER_BINDING') ??
+                'VERTICAL_COMMERCE_MARKET_CATALOG_WORKER',
+              prefix: '/commerce-market-catalog-api',
+              service:
+                getOptionalBuildConfig('VERTICAL_COMMERCE_MARKET_CATALOG_WORKER_NAME') ?? 'app-commerce-market-catalog',
+            },
+            {
+              binding:
                 getOptionalBuildConfig('VERTICAL_PARTY_REGISTRY_WORKER_BINDING') ?? 'VERTICAL_PARTY_REGISTRY_WORKER',
               prefix: '/party-registry-api',
               service: getOptionalBuildConfig('VERTICAL_PARTY_REGISTRY_WORKER_NAME') ?? 'app-party-registry',
@@ -239,6 +247,18 @@ export default defineConfig(
               prefix: '/payment-term-catalog-api',
               service:
                 getOptionalBuildConfig('VERTICAL_PAYMENT_TERM_CATALOG_WORKER_NAME') ?? 'app-payment-term-catalog',
+            },
+            {
+              binding: getOptionalBuildConfig('VERTICAL_PRICING_WORKER_BINDING') ?? 'VERTICAL_PRICING_WORKER',
+              prefix: '/pricing-api',
+              service: getOptionalBuildConfig('VERTICAL_PRICING_WORKER_NAME') ?? 'app-pricing',
+            },
+            {
+              binding:
+                getOptionalBuildConfig('VERTICAL_STOREFRONT_REGISTRY_WORKER_BINDING') ??
+                'VERTICAL_STOREFRONT_REGISTRY_WORKER',
+              prefix: '/storefront-registry-api',
+              service: getOptionalBuildConfig('VERTICAL_STOREFRONT_REGISTRY_WORKER_NAME') ?? 'app-storefront-registry',
             },
           ],
           ssr: true,
