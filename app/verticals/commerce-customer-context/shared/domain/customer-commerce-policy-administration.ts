@@ -627,7 +627,11 @@ const revisionMatchesTrustedScope = (
   } else if (revision.value.selector.kind === 'PACKAGE_OPTION') {
     selectorTenantId = revision.value.selector.packageOptionRef.tenantId;
   }
-  return selectorTenantId === command.tenantId && revision.value.basis.basisRef.tenantId === command.tenantId;
+  return (
+    selectorTenantId === command.tenantId &&
+    revision.value.basis.targetRef.tenantId === command.tenantId &&
+    revision.value.basis.unitRef.tenantId === command.tenantId
+  );
 };
 
 const lifecycleTransition = (
