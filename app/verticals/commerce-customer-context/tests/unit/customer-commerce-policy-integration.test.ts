@@ -8,10 +8,15 @@ import { makeReadRuntime } from '../../../../packages/core-runtime/src/reads/run
 import { makeTestDatabase } from '../../../../packages/core-runtime/tests/support/database.ts';
 import { openModuleEntrypointGateway } from '../../../../packages/core-runtime/tests/support/open-module-entrypoint-gateway.ts';
 import { CommerceQuantityPolicyCurrentResponseSchema } from '../../shared/apis/commerce-quantity-policy-current.ts';
+import { MarketBootstrapPolicyCurrentResponseSchema } from '../../shared/apis/market-bootstrap-policy-current.ts';
 import { PaymentTermPolicyCurrentResponseSchema } from '../../shared/apis/payment-term-policy-current.ts';
 import { PurchaseCurrencyPolicyCurrentResponseSchema } from '../../shared/apis/purchase-currency-policy-current.ts';
 import {
+  CommerceQuantityAssignmentPayloadSchema,
+  CommerceQuantityRuleAdministrationPayloadSchema,
   CustomerCommercePolicyAdministrationRejected,
+  MarketBootstrapPolicyAdministrationPayloadSchema,
+  PaymentTermPolicyAdministrationPayloadSchema,
   PurchaseCurrencyPolicyAdministrationPayloadSchema,
   toTrustedPurchaseCurrencyPolicyAdministrationCommand,
 } from '../../shared/domain/customer-commerce-policy-administration.ts';
@@ -45,6 +50,7 @@ const stalePurchaseCurrencyRevisionId = '50000000-0000-4000-8000-000000000002';
 const paymentTermRevisionId = '50000000-0000-4000-8000-000000000003';
 const quantityRuleRevisionId = '50000000-0000-4000-8000-000000000004';
 const quantityAssignmentId = '50000000-0000-4000-8000-000000000005';
+const marketBootstrapRevisionId = '50000000-0000-4000-8000-000000000006';
 const at = '2026-09-21T10:00:00.000Z';
 const emptyBootstrapBatch: MarketBootstrapPolicyBatchCurrentResponse = { sellers: [] };
 
@@ -71,6 +77,7 @@ const actionPrincipal = {
 interface PolicyReadAuthorizationHarnessOptions {
   readonly contextPermissionDecision: (permission: string) => 'allowed' | 'denied' | 'unavailable';
   readonly modulePermissionDecision: 'allowed' | 'denied' | 'unavailable';
+  readonly routineResults?: readonly (readonly [name: string, result: Schema.Json])[];
 }
 
 const makePolicyReadAuthorizationHarness = Effect.fn(function* makePolicyReadAuthorizationHarness(
@@ -79,12 +86,23 @@ const makePolicyReadAuthorizationHarness = Effect.fn(function* makePolicyReadAut
   let businessPermissionCalls = 0;
   let handlerQueries = 0;
   const contextPermissions: string[] = [];
+  const moduleIds: string[] = [];
+  const routineCalls: string[] = [];
   const database = {
     executor: yield* makeTestDatabase((text) => {
       if (text.includes('data_access_events')) {
         return Effect.succeed([]);
       }
-      handlerQueries += 1;
+      if (text.includes('current_setting')) {
+        return Effect.succeed([{ legal_entity_id: legalEntityId, tenant_id: tenantId }]);
+      }
+      for (const [routineName, result] of options.routineResults ?? []) {
+        if (text.includes(routineName)) {
+          handlerQueries += 1;
+          routineCalls.push(routineName);
+          return Effect.succeed([{ result }]);
+        }
+      }
       return Effect.succeed([]);
     }),
   };
@@ -105,8 +123,10 @@ const makePolicyReadAuthorizationHarness = Effect.fn(function* makePolicyReadAut
       ),
     legalEntities: ({ legalEntityIds }) =>
       Effect.succeed(legalEntityIds.map((key) => ({ decision: 'allowed' as const, key }))),
-    modules: ({ moduleIds }) =>
-      Effect.succeed(moduleIds.map((key) => ({ decision: options.modulePermissionDecision, key }))),
+    modules: ({ moduleIds: requestedModuleIds }) => {
+      moduleIds.push(...requestedModuleIds);
+      return Effect.succeed(requestedModuleIds.map((key) => ({ decision: options.modulePermissionDecision, key })));
+    },
     resources: ({ resources }) =>
       Effect.succeed(
         resources.map((resource) => ({
@@ -126,6 +146,8 @@ const makePolicyReadAuthorizationHarness = Effect.fn(function* makePolicyReadAut
     businessPermissionCalls: () => businessPermissionCalls,
     contextPermissions,
     handlerQueries: () => handlerQueries,
+    moduleIds,
+    routineCalls,
     runtime,
   };
 });
@@ -371,6 +393,151 @@ const currentProjectionStates = {
   },
 } as const satisfies Readonly<Record<string, Schema.Json>>;
 
+const currentBootstrapBatch = Schema.decodeUnknownSync(MarketBootstrapPolicyCurrentResponseSchema)({
+  sellers: [
+    {
+      candidates: [
+        {
+          defaultTuple: {
+            channelId: 'web',
+            commerceMarketId: 'cz-market',
+            sellingLegalEntityId: legalEntityId,
+          },
+          policyRevisionId: marketBootstrapRevisionId,
+          scope: { kind: 'SELLER', sellingLegalEntityId: legalEntityId },
+        },
+      ],
+      completeness: {
+        observedAt: at,
+        ownerRevision: 'MARKET_BOOTSTRAP:1',
+        scope: {
+          kind: 'EXACT_PREDICATE',
+          predicateRef: `commerce.customer-context.policy.market_bootstrap.current.seller.${legalEntityId}`,
+        },
+      },
+      sellingLegalEntityId: legalEntityId,
+    },
+  ],
+});
+
+const currentRoutineResults = [
+  ['load_commerce_quantity_rule_assignments', currentProjectionStates.load_commerce_quantity_rule_assignments],
+  ['load_commerce_quantity_rule_state', currentProjectionStates.load_commerce_quantity_rule_state],
+  ['load_current_market_bootstrap_policy_candidates', currentBootstrapBatch],
+  ['load_payment_term_policy_state', currentProjectionStates.load_payment_term_policy_state],
+  ['load_purchase_currency_policy_state', currentProjectionStates.load_purchase_currency_policy_state],
+] as const satisfies readonly (readonly [name: string, result: Schema.Json])[];
+
+const marketBootstrapPayload = Schema.decodeUnknownSync(MarketBootstrapPolicyAdministrationPayloadSchema)({
+  _tag: 'CREATE_REVISION',
+  expectedGeneration: 0,
+  revision: {
+    effectiveFrom: at,
+    effectiveTo: null,
+    field: 'MARKET_BOOTSTRAP',
+    idempotencyKey: 'market-bootstrap-create-1',
+    lifecycle: 'ACTIVE',
+    reason: 'Launch market defaults',
+    revisionId: marketBootstrapRevisionId,
+    scope: { kind: 'SELLER', sellingLegalEntityId: legalEntityId },
+    value: {
+      defaultChannelId: 'web',
+      defaultCommerceMarketId: 'cz-market',
+      defaultSellingLegalEntityId: legalEntityId,
+      kind: 'DEFAULT_MARKET_TUPLE',
+    },
+  },
+});
+
+const paymentTermPayload = Schema.decodeUnknownSync(PaymentTermPolicyAdministrationPayloadSchema)({
+  _tag: 'CREATE_REVISION',
+  expectedGeneration: 0,
+  revision: {
+    effectiveFrom: at,
+    effectiveTo: null,
+    field: 'PAYMENT_TERM',
+    idempotencyKey: 'payment-term-create-1',
+    lifecycle: 'ACTIVE',
+    reason: 'Launch payment term',
+    revisionId: paymentTermRevisionId,
+    scope: { kind: 'SELLER', sellingLegalEntityId: legalEntityId },
+    value: {
+      kind: 'FALLBACK_PAYMENT_TERM',
+      paymentTermRef: {
+        moduleId: 'payment.term-catalog',
+        resourceId: 'net-14',
+        resourceType: 'payment.term-catalog.payment-term',
+        tenantId,
+      },
+    },
+  },
+});
+
+const quantityRulePayload = Schema.decodeUnknownSync(CommerceQuantityRuleAdministrationPayloadSchema)({
+  _tag: 'CREATE_REVISION',
+  expectedGeneration: 0,
+  revision: {
+    effectiveFrom: at,
+    effectiveTo: null,
+    field: 'COMMERCE_QUANTITY_RULE',
+    idempotencyKey: 'quantity-rule-create-1',
+    lifecycle: 'ACTIVE',
+    reason: 'Launch quantity rule',
+    revisionId: quantityRuleRevisionId,
+    scope: { channelId: 'web', kind: 'CHANNEL_SELLER', sellingLegalEntityId: legalEntityId },
+    value: {
+      basis: {
+        targetDivisibilityRevision: 1,
+        targetRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '55555555-5555-4555-8555-555555555555',
+          resourceType: 'commerce.catalog.variant',
+          tenantId,
+        },
+        unitRef: {
+          moduleId: 'commerce.catalog',
+          resourceId: '66666666-6666-4666-8666-666666666666',
+          resourceType: 'commerce.catalog.product-unit',
+          tenantId,
+        },
+        unitRuleRevision: 2,
+      },
+      constraintMode: 'REPLACEABLE_ENVELOPE',
+      envelope: { kind: 'NO_COMMERCIAL_QUANTITY_RESTRICTION' },
+      kind: 'COMMERCE_QUANTITY_RULE',
+      selector: { kind: 'ALL' },
+    },
+  },
+});
+
+const quantityAssignmentPayload = Schema.decodeUnknownSync(CommerceQuantityAssignmentPayloadSchema)({
+  _tag: 'ASSIGN',
+  assignment: {
+    assignmentId: quantityAssignmentId,
+    effectiveFrom: at,
+    effectiveTo: null,
+    idempotencyKey: 'quantity-assignment-create-1',
+    lifecycle: 'ACTIVE',
+    profile: {
+      kind: 'RETAIL',
+      profileRef: {
+        moduleId: 'commerce.customer-context',
+        resourceId: 'retail-profile-1',
+        resourceType: 'commerce.customer-context.retail-customer-profile',
+        tenantId,
+      },
+    },
+    reason: 'Launch quantity assignment',
+    ruleRevisionRef: {
+      moduleId: 'commerce.customer-context',
+      resourceId: quantityRuleRevisionId,
+      resourceType: 'commerce.customer-context.commerce-quantity-rule',
+      tenantId,
+    },
+  },
+  expectedGeneration: 0,
+});
+
 describe('Customer Commerce Policy integration', () => {
   it.effect('persists a changed mutation once, replays idempotently, and maps stale generation', () => {
     const { calls, invoker } = statefulInvoker();
@@ -485,19 +652,30 @@ describe('Customer Commerce Policy integration', () => {
     });
   });
 
-  it.effect('preserves a typed lifecycle rejection through the real Action runtime', () =>
-    Effect.gen(function* actionLifecycleRejection() {
-      const rejection = new CustomerCommercePolicyAdministrationRejected({
-        code: 'INVALID_LIFECYCLE_TRANSITION',
-        reason: 'The requested lifecycle transition is not valid',
-        retryable: false,
-      });
+  it.effect('commits every policy family through the real Action runtime', () =>
+    Effect.gen(function* actionRuntimeSuccess() {
+      const ownerServiceCalls: string[] = [];
+      const succeedFrom = (method: string, revisionId: string) => {
+        ownerServiceCalls.push(method);
+        return Effect.succeed({
+          changed: true,
+          completeness: {
+            observedAt: at,
+            ownerRevision: `customer-commerce-policy-runtime:${revisionId}`,
+            scope: { kind: 'EXACT_PREDICATE' as const, predicateRef: 'customer-commerce-policy-runtime:current' },
+          },
+          generation: 1,
+          revisionIds: [revisionId],
+        });
+      };
       const service = {
-        administerCommerceQuantityRule: () => Effect.die('unused'),
-        administerMarketBootstrapPolicy: () => Effect.die('unused'),
-        administerPaymentTermPolicy: () => Effect.die('unused'),
-        administerPurchaseCurrencyPolicy: () => Effect.fail(rejection),
-        assignCommerceQuantityRule: () => Effect.die('unused'),
+        administerCommerceQuantityRule: () => succeedFrom('administerCommerceQuantityRule', quantityRuleRevisionId),
+        administerMarketBootstrapPolicy: () =>
+          succeedFrom('administerMarketBootstrapPolicy', marketBootstrapRevisionId),
+        administerPaymentTermPolicy: () => succeedFrom('administerPaymentTermPolicy', paymentTermRevisionId),
+        administerPurchaseCurrencyPolicy: () =>
+          succeedFrom('administerPurchaseCurrencyPolicy', purchaseCurrencyRevisionId),
+        assignCommerceQuantityRule: () => succeedFrom('assignCommerceQuantityRule', quantityAssignmentId),
         readCurrentCommerceQuantityAssignments: () => Effect.die('unused'),
         readCurrentCommerceQuantityPolicy: () => Effect.die('unused'),
         readCurrentCommerceQuantityRules: () => Effect.die('unused'),
@@ -508,26 +686,202 @@ describe('Customer Commerce Policy integration', () => {
       } satisfies CustomerCommercePolicyAdministrationService;
       const harness = yield* makeActionTestHarness({
         actionPermission: 'allowed',
-        services: [bindActionTestServices(administerPurchaseCurrencyPolicyAction, service)],
+        services: [
+          bindActionTestServices(administerMarketBootstrapPolicyAction, service),
+          bindActionTestServices(administerPurchaseCurrencyPolicyAction, service),
+          bindActionTestServices(administerPaymentTermPolicyAction, service),
+          bindActionTestServices(administerCommerceQuantityRuleAction, service),
+          bindActionTestServices(assignCommerceQuantityRuleAction, service),
+        ],
       });
-      const failure = yield* harness.runtime
-        .runAction({
-          payload: purchaseCurrencyPayload,
-          principal: actionPrincipal,
-          registration: administerPurchaseCurrencyPolicyAction,
-          transport: {
-            correlationId: 'policy-lifecycle-rejection',
-            idempotencyKey: purchaseCurrencyRevisionInput.idempotencyKey,
-          },
-        })
-        .pipe(Effect.flip);
+      const results = yield* Effect.all(
+        [
+          harness.runtime.runAction({
+            payload: marketBootstrapPayload,
+            principal: actionPrincipal,
+            registration: administerMarketBootstrapPolicyAction,
+            transport: {
+              correlationId: 'market-bootstrap-runtime-success',
+              idempotencyKey: 'market-bootstrap-create-1',
+            },
+          }),
+          harness.runtime.runAction({
+            payload: purchaseCurrencyPayload,
+            principal: actionPrincipal,
+            registration: administerPurchaseCurrencyPolicyAction,
+            transport: {
+              correlationId: 'purchase-currency-runtime-success',
+              idempotencyKey: purchaseCurrencyRevisionInput.idempotencyKey,
+            },
+          }),
+          harness.runtime.runAction({
+            payload: paymentTermPayload,
+            principal: actionPrincipal,
+            registration: administerPaymentTermPolicyAction,
+            transport: {
+              correlationId: 'payment-term-runtime-success',
+              idempotencyKey: 'payment-term-create-1',
+            },
+          }),
+          harness.runtime.runAction({
+            payload: quantityRulePayload,
+            principal: actionPrincipal,
+            registration: administerCommerceQuantityRuleAction,
+            transport: {
+              correlationId: 'quantity-rule-runtime-success',
+              idempotencyKey: 'quantity-rule-create-1',
+            },
+          }),
+          harness.runtime.runAction({
+            payload: quantityAssignmentPayload,
+            principal: actionPrincipal,
+            registration: assignCommerceQuantityRuleAction,
+            transport: {
+              correlationId: 'quantity-assignment-runtime-success',
+              idempotencyKey: 'quantity-assignment-create-1',
+            },
+          }),
+        ],
+        { concurrency: 1 },
+      );
 
-      expect(Schema.is(CustomerCommercePolicyAdministrationRejected)(failure)).toBe(true);
-      expect(failure).toMatchObject({
+      expect(results.map(({ generation }) => generation)).toEqual([1, 1, 1, 1, 1]);
+      expect(ownerServiceCalls).toEqual([
+        'administerMarketBootstrapPolicy',
+        'administerPurchaseCurrencyPolicy',
+        'administerPaymentTermPolicy',
+        'administerCommerceQuantityRule',
+        'assignCommerceQuantityRule',
+      ]);
+      const snapshot = harness.snapshot();
+      expect(snapshot.invocations.map(({ actionKey }) => actionKey)).toEqual([
+        'commerce.customer-context.administer-market-bootstrap-policy',
+        'commerce.customer-context.administer-purchase-currency-policy',
+        'commerce.customer-context.administer-payment-term-policy',
+        'commerce.customer-context.administer-commerce-quantity-rule',
+        'commerce.customer-context.assign-commerce-quantity-rule',
+      ]);
+      expect(snapshot.committed).toHaveLength(5);
+      for (const committed of snapshot.committed) {
+        expect(committed.evidence.auditEvidence).not.toEqual({});
+        expect(committed.evidence.domainEvents).toHaveLength(1);
+        expect(committed.evidence.outboxMessages).toHaveLength(1);
+      }
+    }),
+  );
+
+  it.effect('preserves typed owner rejections for every policy family through the real Action runtime', () =>
+    Effect.gen(function* actionLifecycleRejection() {
+      const rejection = new CustomerCommercePolicyAdministrationRejected({
         code: 'INVALID_LIFECYCLE_TRANSITION',
-        reason: rejection.reason,
+        reason: 'The requested lifecycle transition is not valid',
         retryable: false,
       });
+      const ownerServiceCalls: string[] = [];
+      const rejectFrom = (method: string) => {
+        ownerServiceCalls.push(method);
+        return Effect.fail(rejection);
+      };
+      const service = {
+        administerCommerceQuantityRule: () => rejectFrom('administerCommerceQuantityRule'),
+        administerMarketBootstrapPolicy: () => rejectFrom('administerMarketBootstrapPolicy'),
+        administerPaymentTermPolicy: () => rejectFrom('administerPaymentTermPolicy'),
+        administerPurchaseCurrencyPolicy: () => rejectFrom('administerPurchaseCurrencyPolicy'),
+        assignCommerceQuantityRule: () => rejectFrom('assignCommerceQuantityRule'),
+        readCurrentCommerceQuantityAssignments: () => Effect.die('unused'),
+        readCurrentCommerceQuantityPolicy: () => Effect.die('unused'),
+        readCurrentCommerceQuantityRules: () => Effect.die('unused'),
+        readCurrentMarketBootstrapPolicy: () => Effect.die('unused'),
+        readCurrentMarketBootstrapPolicyCandidates: () => Effect.die('unused'),
+        readCurrentPaymentTermPolicy: () => Effect.die('unused'),
+        readCurrentPurchaseCurrencyPolicy: () => Effect.die('unused'),
+      } satisfies CustomerCommercePolicyAdministrationService;
+      const harness = yield* makeActionTestHarness({
+        actionPermission: 'allowed',
+        services: [
+          bindActionTestServices(administerMarketBootstrapPolicyAction, service),
+          bindActionTestServices(administerPurchaseCurrencyPolicyAction, service),
+          bindActionTestServices(administerPaymentTermPolicyAction, service),
+          bindActionTestServices(administerCommerceQuantityRuleAction, service),
+          bindActionTestServices(assignCommerceQuantityRuleAction, service),
+        ],
+      });
+      const failures = yield* Effect.all(
+        [
+          harness.runtime
+            .runAction({
+              payload: marketBootstrapPayload,
+              principal: actionPrincipal,
+              registration: administerMarketBootstrapPolicyAction,
+              transport: {
+                correlationId: 'market-bootstrap-lifecycle-rejection',
+                idempotencyKey: 'market-bootstrap-create-1',
+              },
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: purchaseCurrencyPayload,
+              principal: actionPrincipal,
+              registration: administerPurchaseCurrencyPolicyAction,
+              transport: {
+                correlationId: 'purchase-currency-lifecycle-rejection',
+                idempotencyKey: purchaseCurrencyRevisionInput.idempotencyKey,
+              },
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: paymentTermPayload,
+              principal: actionPrincipal,
+              registration: administerPaymentTermPolicyAction,
+              transport: {
+                correlationId: 'payment-term-lifecycle-rejection',
+                idempotencyKey: 'payment-term-create-1',
+              },
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: quantityRulePayload,
+              principal: actionPrincipal,
+              registration: administerCommerceQuantityRuleAction,
+              transport: {
+                correlationId: 'quantity-rule-lifecycle-rejection',
+                idempotencyKey: 'quantity-rule-create-1',
+              },
+            })
+            .pipe(Effect.flip),
+          harness.runtime
+            .runAction({
+              payload: quantityAssignmentPayload,
+              principal: actionPrincipal,
+              registration: assignCommerceQuantityRuleAction,
+              transport: {
+                correlationId: 'quantity-assignment-lifecycle-rejection',
+                idempotencyKey: 'quantity-assignment-create-1',
+              },
+            })
+            .pipe(Effect.flip),
+        ],
+        { concurrency: 1 },
+      );
+
+      for (const failure of failures) {
+        expect(Schema.is(CustomerCommercePolicyAdministrationRejected)(failure)).toBe(true);
+        expect(failure).toMatchObject({
+          code: 'INVALID_LIFECYCLE_TRANSITION',
+          reason: rejection.reason,
+          retryable: false,
+        });
+      }
+      expect(ownerServiceCalls).toEqual([
+        'administerMarketBootstrapPolicy',
+        'administerPurchaseCurrencyPolicy',
+        'administerPaymentTermPolicy',
+        'administerCommerceQuantityRule',
+        'assignCommerceQuantityRule',
+      ]);
       expect(harness.snapshot().committed).toHaveLength(0);
     }),
   );
@@ -575,39 +929,101 @@ describe('Customer Commerce Policy integration', () => {
     }),
   );
 
-  it.effect('requires both the field context permission and module authority for Current reads', () =>
+  it.effect('runs every Current policy read only after its exact field permission and module authority', () =>
     Effect.gen(function* isolatedCurrentReadAuthority() {
-      const runCurrencyRead = (harness: Effect.Success<ReturnType<typeof makePolicyReadAuthorizationHarness>>) =>
-        harness.runtime.runRead({
-          input: { at },
-          principal: actionPrincipal,
-          registration: purchaseCurrencyPolicyCurrentRead,
-          transport: { correlationId: 'policy-current-read-authority' },
+      type AuthorizationHarness = Effect.Success<ReturnType<typeof makePolicyReadAuthorizationHarness>>;
+      interface CurrentReadCase {
+        readonly permission: string;
+        readonly routineCalls: readonly string[];
+        readonly run: (harness: AuthorizationHarness) => Effect.Effect<void, unknown>;
+      }
+      const currentReads: readonly CurrentReadCase[] = [
+        {
+          permission: 'customer_commerce_policy.market_bootstrap.read',
+          routineCalls: ['load_current_market_bootstrap_policy_candidates'],
+          run: (harness) =>
+            harness.runtime
+              .runRead({
+                input: { at, eligibleSellingLegalEntityIds: [legalEntityId] },
+                principal: actionPrincipal,
+                registration: marketBootstrapPolicyCurrentRead,
+                transport: { correlationId: 'market-bootstrap-current-read-authority' },
+              })
+              .pipe(Effect.asVoid),
+        },
+        {
+          permission: 'customer_commerce_policy.purchase_currency.read',
+          routineCalls: ['load_purchase_currency_policy_state'],
+          run: (harness) =>
+            harness.runtime
+              .runRead({
+                input: { at },
+                principal: actionPrincipal,
+                registration: purchaseCurrencyPolicyCurrentRead,
+                transport: { correlationId: 'purchase-currency-current-read-authority' },
+              })
+              .pipe(Effect.asVoid),
+        },
+        {
+          permission: 'customer_commerce_policy.payment_term.read',
+          routineCalls: ['load_payment_term_policy_state'],
+          run: (harness) =>
+            harness.runtime
+              .runRead({
+                input: { at },
+                principal: actionPrincipal,
+                registration: paymentTermPolicyCurrentRead,
+                transport: { correlationId: 'payment-term-current-read-authority' },
+              })
+              .pipe(Effect.asVoid),
+        },
+        {
+          permission: 'customer_commerce_policy.quantity.read',
+          routineCalls: ['load_commerce_quantity_rule_assignments', 'load_commerce_quantity_rule_state'],
+          run: (harness) =>
+            harness.runtime
+              .runRead({
+                input: { at },
+                principal: actionPrincipal,
+                registration: commerceQuantityPolicyCurrentRead,
+                transport: { correlationId: 'quantity-current-read-authority' },
+              })
+              .pipe(Effect.asVoid),
+        },
+      ];
+
+      for (const currentRead of currentReads) {
+        const contextDenied = yield* makePolicyReadAuthorizationHarness({
+          contextPermissionDecision: () => 'denied',
+          modulePermissionDecision: 'allowed',
+        });
+        const moduleDenied = yield* makePolicyReadAuthorizationHarness({
+          contextPermissionDecision: () => 'allowed',
+          modulePermissionDecision: 'denied',
         });
 
-      const contextOnly = yield* makePolicyReadAuthorizationHarness({
-        contextPermissionDecision: () => 'allowed',
-        modulePermissionDecision: 'denied',
-      });
-      const moduleOnly = yield* makePolicyReadAuthorizationHarness({
-        contextPermissionDecision: () => 'denied',
-        modulePermissionDecision: 'allowed',
-      });
-      const siblingOnly = yield* makePolicyReadAuthorizationHarness({
-        contextPermissionDecision: (permission) =>
-          permission === 'customer_commerce_policy.payment_term.read' ? 'allowed' : 'denied',
-        modulePermissionDecision: 'allowed',
-      });
+        for (const harness of [contextDenied, moduleDenied]) {
+          const failure = yield* Effect.flip(currentRead.run(harness));
+          expect(Predicate.isTagged(failure, 'ReadPermissionDenied')).toBe(true);
+          expect(harness.businessPermissionCalls()).toBe(0);
+          expect(harness.handlerQueries()).toBe(0);
+          expect(harness.contextPermissions).toEqual([currentRead.permission]);
+          expect(harness.moduleIds).toEqual(['commerce.customer-context']);
+        }
 
-      for (const harness of [contextOnly, moduleOnly, siblingOnly]) {
-        const failure = yield* Effect.flip(runCurrencyRead(harness));
-        expect(Predicate.isTagged(failure, 'ReadPermissionDenied')).toBe(true);
-        expect(harness.businessPermissionCalls()).toBe(0);
-        expect(harness.handlerQueries()).toBe(0);
+        const allowed = yield* makePolicyReadAuthorizationHarness({
+          contextPermissionDecision: () => 'allowed',
+          modulePermissionDecision: 'allowed',
+          routineResults: currentRoutineResults,
+        });
+        yield* currentRead.run(allowed);
+
+        expect(allowed.businessPermissionCalls()).toBe(0);
+        expect(allowed.contextPermissions).toEqual([currentRead.permission]);
+        expect(allowed.handlerQueries()).toBe(currentRead.routineCalls.length);
+        expect(allowed.moduleIds).toEqual(['commerce.customer-context']);
+        expect(new Set(allowed.routineCalls)).toEqual(new Set(currentRead.routineCalls));
       }
-      expect(contextOnly.contextPermissions).toEqual(['customer_commerce_policy.purchase_currency.read']);
-      expect(moduleOnly.contextPermissions).toEqual(['customer_commerce_policy.purchase_currency.read']);
-      expect(siblingOnly.contextPermissions).toEqual(['customer_commerce_policy.purchase_currency.read']);
     }),
   );
 
