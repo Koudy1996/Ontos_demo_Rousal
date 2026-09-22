@@ -10,6 +10,7 @@ import {
 } from '../../src/actions/create-payment-term.action.ts';
 import { CreatePaymentTermResultSchema } from '../../shared/actions/create-payment-term.ts';
 import { executeCreatePaymentTerm } from '../../src/api/create-payment-term-action-client.ts';
+import { executeCreatePaymentTerm as exportedExecuteCreatePaymentTerm } from '../../src/api/payment-term-catalog-client.ts';
 import {
   CorrectPaymentTermPayloadSchema,
   correctPaymentTermAction,
@@ -61,7 +62,7 @@ describe('Payment Term mutation contracts', () => {
     });
 
     expect(createPaymentTermAction.descriptor.idempotency).toBe('required');
-    expect(typeof executeCreatePaymentTerm).toBe('function');
+    expect(exportedExecuteCreatePaymentTerm).toBe(executeCreatePaymentTerm);
     expect(result).toMatchObject({
       definitionRevisionId: '55555555-5555-4555-8555-555555555555',
       metadataRevision: 1,
