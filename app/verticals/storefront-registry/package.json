@@ -31,11 +31,13 @@
     "role": "module-federation-remote",
     "appId": "storefront-registry",
     "topology": "../../topology/reference-topology.json",
-    "apiRuntime": "effect"
-  },
-  "ontosModule": {
-    "appId": "storefront-registry",
-    "moduleId": "commerce.storefront-registry",
-    "schemaVersion": 2
+    "apiRuntime": "effect",
+    "ontosModule": {
+      "contractPath": "/.well-known/ontos-module-manifest.json",
+      "manifest": "./vertical.manifest.ts",
+      "moduleId": "commerce.storefront-registry",
+      "registration": "./vertical.registration.ts",
+      "schemaVersion": 2
+    }
   }
 }
