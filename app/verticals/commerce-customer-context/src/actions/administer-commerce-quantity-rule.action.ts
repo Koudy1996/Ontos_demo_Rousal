@@ -74,7 +74,7 @@ const handleAdministerCommerceQuantityRule = Effect.fn('AdministerCommerceQuanti
             : candidate.value.selector.packageOptionRef.tenantId;
     if (
       selectorTenantId !== context.scope.tenantId ||
-      candidate.value.basis.basisRef.tenantId !== context.scope.tenantId ||
+      candidate.value.basis.targetRef.tenantId !== context.scope.tenantId ||
       candidate.value.basis.unitRef.tenantId !== context.scope.tenantId
     ) {
       return yield* failScope('Commerce Quantity references must match the trusted Tenant');

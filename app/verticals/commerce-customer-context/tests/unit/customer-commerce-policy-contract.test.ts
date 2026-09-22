@@ -42,9 +42,10 @@ const catalogRef = (resourceType: string, resourceId: string) => ({
 });
 
 const quantityBasis = {
-  basisRef: catalogRef('commerce.catalog.quantity-basis', 'piece-basis'),
-  ownerRevision: 'catalog-quantity-basis:7',
-  unitRef: catalogRef('commerce.catalog.quantity-unit', 'piece'),
+  targetDivisibilityRevision: 7,
+  targetRef: catalogRef('commerce.catalog.variant', '55555555-5555-4555-8555-555555555555'),
+  unitRef: catalogRef('commerce.catalog.product-unit', '66666666-6666-4666-8666-666666666666'),
+  unitRuleRevision: 9,
 };
 
 const quantityRevision = (overrides: { readonly scope?: object; readonly value?: object } = {}) => ({

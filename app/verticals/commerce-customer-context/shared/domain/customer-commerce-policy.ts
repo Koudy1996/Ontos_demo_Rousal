@@ -373,7 +373,7 @@ export const CommerceQuantityRuleRevisionSchema = Schema.Struct({
     } else if (revision.value.selector.kind === 'PACKAGE_OPTION') {
       selectorTenantId = revision.value.selector.packageOptionRef.tenantId;
     }
-    return selectorTenantId === revision.tenantId && revision.value.basis.basisRef.tenantId === revision.tenantId
+    return selectorTenantId === revision.tenantId && revision.value.basis.targetRef.tenantId === revision.tenantId
       ? undefined
       : 'Quantity selector, basis, and policy Revision must belong to the same Tenant';
   }),

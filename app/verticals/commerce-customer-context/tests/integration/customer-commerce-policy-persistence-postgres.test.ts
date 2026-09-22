@@ -571,17 +571,19 @@ it.live('enforces immutable temporal policy history, typed scopes, assignment in
           (policy_revision_id, tenant_id, legal_entity_id, scope_kind, channel_id, effective_from,
            effective_to, applicable_from, applicable_to, lifecycle, idempotency_key,
            action_invocation_id, actor_principal_id, reason,
-           selector_kind, rule_kind, quantity_basis_module_id, quantity_basis_resource_type,
-           quantity_basis_resource_id, quantity_basis_tenant_id, quantity_basis_owner_revision,
+           selector_kind, rule_kind, quantity_target_module_id, quantity_target_resource_type,
+           quantity_target_resource_id, quantity_target_tenant_id, quantity_target_divisibility_revision,
            quantity_unit_module_id, quantity_unit_resource_type, quantity_unit_resource_id,
-           quantity_unit_tenant_id, restriction_kind)
+           quantity_unit_tenant_id, quantity_unit_rule_revision, restriction_kind)
           values (${quantityRevisionId}::uuid, ${tenantId}::uuid, ${legalEntityId}::uuid,
             'CHANNEL_SELLER', 'web', '2030-01-01T00:00:00Z', '2040-01-01T00:00:00Z',
             '2030-01-01T00:00:00Z', '2040-01-01T00:00:00Z', 'ACTIVE',
             'quantity-valid', ${actorId}::uuid, ${actorId}::uuid, 'Quantity fixture', 'ALL',
-            'REPLACEABLE_ENVELOPE', 'commerce.catalog', 'commerce.catalog.quantity-basis', 'each',
-            ${tenantId}::uuid, 'basis:1', 'commerce.catalog', 'commerce.catalog.quantity-unit', 'piece',
-            ${tenantId}::uuid, 'NO_COMMERCIAL_QUANTITY_RESTRICTION')`),
+            'REPLACEABLE_ENVELOPE', 'commerce.catalog', 'commerce.catalog.variant',
+            '55555555-5555-4555-8555-555555555555'::uuid, ${tenantId}::uuid, 1,
+            'commerce.catalog', 'commerce.catalog.product-unit',
+            '66666666-6666-4666-8666-666666666666'::uuid, ${tenantId}::uuid, 1,
+            'NO_COMMERCIAL_QUANTITY_RESTRICTION')`),
       );
 
       const firstAssignment = quantityAssignment(firstAssignmentId, '2030-01-01T00:00:00Z');
@@ -621,15 +623,17 @@ it.live('enforces immutable temporal policy history, typed scopes, assignment in
           transaction.execute(sql`insert into commerce_customer_context.commerce_quantity_rule_revisions
             (tenant_id, legal_entity_id, scope_kind, effective_from, applicable_from, lifecycle, idempotency_key,
              action_invocation_id, actor_principal_id, reason, selector_kind, rule_kind,
-             quantity_basis_module_id, quantity_basis_resource_type, quantity_basis_resource_id,
-             quantity_basis_tenant_id, quantity_basis_owner_revision, quantity_unit_module_id,
-             quantity_unit_resource_type, quantity_unit_resource_id, quantity_unit_tenant_id, restriction_kind)
+             quantity_target_module_id, quantity_target_resource_type, quantity_target_resource_id,
+             quantity_target_tenant_id, quantity_target_divisibility_revision, quantity_unit_module_id,
+             quantity_unit_resource_type, quantity_unit_resource_id, quantity_unit_tenant_id,
+             quantity_unit_rule_revision, restriction_kind)
             values (${tenantId}::uuid, ${legalEntityId}::uuid, 'SELLER', '2030-01-01T00:00:00Z',
               '2030-01-01T00:00:00Z', 'ACTIVE', 'quantity-invalid-seller',
               ${actorId}::uuid, ${actorId}::uuid, 'Invalid seller',
-              'ALL', 'REPLACEABLE_ENVELOPE', 'commerce.catalog', 'commerce.catalog.quantity-basis',
-              'each', ${tenantId}::uuid, 'basis:1', 'commerce.catalog',
-              'commerce.catalog.quantity-unit', 'piece', ${tenantId}::uuid,
+              'ALL', 'REPLACEABLE_ENVELOPE', 'commerce.catalog', 'commerce.catalog.variant',
+              '55555555-5555-4555-8555-555555555555'::uuid, ${tenantId}::uuid, 1, 'commerce.catalog',
+              'commerce.catalog.product-unit', '66666666-6666-4666-8666-666666666666'::uuid,
+              ${tenantId}::uuid, 1,
               'NO_COMMERCIAL_QUANTITY_RESTRICTION')`),
         ),
       );

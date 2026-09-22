@@ -108,9 +108,10 @@ const quantityRule = Schema.decodeUnknownSync(CommerceQuantityRuleRevisionSchema
   tenantId,
   value: {
     basis: {
-      basisRef: catalogRef('commerce.catalog.quantity-basis', 'piece-basis'),
-      ownerRevision: 'catalog-basis:3',
-      unitRef: catalogRef('commerce.catalog.quantity-unit', 'piece'),
+      targetDivisibilityRevision: 3,
+      targetRef: catalogRef('commerce.catalog.variant', '55555555-5555-4555-8555-555555555555'),
+      unitRef: catalogRef('commerce.catalog.product-unit', '66666666-6666-4666-8666-666666666666'),
+      unitRuleRevision: 4,
     },
     constraintMode: 'REPLACEABLE_ENVELOPE',
     envelope: { kind: 'BOUNDED', maximum: null, minimum: '1', multiple: '1' },

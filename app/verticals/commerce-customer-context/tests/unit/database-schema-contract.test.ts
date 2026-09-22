@@ -65,9 +65,10 @@ it('stores each executable Customer Commerce Policy family in explicit typed tab
         'selector_kind',
         'selector_resource_type',
         'rule_kind',
-        'quantity_basis_resource_id',
-        'quantity_basis_owner_revision',
+        'quantity_target_resource_id',
+        'quantity_target_divisibility_revision',
         'quantity_unit_resource_id',
+        'quantity_unit_rule_revision',
         'restriction_kind',
       ],
     ],
@@ -103,9 +104,9 @@ it('stores each executable Customer Commerce Policy family in explicit typed tab
     expect(config.checks.some(({ name }) => name.endsWith('_lifecycle_ck'))).toBe(true);
   }
 
-  expect(getTableConfig(marketBootstrapPolicyRevisions).columns.some(({ name }) => name === 'default_storefront_id')).toBe(
-    false,
-  );
+  expect(
+    getTableConfig(marketBootstrapPolicyRevisions).columns.some(({ name }) => name === 'default_storefront_id'),
+  ).toBe(false);
   expect(getTableConfig(purchaseCurrencyPolicyRevisions).columns.some(({ name }) => name === 'enabled')).toBe(false);
 });
 
@@ -130,15 +131,16 @@ it('stores quantity values as owner-qualified Catalog references and exact decim
     'selector_resource_type',
     'selector_resource_id',
     'selector_tenant_id',
-    'quantity_basis_module_id',
-    'quantity_basis_resource_type',
-    'quantity_basis_resource_id',
-    'quantity_basis_tenant_id',
-    'quantity_basis_owner_revision',
+    'quantity_target_module_id',
+    'quantity_target_resource_type',
+    'quantity_target_resource_id',
+    'quantity_target_tenant_id',
+    'quantity_target_divisibility_revision',
     'quantity_unit_module_id',
     'quantity_unit_resource_type',
     'quantity_unit_resource_id',
     'quantity_unit_tenant_id',
+    'quantity_unit_rule_revision',
   ]) {
     expect(columns.has(referenceColumn), referenceColumn).toBe(true);
   }

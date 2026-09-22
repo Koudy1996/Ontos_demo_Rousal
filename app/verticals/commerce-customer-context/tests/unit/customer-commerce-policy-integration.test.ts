@@ -308,19 +308,20 @@ const currentProjectionStates = {
         scope: { channelId: 'web', kind: 'CHANNEL_SELLER', sellingLegalEntityId: legalEntityId },
         value: {
           basis: {
-            basisRef: {
+            targetDivisibilityRevision: 1,
+            targetRef: {
               moduleId: 'commerce.catalog',
-              resourceId: 'each',
-              resourceType: 'commerce.catalog.quantity-basis',
+              resourceId: '55555555-5555-4555-8555-555555555555',
+              resourceType: 'commerce.catalog.variant',
               tenantId,
             },
-            ownerRevision: 'quantity-basis:1',
             unitRef: {
               moduleId: 'commerce.catalog',
-              resourceId: 'piece',
-              resourceType: 'commerce.catalog.quantity-unit',
+              resourceId: '66666666-6666-4666-8666-666666666666',
+              resourceType: 'commerce.catalog.product-unit',
               tenantId,
             },
+            unitRuleRevision: 2,
           },
           constraintMode: 'REPLACEABLE_ENVELOPE',
           envelope: { kind: 'NO_COMMERCIAL_QUANTITY_RESTRICTION' },
