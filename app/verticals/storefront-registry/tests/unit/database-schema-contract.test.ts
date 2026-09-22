@@ -50,10 +50,21 @@ describe('Storefront Registry database contract', () => {
     expect(migration.match(/force row level security/gu)).toHaveLength(3);
     expect(migration).toContain('Storefront application revision history is append-only');
     expect(migration).toContain('storefront_registry.read_current_storefront_application');
+    expect(migration).toContain('storefront_registry.register_storefront_application');
+    expect(migration).toContain('storefront_registry.revise_storefront_application');
+    expect(migration).toContain('for update');
+    expect(migration).toContain("'_tag', 'revision_conflict'");
+    expect(migration).toContain("v_current.lifecycle = 'RETIRED'");
     expect(migration).toContain("p_tenant_id is distinct from nullif(current_setting('ontos.tenant_id', true), '')::uuid");
     expect(migration).toContain('revoke all on all tables in schema storefront_registry from ontos_runtime');
     expect(migration).toContain(
       'grant execute on function storefront_registry.read_current_storefront_application(uuid, jsonb) to ontos_runtime',
+    );
+    expect(migration).toContain(
+      'grant execute on function storefront_registry.register_storefront_application(uuid, jsonb) to ontos_runtime',
+    );
+    expect(migration).toContain(
+      'grant execute on function storefront_registry.revise_storefront_application(uuid, jsonb) to ontos_runtime',
     );
     expect(migration).not.toMatch(/grant\s+(?:select|insert|update|delete)\s+on/iu);
   });

@@ -2,10 +2,12 @@
 // @ontos-deployment-app-id storefront-registry
 // @ontos-module-id commerce.storefront-registry
 import { defineVerticalRuntimeRegistration } from '@app/core-runtime';
+import { registerStorefrontApplicationAction } from './src/actions/register-storefront-application.action.ts';
+import { reviseStorefrontApplicationAction } from './src/actions/revise-storefront-application.action.ts';
 import { storefrontRegistryManifest } from './vertical.manifest.ts';
 
 export const storefrontRegistryRegistration = defineVerticalRuntimeRegistration({
-  actions: [],
+  actions: [registerStorefrontApplicationAction, reviseStorefrontApplicationAction],
   entrypoints: {
     api: {
       'current-storefront-application': () => import('./src/api/storefront-registry-client.ts'),

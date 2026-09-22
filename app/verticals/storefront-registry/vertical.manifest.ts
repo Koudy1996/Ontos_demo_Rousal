@@ -5,6 +5,8 @@ import { defineOntosModuleManifest } from '@app/core-runtime';
 import type { OntosModuleManifestInput } from '@app/core-runtime';
 import { CurrentStorefrontApplicationApi } from '@app/storefront-registry-contracts/current-storefront-application';
 import { storefrontApplicationResourceDescriptor } from './shared/resources/storefront-application.ts';
+import { registerStorefrontApplicationAction } from './src/actions/register-storefront-application.action.ts';
+import { reviseStorefrontApplicationAction } from './src/actions/revise-storefront-application.action.ts';
 
 export const storefrontRegistryManifest: OntosModuleManifestInput = defineOntosModuleManifest({
   activation: {
@@ -21,7 +23,7 @@ export const storefrontRegistryManifest: OntosModuleManifestInput = defineOntosM
     kind: 'business_module',
   },
   publicSurface: {
-    actions: [],
+    actions: [registerStorefrontApplicationAction, reviseStorefrontApplicationAction],
     api: { 'current-storefront-application': CurrentStorefrontApplicationApi },
     businessPermissions: [],
     components: {},
