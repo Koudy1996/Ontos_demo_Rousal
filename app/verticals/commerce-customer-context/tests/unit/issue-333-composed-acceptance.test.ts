@@ -1,4 +1,6 @@
-import { Effect, Schema } from 'effect';
+import { CurrentPaymentTermsResponseSchema, type PaymentTermDefinition } from '@app/payment-term-catalog-contracts';
+import { CurrentSupportedCurrenciesResponseSchema } from '@app/pricing-contracts';
+import { Effect, Layer, Redacted, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
 
 import {
@@ -6,8 +8,27 @@ import {
   validateCzechLaunchActivation,
   validateCzechLaunchFixtureContracts,
 } from '../../../../scripts/czech-launch-commerce-fixture.mts';
+import { CatalogQuantityGatewayCredentialService } from '../../shared/domain/catalog-quantity-gateway-credential.ts';
+import { PaymentTermCatalogGatewayCredentialService } from '../../shared/domain/payment-term-catalog-gateway-credential.ts';
 import { unavailablePurchaseCurrencyPurchasingContextPort } from '../../shared/domain/purchase-currency-context-port.ts';
 import { PurchaseCurrencyDependencyUnavailable } from '../../shared/domain/purchase-currency-dependency.ts';
+import { PurchaseCurrencyPricingGatewayCredentialService } from '../../shared/domain/purchase-currency-pricing-gateway-credential.ts';
+import { catalogQuantityPortFromEnvironment } from '../../src/integrations/catalog-quantity.ts';
+import { paymentTermCatalogPortFromEnvironment } from '../../src/integrations/payment-term-catalog.ts';
+import { purchaseCurrencyPricingPortFromEnvironment } from '../../src/integrations/purchase-currency-pricing.ts';
+
+const effectiveAt = '2026-10-01T00:00:00.000Z';
+const fixtureScope = CZECH_LAUNCH_COMMERCE_FIXTURE.scope;
+const [paymentTermDefinition] = CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.paymentTermCatalog.current;
+
+const requireFixtureOwner = <Value>(value: Value | undefined, owner: string): Value => {
+  if (value === undefined) {
+    throw new Error(`Czech Launch fixture is missing ${owner} evidence`);
+  }
+  return value;
+};
+
+const currentPaymentTerm = requireFixtureOwner(paymentTermDefinition, 'Payment Term');
 
 it.effect('composes the Czech Launch inventory and four policy defaults behind governed contracts', () =>
   Effect.gen(function* composedLaunch() {
@@ -119,3 +140,230 @@ it.effect('composes the Czech Launch inventory and four policy defaults behind g
     });
   }),
 );
+
+it.effect('uses the Payment Term production adapter with the exact owner reference and semantic revision', () => {
+  const gatewayRequests: unknown[] = [];
+  const ownerCalls: unknown[] = [];
+  const ownerResponse = Schema.decodeUnknownSync(CurrentPaymentTermsResponseSchema)({
+    ...CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.paymentTermCatalog,
+    referenceOutcomes: [
+      {
+        definition: currentPaymentTerm,
+        kind: 'USABLE',
+        requestedPaymentTermRef: currentPaymentTerm.paymentTermRef,
+      },
+    ],
+  });
+
+  return Effect.gen(function* paymentTermOwnerAdapter() {
+    const port = yield* paymentTermCatalogPortFromEnvironment(
+      {
+        legalEntityId: fixtureScope.sellingLegalEntityId,
+        requestCorrelation: 'czech-launch-payment-term',
+      },
+      (payload, credential, correlation) => {
+        ownerCalls.push({ credential: Redacted.value(credential), correlation, payload });
+        return Effect.succeed(ownerResponse);
+      },
+    );
+    const definitions = yield* port.resolveDefinitions([
+      {
+        at: effectiveAt,
+        expectedSemanticRevisionId: currentPaymentTerm.semanticRevisionId,
+        paymentTermRef: currentPaymentTerm.paymentTermRef,
+      },
+    ]);
+
+    expect(ownerCalls).toEqual([
+      {
+        correlation: 'czech-launch-payment-term',
+        credential: 'Bearer payment-term-owner-issued',
+        payload: {
+          at: effectiveAt,
+          limit: 1,
+          references: [
+            {
+              expectedConsumerCompatibility: 'customer-payment-terms.v1',
+              expectedSemanticRevisionId: currentPaymentTerm.semanticRevisionId,
+              paymentTermRef: currentPaymentTerm.paymentTermRef,
+            },
+          ],
+        },
+      },
+    ]);
+    expect(gatewayRequests).toEqual([
+      {
+        audience: 'payment-term-catalog',
+        legalEntityId: fixtureScope.sellingLegalEntityId,
+        requestCorrelation: 'czech-launch-payment-term',
+      },
+    ]);
+    expect(definitions).toEqual([currentPaymentTerm satisfies PaymentTermDefinition]);
+  }).pipe(
+    Effect.provide(
+      Layer.succeed(PaymentTermCatalogGatewayCredentialService, {
+        issue: (input) =>
+          Effect.sync(() => {
+            gatewayRequests.push(input);
+            return Redacted.make('Bearer payment-term-owner-issued');
+          }),
+      }),
+    ),
+  );
+});
+
+it.effect('uses the Catalog production adapter and preserves owner quantity evidence and revisions', () => {
+  const gatewayRequests: unknown[] = [];
+  const ownerCalls: unknown[] = [];
+  const catalogOwnerResponse = CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.catalogQuantity;
+
+  return Effect.gen(function* catalogQuantityOwnerAdapter() {
+    const port = yield* catalogQuantityPortFromEnvironment(
+      { legalEntityId: fixtureScope.sellingLegalEntityId, requestCorrelation: 'czech-launch-catalog-quantity' },
+      (payload, credential, correlation, options) => {
+        ownerCalls.push({ correlation, credential, options, payload });
+        return Effect.succeed(catalogOwnerResponse as never);
+      },
+    );
+    const lines = yield* port.resolveCurrentSelections({
+      lines: [
+        {
+          lineId: 'czech-launch-line-1',
+          requestedQuantity: catalogOwnerResponse.quantity.requested,
+          selection: catalogOwnerResponse.selection,
+        },
+      ],
+      observedAt: effectiveAt,
+      tenantId: fixtureScope.tenantId,
+    });
+
+    expect(ownerCalls).toEqual([
+      {
+        correlation: 'czech-launch-catalog-quantity',
+        credential: 'Bearer catalog-owner-issued',
+        options: { baseUrl: new URL('https://catalog.example.test') },
+        payload: {
+          amount: catalogOwnerResponse.quantity.requested,
+          purpose: 'PURCHASE_ACCEPTANCE',
+          selection: catalogOwnerResponse.selection,
+        },
+      },
+    ]);
+    expect(gatewayRequests).toEqual([
+      {
+        audience: 'catalog',
+        legalEntityId: fixtureScope.sellingLegalEntityId,
+        requestCorrelation: 'czech-launch-catalog-quantity',
+      },
+    ]);
+    expect(lines).toEqual([
+      {
+        lineId: 'czech-launch-line-1',
+        selection: {
+          basis: catalogOwnerResponse.quantityBasis,
+          catalogSelection: catalogOwnerResponse.selection,
+          completeness: catalogOwnerResponse.completeness,
+          divisible: catalogOwnerResponse.divisible,
+          equivalentSelectionKey: catalogOwnerResponse.equivalentSelectionKey,
+          hierarchyRevision: catalogOwnerResponse.hierarchyRevision,
+          normalizedQuantity: catalogOwnerResponse.quantity.resulting,
+          ownerRevision: catalogOwnerResponse.ownerRevision,
+          physicalMultiple: catalogOwnerResponse.quantity.step,
+          requestedQuantity: catalogOwnerResponse.quantity.requested,
+        },
+      },
+    ]);
+  }).pipe(
+    Effect.provide(
+      Layer.succeed(CatalogQuantityGatewayCredentialService, {
+        issue: (input) =>
+          Effect.sync(() => {
+            gatewayRequests.push(input);
+            return {
+              baseUrl: new URL('https://catalog.example.test'),
+              credential: Redacted.make('Bearer catalog-owner-issued'),
+            };
+          }),
+      }),
+    ),
+  );
+});
+
+it.effect('uses the Pricing production adapter with the exact purchasing context and owner revision', () => {
+  const gatewayRequests: unknown[] = [];
+  const ownerCalls: unknown[] = [];
+  const pricingOwnerResponse = Schema.decodeUnknownSync(CurrentSupportedCurrenciesResponseSchema)(
+    CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.pricingCurrencies,
+  );
+  const purchasingContext = {
+    cartId: 'czech-launch-cart',
+    channelId: fixtureScope.channelId,
+    marketId: fixtureScope.marketId,
+    sellingLegalEntityId: fixtureScope.sellingLegalEntityId,
+    storefrontId: fixtureScope.storefrontId,
+    tenantId: fixtureScope.tenantId,
+  };
+  const subject = {
+    guestEvidenceRef: 'commerce.customer-context.guest-evidence:czech-launch',
+    guestSessionRef: 'commerce.cart.guest-session:czech-launch',
+    kind: 'GUEST' as const,
+  };
+
+  return Effect.gen(function* pricingOwnerAdapter() {
+    const port = yield* purchaseCurrencyPricingPortFromEnvironment(
+      { legalEntityId: fixtureScope.sellingLegalEntityId, requestCorrelation: 'czech-launch-pricing' },
+      (payload, credential, correlation, options) => {
+        ownerCalls.push({ correlation, credential: Redacted.value(credential), options, payload });
+        return Effect.succeed(pricingOwnerResponse);
+      },
+    );
+    const pricing = yield* port.resolveCurrent({
+      context: { contextRevision: 'commerce.cart.context:czech-launch-v1', purchasingContext },
+      observedAt: effectiveAt,
+      subject,
+    });
+
+    expect(ownerCalls).toEqual([
+      {
+        correlation: 'czech-launch-pricing',
+        credential: 'Bearer pricing-owner-issued',
+        options: { baseUrl: new URL('https://pricing.example.test') },
+        payload: {
+          cartId: purchasingContext.cartId,
+          channelId: purchasingContext.channelId,
+          contextRevision: 'commerce.cart.context:czech-launch-v1',
+          effectiveAt,
+          marketId: purchasingContext.marketId,
+          sellingLegalEntityId: purchasingContext.sellingLegalEntityId,
+          storefrontId: purchasingContext.storefrontId,
+          subject,
+          tenantId: purchasingContext.tenantId,
+        },
+      },
+    ]);
+    expect(gatewayRequests).toEqual([
+      {
+        audience: 'pricing',
+        legalEntityId: fixtureScope.sellingLegalEntityId,
+        requestCorrelation: 'czech-launch-pricing',
+      },
+    ]);
+    expect(pricing).toEqual({
+      pricingRevision: CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.pricingCurrencies.pricingRevision,
+      supportedCurrencies: ['CZK'],
+    });
+  }).pipe(
+    Effect.provide(
+      Layer.succeed(PurchaseCurrencyPricingGatewayCredentialService, {
+        issue: (input) =>
+          Effect.sync(() => {
+            gatewayRequests.push(input);
+            return {
+              baseUrl: new URL('https://pricing.example.test'),
+              credential: Redacted.make('Bearer pricing-owner-issued'),
+            };
+          }),
+      }),
+    ),
+  );
+});
