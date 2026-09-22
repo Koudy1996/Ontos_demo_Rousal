@@ -169,7 +169,7 @@ const runProductionRetirement = (responses: readonly MarketAffectedUseAssessment
     throw new Error(`Unexpected production client request: ${url.toString()}`);
   };
   const fetch: typeof globalThis.fetch = async (input, init) => {
-    const request = input instanceof Request ? input : new Request(input, init);
+    const request = new Request(input, init);
     return new Response(JSON.stringify(responseForRequest(request)), {
       headers: { 'content-type': 'application/json' },
       status: 200,
