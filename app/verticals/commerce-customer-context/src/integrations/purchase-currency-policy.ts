@@ -63,10 +63,7 @@ const scopeKey = (scope: OrdinaryCustomerCommercePolicyScope): string => {
 
 const candidateKey = (candidate: CurrentPurchaseCurrencyPolicyCandidate): string => {
   const { value } = candidate;
-  const encodedValue =
-    value.kind === 'EXPLICIT_CURRENCY_CHOICE_POLICY'
-      ? `${value.kind}:${String(value.enabled)}`
-      : `${value.kind}:${value.currencyCode}`;
+  const encodedValue = `${value.kind}:${value.currencyCode}`;
   return `${scopeKey(candidate.scope)}:${encodedValue}`;
 };
 
@@ -81,24 +78,17 @@ type AllowedCurrencyCandidate = CurrentPurchaseCurrencyPolicyCandidate & {
 type DefaultCurrencyCandidate = CurrentPurchaseCurrencyPolicyCandidate & {
   readonly value: Extract<CurrentPurchaseCurrencyPolicyCandidate['value'], { readonly kind: 'DEFAULT_CURRENCY' }>;
 };
-type ExplicitChoiceCandidate = CurrentPurchaseCurrencyPolicyCandidate & {
-  readonly value: Extract<
-    CurrentPurchaseCurrencyPolicyCandidate['value'],
-    { readonly kind: 'EXPLICIT_CURRENCY_CHOICE_POLICY' }
-  >;
-};
-
-type RankedCandidate = DefaultCurrencyCandidate | ExplicitChoiceCandidate;
 type RankedSelection =
   | { readonly error: ReturnType<typeof conflict>; readonly kind: 'CONFLICT' }
   | { readonly kind: 'NONE' }
-  | { readonly candidate: RankedCandidate; readonly kind: 'ONE' };
+  | { readonly candidate: DefaultCurrencyCandidate; readonly kind: 'ONE' };
 
 const oneHighestRanked = (
   candidates: readonly CurrentPurchaseCurrencyPolicyCandidate[],
-  kind: 'DEFAULT_CURRENCY' | 'EXPLICIT_CURRENCY_CHOICE_POLICY',
 ): RankedSelection => {
-  const matching = candidates.filter((candidate): candidate is RankedCandidate => candidate.value.kind === kind);
+  const matching = candidates.filter(
+    (candidate): candidate is DefaultCurrencyCandidate => candidate.value.kind === 'DEFAULT_CURRENCY',
+  );
   if (matching.length === 0) {
     return { kind: 'NONE' };
   }
@@ -107,7 +97,7 @@ const oneHighestRanked = (
   const [winner] = winners;
   return winners.length === 1 && winner !== undefined
     ? { candidate: winner, kind: 'ONE' }
-    : { error: conflict(`Purchase Currency policy has a same-rank ${kind} conflict`), kind: 'CONFLICT' };
+    : { error: conflict('Purchase Currency policy has a same-rank DEFAULT_CURRENCY conflict'), kind: 'CONFLICT' };
 };
 
 export const composeCurrentPurchaseCurrencyPolicy = (
@@ -170,24 +160,14 @@ export const composeCurrentPurchaseCurrencyPolicy = (
     return Effect.fail(conflict('Purchase Currency non-relaxable constraints have no common allowed currency'));
   }
 
-  const defaultCandidate = oneHighestRanked(candidates, 'DEFAULT_CURRENCY');
+  const defaultCandidate = oneHighestRanked(candidates);
   if (defaultCandidate.kind === 'CONFLICT') {
     return Effect.fail(defaultCandidate.error);
-  }
-  const explicitChoiceCandidate = oneHighestRanked(candidates, 'EXPLICIT_CURRENCY_CHOICE_POLICY');
-  if (explicitChoiceCandidate.kind === 'CONFLICT') {
-    return Effect.fail(explicitChoiceCandidate.error);
   }
   if (defaultCandidate.kind === 'NONE') {
     return Effect.fail(conflict('Purchase Currency policy has no unambiguous default'));
   }
-  if (explicitChoiceCandidate.kind === 'NONE') {
-    return Effect.fail(conflict('Purchase Currency policy has no unambiguous explicit-choice rule'));
-  }
-  if (
-    defaultCandidate.candidate.value.kind !== 'DEFAULT_CURRENCY' ||
-    explicitChoiceCandidate.candidate.value.kind !== 'EXPLICIT_CURRENCY_CHOICE_POLICY'
-  ) {
+  if (defaultCandidate.candidate.value.kind !== 'DEFAULT_CURRENCY') {
     return Effect.fail(conflict('Purchase Currency policy candidate kinds are inconsistent'));
   }
   if (!allowedCurrencies.has(defaultCandidate.candidate.value.currencyCode)) {
@@ -197,14 +177,12 @@ export const composeCurrentPurchaseCurrencyPolicy = (
   const policyRevisionIds = [
     ...constraints.map(({ policyRevisionId }) => policyRevisionId),
     defaultCandidate.candidate.policyRevisionId,
-    explicitChoiceCandidate.candidate.policyRevisionId,
   ].filter((revisionId, index, all) => all.indexOf(revisionId) === index);
 
   return Effect.succeed({
     allowedCurrencies: [...allowedCurrencies].toSorted(),
     completeness: current.completeness,
     defaultCurrency: defaultCandidate.candidate.value.currencyCode,
-    explicitChoiceEnabled: explicitChoiceCandidate.candidate.value.enabled,
     policyRevisionIds,
   });
 };

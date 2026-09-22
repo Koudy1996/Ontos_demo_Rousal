@@ -181,7 +181,6 @@ describe('Customer Commerce Policy administration', () => {
             channelId: 'b2b',
             commerceMarketId: 'cz-market',
             sellingLegalEntityId: sellerId,
-            storefrontId: 'storefront-1',
           },
           policyRevisionId: revisionId,
           scope: { kind: 'SELLER', sellingLegalEntityId: sellerId },

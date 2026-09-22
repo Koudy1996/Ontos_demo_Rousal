@@ -105,7 +105,6 @@ const CurrencyPolicyDecisionSchema = Schema.Struct({
   allowedCurrencies: CurrencyCodeSetSchema,
   completeness: PurchaseCurrencyPolicyCompletenessEvidenceSchema,
   defaultCurrency: Schema.Union([CurrencyCodeSchema, Schema.Null]),
-  explicitChoiceEnabled: Schema.Boolean,
   policyRevisionIds: Schema.Array(PolicyRevisionSchema).check(
     Schema.isMinLength(1),
     Schema.makeFilter((revisionIds) =>
@@ -140,7 +139,7 @@ type PurchaseCurrencyResolved = typeof PurchaseCurrencyResolvedSchema.Type;
 
 export const ExplicitPurchaseCurrencyChoiceInvalid = Schema.TaggedStruct('EXPLICIT_CHOICE_INVALID', {
   currencyCode: CurrencyCodeSchema,
-  reason: Schema.Literals(['EXPLICIT_CHOICE_DISABLED', 'POLICY_UNSUPPORTED', 'PRICING_UNSUPPORTED']),
+  reason: Schema.Literals(['POLICY_UNSUPPORTED', 'PRICING_UNSUPPORTED']),
 });
 
 export const NoUsablePurchaseCurrency = Schema.TaggedStruct('NO_USABLE_CURRENCY', {
@@ -223,12 +222,6 @@ export const resolvePurchaseCurrency = (input: PurchaseCurrencyResolutionInput):
   }
 
   if (request.explicitChoice !== undefined) {
-    if (!policy.explicitChoiceEnabled) {
-      return ExplicitPurchaseCurrencyChoiceInvalid.make({
-        currencyCode: request.explicitChoice,
-        reason: 'EXPLICIT_CHOICE_DISABLED',
-      });
-    }
     const support = supported(request.explicitChoice, policy, pricing);
     return support === 'SUPPORTED'
       ? resolved(input, request.explicitChoice, 'EXPLICIT_CHOICE')

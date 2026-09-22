@@ -120,12 +120,10 @@ const scopeMatches = (scope: PolicyCandidate['scope'], request: MarketBootstrapR
 const tupleMatchesDefault = (
   tuple: CompleteEligibleResponse['tuples'][number],
   candidate: PolicyCandidate,
-  request: MarketBootstrapResolutionRequest,
 ): boolean =>
   tuple.channel === candidate.defaultTuple.channelId &&
   tuple.marketRef.resourceId === candidate.defaultTuple.commerceMarketId &&
-  tuple.sellingLegalEntityRef.resourceId === candidate.defaultTuple.sellingLegalEntityId &&
-  candidate.defaultTuple.storefrontId === request.storefrontRef.appId;
+  tuple.sellingLegalEntityRef.resourceId === candidate.defaultTuple.sellingLegalEntityId;
 
 const policyEvidence = (
   policy: MarketBootstrapPolicyBatchCurrentResponse,
@@ -170,7 +168,7 @@ export const resolveMarketBootstrapPolicy = (
     };
   }
 
-  const tuple = eligible.tuples.find((candidate) => tupleMatchesDefault(candidate, winner, request));
+  const tuple = eligible.tuples.find((candidate) => tupleMatchesDefault(candidate, winner));
   if (tuple === undefined) {
     return {
       evidence: policyEvidence(policy, evaluatedAt, 'BROKEN', winner.policyRevisionId),

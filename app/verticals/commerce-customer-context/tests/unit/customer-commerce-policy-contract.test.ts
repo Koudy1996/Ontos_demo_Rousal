@@ -115,6 +115,14 @@ describe('Customer Commerce Policy field catalog', () => {
         value: { currencyCode: 'CZK', kind: 'ALLOWED_CURRENCY_CONSTRAINT' },
       }).value.kind,
     ).toBe('ALLOWED_CURRENCY_CONSTRAINT');
+    expect(() =>
+      decode({
+        ...revisionBase,
+        field: 'PURCHASE_CURRENCY',
+        revisionId: '33333333-3333-4333-8333-333333333335',
+        value: { enabled: true, kind: 'EXPLICIT_CURRENCY_CHOICE_POLICY' },
+      }),
+    ).toThrow();
   });
 
   it('closes each field family over only its accepted scope ranks', () => {
@@ -148,7 +156,6 @@ describe('Customer Commerce Policy field catalog', () => {
           defaultChannelId: 'b2b',
           defaultCommerceMarketId: 'cz-market',
           defaultSellingLegalEntityId: sellingLegalEntityId,
-          defaultStorefrontId: 'storefront-1',
           kind: 'DEFAULT_MARKET_TUPLE',
         },
       }),
@@ -189,7 +196,6 @@ describe('Customer Commerce Policy field catalog', () => {
         defaultChannelId: 'b2b',
         defaultCommerceMarketId: 'cz-market',
         defaultSellingLegalEntityId: sellingLegalEntityId,
-        defaultStorefrontId: 'storefront-1',
         kind: 'DEFAULT_MARKET_TUPLE',
       },
     };
@@ -209,15 +215,19 @@ describe('Customer Commerce Policy field catalog', () => {
         value: { ...bootstrap.value, defaultChannelId: 'different-channel' },
       }),
     ).toThrow();
+    const storefrontScoped = {
+      ...bootstrap,
+      scope: {
+        ...bootstrap.scope,
+        kind: 'STOREFRONT_CHANNEL_SELLER',
+        storefrontId: 'storefront-1',
+      },
+    };
+    expect(Schema.is(MarketBootstrapPolicyRevisionSchema)(storefrontScoped)).toBe(true);
     expect(() =>
       Schema.decodeUnknownSync(MarketBootstrapPolicyRevisionSchema)({
-        ...bootstrap,
-        scope: {
-          ...bootstrap.scope,
-          kind: 'STOREFRONT_CHANNEL_SELLER',
-          storefrontId: 'storefront-1',
-        },
-        value: { ...bootstrap.value, defaultStorefrontId: 'different-storefront' },
+        ...storefrontScoped,
+        value: { ...storefrontScoped.value, defaultStorefrontId: 'storefront-1' },
       }),
     ).toThrow();
   });

@@ -145,7 +145,6 @@ const policyCandidate = (
     channelId: selectedTuple.channel,
     commerceMarketId: selectedTuple.marketRef.resourceId,
     sellingLegalEntityId: selectedTuple.sellingLegalEntityRef.resourceId,
-    storefrontId,
   },
   policyRevisionId,
   scope,
@@ -223,6 +222,24 @@ describe('Market bootstrap policy resolution', () => {
     });
   });
 
+  it('applies a Channel + Seller default across eligible Storefront contexts', () => {
+    const decision = resolveMarketBootstrapPolicy(
+      request({ storefrontRef: { appId: 'another-shop', tenantId } }),
+      eligible([firstTuple]),
+      policy([
+        partition(sellerOneId, [
+          policyCandidate('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', channelScope()),
+        ]),
+      ]),
+      evaluatedAtInstant,
+    );
+
+    expect(decision).toMatchObject({
+      evidence: { selectedPolicyRevisionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2' },
+      kind: 'DEFAULT',
+    });
+  });
+
   it('falls through only to the highest applicable Market-free rank', () => {
     const wrongStorefront = policyCandidate('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3', {
       ...storefrontScope(),
@@ -242,10 +259,7 @@ describe('Market bootstrap policy resolution', () => {
             ...wrongChannel,
             defaultTuple: { ...wrongChannel.defaultTuple, channelId: 'B2C' },
           },
-          {
-            ...wrongStorefront,
-            defaultTuple: { ...wrongStorefront.defaultTuple, storefrontId: 'another-shop' },
-          },
+          wrongStorefront,
         ]),
       ]),
       evaluatedAtInstant,

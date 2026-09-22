@@ -55,9 +55,9 @@ it('stores each executable Customer Commerce Policy family in explicit typed tab
   const expected = [
     [
       marketBootstrapPolicyRevisions,
-      ['default_channel_id', 'default_commerce_market_id', 'default_selling_legal_entity_id', 'default_storefront_id'],
+      ['default_channel_id', 'default_commerce_market_id', 'default_selling_legal_entity_id'],
     ],
-    [purchaseCurrencyPolicyRevisions, ['rule_kind', 'currency_code', 'enabled']],
+    [purchaseCurrencyPolicyRevisions, ['rule_kind', 'currency_code']],
     [paymentTermPolicyRevisions, ['rule_kind', 'payment_term_resource_id', 'enabled']],
     [
       commerceQuantityRuleRevisions,
@@ -102,6 +102,11 @@ it('stores each executable Customer Commerce Policy family in explicit typed tab
     expect(config.checks.some(({ name }) => name.endsWith('_applicability_ck'))).toBe(true);
     expect(config.checks.some(({ name }) => name.endsWith('_lifecycle_ck'))).toBe(true);
   }
+
+  expect(getTableConfig(marketBootstrapPolicyRevisions).columns.some(({ name }) => name === 'default_storefront_id')).toBe(
+    false,
+  );
+  expect(getTableConfig(purchaseCurrencyPolicyRevisions).columns.some(({ name }) => name === 'enabled')).toBe(false);
 });
 
 it('keeps bootstrap-only and ordinary policy scopes distinct at the database boundary', () => {
@@ -187,9 +192,9 @@ it('keeps pre-seller bootstrap discovery in a tenant-safe projection without adm
       'retired_at',
       'default_channel_id',
       'default_commerce_market_id',
-      'default_storefront_id',
     ]),
   );
+  expect(candidates.columns.some(({ name }) => name === 'default_storefront_id')).toBe(false);
   for (const administrationColumn of [
     'action_invocation_id',
     'actor_principal_id',

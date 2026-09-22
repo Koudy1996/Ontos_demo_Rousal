@@ -153,7 +153,6 @@ export const MarketBootstrapValueSchema = Schema.Struct({
   defaultChannelId: CustomerCommercePolicyChannelIdSchema,
   defaultCommerceMarketId: CustomerCommercePolicyCommerceMarketIdSchema,
   defaultSellingLegalEntityId: CustomerCommercePolicySellingLegalEntityIdSchema,
-  defaultStorefrontId: CustomerCommercePolicyStorefrontIdSchema,
   kind: Schema.Literal('DEFAULT_MARKET_TUPLE'),
 }).annotate({ parseOptions: { onExcessProperty: 'error' } });
 
@@ -165,14 +164,9 @@ const PurchaseCurrencyDefaultValueSchema = Schema.Struct({
   currencyCode: CurrencyCodeSchema,
   kind: Schema.Literal('DEFAULT_CURRENCY'),
 }).annotate({ parseOptions: { onExcessProperty: 'error' } });
-const PurchaseCurrencyExplicitChoicePolicyValueSchema = Schema.Struct({
-  enabled: Schema.Boolean,
-  kind: Schema.Literal('EXPLICIT_CURRENCY_CHOICE_POLICY'),
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
 export const PurchaseCurrencyValueSchema = Schema.Union([
   PurchaseCurrencyConstraintValueSchema,
   PurchaseCurrencyDefaultValueSchema,
-  PurchaseCurrencyExplicitChoicePolicyValueSchema,
 ]);
 
 const PaymentTermRefSchema = Schema.Struct({
@@ -349,14 +343,7 @@ const marketBootstrapTupleMatchesScope = Schema.makeFilter(
         { issue: 'Default Channel must match the Channel fixed by policy scope', path: ['value', 'defaultChannelId'] },
       ];
     }
-    return scope.kind === 'STOREFRONT_CHANNEL_SELLER' && value.defaultStorefrontId !== scope.storefrontId
-      ? [
-          {
-            issue: 'Default Storefront must match the Storefront fixed by policy scope',
-            path: ['value', 'defaultStorefrontId'],
-          },
-        ]
-      : undefined;
+    return undefined;
   },
 );
 

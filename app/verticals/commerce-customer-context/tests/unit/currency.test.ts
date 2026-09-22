@@ -89,7 +89,6 @@ const policy = {
   allowedCurrencies: ['CZK', 'EUR'] as const,
   completeness: policyCompleteness,
   defaultCurrency: 'CZK' as const,
-  explicitChoiceEnabled: true,
   policyRevisionIds: ['10000000-0000-4000-8000-000000000011'] as const,
 };
 const pricing = {
@@ -100,11 +99,9 @@ const launchCurrencyPolicy = {
   allowedCurrencies: ['CZK'] as const,
   completeness: policyCompleteness,
   defaultCurrency: 'CZK' as const,
-  explicitChoiceEnabled: true,
   policyRevisionIds: [
     '10000000-0000-4000-8000-000000000011',
     '10000000-0000-4000-8000-000000000012',
-    '10000000-0000-4000-8000-000000000013',
   ] as const,
 };
 const launchPricingCurrencySupport = {
@@ -225,10 +222,6 @@ it.effect('composes the complete Current CZK Launch policy and retains exact evi
         currencyCode: 'CZK',
         kind: 'DEFAULT_CURRENCY',
       }),
-      policyCandidate('10000000-0000-4000-8000-000000000013', {
-        enabled: true,
-        kind: 'EXPLICIT_CURRENCY_CHOICE_POLICY',
-      }),
     ]);
     const composed = yield* composeCurrentPurchaseCurrencyPolicy(
       current,
@@ -239,11 +232,9 @@ it.effect('composes the complete Current CZK Launch policy and retains exact evi
       allowedCurrencies: ['CZK'],
       completeness: policyCompleteness,
       defaultCurrency: 'CZK',
-      explicitChoiceEnabled: true,
       policyRevisionIds: [
         '10000000-0000-4000-8000-000000000011',
         '10000000-0000-4000-8000-000000000012',
-        '10000000-0000-4000-8000-000000000013',
       ],
     });
   }),
@@ -263,10 +254,6 @@ it.effect('rejects same-rank defaults as a typed policy conflict', () =>
       policyCandidate('10000000-0000-4000-8000-000000000023', {
         currencyCode: 'EUR',
         kind: 'DEFAULT_CURRENCY',
-      }),
-      policyCandidate('10000000-0000-4000-8000-000000000024', {
-        enabled: true,
-        kind: 'EXPLICIT_CURRENCY_CHOICE_POLICY',
       }),
     ]);
     const failure = yield* composeCurrentPurchaseCurrencyPolicy(
@@ -308,10 +295,6 @@ it.effect('distinguishes absent and broken complete candidate sets', () =>
           currencyCode: 'CZK',
           kind: 'DEFAULT_CURRENCY',
         }),
-        policyCandidate('10000000-0000-4000-8000-000000000032', {
-          enabled: true,
-          kind: 'EXPLICIT_CURRENCY_CHOICE_POLICY',
-        }),
       ]),
       purchasingContext,
       policyCompleteness.observedAt,
@@ -351,10 +334,6 @@ it.effect('uses the most specific default and intersects every applicable non-re
         { currencyCode: 'CZK', kind: 'DEFAULT_CURRENCY' },
         marketScope,
       ),
-      policyCandidate('10000000-0000-4000-8000-000000000046', {
-        enabled: true,
-        kind: 'EXPLICIT_CURRENCY_CHOICE_POLICY',
-      }),
     ]);
     const composed = yield* composeCurrentPurchaseCurrencyPolicy(
       current,

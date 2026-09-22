@@ -124,7 +124,6 @@ CREATE TABLE "commerce_customer_context"."market_bootstrap_policy_revisions" (
 	"default_channel_id" text NOT NULL,
 	"default_commerce_market_id" text NOT NULL,
 	"default_selling_legal_entity_id" uuid NOT NULL,
-	"default_storefront_id" text NOT NULL,
 	CONSTRAINT "ccc_market_bootstrap_policy_scope_id_uk" UNIQUE("tenant_id","legal_entity_id","policy_revision_id"),
 	CONSTRAINT "ccc_market_bootstrap_policy_idempotency_uk" UNIQUE("tenant_id","legal_entity_id","idempotency_key"),
 	CONSTRAINT "ccc_market_bootstrap_policy_scope_ck" CHECK (("scope_kind" = 'SELLER' and "channel_id" is null and "commerce_market_id" is null and "storefront_id" is null) or ("scope_kind" = 'CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is null and "storefront_id" is null) or ("scope_kind" = 'MARKET_CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is not null and "storefront_id" is null) or ("scope_kind" = 'STOREFRONT_MARKET_CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is not null and "storefront_id" is not null) or ("scope_kind" = 'STOREFRONT_CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is null and "storefront_id" is not null)),
@@ -139,8 +138,7 @@ CREATE TABLE "commerce_customer_context"."market_bootstrap_policy_revisions" (
 	CONSTRAINT "ccc_market_bootstrap_policy_default_market_ck" CHECK ("default_commerce_market_id" = btrim("default_commerce_market_id") and length("default_commerce_market_id") > 0),
 	CONSTRAINT "ccc_market_bootstrap_policy_default_channel_ck" CHECK ("default_channel_id" = btrim("default_channel_id") and length("default_channel_id") > 0),
 	CONSTRAINT "ccc_market_bootstrap_policy_default_seller_ck" CHECK ("default_selling_legal_entity_id" = "legal_entity_id"),
-	CONSTRAINT "ccc_market_bootstrap_policy_default_scope_ck" CHECK (("scope_kind" = 'SELLER') or ("scope_kind" = 'CHANNEL_SELLER' and "default_channel_id" = "channel_id") or ("scope_kind" = 'STOREFRONT_CHANNEL_SELLER' and "default_channel_id" = "channel_id" and "default_storefront_id" = "storefront_id")),
-	CONSTRAINT "ccc_market_bootstrap_policy_default_storefront_ck" CHECK ("default_storefront_id" = btrim("default_storefront_id") and length("default_storefront_id") > 0)
+	CONSTRAINT "ccc_market_bootstrap_policy_default_scope_ck" CHECK (("scope_kind" = 'SELLER') or ("scope_kind" in ('CHANNEL_SELLER', 'STOREFRONT_CHANNEL_SELLER') and "default_channel_id" = "channel_id"))
 );
 --> statement-breakpoint
 ALTER TABLE "commerce_customer_context"."market_bootstrap_policy_revisions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -197,7 +195,6 @@ CREATE TABLE "commerce_customer_context"."purchase_currency_policy_revisions" (
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"rule_kind" text NOT NULL,
 	"currency_code" text,
-	"enabled" boolean,
 	CONSTRAINT "ccc_purchase_currency_policy_scope_id_uk" UNIQUE("tenant_id","legal_entity_id","policy_revision_id"),
 	CONSTRAINT "ccc_purchase_currency_policy_idempotency_uk" UNIQUE("tenant_id","legal_entity_id","idempotency_key"),
 	CONSTRAINT "ccc_purchase_currency_policy_scope_ck" CHECK (("scope_kind" = 'SELLER' and "channel_id" is null and "commerce_market_id" is null and "storefront_id" is null) or ("scope_kind" = 'CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is null and "storefront_id" is null) or ("scope_kind" = 'MARKET_CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is not null and "storefront_id" is null) or ("scope_kind" = 'STOREFRONT_MARKET_CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is not null and "storefront_id" is not null) or ("scope_kind" = 'STOREFRONT_CHANNEL_SELLER' and "channel_id" is not null and "commerce_market_id" is null and "storefront_id" is not null)),
@@ -209,7 +206,7 @@ CREATE TABLE "commerce_customer_context"."purchase_currency_policy_revisions" (
 	CONSTRAINT "ccc_purchase_currency_policy_idempotency_ck" CHECK ("idempotency_key" = btrim("idempotency_key") and length("idempotency_key") > 0),
 	CONSTRAINT "ccc_purchase_currency_policy_reason_ck" CHECK ("reason" = btrim("reason") and length("reason") > 0),
 	CONSTRAINT "ccc_purchase_currency_policy_field_scope_ck" CHECK ("scope_kind" in ('SELLER', 'CHANNEL_SELLER', 'MARKET_CHANNEL_SELLER', 'STOREFRONT_MARKET_CHANNEL_SELLER')),
-	CONSTRAINT "ccc_purchase_currency_policy_value_ck" CHECK (("rule_kind" in ('ALLOWED_CURRENCY_CONSTRAINT', 'DEFAULT_CURRENCY') and "currency_code" ~ '^[A-Z]{3}$' and "enabled" is null) or ("rule_kind" = 'EXPLICIT_CURRENCY_CHOICE_POLICY' and "currency_code" is null and "enabled" is not null))
+	CONSTRAINT "ccc_purchase_currency_policy_value_ck" CHECK ("rule_kind" in ('ALLOWED_CURRENCY_CONSTRAINT', 'DEFAULT_CURRENCY') and "currency_code" ~ '^[A-Z]{3}$')
 );
 --> statement-breakpoint
 ALTER TABLE "commerce_customer_context"."purchase_currency_policy_revisions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -278,7 +275,6 @@ CREATE TABLE "commerce_customer_context"."market_bootstrap_policy_candidate_revi
 	"retired_at" timestamp with time zone,
 	"default_channel_id" text NOT NULL,
 	"default_commerce_market_id" text NOT NULL,
-	"default_storefront_id" text NOT NULL,
 	CONSTRAINT "ccc_market_bootstrap_candidates_scope_id_uk" UNIQUE("tenant_id","selling_legal_entity_id","policy_revision_id"),
 	CONSTRAINT "ccc_market_bootstrap_candidates_scope_ck" CHECK (("scope_kind" = 'SELLER' and "channel_id" is null and "storefront_id" is null) or ("scope_kind" = 'CHANNEL_SELLER' and "channel_id" is not null and "storefront_id" is null) or ("scope_kind" = 'STOREFRONT_CHANNEL_SELLER' and "channel_id" is not null and "storefront_id" is not null)),
 	CONSTRAINT "ccc_market_bootstrap_candidates_lifecycle_ck" CHECK ("lifecycle" in ('SCHEDULED', 'ACTIVE', 'RETIRED')),
@@ -288,8 +284,7 @@ CREATE TABLE "commerce_customer_context"."market_bootstrap_policy_candidate_revi
 	CONSTRAINT "ccc_market_bootstrap_candidates_storefront_ck" CHECK ("storefront_id" is null or ("storefront_id" = btrim("storefront_id") and length("storefront_id") > 0)),
 	CONSTRAINT "ccc_market_bootstrap_candidates_default_channel_ck" CHECK ("default_channel_id" = btrim("default_channel_id") and length("default_channel_id") > 0),
 	CONSTRAINT "ccc_market_bootstrap_candidates_default_market_ck" CHECK ("default_commerce_market_id" = btrim("default_commerce_market_id") and length("default_commerce_market_id") > 0),
-	CONSTRAINT "ccc_market_bootstrap_candidates_default_storefront_ck" CHECK ("default_storefront_id" = btrim("default_storefront_id") and length("default_storefront_id") > 0),
-	CONSTRAINT "ccc_market_bootstrap_candidates_default_scope_ck" CHECK (("scope_kind" = 'SELLER') or ("scope_kind" = 'CHANNEL_SELLER' and "default_channel_id" = "channel_id") or ("scope_kind" = 'STOREFRONT_CHANNEL_SELLER' and "default_channel_id" = "channel_id" and "default_storefront_id" = "storefront_id"))
+	CONSTRAINT "ccc_market_bootstrap_candidates_default_scope_ck" CHECK (("scope_kind" = 'SELLER') or ("scope_kind" in ('CHANNEL_SELLER', 'STOREFRONT_CHANNEL_SELLER') and "default_channel_id" = "channel_id"))
 );
 --> statement-breakpoint
 ALTER TABLE "commerce_customer_context"."market_bootstrap_policy_candidate_revisions" ENABLE ROW LEVEL SECURITY;
@@ -810,8 +805,7 @@ BEGIN
     'value', jsonb_build_object('kind', 'DEFAULT_MARKET_TUPLE',
       'defaultChannelId', default_channel_id,
       'defaultCommerceMarketId', default_commerce_market_id,
-      'defaultSellingLegalEntityId', default_selling_legal_entity_id,
-      'defaultStorefrontId', default_storefront_id)
+      'defaultSellingLegalEntityId', default_selling_legal_entity_id)
   ) ORDER BY recorded_at, policy_revision_id), '[]'::jsonb) INTO v_revisions
     FROM market_bootstrap_policy_revisions
    WHERE tenant_id = p_tenant_id AND legal_entity_id = p_legal_entity_id;
@@ -871,7 +865,7 @@ BEGIN
       policy_revision_id, tenant_id, legal_entity_id, scope_kind, channel_id, commerce_market_id,
       storefront_id, effective_from, effective_to, applicable_from, applicable_to, lifecycle, idempotency_key,
       action_invocation_id, actor_principal_id, reason, default_channel_id,
-      default_commerce_market_id, default_selling_legal_entity_id, default_storefront_id
+      default_commerce_market_id, default_selling_legal_entity_id
     ) VALUES (
       (v_revision->>'revisionId')::uuid, p_tenant_id, p_legal_entity_id,
       v_revision #>> '{scope,kind}', v_revision #>> '{scope,channelId}',
@@ -883,8 +877,7 @@ BEGIN
       (v_revision->>'actorPrincipalId')::uuid, v_revision->>'reason',
       v_revision #>> '{value,defaultChannelId}',
       v_revision #>> '{value,defaultCommerceMarketId}',
-      (v_revision #>> '{value,defaultSellingLegalEntityId}')::uuid,
-      v_revision #>> '{value,defaultStorefrontId}'
+      (v_revision #>> '{value,defaultSellingLegalEntityId}')::uuid
     ) ON CONFLICT (policy_revision_id) DO UPDATE SET
       tenant_id = excluded.tenant_id, legal_entity_id = excluded.legal_entity_id,
       scope_kind = excluded.scope_kind, channel_id = excluded.channel_id,
@@ -896,8 +889,7 @@ BEGIN
       actor_principal_id = excluded.actor_principal_id, reason = excluded.reason,
       default_channel_id = excluded.default_channel_id,
       default_commerce_market_id = excluded.default_commerce_market_id,
-      default_selling_legal_entity_id = excluded.default_selling_legal_entity_id,
-      default_storefront_id = excluded.default_storefront_id;
+      default_selling_legal_entity_id = excluded.default_selling_legal_entity_id;
   END LOOP;
   PERFORM commerce_customer_context.store_customer_commerce_policy_generation(
     p_tenant_id, p_legal_entity_id, 'MARKET_BOOTSTRAP', p_expected_generation, p_payload);
@@ -906,11 +898,11 @@ BEGIN
   INSERT INTO market_bootstrap_policy_candidate_revisions (
     policy_revision_id, tenant_id, selling_legal_entity_id, scope_kind, channel_id, storefront_id,
     effective_from, effective_to, lifecycle, activated_at, retired_at, default_channel_id,
-    default_commerce_market_id, default_storefront_id
+    default_commerce_market_id
   )
   SELECT policy_revision_id, tenant_id, legal_entity_id, scope_kind, channel_id, storefront_id,
          effective_from, effective_to, lifecycle, applicable_from, applicable_to,
-         default_channel_id, default_commerce_market_id, default_storefront_id
+         default_channel_id, default_commerce_market_id
     FROM market_bootstrap_policy_revisions revision
    WHERE tenant_id = p_tenant_id AND legal_entity_id = p_legal_entity_id;
   INSERT INTO market_bootstrap_policy_candidate_generations (
@@ -964,8 +956,7 @@ BEGIN
                'defaultTuple', jsonb_build_object(
                  'channelId', candidate.default_channel_id,
                  'commerceMarketId', candidate.default_commerce_market_id,
-                 'sellingLegalEntityId', requested.seller_id::text,
-                 'storefrontId', candidate.default_storefront_id),
+                 'sellingLegalEntityId', requested.seller_id::text),
                'policyRevisionId', candidate.policy_revision_id::text,
                'scope', jsonb_strip_nulls(jsonb_build_object(
                  'kind', candidate.scope_kind,
@@ -1040,9 +1031,7 @@ BEGIN
     'scope', jsonb_strip_nulls(jsonb_build_object(
       'kind', scope_kind, 'sellingLegalEntityId', legal_entity_id::text,
       'channelId', channel_id, 'commerceMarketId', commerce_market_id, 'storefrontId', storefront_id)),
-    'value', case when rule_kind = 'EXPLICIT_CURRENCY_CHOICE_POLICY'
-      then jsonb_build_object('kind', rule_kind, 'enabled', enabled)
-      else jsonb_build_object('kind', rule_kind, 'currencyCode', currency_code) end
+    'value', jsonb_build_object('kind', rule_kind, 'currencyCode', currency_code)
   ) ORDER BY recorded_at, policy_revision_id), '[]'::jsonb) INTO v_revisions
     FROM purchase_currency_policy_revisions
    WHERE tenant_id = p_tenant_id AND legal_entity_id = p_legal_entity_id;
@@ -1100,7 +1089,7 @@ BEGIN
     INSERT INTO purchase_currency_policy_revisions (
       policy_revision_id, tenant_id, legal_entity_id, scope_kind, channel_id, commerce_market_id,
       storefront_id, effective_from, effective_to, applicable_from, applicable_to, lifecycle, idempotency_key,
-      action_invocation_id, actor_principal_id, reason, rule_kind, currency_code, enabled
+      action_invocation_id, actor_principal_id, reason, rule_kind, currency_code
     ) VALUES (
       (v_revision->>'revisionId')::uuid, p_tenant_id, p_legal_entity_id,
       v_revision #>> '{scope,kind}', v_revision #>> '{scope,channelId}',
@@ -1110,8 +1099,7 @@ BEGIN
       v_revision->>'lifecycle',
       v_revision->>'idempotencyKey', (v_revision->>'actionInvocationId')::uuid,
       (v_revision->>'actorPrincipalId')::uuid, v_revision->>'reason',
-      v_revision #>> '{value,kind}', v_revision #>> '{value,currencyCode}',
-      nullif(v_revision #>> '{value,enabled}', '')::boolean
+      v_revision #>> '{value,kind}', v_revision #>> '{value,currencyCode}'
     ) ON CONFLICT (policy_revision_id) DO UPDATE SET
       tenant_id = excluded.tenant_id, legal_entity_id = excluded.legal_entity_id,
       scope_kind = excluded.scope_kind, channel_id = excluded.channel_id,
@@ -1121,7 +1109,7 @@ BEGIN
       lifecycle = excluded.lifecycle, idempotency_key = excluded.idempotency_key,
       action_invocation_id = excluded.action_invocation_id,
       actor_principal_id = excluded.actor_principal_id, reason = excluded.reason,
-      rule_kind = excluded.rule_kind, currency_code = excluded.currency_code, enabled = excluded.enabled;
+      rule_kind = excluded.rule_kind, currency_code = excluded.currency_code;
   END LOOP;
   PERFORM commerce_customer_context.store_customer_commerce_policy_generation(
     p_tenant_id, p_legal_entity_id, 'PURCHASE_CURRENCY', p_expected_generation, p_payload);

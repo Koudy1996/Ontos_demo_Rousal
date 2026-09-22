@@ -893,7 +893,6 @@ const MarketBootstrapDefaultTupleSchema = Schema.Struct({
   channelId: CustomerCommercePolicyChannelIdSchema,
   commerceMarketId: CustomerCommercePolicyCommerceMarketIdSchema,
   sellingLegalEntityId: CustomerCommercePolicySellingLegalEntityIdSchema,
-  storefrontId: CustomerCommercePolicyStorefrontIdSchema,
 }).annotate({ parseOptions: { onExcessProperty: 'error' } });
 
 const MarketBootstrapPolicyBatchCandidateSchema = Schema.Struct({
@@ -904,11 +903,10 @@ const MarketBootstrapPolicyBatchCandidateSchema = Schema.Struct({
   Schema.makeFilter(({ defaultTuple, scope }) => {
     const scopeMatches =
       scope.sellingLegalEntityId === defaultTuple.sellingLegalEntityId &&
-      (scope.kind === 'SELLER' || scope.channelId === defaultTuple.channelId) &&
-      (scope.kind !== 'STOREFRONT_CHANNEL_SELLER' || scope.storefrontId === defaultTuple.storefrontId);
+      (scope.kind === 'SELLER' || scope.channelId === defaultTuple.channelId);
     return scopeMatches
       ? undefined
-      : 'Bootstrap candidate tuple must match every seller, Channel, and Storefront fixed by its scope';
+      : 'Bootstrap candidate tuple must match every seller and Channel fixed by its scope';
   }),
 );
 

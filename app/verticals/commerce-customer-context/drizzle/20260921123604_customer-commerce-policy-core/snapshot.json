@@ -4064,19 +4064,6 @@
       "table": "market_bootstrap_policy_candidate_revisions"
     },
     {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "default_storefront_id",
-      "entityType": "columns",
-      "schema": "commerce_customer_context",
-      "table": "market_bootstrap_policy_candidate_revisions"
-    },
-    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -4332,19 +4319,6 @@
       "generated": null,
       "identity": null,
       "name": "default_selling_legal_entity_id",
-      "entityType": "columns",
-      "schema": "commerce_customer_context",
-      "table": "market_bootstrap_policy_revisions"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "default_storefront_id",
       "entityType": "columns",
       "schema": "commerce_customer_context",
       "table": "market_bootstrap_policy_revisions"
@@ -6282,19 +6256,6 @@
       "generated": null,
       "identity": null,
       "name": "currency_code",
-      "entityType": "columns",
-      "schema": "commerce_customer_context",
-      "table": "purchase_currency_policy_revisions"
-    },
-    {
-      "type": "boolean",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "enabled",
       "entityType": "columns",
       "schema": "commerce_customer_context",
       "table": "purchase_currency_policy_revisions"
@@ -9926,14 +9887,7 @@
       "table": "market_bootstrap_policy_candidate_revisions"
     },
     {
-      "value": "\"default_storefront_id\" = btrim(\"default_storefront_id\") and length(\"default_storefront_id\") > 0",
-      "name": "ccc_market_bootstrap_candidates_default_storefront_ck",
-      "entityType": "checks",
-      "schema": "commerce_customer_context",
-      "table": "market_bootstrap_policy_candidate_revisions"
-    },
-    {
-      "value": "(\"scope_kind\" = 'SELLER') or (\"scope_kind\" = 'CHANNEL_SELLER' and \"default_channel_id\" = \"channel_id\") or (\"scope_kind\" = 'STOREFRONT_CHANNEL_SELLER' and \"default_channel_id\" = \"channel_id\" and \"default_storefront_id\" = \"storefront_id\")",
+      "value": "(\"scope_kind\" = 'SELLER') or (\"scope_kind\" in ('CHANNEL_SELLER', 'STOREFRONT_CHANNEL_SELLER') and \"default_channel_id\" = \"channel_id\")",
       "name": "ccc_market_bootstrap_candidates_default_scope_ck",
       "entityType": "checks",
       "schema": "commerce_customer_context",
@@ -10031,15 +9985,8 @@
       "table": "market_bootstrap_policy_revisions"
     },
     {
-      "value": "(\"scope_kind\" = 'SELLER') or (\"scope_kind\" = 'CHANNEL_SELLER' and \"default_channel_id\" = \"channel_id\") or (\"scope_kind\" = 'STOREFRONT_CHANNEL_SELLER' and \"default_channel_id\" = \"channel_id\" and \"default_storefront_id\" = \"storefront_id\")",
+      "value": "(\"scope_kind\" = 'SELLER') or (\"scope_kind\" in ('CHANNEL_SELLER', 'STOREFRONT_CHANNEL_SELLER') and \"default_channel_id\" = \"channel_id\")",
       "name": "ccc_market_bootstrap_policy_default_scope_ck",
-      "entityType": "checks",
-      "schema": "commerce_customer_context",
-      "table": "market_bootstrap_policy_revisions"
-    },
-    {
-      "value": "\"default_storefront_id\" = btrim(\"default_storefront_id\") and length(\"default_storefront_id\") > 0",
-      "name": "ccc_market_bootstrap_policy_default_storefront_ck",
       "entityType": "checks",
       "schema": "commerce_customer_context",
       "table": "market_bootstrap_policy_revisions"
@@ -10584,7 +10531,7 @@
       "table": "purchase_currency_policy_revisions"
     },
     {
-      "value": "(\"rule_kind\" in ('ALLOWED_CURRENCY_CONSTRAINT', 'DEFAULT_CURRENCY') and \"currency_code\" ~ '^[A-Z]{3}$' and \"enabled\" is null) or (\"rule_kind\" = 'EXPLICIT_CURRENCY_CHOICE_POLICY' and \"currency_code\" is null and \"enabled\" is not null)",
+      "value": "\"rule_kind\" in ('ALLOWED_CURRENCY_CONSTRAINT', 'DEFAULT_CURRENCY') and \"currency_code\" ~ '^[A-Z]{3}$'",
       "name": "ccc_purchase_currency_policy_value_ck",
       "entityType": "checks",
       "schema": "commerce_customer_context",

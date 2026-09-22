@@ -1841,7 +1841,6 @@ export const marketBootstrapPolicyRevisions = commerceCustomerContextSchema.tabl
     defaultChannelId: text('default_channel_id').notNull(),
     defaultCommerceMarketId: text('default_commerce_market_id').notNull(),
     defaultSellingLegalEntityId: uuid('default_selling_legal_entity_id').notNull(),
-    defaultStorefrontId: text('default_storefront_id').notNull(),
   },
   (table) => [
     ...policyRevisionConstraints('ccc_market_bootstrap_policy', table),
@@ -1857,9 +1856,8 @@ export const marketBootstrapPolicyRevisions = commerceCustomerContextSchema.tabl
     ),
     check(
       'ccc_market_bootstrap_policy_default_scope_ck',
-      sql`(${table.scopeKind} = 'SELLER') or (${table.scopeKind} = 'CHANNEL_SELLER' and ${table.defaultChannelId} = ${table.channelId}) or (${table.scopeKind} = 'STOREFRONT_CHANNEL_SELLER' and ${table.defaultChannelId} = ${table.channelId} and ${table.defaultStorefrontId} = ${table.storefrontId})`,
+      sql`(${table.scopeKind} = 'SELLER') or (${table.scopeKind} in ('CHANNEL_SELLER', 'STOREFRONT_CHANNEL_SELLER') and ${table.defaultChannelId} = ${table.channelId})`,
     ),
-    trimmed('ccc_market_bootstrap_policy_default_storefront_ck', table.defaultStorefrontId),
   ],
 );
 
@@ -1871,7 +1869,6 @@ export const marketBootstrapPolicyCandidateRevisions = commerceCustomerContextSc
     channelId: text('channel_id'),
     defaultChannelId: text('default_channel_id').notNull(),
     defaultCommerceMarketId: text('default_commerce_market_id').notNull(),
-    defaultStorefrontId: text('default_storefront_id').notNull(),
     effectiveFrom: effectiveFrom(),
     effectiveTo: effectiveTo(),
     lifecycle: text('lifecycle').notNull(),
@@ -1914,10 +1911,9 @@ export const marketBootstrapPolicyCandidateRevisions = commerceCustomerContextSc
     optionalTrimmed('ccc_market_bootstrap_candidates_storefront_ck', table.storefrontId),
     trimmed('ccc_market_bootstrap_candidates_default_channel_ck', table.defaultChannelId),
     trimmed('ccc_market_bootstrap_candidates_default_market_ck', table.defaultCommerceMarketId),
-    trimmed('ccc_market_bootstrap_candidates_default_storefront_ck', table.defaultStorefrontId),
     check(
       'ccc_market_bootstrap_candidates_default_scope_ck',
-      sql`(${table.scopeKind} = 'SELLER') or (${table.scopeKind} = 'CHANNEL_SELLER' and ${table.defaultChannelId} = ${table.channelId}) or (${table.scopeKind} = 'STOREFRONT_CHANNEL_SELLER' and ${table.defaultChannelId} = ${table.channelId} and ${table.defaultStorefrontId} = ${table.storefrontId})`,
+      sql`(${table.scopeKind} = 'SELLER') or (${table.scopeKind} in ('CHANNEL_SELLER', 'STOREFRONT_CHANNEL_SELLER') and ${table.defaultChannelId} = ${table.channelId})`,
     ),
     ...tenantScopedPolicies('ccc_market_bootstrap_candidates_rls', table),
   ],
@@ -1964,7 +1960,6 @@ export const purchaseCurrencyPolicyRevisions = commerceCustomerContextSchema.tab
   {
     ...policyRevisionColumns(),
     currencyCode: text('currency_code'),
-    enabled: boolean('enabled'),
     ruleKind: text('rule_kind').notNull(),
   },
   (table) => [
@@ -1975,7 +1970,7 @@ export const purchaseCurrencyPolicyRevisions = commerceCustomerContextSchema.tab
     ),
     check(
       'ccc_purchase_currency_policy_value_ck',
-      sql`(${table.ruleKind} in ('ALLOWED_CURRENCY_CONSTRAINT', 'DEFAULT_CURRENCY') and ${table.currencyCode} ~ '^[A-Z]{3}$' and ${table.enabled} is null) or (${table.ruleKind} = 'EXPLICIT_CURRENCY_CHOICE_POLICY' and ${table.currencyCode} is null and ${table.enabled} is not null)`,
+      sql`${table.ruleKind} in ('ALLOWED_CURRENCY_CONSTRAINT', 'DEFAULT_CURRENCY') and ${table.currencyCode} ~ '^[A-Z]{3}$'`,
     ),
   ],
 );
