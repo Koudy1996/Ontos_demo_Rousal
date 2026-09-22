@@ -7,7 +7,7 @@ export const PRICING_SCHEMA_NAME = 'pricing';
 export const PRICING_TABLE_INVENTORY = ['currency_support_revisions'] as const;
 export const pricingSchema = pgSchema(PRICING_SCHEMA_NAME);
 
-export const currencySupportRevisions = pricingSchema.table.withRLS(
+const currencySupportRevisions = pricingSchema.table.withRLS(
   'currency_support_revisions',
   {
     currencySupportRevisionId: uuid('currency_support_revision_id').defaultRandom().primaryKey(),

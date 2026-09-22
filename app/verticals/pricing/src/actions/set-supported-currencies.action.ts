@@ -47,7 +47,6 @@ export const SetSupportedCurrenciesResultSchema = Schema.Struct({
   pricingRevision: PricingRevisionSchema,
   supportedCurrencies: nonEmptyCurrencies,
 });
-export type SetSupportedCurrenciesResult = typeof SetSupportedCurrenciesResultSchema.Type;
 
 export class SupportedCurrenciesRevisionConflict extends Schema.TaggedError<SupportedCurrenciesRevisionConflict>()(
   'SupportedCurrenciesRevisionConflict',
