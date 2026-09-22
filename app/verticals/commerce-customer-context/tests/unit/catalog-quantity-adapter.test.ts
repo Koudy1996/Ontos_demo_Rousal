@@ -1,4 +1,4 @@
-import { ConfigProvider, Effect, Layer, Redacted } from 'effect';
+import { ConfigProvider, Effect, Layer, Match, Redacted } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
@@ -71,8 +71,15 @@ describe('Catalog Quantity production adapter', () => {
         })
         .pipe(Effect.flip);
 
-      expect(failure).toEqual({
-        _tag: 'CommerceQuantityCatalogUnavailable',
+      const unavailableDetails = Match.value(failure).pipe(
+        Match.tag('CommerceQuantityCatalogUnavailable', ({ code, reason, retryable }) => ({
+          code,
+          reason,
+          retryable,
+        })),
+        Match.exhaustive,
+      );
+      expect(unavailableDetails).toEqual({
         code: 'catalog_selection_unavailable',
         reason: 'No server-owned Catalog gateway credential issuer is configured',
         retryable: true,
