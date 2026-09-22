@@ -135,7 +135,7 @@ export const reviseStorefrontApplicationAction = defineAction(
       access: 'write',
       authorization: { kind: 'action_execution', provisioning: 'explicit' },
       entrypointKey: 'commerce.storefront-registry.revise-storefront-application',
-      moduleKey: MODULE_KEY,
+      moduleKey: 'commerce.storefront-registry',
       role: 'action',
     }),
     idempotency: 'required',
