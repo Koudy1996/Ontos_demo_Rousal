@@ -11,12 +11,32 @@ import {
 } from '../../../../scripts/czech-launch-commerce-fixture.mts';
 import { CatalogQuantityGatewayCredentialService } from '../../shared/domain/catalog-quantity-gateway-credential.ts';
 import { CommerceQuantityCatalogLineRequestSchema } from '../../shared/domain/commerce-quantity-catalog-port.ts';
+import {
+  CustomerCommercePolicyChangedTagSchema,
+  CustomerCommercePolicyTrustedActionContextSchema,
+  PaymentTermPolicyAdministrationPayloadSchema,
+  PurchaseCurrencyPolicyAdministrationPayloadSchema,
+  administerPaymentTermPolicy,
+  administerPurchaseCurrencyPolicy,
+  currentPaymentTermPolicySet,
+  currentPurchaseCurrencyPolicySet,
+  emptyCustomerCommercePolicySet,
+  toTrustedPaymentTermPolicyAdministrationCommand,
+  toTrustedPurchaseCurrencyPolicyAdministrationCommand,
+} from '../../shared/domain/customer-commerce-policy-administration.ts';
+import type { CustomerCommercePolicySet } from '../../shared/domain/customer-commerce-policy-administration.ts';
+import type {
+  PaymentTermPolicyRevision,
+  PurchaseCurrencyPolicyRevision,
+} from '../../shared/domain/customer-commerce-policy.ts';
 import { PaymentTermCatalogGatewayCredentialService } from '../../shared/domain/payment-term-catalog-gateway-credential.ts';
 import { unavailablePurchaseCurrencyPurchasingContextPort } from '../../shared/domain/purchase-currency-context-port.ts';
 import { PurchaseCurrencyDependencyUnavailable } from '../../shared/domain/purchase-currency-dependency.ts';
 import { PurchaseCurrencyPricingGatewayCredentialService } from '../../shared/domain/purchase-currency-pricing-gateway-credential.ts';
 import { catalogQuantityPortFromEnvironment } from '../../src/integrations/catalog-quantity.ts';
+import { customerCommercePaymentTermsPolicyResolver } from '../../src/integrations/customer-commerce-payment-terms-policy.ts';
 import { paymentTermCatalogPortFromEnvironment } from '../../src/integrations/payment-term-catalog.ts';
+import { purchaseCurrencyPolicyPortForRepository } from '../../src/integrations/purchase-currency-policy.ts';
 import { purchaseCurrencyPricingPortFromEnvironment } from '../../src/integrations/purchase-currency-pricing.ts';
 
 const effectiveAt = '2026-10-01T00:00:00.000Z';
@@ -31,6 +51,45 @@ const requireFixtureOwner = <Value>(value: Value | undefined, owner: string): Va
 };
 
 const currentPaymentTerm = requireFixtureOwner(paymentTermDefinition, 'Payment Term');
+
+const trustedPolicyContext = Schema.decodeUnknownSync(CustomerCommercePolicyTrustedActionContextSchema)({
+  actionInvocationId: '71000000-0000-4000-8000-000000000001',
+  actorPrincipalId: '71000000-0000-4000-8000-000000000002',
+  sellingLegalEntityId: fixtureScope.sellingLegalEntityId,
+  tenantId: fixtureScope.tenantId,
+});
+
+const persistedCzechLaunchPolicyStates = () => {
+  let purchaseCurrency: CustomerCommercePolicySet<PurchaseCurrencyPolicyRevision> =
+    emptyCustomerCommercePolicySet('PURCHASE_CURRENCY');
+  for (const fixturePayload of CZECH_LAUNCH_COMMERCE_FIXTURE.policies.purchaseCurrency) {
+    const payload = Schema.decodeUnknownSync(PurchaseCurrencyPolicyAdministrationPayloadSchema)(fixturePayload);
+    const result = administerPurchaseCurrencyPolicy(
+      purchaseCurrency,
+      toTrustedPurchaseCurrencyPolicyAdministrationCommand(payload, trustedPolicyContext, effectiveAt),
+    );
+    if (!Schema.is(CustomerCommercePolicyChangedTagSchema)(result)) {
+      throw new Error(`Czech Launch Purchase Currency policy command was rejected: ${result._tag}`);
+    }
+    purchaseCurrency = result.state;
+  }
+
+  let paymentTerm: CustomerCommercePolicySet<PaymentTermPolicyRevision> =
+    emptyCustomerCommercePolicySet('PAYMENT_TERM');
+  for (const fixturePayload of CZECH_LAUNCH_COMMERCE_FIXTURE.policies.paymentTerm) {
+    const payload = Schema.decodeUnknownSync(PaymentTermPolicyAdministrationPayloadSchema)(fixturePayload);
+    const result = administerPaymentTermPolicy(
+      paymentTerm,
+      toTrustedPaymentTermPolicyAdministrationCommand(payload, trustedPolicyContext, effectiveAt),
+    );
+    if (!Schema.is(CustomerCommercePolicyChangedTagSchema)(result)) {
+      throw new Error(`Czech Launch Payment Term policy command was rejected: ${result._tag}`);
+    }
+    paymentTerm = result.state;
+  }
+
+  return { paymentTerm, purchaseCurrency };
+};
 
 it.effect('composes the Czech Launch inventory and four policy defaults behind governed contracts', () =>
   Effect.gen(function* composedLaunch() {
@@ -139,6 +198,64 @@ it.effect('composes the Czech Launch inventory and four policy defaults behind g
           tenantId: '70000000-0000-4000-8000-000000000010',
         },
       },
+    });
+  }),
+);
+
+it.effect('proves #333 Current Currency and Payment Term owner ports independently of future Cart composition', () =>
+  Effect.gen(function* currentPolicyPorts() {
+    const states = persistedCzechLaunchPolicyStates();
+    const purchasingContext = {
+      channelId: fixtureScope.channelId,
+      marketId: fixtureScope.marketId,
+      sellingLegalEntityId: fixtureScope.sellingLegalEntityId,
+      storefrontId: fixtureScope.storefrontId,
+    };
+    const currencyPort = purchaseCurrencyPolicyPortForRepository({
+      loadPurchaseCurrencyPolicyState: Effect.succeed(states.purchaseCurrency),
+    });
+    const currency = yield* currencyPort.resolveCurrent({
+      context: {
+        contextRevision: 'commerce.cart.context:czech-launch-v1',
+        purchasingContext: { ...purchasingContext, cartId: 'czech-launch-cart', tenantId: fixtureScope.tenantId },
+      },
+      observedAt: effectiveAt,
+      subject: {
+        guestEvidenceRef: 'commerce.customer-context.guest-evidence:czech-launch',
+        guestSessionRef: 'commerce.cart.guest-session:czech-launch',
+        kind: 'GUEST',
+      },
+    });
+    const paymentTermResolver = customerCommercePaymentTermsPolicyResolver(
+      'PROFILE',
+      { tenantId: fixtureScope.tenantId, trustedStorefrontId: fixtureScope.storefrontId },
+      {
+        readCurrentPaymentTermPolicy: (at) => Effect.succeed(currentPaymentTermPolicySet(states.paymentTerm, at)),
+      },
+    );
+    const paymentTerm = yield* paymentTermResolver.resolve({ at: effectiveAt, purchasingContext });
+
+    expect(currentPurchaseCurrencyPolicySet(states.purchaseCurrency, effectiveAt)).toEqual(
+      CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.customerCommercePolicies.purchaseCurrency,
+    );
+    expect(currency).toEqual({
+      allowedCurrencies: ['CZK'],
+      completeness: CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.customerCommercePolicies.purchaseCurrency.completeness,
+      defaultCurrency: 'CZK',
+      policyRevisionIds:
+        CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.customerCommercePolicies.purchaseCurrency.candidates.map(
+          ({ policyRevisionId }) => policyRevisionId,
+        ),
+    });
+    expect(currentPaymentTermPolicySet(states.paymentTerm, effectiveAt)).toEqual(
+      CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.customerCommercePolicies.paymentTerm,
+    );
+    expect(paymentTerm).toEqual({
+      eligiblePaymentTermRefs: [currentPaymentTerm.paymentTermRef],
+      explicitlyPermittedPaymentTermRefs: [],
+      fallbackPaymentTermRefs: [currentPaymentTerm.paymentTermRef],
+      policyRevision: 'PAYMENT_TERM:2',
+      policySource: 'commerce.customer-context/payment-term-policy-current',
     });
   }),
 );
