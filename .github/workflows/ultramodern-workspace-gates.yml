@@ -287,6 +287,7 @@ jobs:
           MODERN_PUBLIC_SITE_URL: https://shell-super-app.invalid
           ULTRAMODERN_PUBLIC_URL_CATALOG: https://catalog.invalid
           ULTRAMODERN_PUBLIC_URL_COMMERCE_CUSTOMER_CONTEXT: https://commerce-customer-context.invalid
+          ULTRAMODERN_PUBLIC_URL_COMMERCE_MARKET_CATALOG: https://commerce-market-catalog.invalid
           ULTRAMODERN_PUBLIC_URL_PARTY_REGISTRY: https://party-registry.invalid
           ULTRAMODERN_PUBLIC_URL_PAYMENT_TERM_CATALOG: https://payment-term-catalog.invalid
           ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP: https://shell-super-app.invalid
