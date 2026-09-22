@@ -576,5 +576,5 @@ zerops:
         httpGet:
           port: 4101
           path: '/ready'
-      start: sh -c 'cd app/.zerops/runtime/commerce-customer-context-worker && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
+      start: sh -c 'test -n "$ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON" || { echo "ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON is required" >&2; exit 1; }; cd app/.zerops/runtime/commerce-customer-context-worker && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
   # </generated-outbox-worker-deployments>
