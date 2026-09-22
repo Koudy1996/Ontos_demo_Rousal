@@ -6,8 +6,10 @@ import {
   LOCAL_DEVELOPMENT_OWNER_INITIALIZATION_ORDER,
   LocalDevelopmentInitializationError,
   initializeLocalDevelopmentOwners,
-  type LocalDevelopmentOwnerInitializationRequest,
-  type LocalDevelopmentOwnerReconcilers,
+} from '../initialize-local-development.mts';
+import type {
+  LocalDevelopmentOwnerInitializationRequest,
+  LocalDevelopmentOwnerReconcilers,
 } from '../initialize-local-development.mts';
 
 const ownerReconcilers = (

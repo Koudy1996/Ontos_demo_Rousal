@@ -48,6 +48,7 @@ const MARKET_CATALOG_VERTICAL_ID = 'commerce-market-catalog';
 const PARTY_REGISTRY_VERTICAL_ID = 'party-registry';
 const PARTY_REGISTRY_MODULE_ID = 'party.registry';
 const PARTY_REGISTRY_MODULE_STATE_LABEL = 'Party Registry module state';
+const CATALOG_MODULE_ID = 'commerce.catalog';
 const TOPOLOGY_DIRECTORY = 'topology';
 const TOPOLOGY_PATH = 'topology/reference-topology.json';
 const topology = JSON.stringify({
@@ -191,13 +192,13 @@ it.effect('publishes a schema-valid deterministic Czech Launch operator fixture'
       basis: {
         targetDivisibilityRevision: 1,
         targetRef: {
-          moduleId: 'commerce.catalog',
+          moduleId: CATALOG_MODULE_ID,
           resourceId: '76000000-0000-4000-8000-000000000015',
           resourceType: 'commerce.catalog.package-definition',
           tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
         },
         unitRef: {
-          moduleId: 'commerce.catalog',
+          moduleId: CATALOG_MODULE_ID,
           resourceId: '76000000-0000-4000-8000-000000000020',
           resourceType: 'commerce.catalog.product-unit',
           tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,

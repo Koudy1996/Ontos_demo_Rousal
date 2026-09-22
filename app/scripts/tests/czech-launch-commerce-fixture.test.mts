@@ -75,7 +75,7 @@ it.effect('publishes exact Catalog-owner selection, Unit, normalization, and div
   Effect.gen(function* czechLaunchCatalogQuantity() {
     yield* validateCzechLaunchFixtureContracts();
 
-    const catalogQuantity = CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts.catalogQuantity;
+    const { catalogQuantity } = CZECH_LAUNCH_COMMERCE_FIXTURE.ownerFacts;
     expect(catalogQuantity).toMatchObject({
       completeness: { ownerRevision: catalogQuantity.ownerRevision },
       divisible: false,

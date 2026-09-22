@@ -1,8 +1,8 @@
 import { Effect, Schema } from 'effect';
 
-import { CurrentPaymentTermsResponseSchema } from '@app/payment-term-catalog-contracts';
 import { CurrentSupportedCurrenciesSuccessSchema } from '@app/pricing-contracts';
 
+import { CurrentPaymentTermsResponseSchema } from '../packages/payment-term-catalog-contracts/src/apis/current-payment-terms.ts';
 import {
   AssociateStorefrontPayloadSchema,
   CreateMarketPayloadSchema,
@@ -21,7 +21,6 @@ import {
 } from '../verticals/commerce-customer-context/shared/domain/customer-commerce-policy-administration.ts';
 import { CurrentMarketCatalogResponseSchema } from '../verticals/commerce-market-catalog/shared/apis/current-market-catalog.ts';
 import { QuantityPreparationResponseSchema } from '../verticals/catalog/shared/apis/quantity-preparation.ts';
-import type { QuantityPreparationResponse } from '../verticals/catalog/shared/apis/quantity-preparation.ts';
 
 const tenantId = '70000000-0000-4000-8000-000000000010';
 const sellingLegalEntityId = '71000000-0000-4000-8000-000000000010';
@@ -29,6 +28,15 @@ const marketId = '74000000-0000-4000-8000-000000000010';
 const storefrontId = 'czech-launch-b2c';
 const effectiveFrom = '2026-10-01T00:00:00.000Z';
 const reason = 'Deterministic Czech Launch development fixture';
+const marketCatalogModuleId = 'commerce.market-catalog';
+const catalogModuleId = 'commerce.catalog';
+const pricingCurrencyOwnerRevision = 'commerce.pricing.supported-currencies:czech-launch-v1';
+const marketBootstrapPolicyRevisionId = '75000000-0000-4000-8000-000000000010';
+const allowedCurrencyPolicyRevisionId = '75000000-0000-4000-8000-000000000020';
+const defaultCurrencyPolicyRevisionId = '75000000-0000-4000-8000-000000000021';
+const applicablePaymentTermPolicyRevisionId = '75000000-0000-4000-8000-000000000030';
+const fallbackPaymentTermPolicyRevisionId = '75000000-0000-4000-8000-000000000031';
+const quantityPolicyRevisionId = '75000000-0000-4000-8000-000000000040';
 
 const sellingLegalEntityRef = {
   moduleId: 'core.identity',
@@ -37,32 +45,32 @@ const sellingLegalEntityRef = {
   tenantId,
 } as const;
 const marketRef = {
-  moduleId: 'commerce.market-catalog',
+  moduleId: marketCatalogModuleId,
   resourceId: marketId,
   resourceType: 'commerce.market-catalog.market',
   tenantId,
 } as const;
 const storefrontRef = { appId: storefrontId, tenantId } as const;
 const catalogProductRef = {
-  moduleId: 'commerce.catalog',
+  moduleId: catalogModuleId,
   resourceId: '76000000-0000-4000-8000-000000000001',
   resourceType: 'commerce.catalog.product',
   tenantId,
 } as const;
 const catalogVariantRef = {
-  moduleId: 'commerce.catalog',
+  moduleId: catalogModuleId,
   resourceId: '76000000-0000-4000-8000-000000000010',
   resourceType: 'commerce.catalog.variant',
   tenantId,
 } as const;
 const catalogPackageOptionRef = {
-  moduleId: 'commerce.catalog',
+  moduleId: catalogModuleId,
   resourceId: '76000000-0000-4000-8000-000000000015',
   resourceType: 'commerce.catalog.package-definition',
   tenantId,
 } as const;
 const catalogProductUnitRef = {
-  moduleId: 'commerce.catalog',
+  moduleId: catalogModuleId,
   resourceId: '76000000-0000-4000-8000-000000000020',
   resourceType: 'commerce.catalog.product-unit',
   tenantId,
@@ -157,13 +165,13 @@ const paymentTermRef = {
 } as const;
 
 const marketDefinitionRevisionRef = {
-  moduleId: 'commerce.market-catalog',
+  moduleId: marketCatalogModuleId,
   resourceId: '74000000-0000-4000-8000-000000000011',
   resourceType: 'commerce.market-catalog.market-definition-revision',
   tenantId,
 } as const;
 const storefrontAssociationRef = {
-  moduleId: 'commerce.market-catalog',
+  moduleId: marketCatalogModuleId,
   resourceId: '74000000-0000-4000-8000-000000000020',
   resourceType: 'commerce.market-catalog.storefront-association',
   tenantId,
@@ -254,13 +262,13 @@ const paymentTermCatalogOwnerEvidence = {
 
 const pricingCurrencyOwnerEvidence = {
   completenessEvidence: ownerCompleteness(
-    'commerce.pricing.supported-currencies:czech-launch-v1',
+    pricingCurrencyOwnerRevision,
     'commerce.pricing.supported-currencies.current:czech-launch',
   ),
   effectiveAt: effectiveFrom,
   observedAt: effectiveFrom,
   outcome: 'SUPPORTED_CURRENCIES_CURRENT',
-  pricingRevision: 'commerce.pricing.supported-currencies:czech-launch-v1',
+  pricingRevision: pricingCurrencyOwnerRevision,
   supportedCurrencies: ['CZK'],
 } as const;
 
@@ -275,7 +283,7 @@ const customerCommercePolicyOwnerEvidence = {
               commerceMarketId: marketId,
               sellingLegalEntityId,
             },
-            policyRevisionId: '75000000-0000-4000-8000-000000000010',
+            policyRevisionId: marketBootstrapPolicyRevisionId,
             scope: { channelId: 'B2C', kind: 'CHANNEL_SELLER', sellingLegalEntityId },
           },
         ],
@@ -292,14 +300,14 @@ const customerCommercePolicyOwnerEvidence = {
       {
         effectiveFrom,
         effectiveTo: null,
-        policyRevisionId: '75000000-0000-4000-8000-000000000030',
+        policyRevisionId: applicablePaymentTermPolicyRevisionId,
         scope: { kind: 'SELLER', sellingLegalEntityId },
         value: { kind: 'APPLICABLE_PAYMENT_TERM_CONSTRAINT', paymentTermRef },
       },
       {
         effectiveFrom,
         effectiveTo: null,
-        policyRevisionId: '75000000-0000-4000-8000-000000000031',
+        policyRevisionId: fallbackPaymentTermPolicyRevisionId,
         scope: { kind: 'SELLER', sellingLegalEntityId },
         value: { kind: 'FALLBACK_PAYMENT_TERM', paymentTermRef },
       },
@@ -311,14 +319,14 @@ const customerCommercePolicyOwnerEvidence = {
       {
         effectiveFrom,
         effectiveTo: null,
-        policyRevisionId: '75000000-0000-4000-8000-000000000020',
+        policyRevisionId: allowedCurrencyPolicyRevisionId,
         scope: { kind: 'SELLER', sellingLegalEntityId },
         value: { currencyCode: 'CZK', kind: 'ALLOWED_CURRENCY_CONSTRAINT' },
       },
       {
         effectiveFrom,
         effectiveTo: null,
-        policyRevisionId: '75000000-0000-4000-8000-000000000021',
+        policyRevisionId: defaultCurrencyPolicyRevisionId,
         scope: { kind: 'SELLER', sellingLegalEntityId },
         value: { currencyCode: 'CZK', kind: 'DEFAULT_CURRENCY' },
       },
@@ -341,7 +349,7 @@ const customerCommercePolicyOwnerEvidence = {
         {
           effectiveFrom,
           effectiveTo: null,
-          policyRevisionId: '75000000-0000-4000-8000-000000000040',
+          policyRevisionId: quantityPolicyRevisionId,
           scope: { channelId: 'B2C', kind: 'CHANNEL_SELLER', sellingLegalEntityId },
           value: {
             basis: {
@@ -404,7 +412,7 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
         idempotencyKey: 'czech-launch-market-bootstrap-v1',
         lifecycle: 'ACTIVE',
         reason,
-        revisionId: '75000000-0000-4000-8000-000000000010',
+        revisionId: marketBootstrapPolicyRevisionId,
         scope: { channelId: 'B2C', kind: 'CHANNEL_SELLER', sellingLegalEntityId },
         value: {
           defaultChannelId: 'B2C',
@@ -425,7 +433,7 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
           idempotencyKey: 'czech-launch-applicable-payment-term-v1',
           lifecycle: 'ACTIVE',
           reason,
-          revisionId: '75000000-0000-4000-8000-000000000030',
+          revisionId: applicablePaymentTermPolicyRevisionId,
           scope: { kind: 'SELLER', sellingLegalEntityId },
           value: { kind: 'APPLICABLE_PAYMENT_TERM_CONSTRAINT', paymentTermRef },
         },
@@ -440,7 +448,7 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
           idempotencyKey: 'czech-launch-fallback-payment-term-v1',
           lifecycle: 'ACTIVE',
           reason,
-          revisionId: '75000000-0000-4000-8000-000000000031',
+          revisionId: fallbackPaymentTermPolicyRevisionId,
           scope: { kind: 'SELLER', sellingLegalEntityId },
           value: {
             kind: 'FALLBACK_PAYMENT_TERM',
@@ -460,7 +468,7 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
           idempotencyKey: 'czech-launch-allowed-currency-v1',
           lifecycle: 'ACTIVE',
           reason,
-          revisionId: '75000000-0000-4000-8000-000000000020',
+          revisionId: allowedCurrencyPolicyRevisionId,
           scope: { kind: 'SELLER', sellingLegalEntityId },
           value: { currencyCode: 'CZK', kind: 'ALLOWED_CURRENCY_CONSTRAINT' },
         },
@@ -475,7 +483,7 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
           idempotencyKey: 'czech-launch-default-currency-v1',
           lifecycle: 'ACTIVE',
           reason,
-          revisionId: '75000000-0000-4000-8000-000000000021',
+          revisionId: defaultCurrencyPolicyRevisionId,
           scope: { kind: 'SELLER', sellingLegalEntityId },
           value: { currencyCode: 'CZK', kind: 'DEFAULT_CURRENCY' },
         },
@@ -491,7 +499,7 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
         idempotencyKey: 'czech-launch-quantity-v1',
         lifecycle: 'ACTIVE',
         reason,
-        revisionId: '75000000-0000-4000-8000-000000000040',
+        revisionId: quantityPolicyRevisionId,
         scope: { channelId: 'B2C', kind: 'CHANNEL_SELLER', sellingLegalEntityId },
         value: {
           basis: {
@@ -558,30 +566,30 @@ const CzechLaunchActivationEvidenceSchema = Schema.Struct({
       const bootstrapPartition = customerCommercePolicies.marketBootstrap.sellers.find(
         ({ sellingLegalEntityId: candidate }) => candidate === sellingLegalEntityId,
       );
-      const currencyRevisionIds = customerCommercePolicies.purchaseCurrency.candidates.map(
-        ({ policyRevisionId }) => policyRevisionId,
+      const currencyRevisionIds = new Set(
+        customerCommercePolicies.purchaseCurrency.candidates.map(({ policyRevisionId }) => policyRevisionId),
       );
-      const paymentRevisionIds = customerCommercePolicies.paymentTerm.candidates.map(
-        ({ policyRevisionId }) => policyRevisionId,
+      const paymentRevisionIds = new Set(
+        customerCommercePolicies.paymentTerm.candidates.map(({ policyRevisionId }) => policyRevisionId),
       );
-      const quantityRevisionIds = customerCommercePolicies.quantity.ruleSet.candidates.map(
-        ({ policyRevisionId }) => policyRevisionId,
+      const quantityRevisionIds = new Set(
+        customerCommercePolicies.quantity.ruleSet.candidates.map(({ policyRevisionId }) => policyRevisionId),
       );
       return market?.definitionRevisionRef.resourceId === marketDefinitionRevisionRef.resourceId &&
         market.lifecycle === 'ACTIVE' &&
         association?.marketDefinitionRevisionRef.resourceId === marketDefinitionRevisionRef.resourceId &&
         paymentTerm?.lifecycle.state === 'ACTIVE' &&
-        pricingCurrencies.pricingRevision === 'commerce.pricing.supported-currencies:czech-launch-v1' &&
+        pricingCurrencies.pricingRevision === pricingCurrencyOwnerRevision &&
         pricingCurrencies.supportedCurrencies.length === 1 &&
         pricingCurrencies.supportedCurrencies[0] === 'CZK' &&
         bootstrapPartition?.candidates.some(
-          ({ policyRevisionId }) => policyRevisionId === '75000000-0000-4000-8000-000000000010',
+          ({ policyRevisionId }) => policyRevisionId === marketBootstrapPolicyRevisionId,
         ) === true &&
-        currencyRevisionIds.includes('75000000-0000-4000-8000-000000000020') &&
-        currencyRevisionIds.includes('75000000-0000-4000-8000-000000000021') &&
-        paymentRevisionIds.includes('75000000-0000-4000-8000-000000000030') &&
-        paymentRevisionIds.includes('75000000-0000-4000-8000-000000000031') &&
-        quantityRevisionIds.includes('75000000-0000-4000-8000-000000000040')
+        currencyRevisionIds.has(allowedCurrencyPolicyRevisionId) &&
+        currencyRevisionIds.has(defaultCurrencyPolicyRevisionId) &&
+        paymentRevisionIds.has(applicablePaymentTermPolicyRevisionId) &&
+        paymentRevisionIds.has(fallbackPaymentTermPolicyRevisionId) &&
+        quantityRevisionIds.has(quantityPolicyRevisionId)
         ? undefined
         : 'Czech Launch activation requires the exact Current owner revisions for Market, Payment Term, Pricing, and Customer Commerce Policy';
     }),

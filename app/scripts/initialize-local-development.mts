@@ -179,10 +179,9 @@ export const initializeLocalDevelopmentOwners = Effect.fn('LocalDevelopment.init
   ): Effect.fn.Return<void, LocalDevelopmentInitializationError> {
     for (const owner of LOCAL_DEVELOPMENT_OWNER_INITIALIZATION_ORDER) {
       const reconcile = reconcilers[owner];
-      if (reconcile === undefined) {
-        return yield* failure('local_owner_dependency_missing', `The ${owner} local owner reconciler is unavailable`);
-      }
-      yield* reconcile(ownerInitializationRequest(owner));
+      yield* reconcile === undefined
+        ? failure('local_owner_dependency_missing', `The ${owner} local owner reconciler is unavailable`)
+        : reconcile(ownerInitializationRequest(owner));
     }
   },
 );
