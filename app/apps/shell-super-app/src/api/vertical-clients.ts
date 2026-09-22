@@ -15,6 +15,10 @@ export {
 export type { CommerceMarketCatalogClientOptions } from '@app/commerce-market-catalog/api/client';
 export { createPaymentTermCatalogClient, getPaymentTermCatalogReadiness } from '@app/payment-term-catalog/api/client';
 export type { PaymentTermCatalogClientOptions } from '@app/payment-term-catalog/api/client';
+export { createPricingClient, getPricingReadiness } from '@app/pricing/api/client';
+export type { PricingClientOptions } from '@app/pricing/api/client';
+export { createStorefrontRegistryClient, getStorefrontRegistryReadiness } from '@app/storefront-registry/api/client';
+export type { StorefrontRegistryClientOptions } from '@app/storefront-registry/api/client';
 
 export { findApprovedVerticalPageClient, ultramodernVerticalClients } from './vertical-page-clients.ts';
 export type { ApprovedVerticalPageClient, ApprovedVerticalPageComponent } from './vertical-page-clients.ts';
