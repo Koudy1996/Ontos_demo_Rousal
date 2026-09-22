@@ -18,6 +18,7 @@ const actorId = 'd3300000-0000-4000-8000-000000000005';
 const currencyRevisionId = 'd3310000-0000-4000-8000-000000000001';
 const adjacentCurrencyRevisionId = 'd3310000-0000-4000-8000-000000000002';
 const quantityRevisionId = 'd3320000-0000-4000-8000-000000000001';
+const paymentTermRevisionId = 'd3320000-0000-4000-8000-000000000002';
 const bootstrapRevisionId = 'd3330000-0000-4000-8000-000000000001';
 const replacementBootstrapRevisionId = 'd3330000-0000-4000-8000-000000000002';
 const dormantBootstrapRevisionId = 'd3330000-0000-4000-8000-000000000003';
@@ -38,6 +39,36 @@ interface PurchaseCurrencyStateResult extends Record<string, unknown> {
       readonly effectiveTo: null | string;
       readonly lifecycle: 'ACTIVE' | 'RETIRED' | 'SCHEDULED';
       readonly revisionId: string;
+    }[];
+  };
+}
+
+interface PaymentTermStateResult extends Record<string, unknown> {
+  readonly result: {
+    readonly generation: number;
+    readonly revisions: readonly {
+      readonly revisionId: string;
+      readonly value: {
+        readonly kind: string;
+        readonly paymentTermRef: { readonly resourceId: string };
+      };
+    }[];
+  };
+}
+
+interface CommerceQuantityRuleStateResult extends Record<string, unknown> {
+  readonly result: {
+    readonly generation: number;
+    readonly revisions: readonly {
+      readonly revisionId: string;
+      readonly value: {
+        readonly basis: {
+          readonly targetDivisibilityRevision: number;
+          readonly targetRef: { readonly resourceId: string };
+          readonly unitRuleRevision: number;
+        };
+        readonly envelope: { readonly kind: string };
+      };
     }[];
   };
 }
@@ -394,9 +425,85 @@ it.live('enforces immutable temporal policy history, typed scopes, assignment in
               '2030-06-01T00:00:00Z', '2030-07-01T00:00:00Z', '2030-06-01T00:00:00Z',
               '2030-07-01T00:00:00Z', 'ACTIVE', ${idempotencyKey},
               ${actorId}::uuid, ${actorId}::uuid, 'Allowed currency',
-              'ALLOWED_CURRENCY_CONSTRAINT', ${currencyCode})`),
+          'ALLOWED_CURRENCY_CONSTRAINT', ${currencyCode})`),
         );
       }
+
+      const paymentTermPayload = {
+        completeness: {
+          observedAt: '2029-01-01T00:00:00Z',
+          ownerRevision: 'PAYMENT_TERM:1',
+          scope: {
+            kind: 'EXACT_PREDICATE',
+            predicateRef: 'commerce.customer-context.policy.payment_term.current',
+          },
+        },
+        state: {
+          commandReceipts: commandReceiptsThrough(1),
+          field: 'PAYMENT_TERM',
+          generation: 1,
+          lifecycleTransitions: [],
+          revisions: [
+            {
+              actionInvocationId: actorId,
+              actorPrincipalId: actorId,
+              effectiveFrom: '2041-01-01T00:00:00Z',
+              effectiveTo: '2042-01-01T00:00:00Z',
+              field: 'PAYMENT_TERM',
+              idempotencyKey: 'payment-term-persisted',
+              lifecycle: 'ACTIVE',
+              reason: 'PostgreSQL Payment Term policy acceptance',
+              revisionId: paymentTermRevisionId,
+              scope: { kind: 'SELLER', sellingLegalEntityId: legalEntityId },
+              tenantId,
+              value: {
+                kind: 'FALLBACK_PAYMENT_TERM',
+                paymentTermRef: {
+                  moduleId: 'payment.term-catalog',
+                  resourceId: 'term-persisted',
+                  resourceType: 'payment.term-catalog.payment-term',
+                  tenantId,
+                },
+              },
+            },
+          ],
+        },
+      };
+      yield* scoped(runtime, (transaction) =>
+        transaction.execute<JsonResult>(
+          sql`select * from commerce_customer_context.persist_payment_term_policy_state(
+            ${tenantId}::uuid, ${legalEntityId}::uuid, 0::bigint, ${JSON.stringify(paymentTermPayload)}::jsonb)`,
+          'objects',
+        ),
+      );
+      const loadedPaymentTerm = yield* scoped(runtime, (transaction) =>
+        transaction
+          .execute<PaymentTermStateResult>(
+            sql`select * from commerce_customer_context.load_payment_term_policy_state(
+              ${tenantId}::uuid, ${legalEntityId}::uuid)`,
+            'objects',
+          )
+          .pipe(Effect.map(one)),
+      );
+      expect(loadedPaymentTerm.result).toMatchObject({ generation: 1 });
+      expect(loadedPaymentTerm.result.revisions).toHaveLength(1);
+      expect(loadedPaymentTerm.result.revisions[0]).toMatchObject({
+        revisionId: paymentTermRevisionId,
+        value: {
+          kind: 'FALLBACK_PAYMENT_TERM',
+          paymentTermRef: { resourceId: 'term-persisted' },
+        },
+      });
+      yield* Effect.flip(
+        scoped(runtime, (transaction) =>
+          transaction.execute<JsonResult>(
+            sql`select * from commerce_customer_context.persist_payment_term_policy_state(
+              ${tenantId}::uuid, ${legalEntityId}::uuid, 0::bigint, ${JSON.stringify(paymentTermPayload)}::jsonb)`,
+            'objects',
+          ),
+        ),
+      );
+
       yield* scoped(admin, (transaction) =>
         transaction.execute(sql`insert into commerce_customer_context.payment_term_policy_revisions
           (policy_revision_id, tenant_id, legal_entity_id, scope_kind, effective_from, effective_to,
@@ -566,24 +673,96 @@ it.live('enforces immutable temporal policy history, typed scopes, assignment in
         '2031-09-01T00:00:00+00:00',
       );
 
-      yield* scoped(admin, (transaction) =>
-        transaction.execute(sql`insert into commerce_customer_context.commerce_quantity_rule_revisions
-          (policy_revision_id, tenant_id, legal_entity_id, scope_kind, channel_id, effective_from,
-           effective_to, applicable_from, applicable_to, lifecycle, idempotency_key,
-           action_invocation_id, actor_principal_id, reason,
-           selector_kind, rule_kind, quantity_target_module_id, quantity_target_resource_type,
-           quantity_target_resource_id, quantity_target_tenant_id, quantity_target_divisibility_revision,
-           quantity_unit_module_id, quantity_unit_resource_type, quantity_unit_resource_id,
-           quantity_unit_tenant_id, quantity_unit_rule_revision, restriction_kind)
-          values (${quantityRevisionId}::uuid, ${tenantId}::uuid, ${legalEntityId}::uuid,
-            'CHANNEL_SELLER', 'web', '2030-01-01T00:00:00Z', '2040-01-01T00:00:00Z',
-            '2030-01-01T00:00:00Z', '2040-01-01T00:00:00Z', 'ACTIVE',
-            'quantity-valid', ${actorId}::uuid, ${actorId}::uuid, 'Quantity fixture', 'ALL',
-            'REPLACEABLE_ENVELOPE', 'commerce.catalog', 'commerce.catalog.variant',
-            '55555555-5555-4555-8555-555555555555'::uuid, ${tenantId}::uuid, 1,
-            'commerce.catalog', 'commerce.catalog.product-unit',
-            '66666666-6666-4666-8666-666666666666'::uuid, ${tenantId}::uuid, 1,
-            'NO_COMMERCIAL_QUANTITY_RESTRICTION')`),
+      const quantityRulePayload = {
+        completeness: {
+          observedAt: '2029-01-01T00:00:00Z',
+          ownerRevision: 'COMMERCE_QUANTITY_RULE:1',
+          scope: {
+            kind: 'EXACT_PREDICATE',
+            predicateRef: 'commerce.customer-context.policy.commerce_quantity_rule.current',
+          },
+        },
+        state: {
+          commandReceipts: commandReceiptsThrough(1),
+          field: 'COMMERCE_QUANTITY_RULE',
+          generation: 1,
+          lifecycleTransitions: [],
+          revisions: [
+            {
+              actionInvocationId: actorId,
+              actorPrincipalId: actorId,
+              effectiveFrom: '2030-01-01T00:00:00Z',
+              effectiveTo: '2040-01-01T00:00:00Z',
+              field: 'COMMERCE_QUANTITY_RULE',
+              idempotencyKey: 'quantity-valid',
+              lifecycle: 'ACTIVE',
+              reason: 'PostgreSQL Commerce Quantity Rule acceptance',
+              revisionId: quantityRevisionId,
+              scope: { channelId: 'web', kind: 'CHANNEL_SELLER', sellingLegalEntityId: legalEntityId },
+              tenantId,
+              value: {
+                basis: {
+                  targetDivisibilityRevision: 1,
+                  targetRef: {
+                    moduleId: 'commerce.catalog',
+                    resourceId: '55555555-5555-4555-8555-555555555555',
+                    resourceType: 'commerce.catalog.variant',
+                    tenantId,
+                  },
+                  unitRef: {
+                    moduleId: 'commerce.catalog',
+                    resourceId: '66666666-6666-4666-8666-666666666666',
+                    resourceType: 'commerce.catalog.product-unit',
+                    tenantId,
+                  },
+                  unitRuleRevision: 1,
+                },
+                constraintMode: 'REPLACEABLE_ENVELOPE',
+                envelope: { kind: 'NO_COMMERCIAL_QUANTITY_RESTRICTION' },
+                kind: 'COMMERCE_QUANTITY_RULE',
+                selector: { kind: 'ALL' },
+              },
+            },
+          ],
+        },
+      };
+      yield* scoped(runtime, (transaction) =>
+        transaction.execute<JsonResult>(
+          sql`select * from commerce_customer_context.persist_commerce_quantity_rule_state(
+            ${tenantId}::uuid, ${legalEntityId}::uuid, 0::bigint, ${JSON.stringify(quantityRulePayload)}::jsonb)`,
+          'objects',
+        ),
+      );
+      const loadedQuantityRule = yield* scoped(runtime, (transaction) =>
+        transaction
+          .execute<CommerceQuantityRuleStateResult>(
+            sql`select * from commerce_customer_context.load_commerce_quantity_rule_state(
+              ${tenantId}::uuid, ${legalEntityId}::uuid)`,
+            'objects',
+          )
+          .pipe(Effect.map(one)),
+      );
+      expect(loadedQuantityRule.result).toMatchObject({ generation: 1 });
+      expect(loadedQuantityRule.result.revisions).toHaveLength(1);
+      expect(loadedQuantityRule.result.revisions[0]).toMatchObject({
+        revisionId: quantityRevisionId,
+        value: {
+          basis: {
+            targetDivisibilityRevision: 1,
+            targetRef: { resourceId: '55555555-5555-4555-8555-555555555555' },
+            unitRuleRevision: 1,
+          },
+          envelope: { kind: 'NO_COMMERCIAL_QUANTITY_RESTRICTION' },
+        },
+      });
+      yield* Effect.flip(
+        scoped(runtime, (transaction) =>
+          transaction.execute<JsonResult>(
+            sql`select * from commerce_customer_context.persist_commerce_quantity_rule_state(
+              ${tenantId}::uuid, ${legalEntityId}::uuid, 0::bigint, ${JSON.stringify(quantityRulePayload)}::jsonb)`,
+            'objects',
+          ),
+        ),
       );
 
       const firstAssignment = quantityAssignment(firstAssignmentId, '2030-01-01T00:00:00Z');
