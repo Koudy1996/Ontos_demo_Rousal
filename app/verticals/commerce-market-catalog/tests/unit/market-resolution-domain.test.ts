@@ -79,6 +79,7 @@ describe('Commerce Market eligible tuple discovery and selection', () => {
     const result = discoverEligibleMarketTuples(request(), snapshot([]));
     expect(result.tuples).toEqual([]);
     expect(result.completenessEvidence.ownerRevision).toBe(completenessEvidence.ownerRevision);
+    expect(result.effectiveAt).not.toEqual(result.evaluatedAt);
   });
 
   it('resolves exactly one complete eligible tuple', () => {
@@ -99,6 +100,7 @@ describe('Commerce Market eligible tuple discovery and selection', () => {
     });
     expect(result).toMatchObject({ outcome: 'MARKET_SELECTION_REQUIRED' });
     expect(result.outcome === 'MARKET_SELECTION_REQUIRED' ? result.choices : []).toHaveLength(2);
+    expect(JSON.stringify(result)).not.toContain('AMBIGUOUS_MARKET');
   });
 
   it('requires selection for multiple Storefront associations without using geography or order', () => {
@@ -195,6 +197,31 @@ describe('Commerce Market eligible tuple discovery and selection', () => {
       outcome: 'MARKET_RESOLVED',
       selectionSource: 'BOOTSTRAP_DEFAULT',
     });
+  });
+
+  it('applies one Channel and seller bootstrap default across eligible Storefront contexts', () => {
+    const selected = tuple(1);
+    const bootstrapDefault = {
+      marketRef: selected.marketRef,
+      policyRevision: 'bootstrap-policy:8',
+      sellingLegalEntityRef: selected.sellingLegalEntityRef,
+    } as const;
+    const eligibility = snapshot([{ lifecycle: 'ACTIVE', tuple: selected }]);
+    const first = resolveCommerceMarket({
+      request: request({ bootstrapDefault }),
+      snapshot: eligibility,
+    });
+    const second = resolveCommerceMarket({
+      request: request({ bootstrapDefault, storefrontRef: { appId: 'second-shop', tenantId } }),
+      snapshot: eligibility,
+    });
+
+    expect(first).toMatchObject({
+      bootstrapPolicyRevision: 'bootstrap-policy:8',
+      outcome: 'MARKET_RESOLVED',
+      selectedTuple: selected,
+    });
+    expect(second).toEqual(first);
   });
 
   it('fails closed for duplicate Current material tuples', () => {

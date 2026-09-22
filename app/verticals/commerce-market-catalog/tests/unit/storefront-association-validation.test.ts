@@ -127,6 +127,15 @@ describe('Storefront association Current application validation', () => {
         .validateCurrent(currentRequest, 'association-mismatch')
         .pipe(Effect.flip);
       expect(Predicate.isTagged(failure, 'StorefrontApplicationEvidenceStale')).toBe(true);
+
+      const crossTenant = Schema.decodeUnknownSync(CurrentStorefrontApplicationResponseSchema)({
+        ...currentResponse,
+        tenantId: '99999999-9999-4999-8999-999999999999',
+      });
+      const crossTenantFailure = yield* makeCurrentStorefrontApplicationAuthority(() => Effect.succeed(crossTenant))
+        .validateCurrent(currentRequest, 'association-cross-tenant')
+        .pipe(Effect.flip);
+      expect(Predicate.isTagged(crossTenantFailure, 'StorefrontApplicationEvidenceStale')).toBe(true);
     }),
   );
 

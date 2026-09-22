@@ -22,6 +22,7 @@ const tenantId = '11111111-1111-4111-8111-111111111111';
 const sellerId = '22222222-2222-4222-8222-222222222222';
 const principalId = '33333333-3333-4333-8333-333333333333';
 const profileId = '99999999-9999-4999-8999-999999999999';
+const retailProfileId = '12121212-1212-4121-8121-121212121212';
 const counterpartyId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const storefrontRef = { appId: 'shop', tenantId } as const;
 const at = '2030-06-01T00:00:00.000Z';
@@ -131,6 +132,16 @@ const counterpartySubject = {
   },
 };
 
+const retailSubject = {
+  kind: 'RETAIL_PROFILE' as const,
+  profileRef: {
+    moduleId: 'commerce.customer-context' as const,
+    resourceId: retailProfileId,
+    resourceType: 'commerce.customer-context.retail-customer-profile' as const,
+    tenantId,
+  },
+};
+
 describe('Commerce Market governed resolution reads', () => {
   it.effect('returns safe complete eligible tuples under trusted Storefront context', () =>
     Effect.gen(function* eligibleRead() {
@@ -176,6 +187,92 @@ describe('Commerce Market governed resolution reads', () => {
       });
       const result = yield* handleResolveCommerceMarket(input, context(available));
       expect(result.result).toMatchObject({ outcome: 'MARKET_NOT_ALLOWED_FOR_SUBJECT_OR_CHANNEL' });
+    }),
+  );
+
+  it.effect('forwards fixed Retail seller restrictions into the authoritative eligibility predicate', () =>
+    Effect.gen(function* retailRestrictions() {
+      let receivedRestrictions: MarketSubjectRestrictionSnapshot | undefined;
+      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
+        channel: 'B2C',
+        effectiveAt: at,
+        storefrontRef,
+        subject: retailSubject,
+      });
+      const retailSnapshot: MarketSubjectRestrictionSnapshot = {
+        ...ownerRestrictions,
+        allowedChannels: ['B2C'],
+        evidenceRefs: ['commerce-customer-context:retail-profile:revision:4'],
+        ownerRevision: 'retail-profile:4',
+        subjectIdentityRef: retailProfileId,
+        subjectKind: 'RETAIL_PROFILE',
+      };
+      const result = yield* handleResolveCommerceMarket(
+        input,
+        context(
+          {
+            load: (_request, restrictions) => {
+              receivedRestrictions = restrictions;
+              return Effect.succeed({
+                ...snapshot,
+                facts: [{ lifecycle: 'ACTIVE', tuple: { ...eligibleTuple, channel: 'B2C' } }],
+                generation: 7,
+              });
+            },
+          },
+          scope,
+          { current: () => Effect.succeed(retailSnapshot) },
+        ),
+      );
+
+      expect(receivedRestrictions).toEqual(retailSnapshot);
+      expect(result.result).toMatchObject({
+        outcome: 'MARKET_RESOLVED',
+        subjectRestrictionEvidence: {
+          ownerRevision: 'retail-profile:4',
+          subjectKind: 'RETAIL_PROFILE',
+        },
+      });
+    }),
+  );
+
+  it.effect('changes Counterparty eligibility when the owner changes the allowed seller set', () =>
+    Effect.gen(function* changedCounterpartyRestriction() {
+      const input = Schema.decodeUnknownSync(ResolveCommerceMarketRequestSchema)({
+        channel: 'B2B',
+        effectiveAt: at,
+        storefrontRef,
+        subject: counterpartySubject,
+      });
+      const restrictionAwarePersistence: MarketResolutionPersistence = {
+        load: (_request, restrictions) =>
+          Effect.succeed({
+            ...snapshot,
+            completenessEvidence: {
+              ...snapshot.completenessEvidence,
+              ownerRevision: `market-eligibility:${restrictions?.ownerRevision ?? 'none'}`,
+            },
+            facts: snapshot.facts.filter(({ tuple }) =>
+              restrictions?.allowedSellerIds.includes(tuple.sellingLegalEntityRef.resourceId),
+            ),
+            generation: 7,
+          }),
+      };
+      const before = yield* handleResolveCommerceMarket(input, context(restrictionAwarePersistence));
+      const after = yield* handleResolveCommerceMarket(
+        input,
+        context(restrictionAwarePersistence, scope, {
+          current: () =>
+            Effect.succeed({
+              ...ownerRestrictions,
+              allowedSellerIds: ['88888888-8888-4888-8888-888888888888'],
+              ownerRevision: 'counterparty-profile:8',
+            }),
+        }),
+      );
+
+      expect(before.result.outcome).toBe('MARKET_RESOLVED');
+      expect(after.result).toMatchObject({ outcome: 'MARKET_NOT_ALLOWED_FOR_SUBJECT_OR_CHANNEL' });
     }),
   );
 
@@ -245,6 +342,46 @@ describe('Commerce Market governed resolution reads', () => {
         });
         expect(persistenceCalls).toBe(0);
       }),
+  );
+
+  it.effect('fails eligible-set discovery closed when mandatory subject-owner state is unavailable', () =>
+    Effect.gen(function* unavailableEligibleSubjectOwner() {
+      let persistenceCalls = 0;
+      const input = Schema.decodeUnknownSync(EligibleMarketTuplesRequestSchema)({
+        channel: 'B2B',
+        effectiveAt: at,
+        storefrontRef,
+        subject: counterpartySubject,
+      });
+      const result = yield* handleEligibleMarketTuples(
+        input,
+        context(
+          {
+            load: () => {
+              persistenceCalls += 1;
+              return Effect.succeed({ ...snapshot, generation: 7 });
+            },
+          },
+          scope,
+          {
+            current: () =>
+              Effect.fail(
+                new MarketSubjectRestrictionsUnavailable({
+                  code: 'market_subject_restrictions_unavailable',
+                  reason: 'owner unavailable',
+                }),
+              ),
+          },
+        ),
+      );
+
+      expect(result.result).toEqual({
+        outcome: 'MARKET_ELIGIBILITY_UNAVAILABLE',
+        reason: 'Current Commerce Market eligibility could not be established',
+        retryable: true,
+      });
+      expect(persistenceCalls).toBe(0);
+    }),
   );
 
   it.effect('invalidates completeness when the owner subject revision changes', () =>
