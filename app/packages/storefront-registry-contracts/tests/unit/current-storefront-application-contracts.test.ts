@@ -11,12 +11,12 @@ import {
   executeCurrentStorefrontApplicationWithAuthorization,
 } from '../../src/index.ts';
 
-const request = {
+const request = Schema.decodeSync(CurrentStorefrontApplicationRequestSchema)({
   effectiveAt: '2026-09-22T10:00:00.000Z',
-  requestedChannel: 'B2C' as const,
+  requestedChannel: 'B2C',
   storefrontAppId: 'shop-cz',
   tenantId: '22222222-2222-4222-8222-222222222222',
-};
+});
 
 describe('Storefront Registry Current Storefront Application public contract', () => {
   it('strictly binds Tenant, Storefront Application, requested channel, and effective instant', () => {
@@ -27,8 +27,8 @@ describe('Storefront Registry Current Storefront Application public contract', (
     expect(() =>
       Schema.decodeSync(CurrentStorefrontApplicationRequestSchema)({ ...request, storefrontAppId: 'Shop CZ' }),
     ).toThrow();
-    const requestWithExtraField: unknown = { ...request, extra: true };
-    expect(() => Schema.decodeUnknownSync(CurrentStorefrontApplicationRequestSchema)(requestWithExtraField)).toThrow();
+    const requestWithExtraField = { ...request, extra: true };
+    expect(() => Schema.decodeSync(CurrentStorefrontApplicationRequestSchema)(requestWithExtraField)).toThrow();
   });
 
   it('accepts Current evidence only when it proves channel, lifecycle, and interval applicability', () => {
@@ -129,8 +129,8 @@ describe('Storefront Registry Current Storefront Application public contract', (
   });
 
   it.effect('strictly encodes the request before either governed client executor can invoke HTTP', () =>
-    Effect.gen(function* () {
-      const invalid = { ...request, effectiveAt: 'not-an-instant' } as never;
+    Effect.gen(function* verifyStrictClientEncoding() {
+      const invalid = { ...request, effectiveAt: 'not-an-instant' };
       const exit = yield* Effect.exit(
         executeCurrentStorefrontApplicationWithAuthorization(invalid, 'credential', 'correlation'),
       );

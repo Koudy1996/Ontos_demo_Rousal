@@ -16,7 +16,7 @@ export const StorefrontApplicationIdSchema = Schema.String.check(
   Schema.isMaxLength(100),
   Schema.isTrimmed(),
   Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
-);
+).pipe(Schema.brand('StorefrontApplicationId'));
 export const StorefrontChannelSchema = Schema.Literals(['B2C', 'B2B']);
 export type StorefrontChannel = typeof StorefrontChannelSchema.Type;
 
@@ -56,13 +56,15 @@ const allowedChannels = Schema.Array(StorefrontChannelSchema).check(
   Schema.makeFilter((values) => new Set(values).size === values.length || 'Allowed channels must be unique'),
 );
 
+const toEpochMillis = (instant: string) => DateTime.toEpochMillis(DateTime.makeUnsafe(instant));
+
 export const StorefrontApplicationEffectiveIntervalSchema = Schema.Struct({
   effectiveFrom: StorefrontRegistryInstantSchema,
   effectiveTo: Schema.optionalKey(StorefrontRegistryInstantSchema),
 })
   .check(
     Schema.makeFilter(({ effectiveFrom, effectiveTo }) =>
-      effectiveTo === undefined || Date.parse(effectiveFrom) < Date.parse(effectiveTo)
+      effectiveTo === undefined || toEpochMillis(effectiveFrom) < toEpochMillis(effectiveTo)
         ? undefined
         : 'Effective interval end must be after its start',
     ),
@@ -84,11 +86,11 @@ export const CurrentStorefrontApplicationCurrentSchema = Schema.Struct({
       channels.includes(requestedChannel) ? undefined : 'Current application must allow the requested channel',
     ),
     Schema.makeFilter(({ effectiveAt, effectiveInterval, nextApplicabilityBoundary, observedAt }) => {
-      const evaluated = Date.parse(effectiveAt);
-      const from = Date.parse(effectiveInterval.effectiveFrom);
-      const to = effectiveInterval.effectiveTo === undefined ? undefined : Date.parse(effectiveInterval.effectiveTo);
-      const next = nextApplicabilityBoundary === undefined ? undefined : Date.parse(nextApplicabilityBoundary);
-      return Date.parse(observedAt) <= evaluated &&
+      const evaluated = toEpochMillis(effectiveAt);
+      const from = toEpochMillis(effectiveInterval.effectiveFrom);
+      const to = effectiveInterval.effectiveTo === undefined ? undefined : toEpochMillis(effectiveInterval.effectiveTo);
+      const next = nextApplicabilityBoundary === undefined ? undefined : toEpochMillis(nextApplicabilityBoundary);
+      return toEpochMillis(observedAt) <= evaluated &&
         from <= evaluated &&
         (to === undefined || evaluated < to) &&
         (next === undefined || evaluated < next)
