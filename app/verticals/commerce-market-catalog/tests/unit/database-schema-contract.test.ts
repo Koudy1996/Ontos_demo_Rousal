@@ -134,7 +134,7 @@ describe('Commerce Market Catalog database contract', () => {
     expect(migration).toContain('association.storefront_app_id = v_storefront_app_id');
     expect(migration).toContain('association.channel = v_channel');
     expect(migration).toContain('where definition.channels ? association.channel');
-    expect(migration).toContain('boundary > greatest(v_at, v_observed_at)');
+    expect(migration).toContain('boundary > greatest(v_effective_at, v_observed_at)');
     expect(migration).toContain("'predicateRevision', md5(");
     expect(migration).toContain("'observedAt', v_observed_at");
     expect(migration).toContain("'nextApplicabilityBoundary'");
