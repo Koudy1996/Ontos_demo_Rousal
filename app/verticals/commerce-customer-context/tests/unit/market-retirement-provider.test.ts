@@ -1,5 +1,5 @@
 import type { OperationalScope, ReadHandlerContext } from '@app/core-runtime';
-import { ReadHandlerUnavailable, ReadPermissionDenied } from '@app/core-runtime';
+import { ReadHandlerUnavailable, ReadPermissionDenied, getVerticalRuntimeEntrypoints } from '@app/core-runtime';
 import type {
   MarketAffectedUseAssessmentRequest,
   MarketAffectedUseAssessmentResponse,
@@ -21,6 +21,8 @@ import {
   marketRetirementRoutineAllowlist,
 } from '../../src/persistence/market-retirement-persistence.ts';
 import type { MarketRetirementScopedRoutineInvoker } from '../../src/persistence/market-retirement-persistence.ts';
+import { commerceCustomerContextManifest } from '../../vertical.manifest.ts';
+import { commerceCustomerContextRegistration } from '../../vertical.registration.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 const legalEntityId = '22222222-2222-4222-8222-222222222222';
@@ -126,6 +128,18 @@ const invokerReturning = (...results: readonly object[]): MarketRetirementScoped
       concurrency: 1,
     }).pipe(Effect.orDie),
 });
+
+it.effect('publishes the Market affected-use provider through the owner module contract', () =>
+  Effect.gen(function* publishedProvider() {
+    expect(commerceCustomerContextManifest.publicSurface.api).toHaveProperty('market-affected-use-assessment');
+    const loadClient = getVerticalRuntimeEntrypoints(commerceCustomerContextRegistration).api[
+      'market-affected-use-assessment'
+    ];
+    expect(loadClient).toBeTypeOf('function');
+    const client = yield* Effect.promise(loadClient);
+    expect(client.executeMarketAffectedUseAssessment).toBeTypeOf('function');
+  }),
+);
 
 it('declares only the scoped affected-use and reservation routines', () => {
   expect(marketRetirementRoutineAllowlist.map(({ name, routineKey }) => [name, routineKey])).toEqual([

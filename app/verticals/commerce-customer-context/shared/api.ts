@@ -1,4 +1,5 @@
 import { identity } from 'effect';
+import { MarketAffectedUseAssessmentApi } from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
 import {
   MicroVerticalBuildMarkerSchema,
   MicroVerticalReadinessSchema,
@@ -137,6 +138,7 @@ export const commerceCustomerContextFoundationApi = HttpApi.make('CommerceCustom
   ),
 );
 export * from './apis/payment-term-affected-use-assessment.ts';
+export * from '@app/customer-market-retirement-contracts/market-affected-use-assessment';
 export * from './apis/commerce-quantity-resolution.ts';
 export * from './apis/market-bootstrap-policy-current.ts';
 export * from './apis/market-bootstrap-resolution.ts';
@@ -207,6 +209,7 @@ export const commerceCustomerContextApi = HttpApi.make('CommerceCustomerContextA
   .addHttpApi(MarketBootstrapPolicyCurrentApi)
   .addHttpApi(MarketBootstrapResolutionApi)
   .addHttpApi(MarketSubjectRestrictionsCurrentApi)
+  .addHttpApi(MarketAffectedUseAssessmentApi)
   .addHttpApi(MigrateCounterpartyPriceGroupActionApi)
   .addHttpApi(MigrateCustomerPriceGroupActionApi)
   .addHttpApi(OpenProfileReconciliationActionApi)

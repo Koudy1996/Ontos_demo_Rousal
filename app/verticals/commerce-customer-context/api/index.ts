@@ -175,6 +175,7 @@ import { invoiceRecipientResolutionReadApiLive } from './invoice-recipient-resol
 import { marketBootstrapPolicyCurrentReadApiLive } from './market-bootstrap-policy-current-read-server.ts';
 import { marketBootstrapResolutionReadApiLive } from './market-bootstrap-resolution-read-server.ts';
 import { marketSubjectRestrictionsCurrentReadApiLive } from './market-subject-restrictions-current-read-server.ts';
+import { marketAffectedUseAssessmentReadApiLive } from './market-affected-use-assessment-read-server.ts';
 import { migrateCounterpartyPriceGroupActionApiLive } from './migrate-counterparty-price-group-action-server.ts';
 import { migrateCustomerPriceGroupActionApiLive } from './migrate-customer-price-group-action-server.ts';
 import { openProfileReconciliationActionApiLive } from './open-profile-reconciliation-action-server.ts';
@@ -830,6 +831,7 @@ export const makeCommerceCustomerContextApiRuntime = (
     marketBootstrapPolicyCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     marketBootstrapResolutionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     marketSubjectRestrictionsCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    marketAffectedUseAssessmentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     migrateCounterpartyPriceGroupActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     migrateCustomerPriceGroupActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     openProfileReconciliationActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),

@@ -181,6 +181,7 @@ export const commerceCustomerContextRegistration = defineVerticalRuntimeRegistra
       'market-bootstrap-policy-current': () => import('./src/api/market-bootstrap-policy-current-client.ts'),
       'market-bootstrap-resolution': () => import('./src/api/market-bootstrap-resolution-client.ts'),
       'market-subject-restrictions-current': () => import('./src/api/market-subject-restrictions-current-client.ts'),
+      'market-affected-use-assessment': () => import('./src/api/market-affected-use-assessment-client.ts'),
       'payment-term-affected-use-assessment': () => import('./src/api/payment-term-affected-use-assessment-client.ts'),
       'payment-term-policy-current': () => import('./src/api/payment-term-policy-current-client.ts'),
       'payment-terms-resolution': () => import('./src/api/payment-terms-resolution-client.ts'),
