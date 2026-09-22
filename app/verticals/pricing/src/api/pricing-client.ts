@@ -11,7 +11,11 @@ import type { OperationContext, PricingReadiness } from '../../shared/api.ts';
 
 // oxlint-disable-next-line effect-native/no-scattered-browser-effect-run -- Generated compatibility surface retained for existing callers.
 export { Effect, runEffectRequest } from '@modern-js/bff-effect/effect-client';
-export * from './current-supported-currencies-client.ts';
+export {
+  executeCurrentSupportedCurrencies,
+  executeCurrentSupportedCurrenciesWithAuthorization,
+} from './current-supported-currencies-client.ts';
+export type { CurrentSupportedCurrenciesClientOptions } from './current-supported-currencies-client.ts';
 export { CurrentSupportedCurrenciesRequestSchema, CurrentSupportedCurrenciesResponseSchema } from '../../shared/api.ts';
 export type { CurrentSupportedCurrenciesRequest, CurrentSupportedCurrenciesResponse } from '../../shared/api.ts';
 
@@ -24,15 +28,21 @@ export interface PricingClientOptions {
   readonly baseUrl?: string | URL;
   readonly locale?: string;
   readonly operationContext?: OperationContext;
+  // oxlint-disable-next-line effect-native/no-threaded-correlation-parameter -- This public option is the caller-provided W3C wire header consumed by the generated HTTP transport; remove-when: the framework client accepts an ambient request context.
   readonly traceparent?: string;
 }
 
 export const createPricingClient = (options: PricingClientOptions = {}): PricingClientEffect<PricingClient> => {
   const requestContext = {};
-  if (options.locale !== undefined) Object.assign(requestContext, { locale: options.locale });
-  if (options.operationContext !== undefined)
+  if (options.locale !== undefined) {
+    Object.assign(requestContext, { locale: options.locale });
+  }
+  if (options.operationContext !== undefined) {
     Object.assign(requestContext, { operationContext: options.operationContext });
-  if (options.traceparent !== undefined) Object.assign(requestContext, { traceparent: options.traceparent });
+  }
+  if (options.traceparent !== undefined) {
+    Object.assign(requestContext, { traceparent: options.traceparent });
+  }
   // oxlint-disable-next-line effect-native/no-per-operation-http-api-client -- Generated public factory binds caller-specific request metadata.
   return makeEffectHttpApiClient(pricingApi, {
     baseUrl: options.baseUrl ?? pricingApiContract.apiPrefix,

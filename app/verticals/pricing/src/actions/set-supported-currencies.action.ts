@@ -23,6 +23,9 @@ import {
   CurrencySupportPersistenceUnavailable,
   currencySupportPersistenceForScope,
 } from '../persistence/currency-support-persistence.ts';
+import { SupportedCurrenciesAdministrationRejected } from './supported-currencies-administration-rejected.ts';
+
+export { SupportedCurrenciesAdministrationRejected } from './supported-currencies-administration-rejected.ts';
 
 const boundedReason = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(1000), Schema.isTrimmed());
 const nonEmptyCurrencies = PricingCurrencyCodeSetSchema.check(Schema.isMinLength(1));
@@ -54,14 +57,6 @@ export class SupportedCurrenciesRevisionConflict extends Schema.TaggedError<Supp
     actualGeneration: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
     code: Schema.Literal('supported_currencies_revision_conflict'),
     expectedGeneration: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-    reason: Schema.String,
-  },
-) {}
-
-export class SupportedCurrenciesAdministrationRejected extends Schema.TaggedError<SupportedCurrenciesAdministrationRejected>()(
-  'SupportedCurrenciesAdministrationRejected',
-  {
-    code: Schema.Literals(['supported_currencies_scope_mismatch', 'supported_currencies_effective_time_conflict']),
     reason: Schema.String,
   },
 ) {}
@@ -122,12 +117,13 @@ export const applySupportedCurrencies = Effect.fn('SetSupportedCurrenciesAction.
     reason: payload.reason,
     storefrontId: payload.storefrontId,
     subject: payload.subject,
-    supportedCurrencies: [...payload.supportedCurrencies].sort(),
+    supportedCurrencies: payload.supportedCurrencies.toSorted(),
   });
 
   return yield* Match.value(outcome).pipe(
     Match.tags({
       applied: ({ result }) => Effect.succeed(result),
+      // oxlint-disable-next-line sonarjs/function-name -- Effect Match tag keys are schema-owned wire values; remove-when: the persisted outcome tags adopt camelCase.
       effective_time_conflict: () =>
         Effect.fail(
           new SupportedCurrenciesAdministrationRejected({
@@ -135,6 +131,7 @@ export const applySupportedCurrencies = Effect.fn('SetSupportedCurrenciesAction.
             reason: 'A replacement currency-support revision must start after the current revision',
           }),
         ),
+      // oxlint-disable-next-line sonarjs/function-name -- Effect Match tag keys are schema-owned wire values; remove-when: the persisted outcome tags adopt camelCase.
       revision_conflict: (revisionConflict) => Effect.fail(conflict(revisionConflict)),
       unchanged: ({ result }) => Effect.succeed(result),
     }),

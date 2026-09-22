@@ -1,4 +1,4 @@
-/* oxlint-disable sonarjs/no-duplicate-string -- Modern.js BFF routing requires the deployment prefix in multiple generated sections. */
+/* oxlint-disable sonarjs/no-duplicate-string -- Modern.js BFF routing requires the deployment prefix in multiple generated sections; remove-when: the generated config accepts one shared prefix value. */
 import { defineConfig } from '@modern-js/app-tools';
 import type { AppToolsUserConfig } from '@modern-js/app-tools';
 import { getBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';

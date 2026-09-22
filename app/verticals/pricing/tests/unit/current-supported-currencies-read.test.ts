@@ -1,5 +1,5 @@
 import { CurrentSupportedCurrenciesRequestSchema } from '@app/pricing-contracts/current-supported-currencies';
-import { Effect, Exit, Schema } from 'effect';
+import { DateTime, Effect, Exit, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 import { CurrencySupportPersistenceUnavailable } from '../../src/persistence/currency-support-persistence.ts';
 import { resolveCurrentSupportedCurrencies } from '../../src/api/current-supported-currencies.read.ts';
@@ -18,8 +18,8 @@ const request = Schema.decodeSync(CurrentSupportedCurrenciesRequestSchema)({
 const scope = { legalEntityId: 'legal-entity-cz', storefrontId: 'storefront-cz', tenantId: 'tenant-cz' } as const;
 const stored = {
   generation: 4,
-  nextApplicabilityBoundary: '2026-09-23T00:00:00.000Z',
-  observedAt: '2026-09-22T11:59:59.000Z',
+  nextApplicabilityBoundary: DateTime.makeUnsafe('2026-09-23T00:00:00.000Z'),
+  observedAt: DateTime.makeUnsafe('2026-09-22T11:59:59.000Z'),
   pricingRevision: 'pricing-currency-support:4',
   supportedCurrencies: ['CZK'],
 } as const;
@@ -46,7 +46,7 @@ describe('Current supported currencies owner read', () => {
 
   it.effect('fails closed as stale when actual observation is after the requested effective instant', () =>
     Effect.gen(function* staleSupportEvidence() {
-      const late = { ...stored, observedAt: '2026-09-22T12:00:01.000Z' };
+      const late = { ...stored, observedAt: DateTime.makeUnsafe('2026-09-22T12:00:01.000Z') };
       const result = yield* resolveCurrentSupportedCurrencies(request, scope, () => Effect.succeedSome(late));
       expect(result.outcome).toBe('SUPPORTED_CURRENCIES_STALE');
     }),

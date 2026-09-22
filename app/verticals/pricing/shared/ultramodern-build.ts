@@ -3,47 +3,56 @@ import { withUltramodernBuildIdentity } from '@app/shared-contracts/ultramodern-
 declare const ULTRAMODERN_BUILD_MARKER: string;
 declare const ULTRAMODERN_SOURCE_REVISION: string;
 
+const APP_ID = 'pricing';
+const BUILD_MARKER = '472426e9fbfd8da9';
+const DEPLOY_PROFILE = 'cloudflare-ssr-mf-effect-v1';
+const DELIVERY_UNIT_KIND = 'microvertical-delivery-unit';
+const PACKAGE_NAME = '@app/pricing';
+const SOURCE_REVISION = 'workspace';
+const UNIT_ID = 'app/pricing';
+const VERSION = '0.1.0';
+
 const generatedBuildArtifact = {
   deliveryUnit: {
-    appId: 'pricing',
-    build: '472426e9fbfd8da9',
-    buildMarker: '472426e9fbfd8da9',
-    deployProfile: 'cloudflare-ssr-mf-effect-v1',
-    kind: 'microvertical-delivery-unit',
-    packageName: '@app/pricing',
+    appId: APP_ID,
+    build: BUILD_MARKER,
+    buildMarker: BUILD_MARKER,
+    deployProfile: DEPLOY_PROFILE,
+    kind: DELIVERY_UNIT_KIND,
+    packageName: PACKAGE_NAME,
     schemaVersion: 1,
-    sourceRevision: 'workspace',
-    unitId: 'app/pricing',
-    version: '0.1.0',
+    sourceRevision: SOURCE_REVISION,
+    unitId: UNIT_ID,
+    version: VERSION,
   },
   kind: 'ultramodern-build-artifact',
   schemaVersion: 1,
   surfaces: {
     api: {
-      appId: 'pricing',
-      build: '472426e9fbfd8da9',
-      buildMarker: '472426e9fbfd8da9',
-      deployProfile: 'cloudflare-ssr-mf-effect-v1',
-      kind: 'microvertical-delivery-unit',
-      packageName: '@app/pricing',
+      appId: APP_ID,
+      build: BUILD_MARKER,
+      buildMarker: BUILD_MARKER,
+      deployProfile: DEPLOY_PROFILE,
+      kind: DELIVERY_UNIT_KIND,
+      packageName: PACKAGE_NAME,
       schemaVersion: 1,
-      sourceRevision: 'workspace',
+      sourceRevision: SOURCE_REVISION,
       surface: 'api',
-      unitId: 'app/pricing',
-      version: '0.1.0',
+      unitId: UNIT_ID,
+      version: VERSION,
     },
     ui: {
-      appId: 'pricing',
-      build: '472426e9fbfd8da9',
-      buildMarker: '472426e9fbfd8da9',
-      deployProfile: 'cloudflare-ssr-mf-effect-v1',
-      kind: 'microvertical-delivery-unit',
-      packageName: '@app/pricing',
+      appId: APP_ID,
+      build: BUILD_MARKER,
+      buildMarker: BUILD_MARKER,
+      deployProfile: DEPLOY_PROFILE,
+      kind: DELIVERY_UNIT_KIND,
+      packageName: PACKAGE_NAME,
       schemaVersion: 1,
-      sourceRevision: 'workspace',
+      sourceRevision: SOURCE_REVISION,
       surface: 'ui',
-      unitId: 'app/pricing',
-      version: '0.1.0',
+      unitId: UNIT_ID,
+      version: VERSION,
     },
   },
 } as const;

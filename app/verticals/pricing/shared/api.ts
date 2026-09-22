@@ -30,7 +30,41 @@ export const pricingFoundationApi = HttpApi.make('PricingApiFoundation').add(
   ),
 );
 
-export * from './apis/current-supported-currencies.ts';
+export {
+  CurrentSupportedCurrenciesApi,
+  CurrentSupportedCurrenciesAuthenticationProblemSchema,
+  CurrentSupportedCurrenciesInternalProblemSchema,
+  CurrentSupportedCurrenciesInvalidProblemSchema,
+  CurrentSupportedCurrenciesInvalidSchema,
+  CurrentSupportedCurrenciesNotFoundProblemSchema,
+  CurrentSupportedCurrenciesPolicyConflictProblemSchema,
+  CurrentSupportedCurrenciesPolicyProblemSchema,
+  CurrentSupportedCurrenciesRequestSchema,
+  CurrentSupportedCurrenciesResponseSchema,
+  CurrentSupportedCurrenciesStaleSchema,
+  CurrentSupportedCurrenciesSuccessSchema,
+  CurrentSupportedCurrenciesUnavailableProblemSchema,
+  CurrentSupportedCurrenciesUnavailableSchema,
+  CurrentSupportedCurrenciesUnverifiableSchema,
+  PricingCartIdSchema,
+  PricingChannelIdSchema,
+  PricingContextRevisionSchema,
+  PricingCurrencyCodeSchema,
+  PricingCurrencyCodeSetSchema,
+  PricingCurrencySubjectSchema,
+  PricingInstantSchema,
+  PricingMarketIdSchema,
+  PricingRevisionSchema,
+  PricingSellingLegalEntityIdSchema,
+  PricingStorefrontIdSchema,
+  PricingTenantIdSchema,
+} from './apis/current-supported-currencies.ts';
+export type {
+  CurrentSupportedCurrenciesRequest,
+  CurrentSupportedCurrenciesResponse,
+  CurrentSupportedCurrenciesSuccess,
+  PricingCurrencySubject,
+} from './apis/current-supported-currencies.ts';
 
 export const pricingApi = HttpApi.make('PricingApi')
   .addHttpApi(pricingFoundationApi)

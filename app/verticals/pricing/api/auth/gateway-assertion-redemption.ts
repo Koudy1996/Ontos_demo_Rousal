@@ -6,6 +6,7 @@ import {
 } from '@app/core-runtime/auth/gateway-assertion-redemption';
 import type { GatewayAssertionRedemption } from '@app/core-runtime/auth/gateway-assertion-redemption';
 import { Effect, Layer } from 'effect';
+
 const gatewayAssertionRedemption: GatewayAssertionRedemption = {
   consume: () =>
     Effect.fail(

@@ -26,12 +26,15 @@ export interface PricingTrustedScope {
   readonly storefrontId: string | undefined;
   readonly tenantId: string;
 }
-const subjectPredicate = (subject: CurrentSupportedCurrenciesRequest['subject']) =>
-  subject.kind === 'GUEST'
-    ? `guest:${subject.guestSessionRef}:${subject.guestEvidenceRef}`
-    : subject.authorizationSubject.kind === 'RETAIL'
-      ? `retail:${subject.profileRef.resourceId}`
-      : `counterparty:${subject.profileRef.resourceId}:${subject.authorizationSubject.counterpartyRef.resourceId}`;
+const subjectPredicate = (subject: CurrentSupportedCurrenciesRequest['subject']) => {
+  if (subject.kind === 'GUEST') {
+    return `guest:${subject.guestSessionRef}:${subject.guestEvidenceRef}`;
+  }
+  if (subject.authorizationSubject.kind === 'RETAIL') {
+    return `retail:${subject.profileRef.resourceId}`;
+  }
+  return `counterparty:${subject.profileRef.resourceId}:${subject.authorizationSubject.counterpartyRef.resourceId}`;
+};
 const exactPredicateRef = (input: CurrentSupportedCurrenciesRequest) =>
   [
     'commerce.pricing.current-supported-currencies',
@@ -47,7 +50,7 @@ const exactPredicateRef = (input: CurrentSupportedCurrenciesRequest) =>
   ].join(':');
 const stale = (stored: StoredCurrencySupport, reason: string): CurrentSupportedCurrenciesResponse => ({
   code: 'pricing_currency_support_stale',
-  observedAt: stored.observedAt,
+  observedAt: DateTime.formatIso(stored.observedAt),
   outcome: 'SUPPORTED_CURRENCIES_STALE',
   pricingRevision: stored.pricingRevision,
   reason,
@@ -93,35 +96,38 @@ export const resolveCurrentSupportedCurrencies = Effect.fn('CurrentSupportedCurr
   }
   const stored = loaded.value.value;
   const effectiveEpoch = DateTime.toEpochMillis(DateTime.makeUnsafe(input.effectiveAt));
-  const observedEpoch = DateTime.toEpochMillis(DateTime.makeUnsafe(stored.observedAt));
+  const observedEpoch = DateTime.toEpochMillis(stored.observedAt);
   if (observedEpoch > effectiveEpoch) {
     return stale(stored, 'Pricing observed the support set after the requested effective instant');
   }
   if (
     stored.nextApplicabilityBoundary !== undefined &&
-    effectiveEpoch >= DateTime.toEpochMillis(DateTime.makeUnsafe(stored.nextApplicabilityBoundary))
+    effectiveEpoch >= DateTime.toEpochMillis(stored.nextApplicabilityBoundary)
   ) {
     return stale(stored, 'Pricing support evidence crossed its next applicability boundary');
   }
   const completenessEvidence = {
-    observedAt: stored.observedAt,
+    observedAt: DateTime.formatIso(stored.observedAt),
     ownerRevision: stored.pricingRevision,
     scope: { kind: 'EXACT_PREDICATE' as const, predicateRef: exactPredicateRef(input) },
-    ...(stored.nextApplicabilityBoundary === undefined
-      ? {}
-      : { nextApplicabilityBoundary: stored.nextApplicabilityBoundary }),
   };
-  return {
+  if (stored.nextApplicabilityBoundary !== undefined) {
+    Object.assign(completenessEvidence, {
+      nextApplicabilityBoundary: DateTime.formatIso(stored.nextApplicabilityBoundary),
+    });
+  }
+  const result = {
     completenessEvidence,
     effectiveAt: input.effectiveAt,
-    observedAt: stored.observedAt,
+    observedAt: DateTime.formatIso(stored.observedAt),
     outcome: 'SUPPORTED_CURRENCIES_CURRENT',
     pricingRevision: stored.pricingRevision,
     supportedCurrencies: stored.supportedCurrencies,
-    ...(stored.nextApplicabilityBoundary === undefined
-      ? {}
-      : { nextApplicabilityBoundary: stored.nextApplicabilityBoundary }),
   } satisfies CurrentSupportedCurrenciesResponse;
+  if (stored.nextApplicabilityBoundary !== undefined) {
+    Object.assign(result, { nextApplicabilityBoundary: DateTime.formatIso(stored.nextApplicabilityBoundary) });
+  }
+  return result;
 });
 
 const handleCurrentSupportedCurrencies = Effect.fn('CurrentSupportedCurrenciesRead.handle')(function* handle(

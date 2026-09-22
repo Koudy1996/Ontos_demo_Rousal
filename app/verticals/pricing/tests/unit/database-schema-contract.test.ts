@@ -6,7 +6,7 @@ import { PRICING_SCHEMA_NAME, PRICING_TABLE_INVENTORY } from '../../src/database
 
 const migration = readFileSync(
   fileURLToPath(new URL('../../drizzle/20260922093000_pricing-currency-support/migration.sql', import.meta.url)),
-  'utf8',
+  'utf-8',
 );
 
 describe('Pricing currency support database contract', () => {

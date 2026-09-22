@@ -6,6 +6,7 @@ import { makeMicroverticalHttpPrincipalAuthentication } from '@app/core-runtime/
 import { bindGatewayPrincipalVerifier } from '@app/gateway-principal-verifier/server';
 import { Effect } from 'effect';
 import type { Redacted } from 'effect';
+
 const ACTION_GATEWAY_AUDIENCE = 'pricing' as const;
 export { GatewayPrincipalVerifierLive as ActionPrincipalVerifierLive } from '@app/gateway-principal-verifier/server';
 const principalVerifier = bindGatewayPrincipalVerifier(ACTION_GATEWAY_AUDIENCE);
