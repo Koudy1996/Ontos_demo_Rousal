@@ -2,7 +2,12 @@
 // @ontos-action-owner commerce.market-catalog
 // @ontos-action-slug retire-market
 import type { ActionHandlerContext } from '@app/core-runtime';
-import { defineAction, defineActionResourcePermission, defineTenantModuleEntrypoint } from '@app/core-runtime';
+import {
+  TenantModuleStateService,
+  defineAction,
+  defineActionResourcePermission,
+  defineTenantModuleEntrypoint,
+} from '@app/core-runtime';
 import { DateTime, Effect, Match, Schema } from 'effect';
 import {
   MarketCommandRejected,
@@ -21,7 +26,7 @@ import {
   marketAdministrationService,
 } from '../services/market-administration.service.ts';
 import type { MarketRetirementImpactAuthority } from '../services/market-retirement-impact-authority.ts';
-import { marketRetirementImpactAuthorityFromPublishedClient } from '../integrations/market-retirement-impact.ts';
+import { makeMarketRetirementImpactAuthorityFromPublishedClient } from '../integrations/market-retirement-impact.ts';
 import { createRetireMarketCommerceMarketCatalogMarketRetiredV1OutboxMessage as createOutboxMessage } from './retire-market-commerce-market-catalog-market-retired-v1.outbox-message.ts';
 import {
   MODULE_KEY,
@@ -67,8 +72,14 @@ const makeRetireMarketServices: (
 ) => Effect.Effect<RetireMarketServices, Effect.Error<ReturnType<typeof marketAdministrationService>>> = Effect.fn(
   'RetireMarketAction.makeServices',
 )(function* makeServices(transaction, scope) {
-  const catalog = yield* marketAdministrationService(transaction, scope);
-  return { ...catalog, ...marketRetirementImpactAuthorityFromPublishedClient } satisfies RetireMarketServices;
+  const [catalog, moduleStateInventory] = yield* Effect.all([
+    marketAdministrationService(transaction, scope),
+    TenantModuleStateService,
+  ]);
+  return {
+    ...catalog,
+    ...makeMarketRetirementImpactAuthorityFromPublishedClient(moduleStateInventory),
+  } satisfies RetireMarketServices;
 });
 
 const refsMatch = (left: RetireMarketPayload['marketRef'], right: RetireMarketPayload['marketRef']) =>
