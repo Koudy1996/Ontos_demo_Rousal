@@ -10,6 +10,9 @@ diff --git a/dist/cjs/strict-effect-runtime.cjs b/dist/cjs/strict-effect-runtime
 @@ -96 +96 @@
 -        if (modules.size >= 64 || input.source.length > 1000000) throw invalidSource('API source budget exceeded');
 +        if (modules.size >= 256 || input.source.length > 1000000) throw invalidSource('API source budget exceeded');
+@@ -284 +284 @@
+-            return statements.slice(0, -1).every((statement)=>types_namespaceObject.isVariableDeclaration(statement)) && types_namespaceObject.isReturnStatement(last) ? last.argument : void 0;
++            return statements.slice(0, -1).every((statement)=>types_namespaceObject.isVariableDeclaration(statement) || types_namespaceObject.isTSTypeAliasDeclaration(statement)) && types_namespaceObject.isReturnStatement(last) ? last.argument : void 0;
 diff --git a/dist/esm-node/oxlint-plugin/rules/strict-effect-api-boundaries.js b/dist/esm-node/oxlint-plugin/rules/strict-effect-api-boundaries.js
 --- a/dist/esm-node/oxlint-plugin/rules/strict-effect-api-boundaries.js
 +++ b/dist/esm-node/oxlint-plugin/rules/strict-effect-api-boundaries.js
@@ -22,6 +25,9 @@ diff --git a/dist/esm-node/strict-effect-runtime.js b/dist/esm-node/strict-effec
 @@ -52 +52 @@
 -        if (modules.size >= 64 || input.source.length > 1000000) throw invalidSource('API source budget exceeded');
 +        if (modules.size >= 256 || input.source.length > 1000000) throw invalidSource('API source budget exceeded');
+@@ -240 +240 @@
+-            return statements.slice(0, -1).every((statement)=>__rspack_external__babel_types_6e8337dd.isVariableDeclaration(statement)) && __rspack_external__babel_types_6e8337dd.isReturnStatement(last) ? last.argument : void 0;
++            return statements.slice(0, -1).every((statement)=>__rspack_external__babel_types_6e8337dd.isVariableDeclaration(statement) || __rspack_external__babel_types_6e8337dd.isTSTypeAliasDeclaration(statement)) && __rspack_external__babel_types_6e8337dd.isReturnStatement(last) ? last.argument : void 0;
 diff --git a/dist/esm/oxlint-plugin/rules/strict-effect-api-boundaries.js b/dist/esm/oxlint-plugin/rules/strict-effect-api-boundaries.js
 --- a/dist/esm/oxlint-plugin/rules/strict-effect-api-boundaries.js
 +++ b/dist/esm/oxlint-plugin/rules/strict-effect-api-boundaries.js
@@ -34,6 +40,9 @@ diff --git a/dist/esm/strict-effect-runtime.js b/dist/esm/strict-effect-runtime.
 @@ -51 +51 @@
 -        if (modules.size >= 64 || input.source.length > 1000000) throw invalidSource('API source budget exceeded');
 +        if (modules.size >= 256 || input.source.length > 1000000) throw invalidSource('API source budget exceeded');
+@@ -239 +239 @@
+-            return statements.slice(0, -1).every((statement)=>__rspack_external__babel_types_6e8337dd.isVariableDeclaration(statement)) && __rspack_external__babel_types_6e8337dd.isReturnStatement(last) ? last.argument : void 0;
++            return statements.slice(0, -1).every((statement)=>__rspack_external__babel_types_6e8337dd.isVariableDeclaration(statement) || __rspack_external__babel_types_6e8337dd.isTSTypeAliasDeclaration(statement)) && __rspack_external__babel_types_6e8337dd.isReturnStatement(last) ? last.argument : void 0;
 diff --git a/dist/cjs/microvertical-api-baseline.cjs b/dist/cjs/microvertical-api-baseline.cjs
 --- a/dist/cjs/microvertical-api-baseline.cjs
 +++ b/dist/cjs/microvertical-api-baseline.cjs
