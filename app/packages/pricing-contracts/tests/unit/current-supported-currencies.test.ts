@@ -2,6 +2,7 @@ import { Effect, Exit, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 
 import {
+  CurrentSupportedCurrenciesPolicyConflictProblemSchema,
   CurrentSupportedCurrenciesRequestSchema,
   CurrentSupportedCurrenciesResponseSchema,
   executeCurrentSupportedCurrencies,
@@ -138,6 +139,18 @@ describe('Pricing Current supported-currencies contract', () => {
     for (const outcome of outcomes) {
       expect(Schema.decodeSync(CurrentSupportedCurrenciesResponseSchema)(outcome).outcome).toBe(outcome.outcome);
     }
+  });
+
+  it('publishes the generated policy-conflict problem contract', () => {
+    expect(
+      Schema.decodeSync(CurrentSupportedCurrenciesPolicyConflictProblemSchema)({
+        _tag: 'CurrentSupportedCurrenciesPolicyConflictProblem',
+        detail: 'Pricing rejected the governed read because current policy changed',
+        status: 409,
+        title: 'Current supported currencies policy conflict',
+        type: 'about:blank',
+      }).status,
+    ).toBe(409);
   });
 
   it.effect('strictly encodes before the governed client can invoke HTTP', () =>
