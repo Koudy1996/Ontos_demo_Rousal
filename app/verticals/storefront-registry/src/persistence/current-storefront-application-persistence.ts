@@ -2,7 +2,7 @@
 import type { ReadServiceFactory, ScopedRoutineInvocationError } from '@app/core-runtime';
 import { defineScopedRoutine } from '@app/core-runtime';
 import type { CurrentStorefrontApplicationRequest } from '@app/storefront-registry-contracts';
-import { DateTime, Effect, Option, Schema } from 'effect';
+import { DateTime, Effect, Match, Option, Schema } from 'effect';
 
 const instant = Schema.String.check(Schema.isMinLength(1), Schema.isTrimmed());
 const positiveRevision = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
@@ -81,30 +81,51 @@ const canonicalInstant = (value: string) =>
     Effect.mapError(unavailable),
   );
 
+type FoundSnapshotPayload = Extract<typeof SnapshotPayloadSchema.Type, { readonly _tag: 'found' }>;
+
+const decodeCurrentSnapshot = Effect.fn('CurrentStorefrontApplicationPersistence.decodeRow.found')(
+  function* decodeCurrentSnapshot({
+    current,
+  }: FoundSnapshotPayload): Effect.fn.Return<
+    CurrentStorefrontApplicationPersistenceResult,
+    StorefrontRegistryPersistenceUnavailable
+  > {
+    const snapshotBase = {
+      allowedChannels: current.allowedChannels,
+      effectiveFrom: yield* canonicalInstant(current.effectiveFrom),
+      generation: current.generation,
+      lifecycle: current.lifecycle,
+      observedAt: yield* canonicalInstant(current.observedAt),
+      revision: current.revision,
+    };
+    const snapshot: CurrentStorefrontApplicationSnapshot = yield* Option.match(current.effectiveTo, {
+      onNone: () => Effect.succeed(snapshotBase),
+      onSome: (value) => canonicalInstant(value).pipe(Effect.map((effectiveTo) => ({ ...snapshotBase, effectiveTo }))),
+    });
+    return {
+      generation: current.generation,
+      observedAt: snapshot.observedAt,
+      snapshot: Option.some(snapshot),
+    };
+  },
+);
+
 const decodeRow = Effect.fn('CurrentStorefrontApplicationPersistence.decodeRow')(function* decodeSnapshot(
   row: typeof SnapshotRowSchema.Type,
 ): Effect.fn.Return<CurrentStorefrontApplicationPersistenceResult, StorefrontRegistryPersistenceUnavailable> {
-  if (row.payload._tag === 'not_found') {
-    return {
-      generation: row.payload.generation,
-      observedAt: yield* canonicalInstant(row.payload.observedAt),
-      snapshot: Option.none(),
-    };
-  }
-  const { current } = row.payload;
-  const effectiveTo = Option.isNone(current.effectiveTo)
-    ? undefined
-    : yield* canonicalInstant(current.effectiveTo.value);
-  const snapshot = {
-    allowedChannels: current.allowedChannels,
-    effectiveFrom: yield* canonicalInstant(current.effectiveFrom),
-    generation: current.generation,
-    lifecycle: current.lifecycle,
-    observedAt: yield* canonicalInstant(current.observedAt),
-    revision: current.revision,
-    ...(effectiveTo === undefined ? {} : { effectiveTo }),
-  };
-  return { generation: current.generation, observedAt: snapshot.observedAt, snapshot: Option.some(snapshot) };
+  return yield* Match.value(row.payload).pipe(
+    Match.tag('not_found', ({ generation: currentGeneration, observedAt }) =>
+      canonicalInstant(observedAt).pipe(
+        Effect.map((canonicalObservedAt) => ({
+          generation: currentGeneration,
+          observedAt: canonicalObservedAt,
+          snapshot: Option.none<CurrentStorefrontApplicationSnapshot>(),
+        })),
+      ),
+    ),
+    Match.tag('found', decodeCurrentSnapshot),
+    Match.exhaustive,
+  );
 });
 
 const persistenceForTransaction = (
@@ -118,15 +139,18 @@ const persistenceForTransaction = (
       ])
       .pipe(
         Effect.mapError((cause: ScopedRoutineInvocationError) => unavailable(cause)),
-        Effect.flatMap(([row]) =>
-          row === undefined
-            ? Effect.fail(unavailable('The Storefront Registry owner routine returned no snapshot'))
-            : input.tenantId !== tenantId
-              ? Effect.fail(unavailable('The Storefront Registry request Tenant does not match the trusted scope'))
-              : decodeRow(row),
-        ),
+        Effect.flatMap(([row]) => {
+          if (row === undefined) {
+            return Effect.fail(unavailable('The Storefront Registry owner routine returned no snapshot'));
+          }
+          if (input.tenantId === tenantId) {
+            return decodeRow(row);
+          }
+          return Effect.fail(unavailable('The Storefront Registry request Tenant does not match the trusted scope'));
+        }),
       ),
 });
 
-export const currentStorefrontApplicationPersistenceForScope: ReadServiceFactory<CurrentStorefrontApplicationPersistence> =
-  (transaction, scope) => Effect.succeed(persistenceForTransaction(transaction, scope.tenantId));
+export const currentStorefrontApplicationPersistenceForScope: ReadServiceFactory<
+  CurrentStorefrontApplicationPersistence
+> = (transaction, scope) => Effect.succeed(persistenceForTransaction(transaction, scope.tenantId));
