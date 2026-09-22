@@ -81,7 +81,7 @@ export interface SetCurrencySupportCommand {
   readonly subject: PricingCurrencySubject;
   readonly supportedCurrencies: readonly string[];
 }
-interface SetCurrencySupportResult {
+export interface SetCurrencySupportResult {
   readonly changed: boolean;
   readonly generation: number;
   readonly pricingRevision: string;
@@ -92,6 +92,34 @@ export type SetCurrencySupportOutcome =
   | { readonly _tag: 'unchanged'; readonly result: SetCurrencySupportResult }
   | { readonly _tag: 'revision_conflict'; readonly actualGeneration: number; readonly expectedGeneration: number }
   | { readonly _tag: 'effective_time_conflict' };
+
+const decodeSetCurrencySupportOutcome = (
+  value: typeof SetCurrencySupportResultSchema.Type | undefined,
+  expectedGeneration: number,
+): Effect.Effect<SetCurrencySupportOutcome, CurrencySupportPersistenceUnavailable> => {
+  if (value === undefined) return Effect.fail(unavailable('Pricing write routine returned no outcome'));
+  if (value.outcome === 'REVISION_CONFLICT') {
+    return Effect.succeed({
+      _tag: 'revision_conflict',
+      actualGeneration: value.actualGeneration,
+      expectedGeneration,
+    });
+  }
+  if (value.outcome === 'EFFECTIVE_TIME_CONFLICT') {
+    return Effect.succeed({ _tag: 'effective_time_conflict' });
+  }
+  if (value.pricingRevision === null) {
+    return Effect.fail(unavailable('Pricing write routine omitted its revision'));
+  }
+  const result = {
+    changed: value.changed,
+    generation: value.actualGeneration,
+    pricingRevision: value.pricingRevision,
+    supportedCurrencies: value.supportedCurrencies,
+  };
+  return Effect.succeed(value.outcome === 'APPLIED' ? { _tag: 'applied', result } : { _tag: 'unchanged', result });
+};
+
 export class CurrencySupportPersistenceUnavailable extends Schema.TaggedError<CurrencySupportPersistenceUnavailable>()(
   'CurrencySupportPersistenceUnavailable',
   { reason: Schema.String },
@@ -152,34 +180,7 @@ const persistenceForTransaction = (
       ])
       .pipe(
         Effect.mapError((cause: ScopedRoutineInvocationError) => unavailable(cause)),
-        Effect.flatMap(([row]) => {
-          if (row === undefined) return Effect.fail(unavailable('Pricing write routine returned no outcome'));
-          const value = row.result;
-          if (value.outcome === 'REVISION_CONFLICT') {
-            return Effect.succeed({
-              _tag: 'revision_conflict' as const,
-              actualGeneration: value.actualGeneration,
-              expectedGeneration: command.expectedGeneration,
-            });
-          }
-          if (value.outcome === 'EFFECTIVE_TIME_CONFLICT') {
-            return Effect.succeed({ _tag: 'effective_time_conflict' as const });
-          }
-          if (value.pricingRevision === null) {
-            return Effect.fail(unavailable('Pricing write routine omitted its revision'));
-          }
-          const result = {
-            changed: value.changed,
-            generation: value.actualGeneration,
-            pricingRevision: value.pricingRevision,
-            supportedCurrencies: value.supportedCurrencies,
-          };
-          return Effect.succeed(
-            value.outcome === 'APPLIED'
-              ? ({ _tag: 'applied', result } as const)
-              : ({ _tag: 'unchanged', result } as const),
-          );
-        }),
+        Effect.flatMap(([row]) => decodeSetCurrencySupportOutcome(row?.result, command.expectedGeneration)),
       ),
 });
 export const currencySupportPersistenceForScope: ReadServiceFactory<CurrencySupportPersistence> = (

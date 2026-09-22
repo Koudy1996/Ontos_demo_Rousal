@@ -79,7 +79,7 @@ describe('Set supported currencies Action', () => {
       );
       expect(revisionExit.toString()).toContain(SupportedCurrenciesRevisionConflict.name);
 
-      const profilePayload = Schema.decodeSync(SetSupportedCurrenciesPayloadSchema)({
+      const profilePayload = yield* Schema.decodeEffect(SetSupportedCurrenciesPayloadSchema)({
         ...payload,
         subject: {
           authorizationSubject: { kind: 'RETAIL' },
