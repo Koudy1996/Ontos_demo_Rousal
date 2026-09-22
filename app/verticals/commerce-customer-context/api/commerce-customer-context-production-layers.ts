@@ -18,6 +18,7 @@ import { unavailableHistoryActionOwnerPorts, RepeatCartOwner } from '../shared/d
 import { paymentTermCatalogGatewayCredentialLive } from './payment-term-catalog-gateway-credential.ts';
 import { catalogQuantityGatewayCredentialLive } from './catalog-quantity-gateway-credential.ts';
 import { purchaseCurrencyPricingGatewayCredentialLive } from './purchase-currency-pricing-gateway-credential.ts';
+import { applicationCompositionMarketReferenceOwnerDeploymentStateAuthorityLive } from './application-composition-market-reference-owner-authority.ts';
 
 type CommerceCustomerContextOwnerRuntimeServices =
   | Layer.Success<typeof BusinessPermissionRelationshipMutationLive>
@@ -74,4 +75,5 @@ export const commerceCustomerContextProductionExternalPortsLive = Layer.mergeAll
   paymentTermCatalogGatewayCredentialLive,
   catalogQuantityGatewayCredentialLive,
   unavailableRepeatCartOwnerLive,
+  applicationCompositionMarketReferenceOwnerDeploymentStateAuthorityLive,
 );

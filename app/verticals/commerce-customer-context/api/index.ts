@@ -3,6 +3,7 @@ import {
   ActionAuthorizationPreflight,
   ActionRuntimeLive,
   ActionAuthorizationPreflightDatabaseLive,
+  ActiveApplicationCompositionConfigLive,
   ContextAccessLive,
   CorePersistenceLive,
   DatabaseConfigLive,
@@ -667,8 +668,11 @@ const commerceCustomerContextReadRuntime = readRuntimeCoreLive.pipe(
   Layer.provideMerge(productionPurchaseLimitCurrentnessLive),
   Layer.provide(DatabaseConfigLive),
 );
+const configuredProductionExternalPortsLive = commerceCustomerContextProductionExternalPortsLive.pipe(
+  Layer.provide(ActiveApplicationCompositionConfigLive),
+);
 const productionActionRuntimeLive = commerceCustomerContextActionRuntime.pipe(
-  Layer.provideMerge(commerceCustomerContextProductionExternalPortsLive),
+  Layer.provideMerge(configuredProductionExternalPortsLive),
   Layer.provideMerge(ProfileReconciliationOwnerVerifierUnavailableLive),
 );
 
@@ -687,11 +691,11 @@ export const commerceCustomerContextActionRuntimeAwaitingOwnerPreparation: Layer
   Layer.Error<typeof productionActionRuntimeLive>,
   CommerceEnrollmentOwnerTransitionPreparation
 > = actionRuntimeAwaitingOwnerPreparation.pipe(
-  Layer.provideMerge(commerceCustomerContextProductionExternalPortsLive),
+  Layer.provideMerge(configuredProductionExternalPortsLive),
   Layer.provideMerge(ProfileReconciliationOwnerVerifierUnavailableLive),
 );
 const productionReadRuntimeLive = commerceCustomerContextReadRuntime.pipe(
-  Layer.provideMerge(commerceCustomerContextProductionExternalPortsLive),
+  Layer.provideMerge(configuredProductionExternalPortsLive),
 );
 
 type CommerceCustomerContextApiRuntimeArguments = readonly [

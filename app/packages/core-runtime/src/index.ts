@@ -593,6 +593,17 @@ export type {
   ObservedModuleFederationManifest,
 } from './modules/application-composition.ts';
 export {
+  ActiveApplicationCompositionConfigLive,
+  ActiveApplicationCompositionService,
+  ActiveApplicationCompositionSnapshotSchema,
+  makeActiveApplicationCompositionLayer,
+} from './modules/active-application-composition.ts';
+export { ActiveApplicationCompositionUnavailableError } from './modules/active-application-composition-errors.ts';
+export type {
+  ActiveApplicationCompositionServiceContract,
+  ActiveApplicationCompositionSnapshot,
+} from './modules/active-application-composition.ts';
+export {
   MODULE_ENTRYPOINT_ACCESSES,
   MODULE_ENTRYPOINT_ROLES,
   MODULE_ENTRYPOINT_SCOPES,
