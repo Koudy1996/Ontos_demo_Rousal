@@ -12,6 +12,8 @@ import {
   PaymentTermPolicyAdministrationPayloadSchema,
   PurchaseCurrencyPolicyAdministrationPayloadSchema,
 } from '../verticals/commerce-customer-context/shared/domain/customer-commerce-policy-administration.ts';
+import { QuantityPreparationResponseSchema } from '../verticals/catalog/shared/apis/quantity-preparation.ts';
+import type { QuantityPreparationResponse } from '../verticals/catalog/shared/apis/quantity-preparation.ts';
 
 const tenantId = '70000000-0000-4000-8000-000000000010';
 const sellingLegalEntityId = '71000000-0000-4000-8000-000000000010';
@@ -33,10 +35,22 @@ const marketRef = {
   tenantId,
 } as const;
 const storefrontRef = { appId: storefrontId, tenantId } as const;
+const catalogProductRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: '76000000-0000-4000-8000-000000000001',
+  resourceType: 'commerce.catalog.product',
+  tenantId,
+} as const;
 const catalogVariantRef = {
   moduleId: 'commerce.catalog',
   resourceId: '76000000-0000-4000-8000-000000000010',
   resourceType: 'commerce.catalog.variant',
+  tenantId,
+} as const;
+const catalogPackageOptionRef = {
+  moduleId: 'commerce.catalog',
+  resourceId: '76000000-0000-4000-8000-000000000015',
+  resourceType: 'commerce.catalog.package-definition',
   tenantId,
 } as const;
 const catalogProductUnitRef = {
@@ -44,6 +58,88 @@ const catalogProductUnitRef = {
   resourceId: '76000000-0000-4000-8000-000000000020',
   resourceType: 'commerce.catalog.product-unit',
   tenantId,
+} as const;
+const catalogSelection = {
+  packageOption: {
+    contentRevision: { resourceRef: catalogPackageOptionRef, revision: 1 },
+    optionRef: catalogPackageOptionRef,
+  },
+  productRef: catalogProductRef,
+  variantRef: catalogVariantRef,
+} as const;
+const catalogQuantityOwnerRevision = 'commerce.catalog.quantity:czech-launch-v1';
+const catalogQuantityEvidence = {
+  completeness: {
+    observedAt: effectiveFrom,
+    ownerRevision: catalogQuantityOwnerRevision,
+    scope: {
+      kind: 'EXACT_PREDICATE',
+      predicateRef: 'commerce.catalog.quantity-preparation:czech-launch-package:purchase-acceptance:1',
+    },
+  },
+  divisible: false,
+  equivalentSelectionKey: 'commerce.catalog.selection:czech-launch-package',
+  evidence: {
+    assessedAt: effectiveFrom,
+    basis: [
+      { role: 'PRODUCT', source: { resourceRef: catalogProductRef, revision: 1 } },
+      { role: 'VARIANT', source: { resourceRef: catalogVariantRef, revision: 1 } },
+      {
+        provenance: 'CATALOG_OWNER_CONFIRMED_UNTYPED_DECISION',
+        role: 'PRODUCT_TYPE_UNTYPED_DECISION',
+        source: { resourceRef: catalogProductRef, revision: 1 },
+      },
+      { role: 'PACKAGE_CONTENT', source: { resourceRef: catalogPackageOptionRef, revision: 1 } },
+      { role: 'UNIT_RULE', source: { resourceRef: catalogProductUnitRef, revision: 1 } },
+      { role: 'UNIT_TARGET_DIVISIBILITY', source: { resourceRef: catalogPackageOptionRef, revision: 1 } },
+    ],
+    membership: {
+      attestationId: 'czech-launch-catalog-membership-v1',
+      observedAt: effectiveFrom,
+      productRef: catalogProductRef,
+      source: 'CATALOG_OWNER_CURRENT_READ',
+      variant: { resourceRef: catalogVariantRef, revision: 1 },
+    },
+    purpose: 'PURCHASE_ACCEPTANCE',
+    selection: catalogSelection,
+    status: 'VALID',
+  },
+  hierarchyRevision: 'commerce.catalog.hierarchy:czech-launch-v1',
+  ownerRevision: catalogQuantityOwnerRevision,
+  packageContent: {
+    amount: '10',
+    path: [{ resourceRef: catalogPackageOptionRef, revision: 1 }],
+    status: 'VALID',
+    unitRef: catalogProductUnitRef,
+  },
+  packageRevision: {
+    amount: '10',
+    form: { productRef: catalogProductRef, variantRef: catalogVariantRef },
+    reference: { resourceRef: catalogPackageOptionRef, revision: 1 },
+    unitRef: catalogProductUnitRef,
+  },
+  quantity: {
+    changed: false,
+    notice: null,
+    requested: '1',
+    resulting: '1',
+    rounding: 'UP',
+    status: 'VALID',
+    step: '1',
+    targetId: catalogPackageOptionRef.resourceId,
+    tenantId,
+    unitId: catalogProductUnitRef.resourceId,
+    unitRuleRevision: 1,
+  },
+  quantityBasis: {
+    targetDivisibilityRevision: 1,
+    targetRef: catalogPackageOptionRef,
+    unitRef: catalogProductUnitRef,
+    unitRuleRevision: 1,
+  },
+  selection: catalogSelection,
+  status: 'READY',
+  unitRef: catalogProductUnitRef,
 } as const;
 const paymentTermRef = {
   moduleId: 'payment.term-catalog',
@@ -72,6 +168,9 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
     reason,
     sellingLegalEntityRef,
     supportedLocales: ['cs-CZ'],
+  },
+  ownerFacts: {
+    catalogQuantity: catalogQuantityEvidence,
   },
   policies: {
     marketBootstrap: {
@@ -176,14 +275,14 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
         value: {
           basis: {
             targetDivisibilityRevision: 1,
-            targetRef: catalogVariantRef,
+            targetRef: catalogPackageOptionRef,
             unitRef: catalogProductUnitRef,
             unitRuleRevision: 1,
           },
           constraintMode: 'REPLACEABLE_ENVELOPE',
           envelope: { kind: 'BOUNDED', maximum: null, minimum: '1', multiple: '1' },
           kind: 'COMMERCE_QUANTITY_RULE',
-          selector: { kind: 'VARIANT', variantRef: catalogVariantRef },
+          selector: { kind: 'PACKAGE_OPTION', packageOptionRef: catalogPackageOptionRef },
         },
       },
     },
@@ -203,8 +302,14 @@ const buildCzechLaunchStorefrontAssociation = (definitionRevisionRef: MarketDefi
   storefrontRef,
 });
 
+const CurrentCatalogQuantityEvidenceSchema = QuantityPreparationResponseSchema.check(
+  Schema.makeFilter((evidence) =>
+    evidence.status === 'READY' ? undefined : 'Czech Launch activation requires READY Catalog quantity evidence',
+  ),
+);
+
 const CzechLaunchActivationEvidenceSchema = Schema.Struct({
-  catalogQuantityBasisCurrent: Schema.Literal(true),
+  catalogQuantity: CurrentCatalogQuantityEvidenceSchema,
   marketEligibleTupleCurrent: Schema.Literal(true),
   paymentTermCurrent: Schema.Literal(true),
   policySetsComplete: Schema.Struct({
@@ -221,7 +326,7 @@ export class CzechLaunchActivationRejected extends Schema.TaggedError<CzechLaunc
 ) {}
 
 export interface CzechLaunchActivationCandidate {
-  readonly catalogQuantityBasisCurrent: boolean;
+  readonly catalogQuantity: Extract<QuantityPreparationResponse, { readonly status: 'READY' }>;
   readonly marketEligibleTupleCurrent: boolean;
   readonly paymentTermCurrent: boolean;
   readonly policySetsComplete: {
