@@ -111,21 +111,38 @@ export const CZECH_LAUNCH_COMMERCE_FIXTURE = Object.freeze({
         },
       },
     },
-    purchaseCurrency: {
-      _tag: 'CREATE_REVISION',
-      expectedGeneration: 0,
-      revision: {
-        effectiveFrom,
-        effectiveTo: null,
-        field: 'PURCHASE_CURRENCY',
-        idempotencyKey: 'czech-launch-purchase-currency-v1',
-        lifecycle: 'ACTIVE',
-        reason,
-        revisionId: '75000000-0000-4000-8000-000000000020',
-        scope: { kind: 'SELLER', sellingLegalEntityId },
-        value: { currencyCode: 'CZK', kind: 'DEFAULT_CURRENCY' },
+    purchaseCurrency: [
+      {
+        _tag: 'CREATE_REVISION',
+        expectedGeneration: 0,
+        revision: {
+          effectiveFrom,
+          effectiveTo: null,
+          field: 'PURCHASE_CURRENCY',
+          idempotencyKey: 'czech-launch-allowed-currency-v1',
+          lifecycle: 'ACTIVE',
+          reason,
+          revisionId: '75000000-0000-4000-8000-000000000020',
+          scope: { kind: 'SELLER', sellingLegalEntityId },
+          value: { currencyCode: 'CZK', kind: 'ALLOWED_CURRENCY_CONSTRAINT' },
+        },
       },
-    },
+      {
+        _tag: 'CREATE_REVISION',
+        expectedGeneration: 1,
+        revision: {
+          effectiveFrom,
+          effectiveTo: null,
+          field: 'PURCHASE_CURRENCY',
+          idempotencyKey: 'czech-launch-default-currency-v1',
+          lifecycle: 'ACTIVE',
+          reason,
+          revisionId: '75000000-0000-4000-8000-000000000021',
+          scope: { kind: 'SELLER', sellingLegalEntityId },
+          value: { currencyCode: 'CZK', kind: 'DEFAULT_CURRENCY' },
+        },
+      },
+    ],
     quantity: {
       _tag: 'CREATE_REVISION',
       expectedGeneration: 0,
@@ -225,8 +242,11 @@ export const validateCzechLaunchFixtureContracts = () =>
         Schema.decodeUnknownEffect(MarketBootstrapPolicyAdministrationPayloadSchema)(
           CZECH_LAUNCH_COMMERCE_FIXTURE.policies.marketBootstrap,
         ),
-        Schema.decodeUnknownEffect(PurchaseCurrencyPolicyAdministrationPayloadSchema)(
-          CZECH_LAUNCH_COMMERCE_FIXTURE.policies.purchaseCurrency,
+        Effect.all(
+          CZECH_LAUNCH_COMMERCE_FIXTURE.policies.purchaseCurrency.map((payload) =>
+            Schema.decodeUnknownEffect(PurchaseCurrencyPolicyAdministrationPayloadSchema)(payload),
+          ),
+          { concurrency: 'unbounded' },
         ),
         Schema.decodeUnknownEffect(PaymentTermPolicyAdministrationPayloadSchema)(
           CZECH_LAUNCH_COMMERCE_FIXTURE.policies.paymentTerm,
