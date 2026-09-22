@@ -141,6 +141,8 @@ const ownerVerifierPaths = [
   '../verticals/commerce-customer-context/scripts/verify-db-schema.mts',
   '../verticals/commerce-market-catalog/scripts/verify-db-schema.mts',
   '../verticals/catalog/scripts/verify-db-schema.mts',
+  '../verticals/pricing/scripts/verify-db-schema.mts',
+  '../verticals/storefront-registry/scripts/verify-db-schema.mts',
 ] as const;
 
 const COMMERCE_PORTAL_AUTH_VERIFIER = '../verticals/commerce-customer-context/scripts/verify-portal-auth-db-schema.mts';
