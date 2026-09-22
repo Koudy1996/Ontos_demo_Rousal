@@ -1,6 +1,6 @@
 /* oxlint-disable perfectionist/sort-objects -- Drizzle declaration order is the physical owner contract; expires: 2027-03-31. */
 import { tenantRlsPolicies } from '@app/core-runtime';
-import { defineRelations, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { check, foreignKey, index, integer, jsonb, pgSchema, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 
 export const STOREFRONT_REGISTRY_SCHEMA_NAME = 'storefront_registry';
@@ -25,10 +25,7 @@ export const storefrontApplications = storefrontRegistrySchema.table.withRLS(
     unique('storefront_registry_applications_scope_id_uk').on(table.tenantId, table.storefrontApplicationId),
     unique('storefront_registry_applications_app_id_uk').on(table.tenantId, table.storefrontAppId),
     check('storefront_registry_applications_revision_ck', sql`${table.currentRevision} > 0`),
-    check(
-      'storefront_registry_applications_app_id_ck',
-      sql`${table.storefrontAppId} ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'`,
-    ),
+    check('storefront_registry_applications_app_id_ck', sql`${table.storefrontAppId} ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'`),
     ...tenantRlsPolicies('storefront_registry_applications_tenant', table.tenantId),
   ],
 );
@@ -107,9 +104,3 @@ export const STOREFRONT_REGISTRY_TABLES = [
   storefrontApplications,
   storefrontRegistryGenerations,
 ] as const;
-
-export const storefrontRegistryRelations = defineRelations({
-  storefrontApplicationRevisions,
-  storefrontApplications,
-  storefrontRegistryGenerations,
-});

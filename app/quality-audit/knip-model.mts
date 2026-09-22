@@ -832,7 +832,7 @@ const generatedActionGatewayEvidence = (facts: SourceFacts, workspace: string): 
   ) {
     return [];
   }
-  const requiredExports = new Set(['ACTION_GATEWAY_AUDIENCE', 'makeOperationGateway']);
+  const requiredExports = new Set(['ACTION_GATEWAY_AUDIENCE', 'makeOperationGateway', 'operationGateway']);
   return facts.program.body.flatMap((node) => {
     if (node.type !== 'ExportNamedDeclaration' || node.declaration?.type !== 'VariableDeclaration') {
       return [];

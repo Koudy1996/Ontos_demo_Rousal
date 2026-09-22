@@ -90,8 +90,8 @@ interface CommandContext {
 }
 type RegisterCommand = RegisterStorefrontApplicationPayload & CommandContext;
 type ReviseCommand = ReviseStorefrontApplicationPayload & CommandContext;
-export type RegisterStorefrontApplicationOutcome = typeof RegisterOutcomeSchema.Type;
-export type ReviseStorefrontApplicationOutcome = typeof ReviseOutcomeSchema.Type;
+type RegisterStorefrontApplicationOutcome = typeof RegisterOutcomeSchema.Type;
+type ReviseStorefrontApplicationOutcome = typeof ReviseOutcomeSchema.Type;
 
 export interface StorefrontAdministrationPersistence {
   readonly register: (
@@ -132,5 +132,6 @@ const forTransaction = (transaction: ScopedTransaction): StorefrontAdministratio
   revise: (command) => invoke(transaction, reviseRoutine, command, ReviseOutcomeSchema),
 });
 
-export const storefrontAdministrationPersistenceForScope: ReadServiceFactory<StorefrontAdministrationPersistence> =
-  (transaction) => Effect.succeed(forTransaction(transaction));
+export const storefrontAdministrationPersistenceForScope: ReadServiceFactory<StorefrontAdministrationPersistence> = (
+  transaction,
+) => Effect.succeed(forTransaction(transaction));

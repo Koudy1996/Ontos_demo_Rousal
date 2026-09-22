@@ -16,7 +16,6 @@ const channels = Schema.Array(StorefrontChannelSchema).check(
 );
 
 export const StorefrontApplicationLifecycleSchema = Schema.Literals(['DRAFT', 'ACTIVE', 'SUSPENDED', 'RETIRED']);
-export type StorefrontApplicationLifecycle = typeof StorefrontApplicationLifecycleSchema.Type;
 
 export const StorefrontApplicationEffectiveIntervalSchema = Schema.Struct({
   effectiveFrom: StorefrontRegistryInstantSchema,
@@ -30,7 +29,6 @@ export const StorefrontApplicationEffectiveIntervalSchema = Schema.Struct({
     ),
   )
   .annotate(strict);
-export type StorefrontApplicationEffectiveInterval = typeof StorefrontApplicationEffectiveIntervalSchema.Type;
 
 export const RegisterStorefrontApplicationPayloadSchema = Schema.Struct({
   allowedChannels: channels,
@@ -47,7 +45,6 @@ export const RegisterStorefrontApplicationResultSchema = Schema.Struct({
   revision: Schema.Literal(1),
   storefrontApplicationRef: StorefrontApplicationRefSchema,
 }).annotate(strict);
-export type RegisterStorefrontApplicationResult = typeof RegisterStorefrontApplicationResultSchema.Type;
 
 export const ReviseStorefrontApplicationPayloadSchema = Schema.Struct({
   allowedChannels: channels,
@@ -66,7 +63,6 @@ export const ReviseStorefrontApplicationResultSchema = Schema.Struct({
   revision: positiveRevision,
   storefrontApplicationRef: StorefrontApplicationRefSchema,
 }).annotate(strict);
-export type ReviseStorefrontApplicationResult = typeof ReviseStorefrontApplicationResultSchema.Type;
 
 export class StorefrontApplicationCommandRejected extends Schema.TaggedError<StorefrontApplicationCommandRejected>()(
   'StorefrontApplicationCommandRejected',
