@@ -68,6 +68,7 @@ import { GuestPaymentTermsResolutionApi } from './apis/guest-payment-terms-resol
 import { InvoiceRecipientResolutionApi } from './apis/invoice-recipient-resolution.ts';
 import { MarketBootstrapPolicyCurrentApi } from './apis/market-bootstrap-policy-current.ts';
 import { MarketBootstrapResolutionApi } from './apis/market-bootstrap-resolution.ts';
+import { MarketSubjectRestrictionsCurrentApi } from './apis/market-subject-restrictions-current.ts';
 import { MigrateCounterpartyPriceGroupActionApi } from './apis/migrate-counterparty-price-group-action.ts';
 import { MigrateCustomerPriceGroupActionApi } from './apis/migrate-customer-price-group-action.ts';
 import { OpenProfileReconciliationActionApi } from './apis/open-profile-reconciliation-action.ts';
@@ -139,6 +140,7 @@ export * from './apis/payment-term-affected-use-assessment.ts';
 export * from './apis/commerce-quantity-resolution.ts';
 export * from './apis/market-bootstrap-policy-current.ts';
 export * from './apis/market-bootstrap-resolution.ts';
+export * from './apis/market-subject-restrictions-current.ts';
 export * from './apis/payment-terms-resolution.ts';
 export * from './apis/purchase-currency-resolution.ts';
 
@@ -204,6 +206,7 @@ export const commerceCustomerContextApi = HttpApi.make('CommerceCustomerContextA
   .addHttpApi(InvoiceRecipientResolutionApi)
   .addHttpApi(MarketBootstrapPolicyCurrentApi)
   .addHttpApi(MarketBootstrapResolutionApi)
+  .addHttpApi(MarketSubjectRestrictionsCurrentApi)
   .addHttpApi(MigrateCounterpartyPriceGroupActionApi)
   .addHttpApi(MigrateCustomerPriceGroupActionApi)
   .addHttpApi(OpenProfileReconciliationActionApi)
