@@ -58,6 +58,7 @@ export * from './repeat-counterparty-order-action-client.ts';
 export * from './repeat-retail-order-action-client.ts';
 export * from './reroute-purchase-approval-request-action-client.ts';
 export * from './resend-counterparty-access-invitation-action-client.ts';
+export * from './reserve-market-retirement-action-client.ts';
 export * from './reserve-payment-term-retirement-action-client.ts';
 export * from './resolve-profile-reconciliation-action-client.ts';
 export * from './revalidate-purchase-approval-action-client.ts';

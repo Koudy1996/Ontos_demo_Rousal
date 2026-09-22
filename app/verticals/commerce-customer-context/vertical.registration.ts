@@ -60,6 +60,7 @@ import { repeatCounterpartyOrderAction } from './src/actions/repeat-counterparty
 import { repeatRetailOrderAction } from './src/actions/repeat-retail-order.action.ts';
 import { reroutePurchaseApprovalRequestAction } from './src/actions/reroute-purchase-approval-request.action.ts';
 import { resendCounterpartyAccessInvitationAction } from './src/actions/resend-counterparty-access-invitation.action.ts';
+import { reserveMarketRetirementAction } from './src/actions/reserve-market-retirement.action.ts';
 import { reservePaymentTermRetirementAction } from './src/actions/reserve-payment-term-retirement.action.ts';
 import { resolveProfileReconciliationAction } from './src/actions/resolve-profile-reconciliation.action.ts';
 import { revalidatePurchaseApprovalAction } from './src/actions/revalidate-purchase-approval.action.ts';
@@ -129,6 +130,7 @@ export const commerceCustomerContextRegistration = defineVerticalRuntimeRegistra
     repeatRetailOrderAction,
     reroutePurchaseApprovalRequestAction,
     resendCounterpartyAccessInvitationAction,
+    reserveMarketRetirementAction,
     reservePaymentTermRetirementAction,
     resolveProfileReconciliationAction,
     revalidatePurchaseApprovalAction,

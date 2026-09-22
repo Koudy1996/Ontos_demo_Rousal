@@ -173,10 +173,10 @@ import { grantCounterpartyCommerceAccessActionApiLive } from './grant-counterpar
 import { guestAttributionStatusReadApiLive } from './guest-attribution-status-read-server.ts';
 import { guestPaymentTermsResolutionReadApiLive } from './guest-payment-terms-resolution-read-server.ts';
 import { invoiceRecipientResolutionReadApiLive } from './invoice-recipient-resolution-read-server.ts';
+import { marketAffectedUseAssessmentReadApiLive } from './market-affected-use-assessment-read-server.ts';
 import { marketBootstrapPolicyCurrentReadApiLive } from './market-bootstrap-policy-current-read-server.ts';
 import { marketBootstrapResolutionReadApiLive } from './market-bootstrap-resolution-read-server.ts';
 import { marketSubjectRestrictionsCurrentReadApiLive } from './market-subject-restrictions-current-read-server.ts';
-import { marketAffectedUseAssessmentReadApiLive } from './market-affected-use-assessment-read-server.ts';
 import { migrateCounterpartyPriceGroupActionApiLive } from './migrate-counterparty-price-group-action-server.ts';
 import { migrateCustomerPriceGroupActionApiLive } from './migrate-customer-price-group-action-server.ts';
 import { openProfileReconciliationActionApiLive } from './open-profile-reconciliation-action-server.ts';
@@ -202,6 +202,7 @@ import { repeatOrderPreparationReadApiLive } from './repeat-order-preparation-re
 import { repeatRetailOrderActionApiLive } from './repeat-retail-order-action-server.ts';
 import { reroutePurchaseApprovalRequestActionApiLive } from './reroute-purchase-approval-request-action-server.ts';
 import { resendCounterpartyAccessInvitationActionApiLive } from './resend-counterparty-access-invitation-action-server.ts';
+import { reserveMarketRetirementActionApiLive } from './reserve-market-retirement-action-server.ts';
 import { reservePaymentTermRetirementActionApiLive } from './reserve-payment-term-retirement-action-server.ts';
 import { resolveProfileReconciliationActionApiLive } from './resolve-profile-reconciliation-action-server.ts';
 import { retailAccessDecisionReadApiLive } from './retail-access-decision-read-server.ts';
@@ -831,10 +832,10 @@ export const makeCommerceCustomerContextApiRuntime = (
     guestAttributionStatusReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     guestPaymentTermsResolutionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     invoiceRecipientResolutionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
+    marketAffectedUseAssessmentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     marketBootstrapPolicyCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     marketBootstrapResolutionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     marketSubjectRestrictionsCurrentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
-    marketAffectedUseAssessmentReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
     migrateCounterpartyPriceGroupActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     migrateCustomerPriceGroupActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     openProfileReconciliationActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
@@ -860,6 +861,7 @@ export const makeCommerceCustomerContextApiRuntime = (
     repeatRetailOrderActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reroutePurchaseApprovalRequestActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     resendCounterpartyAccessInvitationActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
+    reserveMarketRetirementActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     reservePaymentTermRetirementActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     resolveProfileReconciliationActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     retailAccessDecisionReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),

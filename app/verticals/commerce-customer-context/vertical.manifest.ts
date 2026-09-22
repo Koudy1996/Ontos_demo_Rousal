@@ -89,11 +89,11 @@ import { grantCounterpartyCommerceAccessAction } from './src/actions/grant-count
 import { GuestAttributionStatusApi } from './shared/apis/guest-attribution-status.ts';
 import { GuestPaymentTermsResolutionApi } from './shared/apis/guest-payment-terms-resolution.ts';
 import { InvoiceRecipientResolutionApi } from './shared/apis/invoice-recipient-resolution.ts';
+import { MarketAffectedUseAssessmentApi } from './shared/apis/market-affected-use-assessment.ts';
 import { MarketBootstrapPolicyCurrentApi } from './shared/apis/market-bootstrap-policy-current.ts';
 import { marketBootstrapPolicyResourceDescriptor } from './shared/resources/market-bootstrap-policy.ts';
 import { MarketBootstrapResolutionApi } from './shared/apis/market-bootstrap-resolution.ts';
 import { MarketSubjectRestrictionsCurrentApi } from './shared/apis/market-subject-restrictions-current.ts';
-import { MarketAffectedUseAssessmentApi } from './shared/apis/market-affected-use-assessment.ts';
 import { migrateCounterpartyPriceGroupAction } from './src/actions/migrate-counterparty-price-group.action.ts';
 import { migrateCustomerPriceGroupAction } from './src/actions/migrate-customer-price-group.action.ts';
 import { openProfileReconciliationAction } from './src/actions/open-profile-reconciliation.action.ts';
@@ -125,6 +125,7 @@ import { RepeatOrderPreparationApi } from './shared/apis/repeat-order-preparatio
 import { repeatRetailOrderAction } from './src/actions/repeat-retail-order.action.ts';
 import { reroutePurchaseApprovalRequestAction } from './src/actions/reroute-purchase-approval-request.action.ts';
 import { resendCounterpartyAccessInvitationAction } from './src/actions/resend-counterparty-access-invitation.action.ts';
+import { reserveMarketRetirementAction } from './src/actions/reserve-market-retirement.action.ts';
 import { reservePaymentTermRetirementAction } from './src/actions/reserve-payment-term-retirement.action.ts';
 import { resolveProfileReconciliationAction } from './src/actions/resolve-profile-reconciliation.action.ts';
 import { RetailAccessDecisionApi } from './shared/apis/retail-access-decision.ts';
@@ -227,6 +228,7 @@ export const commerceCustomerContextManifest: OntosModuleManifestInput = defineO
       repeatRetailOrderAction,
       reroutePurchaseApprovalRequestAction,
       resendCounterpartyAccessInvitationAction,
+      reserveMarketRetirementAction,
       reservePaymentTermRetirementAction,
       resolveProfileReconciliationAction,
       revalidatePurchaseApprovalAction,

@@ -66,9 +66,9 @@ import { GrantCounterpartyCommerceAccessActionApi } from './apis/grant-counterpa
 import { GuestAttributionStatusApi } from './apis/guest-attribution-status.ts';
 import { GuestPaymentTermsResolutionApi } from './apis/guest-payment-terms-resolution.ts';
 import { InvoiceRecipientResolutionApi } from './apis/invoice-recipient-resolution.ts';
+import { MarketAffectedUseAssessmentApi } from './apis/market-affected-use-assessment.ts';
 import { MarketBootstrapPolicyCurrentApi } from './apis/market-bootstrap-policy-current.ts';
 import { MarketBootstrapResolutionApi } from './apis/market-bootstrap-resolution.ts';
-import { MarketAffectedUseAssessmentApi } from './apis/market-affected-use-assessment.ts';
 import { MarketSubjectRestrictionsCurrentApi } from './apis/market-subject-restrictions-current.ts';
 import { MigrateCounterpartyPriceGroupActionApi } from './apis/migrate-counterparty-price-group-action.ts';
 import { MigrateCustomerPriceGroupActionApi } from './apis/migrate-customer-price-group-action.ts';
@@ -95,6 +95,7 @@ import { RepeatOrderPreparationApi } from './apis/repeat-order-preparation.ts';
 import { RepeatRetailOrderActionApi } from './apis/repeat-retail-order-action.ts';
 import { ReroutePurchaseApprovalRequestActionApi } from './apis/reroute-purchase-approval-request-action.ts';
 import { ResendCounterpartyAccessInvitationActionApi } from './apis/resend-counterparty-access-invitation-action.ts';
+import { ReserveMarketRetirementActionApi } from './apis/reserve-market-retirement-action.ts';
 import { ReservePaymentTermRetirementActionApi } from './apis/reserve-payment-term-retirement-action.ts';
 import { ResolveProfileReconciliationActionApi } from './apis/resolve-profile-reconciliation-action.ts';
 import { RetailAccessDecisionApi } from './apis/retail-access-decision.ts';
@@ -207,10 +208,10 @@ export const commerceCustomerContextApi = HttpApi.make('CommerceCustomerContextA
   .addHttpApi(GuestAttributionStatusApi)
   .addHttpApi(GuestPaymentTermsResolutionApi)
   .addHttpApi(InvoiceRecipientResolutionApi)
+  .addHttpApi(MarketAffectedUseAssessmentApi)
   .addHttpApi(MarketBootstrapPolicyCurrentApi)
   .addHttpApi(MarketBootstrapResolutionApi)
   .addHttpApi(MarketSubjectRestrictionsCurrentApi)
-  .addHttpApi(MarketAffectedUseAssessmentApi)
   .addHttpApi(MigrateCounterpartyPriceGroupActionApi)
   .addHttpApi(MigrateCustomerPriceGroupActionApi)
   .addHttpApi(OpenProfileReconciliationActionApi)
@@ -236,6 +237,7 @@ export const commerceCustomerContextApi = HttpApi.make('CommerceCustomerContextA
   .addHttpApi(RepeatRetailOrderActionApi)
   .addHttpApi(ReroutePurchaseApprovalRequestActionApi)
   .addHttpApi(ResendCounterpartyAccessInvitationActionApi)
+  .addHttpApi(ReserveMarketRetirementActionApi)
   .addHttpApi(ReservePaymentTermRetirementActionApi)
   .addHttpApi(ResolveProfileReconciliationActionApi)
   .addHttpApi(RetailAccessDecisionApi)

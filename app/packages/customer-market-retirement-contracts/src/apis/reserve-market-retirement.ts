@@ -66,37 +66,96 @@ export const ReserveMarketRetirementResultSchema = Schema.Struct({
 export type ReserveMarketRetirementResult = typeof ReserveMarketRetirementResultSchema.Type;
 
 export const ReserveMarketRetirementAuthenticationProblemSchema = makeProblemDetailsSchema(
-  'ReserveMarketRetirementAuthenticationProblem',
+  'ReserveMarketRetirementActionAuthenticationProblem',
   401,
 );
 export const ReserveMarketRetirementInvalidProblemSchema = makeProblemDetailsSchema(
-  'ReserveMarketRetirementInvalidProblem',
+  'ReserveMarketRetirementActionInvalidProblem',
   400,
 );
 export const ReserveMarketRetirementForbiddenProblemSchema = makeProblemDetailsSchema(
-  'ReserveMarketRetirementForbiddenProblem',
+  'ReserveMarketRetirementActionForbiddenProblem',
   403,
+  {
+    code: Schema.Literals([
+      'action_permission_denied',
+      'module_state_denied',
+      'operation_context_denied',
+      'operation_context_invalid',
+      'SCOPE_MISMATCH',
+    ]),
+  },
 );
 export const ReserveMarketRetirementNotFoundProblemSchema = makeProblemDetailsSchema(
-  'ReserveMarketRetirementNotFoundProblem',
+  'ReserveMarketRetirementActionNotFoundProblem',
   404,
+  { code: Schema.Literals(['action_invocation_not_found', 'RETIREMENT_RESERVATION_NOT_FOUND']) },
 );
 export const ReserveMarketRetirementConflictProblemSchema = makeProblemDetailsSchema(
-  'ReserveMarketRetirementConflictProblem',
+  'ReserveMarketRetirementActionConflictProblem',
   409,
+  {
+    code: Schema.Literals([
+      'action_request_hash_conflict',
+      'action_invocation_state_invalid',
+      'RESERVATION_STATE_CONFLICT',
+      'RETIREMENT_RESERVATION_CONFLICT',
+    ]),
+  },
 );
-export const ReserveMarketRetirementPolicyProblemSchema = makeProblemDetailsSchema(
-  'ReserveMarketRetirementPolicyProblem',
+export const ReserveMarketRetirementIneligibleProblemSchema = makeProblemDetailsSchema(
+  'ReserveMarketRetirementActionIneligibleProblem',
   422,
+  { code: Schema.Literals(['action_policy_denied', 'INVALID_REQUEST']) },
+);
+/** @deprecated Use ReserveMarketRetirementIneligibleProblemSchema. */
+export const ReserveMarketRetirementPolicyProblemSchema = ReserveMarketRetirementIneligibleProblemSchema;
+export const ReserveMarketRetirementPreconditionProblemSchema = makeProblemDetailsSchema(
+  'ReserveMarketRetirementActionPreconditionProblem',
+  428,
 );
 export const ReserveMarketRetirementUnavailableProblemSchema = makeRetryableProblemDetailsSchema(
-  'ReserveMarketRetirementUnavailableProblem',
+  'ReserveMarketRetirementActionUnavailableProblem',
   503,
+  {
+    code: Schema.Literals([
+      'action_invocation_persistence_failed',
+      'action_permission_check_failed',
+      'action_policy_evaluation_failed',
+      'action_transaction_failed',
+      'module_state_check_unavailable',
+      'operation_context_unavailable',
+      'PERSISTENCE_UNAVAILABLE',
+    ]),
+  },
+);
+export const ReserveMarketRetirementAlreadyCommittedProblemSchema = makeProblemDetailsSchema(
+  'ReserveMarketRetirementActionAlreadyCommittedProblem',
+  409,
+  {
+    code: Schema.Literal('action_already_committed'),
+    invocationId: Schema.String,
+    resolution: Schema.Literal('REFRESH_GOVERNED_READS'),
+    retryCommand: Schema.Literal(false),
+  },
+);
+export const ReserveMarketRetirementCommitIndeterminateProblemSchema = makeProblemDetailsSchema(
+  'ReserveMarketRetirementActionCommitIndeterminateProblem',
+  503,
+  {
+    invocationId: Schema.String,
+    resolution: Schema.Literal('RESOLVE_COMMIT'),
+    retryCommand: Schema.Literal(false),
+  },
 );
 export const ReserveMarketRetirementInternalProblemSchema = makeProblemDetailsSchema(
-  'ReserveMarketRetirementInternalProblem',
+  'ReserveMarketRetirementActionInternalProblem',
   500,
 );
+
+const ReserveMarketRetirementHeadersSchema = Schema.Struct({
+  'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
+});
 
 export const ReserveMarketRetirementApi = HttpApi.make('ReserveMarketRetirementApi').add(
   HttpApiGroup.make('reserveMarketRetirement').add(
@@ -107,11 +166,14 @@ export const ReserveMarketRetirementApi = HttpApi.make('ReserveMarketRetirementA
         ReserveMarketRetirementForbiddenProblemSchema,
         ReserveMarketRetirementNotFoundProblemSchema,
         ReserveMarketRetirementConflictProblemSchema,
-        ReserveMarketRetirementPolicyProblemSchema,
+        ReserveMarketRetirementIneligibleProblemSchema,
+        ReserveMarketRetirementPreconditionProblemSchema,
         ReserveMarketRetirementUnavailableProblemSchema,
+        ReserveMarketRetirementAlreadyCommittedProblemSchema,
+        ReserveMarketRetirementCommitIndeterminateProblemSchema,
         ReserveMarketRetirementInternalProblemSchema,
       ],
-      headers: {},
+      headers: ReserveMarketRetirementHeadersSchema,
       params: {},
       payload: Schema.toEncoded(ReserveMarketRetirementPayloadSchema),
       query: {},

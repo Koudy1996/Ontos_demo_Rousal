@@ -5,6 +5,7 @@ import {
   ScopedRoutineInvocationError,
   getVerticalRuntimeEntrypoints,
 } from '@app/core-runtime';
+import { bindActionTestServices, makeActionTestHarness } from '@app/core-runtime/testing/actions';
 import type {
   MarketAffectedUseAssessmentRequest,
   MarketAffectedUseAssessmentResponse,
@@ -14,9 +15,10 @@ import {
   MarketAffectedUseAssessmentResponseSchema,
   MarketAffectedUseSourceEvidenceSchema,
 } from '@app/customer-market-retirement-contracts';
-import { Effect, Schema } from 'effect';
+import { Effect, Match, Schema } from 'effect';
 import { expect, it } from 'effect-rstest';
 
+import { reserveMarketRetirementAction } from '../../src/actions/reserve-market-retirement.action.ts';
 import {
   handleMarketAffectedUseAssessment,
   makeMarketAffectedUseAssessmentServices,
@@ -28,13 +30,14 @@ import type {
 import {
   MarketRetirementReservationConflictError,
   marketAffectedUseAssessmentRepositoryForInvoker,
-  makeMarketRetirementReservationService,
+  marketRetirementReservationForTransaction,
   marketRetirementRoutineAllowlist,
 } from '../../src/persistence/market-retirement-persistence.ts';
 import type {
   MarketAffectedUseAssessmentRepository as MarketAffectedUseAssessmentRepositoryContract,
   MarketRetirementScopedRoutineInvoker,
 } from '../../src/persistence/market-retirement-persistence.ts';
+import type { MarketRetirementReservationService } from '../../src/services/market-retirement-reservation.service.ts';
 import { commerceCustomerContextManifest } from '../../vertical.manifest.ts';
 import { commerceCustomerContextRegistration } from '../../vertical.registration.ts';
 
@@ -321,7 +324,7 @@ it.effect('maps concurrent affected-use change to a retryable reservation confli
       sourceEvidence: [decodedSourceEvidence('commerce.customer-context.market-bootstrap-policy')],
       tenantId,
     };
-    const service = makeMarketRetirementReservationService(
+    const service = marketRetirementReservationForTransaction(
       invokerFailing(
         new ScopedRoutineInvocationError({
           code: 'scoped_routine_invocation_failed',
@@ -369,7 +372,7 @@ it.effect('binds a reservation to exact Market revision, assessment evidence, an
       tenantId,
     };
     const invocations: unknown[] = [];
-    const service = makeMarketRetirementReservationService({
+    const service = marketRetirementReservationForTransaction({
       invoke: (routine, values) => {
         invocations.push([routine.routineKey, values]);
         return invokerReturning({ result }).invoke(routine, values);
@@ -395,5 +398,148 @@ it.effect('binds a reservation to exact Market revision, assessment evidence, an
         ],
       ],
     ]);
+  }),
+);
+
+it.effect('runs RESERVE, COMMIT, and RELEASE through the governed owner Action runtime', () =>
+  Effect.gen(function* governedReservationLifecycle() {
+    const reservationToken = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const reservePayload = {
+      assessmentDigest: digest,
+      evaluatedAt,
+      marketRef,
+      marketRevision: 7,
+      operation: 'RESERVE' as const,
+      reason: 'Retire unused Czech Market',
+      sourceEvidence: [sourceEvidence('commerce.customer-context.market-bootstrap-policy')],
+      tenantId,
+    };
+    const finishPayloads: readonly ReserveMarketRetirementPayload[] = [
+      {
+        marketRef,
+        marketRevision: 7,
+        operation: 'COMMIT',
+        reason: 'Market retirement committed',
+        reservationToken,
+        reservationVersion: 1,
+        tenantId,
+      },
+      {
+        marketRef,
+        marketRevision: 7,
+        operation: 'RELEASE',
+        reason: 'Market retirement released',
+        reservationToken,
+        reservationVersion: 1,
+        tenantId,
+      },
+    ];
+    const calls: {
+      readonly attribution: { readonly actionInvocationId: string; readonly actorPrincipalId: string };
+      readonly operation: ReserveMarketRetirementPayload['operation'];
+    }[] = [];
+    const service: MarketRetirementReservationService = {
+      execute: (payload, attribution) => {
+        calls.push({ attribution, operation: payload.operation });
+        const lifecycle = Match.value(payload.operation).pipe(
+          Match.when('RESERVE', () => 'RESERVED' as const),
+          Match.when('COMMIT', () => 'COMMITTED' as const),
+          Match.when('RELEASE', () => 'RELEASED' as const),
+          Match.exhaustive,
+        );
+        return Effect.succeed({
+          assessmentDigest: digest,
+          lifecycle,
+          marketRef,
+          marketRevision: 7,
+          reservationToken,
+          reservationVersion: 1,
+          tenantId,
+        });
+      },
+    };
+    const harness = yield* makeActionTestHarness({
+      actionPermission: 'allowed',
+      services: [bindActionTestServices(reserveMarketRetirementAction, service)],
+    });
+    const actionPrincipal = {
+      authBindingId: scope.authBindingId,
+      authContextRef: scope.authContextRef,
+      authMethod: scope.authMethod,
+      legalEntityId,
+      principalId,
+      tenantId,
+    } as const;
+    const payloads = [reservePayload, ...finishPayloads];
+    const results = yield* Effect.forEach(
+      payloads,
+      (payload, index) =>
+        harness.runtime.runAction({
+          payload,
+          principal: actionPrincipal,
+          registration: reserveMarketRetirementAction,
+          transport: {
+            correlationId: `market-retirement-${payload.operation.toLowerCase()}`,
+            idempotencyKey: `market-retirement-${index + 1}`,
+          },
+        }),
+      { concurrency: 1 },
+    );
+
+    expect(results.map(({ lifecycle }) => lifecycle)).toEqual(['RESERVED', 'COMMITTED', 'RELEASED']);
+    expect(calls.map(({ operation }) => operation)).toEqual(['RESERVE', 'COMMIT', 'RELEASE']);
+    expect(calls.every(({ attribution }) => attribution.actorPrincipalId === principalId)).toBe(true);
+    expect(
+      calls.every(({ attribution }) => Schema.is(Schema.String.check(Schema.isUUID()))(attribution.actionInvocationId)),
+    ).toBe(true);
+    expect(harness.snapshot().committed).toHaveLength(3);
+  }),
+);
+
+it.effect('rejects a cross-Tenant reservation before invoking owner persistence', () =>
+  Effect.gen(function* crossTenantReservation() {
+    let ownerCalls = 0;
+    const service: MarketRetirementReservationService = {
+      execute: () => {
+        ownerCalls += 1;
+        return Effect.die('cross-Tenant reservation reached owner persistence');
+      },
+    };
+    const harness = yield* makeActionTestHarness({
+      actionPermission: 'allowed',
+      services: [bindActionTestServices(reserveMarketRetirementAction, service)],
+    });
+    const failure = yield* harness.runtime
+      .runAction({
+        payload: {
+          assessmentDigest: digest,
+          evaluatedAt,
+          marketRef: { ...marketRef, tenantId: '88888888-8888-4888-8888-888888888888' },
+          marketRevision: 7,
+          operation: 'RESERVE',
+          reason: 'Retire cross-Tenant Market',
+          sourceEvidence: [sourceEvidence('commerce.customer-context.market-bootstrap-policy')],
+          tenantId: '88888888-8888-4888-8888-888888888888',
+        },
+        principal: {
+          authBindingId: scope.authBindingId,
+          authContextRef: scope.authContextRef,
+          authMethod: scope.authMethod,
+          legalEntityId,
+          principalId,
+          tenantId,
+        },
+        registration: reserveMarketRetirementAction,
+        transport: {
+          correlationId: 'market-retirement-cross-tenant',
+          idempotencyKey: 'market-retirement-cross-tenant',
+        },
+      })
+      .pipe(Effect.flip);
+
+    expect(Schema.is(reserveMarketRetirementAction.descriptor.domainErrorSchema)(failure)).toBe(true);
+    expect(failure).toMatchObject({ code: 'SCOPE_MISMATCH' });
+    expect(ownerCalls).toBe(0);
+    expect(harness.snapshot().committed).toHaveLength(0);
   }),
 );
