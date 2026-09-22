@@ -2,9 +2,10 @@ import type {
   MarketAffectedUseAssessmentRequest,
   MarketAffectedUseAssessmentResponse,
 } from '@app/commerce-customer-context/api';
-import { executeMarketAffectedUseAssessment } from '@app/commerce-customer-context/api/client';
+import { executeMarketAffectedUseAssessmentWithAuthorization } from '@app/commerce-customer-context/api/client';
 import type { TenantModuleStateServiceContract } from '@app/core-runtime';
-import { Effect } from 'effect';
+import { issueGatewayContext } from '@app/shared-contracts';
+import { Config, DateTime, Effect, Schema } from 'effect';
 
 import type { MarketRetirementImpactAssessment } from '../../shared/domain/market-retirement-impact.ts';
 import { MarketRetirementImpactAssessmentRejected } from '../actions/market-retirement-impact-assessment-rejected.ts';
@@ -21,6 +22,21 @@ type MarketRetirementModuleStateInventory = Pick<TenantModuleStateServiceContrac
 
 const CUSTOMER_CONTEXT_MODULE_KEY = 'commerce.customer-context' as const;
 const MATERIAL_REFERENCE_OWNER_MODULE_KEYS = [CUSTOMER_CONTEXT_MODULE_KEY, 'commerce.cart', 'commerce.order'] as const;
+const httpUrl = Schema.URLFromString.check(
+  Schema.makeFilter((url) =>
+    (url.protocol === 'http:' || url.protocol === 'https:') &&
+    url.username.length === 0 &&
+    url.password.length === 0 &&
+    url.search.length === 0 &&
+    url.hash.length === 0
+      ? undefined
+      : 'Service URL must be an HTTP(S) URL without credentials, query, or fragment',
+  ),
+);
+const productionClientConfiguration = Config.all({
+  customerContextBaseUrl: Config.schema(httpUrl, 'ONTOS_COMMERCE_CUSTOMER_CONTEXT_BASE_URL'),
+  shellGatewayBaseUrl: Config.schema(httpUrl, 'ONTOS_SHELL_GATEWAY_BASE_URL'),
+});
 
 const unavailable = (reason: string, cause?: unknown): MarketRetirementImpactAssessmentUnavailable => {
   const failure = new MarketRetirementImpactAssessmentUnavailable({
@@ -57,6 +73,17 @@ const identityMatches = (
   response.marketRef.resourceType === request.marketRef.resourceType &&
   response.marketRef.tenantId === request.marketRef.tenantId;
 
+const normalizeInstant = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  try {
+    return DateTime.formatIso(value as Parameters<typeof DateTime.formatIso>[0]);
+  } catch {
+    return undefined;
+  }
+};
+
 const isCurrentAt = (observedAt: string, nextBoundaryAt: string | undefined, effectiveAt: string): boolean => {
   const observed = Date.parse(observedAt);
   const effective = Date.parse(effectiveAt);
@@ -77,10 +104,12 @@ const hasCompleteCurrentSourceEvidence = (
   }
   const sourceIds = new Set<string>();
   for (const evidence of response.sourceEvidence) {
-    const observedAt = String(evidence.completenessEvidence.observedAt);
+    const observedAt = normalizeInstant(evidence.completenessEvidence.observedAt);
     const boundary = evidence.completenessEvidence.nextApplicabilityBoundary;
-    const nextBoundaryAt = boundary === undefined ? undefined : String(boundary);
+    const nextBoundaryAt = boundary === undefined ? undefined : normalizeInstant(boundary);
     if (
+      observedAt === undefined ||
+      (boundary !== undefined && nextBoundaryAt === undefined) ||
       sourceIds.has(evidence.sourceId) ||
       evidence.currentness !== 'CURRENT' ||
       evidence.ownerRevision.length === 0 ||
@@ -241,4 +270,19 @@ export const makeMarketRetirementImpactAuthority = (
 
 export const makeMarketRetirementImpactAuthorityFromPublishedClient = (
   moduleStateInventory: MarketRetirementModuleStateInventory,
-) => makeMarketRetirementImpactAuthority(executeMarketAffectedUseAssessment, moduleStateInventory);
+) =>
+  makeMarketRetirementImpactAuthority(
+    (payload, requestCorrelation) =>
+      productionClientConfiguration.pipe(
+        Effect.flatMap(({ customerContextBaseUrl, shellGatewayBaseUrl }) =>
+          issueGatewayContext({ audience: 'commerce-customer-context' }, { baseUrl: shellGatewayBaseUrl }).pipe(
+            Effect.flatMap(({ token }) =>
+              executeMarketAffectedUseAssessmentWithAuthorization(payload, `Bearer ${token}`, requestCorrelation, {
+                baseUrl: customerContextBaseUrl,
+              }),
+            ),
+          ),
+        ),
+      ),
+    moduleStateInventory,
+  );

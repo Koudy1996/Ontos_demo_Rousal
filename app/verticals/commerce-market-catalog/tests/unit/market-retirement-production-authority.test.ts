@@ -7,7 +7,7 @@ import { Effect, Predicate } from 'effect';
 
 import {
   makeMarketRetirementImpactAuthority,
-  marketRetirementImpactAuthorityFromPublishedClient,
+  makeMarketRetirementImpactAuthorityFromPublishedClient,
 } from '../../src/integrations/market-retirement-impact.ts';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -222,7 +222,7 @@ describe('Market retirement production authority', () => {
       }),
   );
 
-  it('exports the published-client authority used by the deployed Action composition', () => {
-    expect(marketRetirementImpactAuthorityFromPublishedClient.assessRetirementImpact).toBeTypeOf('function');
+  it('exports the published-client authority factory used by the deployed Action composition', () => {
+    expect(makeMarketRetirementImpactAuthorityFromPublishedClient).toBeTypeOf('function');
   });
 });
