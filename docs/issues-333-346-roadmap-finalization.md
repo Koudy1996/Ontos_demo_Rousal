@@ -78,9 +78,9 @@ Do not create Cart now. The real `Current Purchasing Context` adapter belongs to
 - Remove `Closes #333` and `Closes #346` until their owner-level acceptance is genuinely complete.
 - Finish and merge #346 owner acceptance first, including the minimal authoritative Application Composition dependency.
 - Finish #333 owner acceptance against the completed #346 and Catalog owners.
-- Create or retain explicit downstream work items for Pricing, Payment Terms, Cart, Checkout and Order Commitment. Mark them parked until their roadmap step is activated.
+- Keep the downstream notes for Pricing, Payment Terms, Cart, Checkout and Order Commitment only in the frozen #333 and #346 issue bodies. Do not edit any other issue or create a new issue. Any future mutation of #333 or #346 requires explicit HITL approval first.
 - Close #333 and #346 independently once their own production contracts, persistence, actions, failure semantics and owner-level acceptance pass. Do not wait for Cart or Order—but do not claim their future integrations are already operational.
 
 Current GitHub state supports this interpretation: [#253](https://github.com/TechsioCZ/ontos/issues/253) is the open planning index, [#333](https://github.com/TechsioCZ/ontos/issues/333) and [#346](https://github.com/TechsioCZ/ontos/issues/346) are open and specified, Catalog [#398](https://github.com/TechsioCZ/ontos/issues/398) is closed, while the governed runtime-composition work remains open under #368/#374–#377.
 
-I did not comment on or modify any GitHub issue.
+The downstream notes are frozen in #333 and #346. No other issue may be edited and no new issue may be created; any future mutation of #333 or #346 requires explicit HITL approval first.
