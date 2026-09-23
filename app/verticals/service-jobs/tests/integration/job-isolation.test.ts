@@ -1,0 +1,120 @@
+import { loadDatabaseConnectionPair } from '@app/core-runtime';
+import { PgClient } from '@effect/sql-pg';
+import { makeWithDefaults } from 'drizzle-orm/effect-postgres';
+import { eq, sql } from 'drizzle-orm';
+import { Effect, Redacted, Schema, Layer } from 'effect';
+import { expect, it } from 'effect-rstest';
+import { jobs } from '../../src/db/schema.ts';
+
+class FixtureRollback extends Schema.TaggedError<FixtureRollback>()('FixtureRollback', {}) {}
+const tenant = '70000000-0000-4000-8000-000000000001';
+const legalEntity = '80000000-0000-4000-8000-000000000001';
+const otherEntity = '80000000-0000-4000-8000-000000000002';
+const sourceId = '90000000-0000-4000-8000-000000000001';
+const fixture = (id: string, tenantId = tenant, legalEntityId = legalEntity): typeof jobs.$inferInsert => ({
+  acceptance: { evidenceNote: 'Fixture', method: 'PHONE' },
+  acceptedAt: '2026-09-22T08:00:00.000Z',
+  checklist: { accessChecked: false, cleared: false, handedOver: false, wasteRemoved: false },
+  commercialSummary: { currency: 'CZK', priceBasis: 'EXCLUDING_VAT', total: '1234.00' },
+  createdAt: '2026-09-23T08:00:00.000Z',
+  executionNote: '',
+  id,
+  legalEntityId,
+  partyId: '90000000-0000-4000-8000-000000000002',
+  revision: 1,
+  serviceLocation: { addressLine: 'Fixture', city: 'Praha', countryCode: 'CZ', postalCode: '11000' },
+  serviceScope: {
+    description: 'Fixture',
+    elevator: null,
+    estimatedVolumeM3: null,
+    floor: null,
+    objectType: 'APARTMENT',
+    specialWaste: null,
+  },
+  sourceId,
+  sourceRevision: 5,
+  status: 'NEW',
+  tenantId,
+  updatedAt: '2026-09-23T08:00:00.000Z',
+});
+const isolationScenario = Effect.gen(function* isolationScenario() {
+  const database = yield* makeWithDefaults({});
+  yield* database
+    .transaction(
+      Effect.fn(function* scopedProof(transaction) {
+        const visibleId = '60000000-0000-4000-8000-000000000001';
+        const foreignId = '60000000-0000-4000-8000-000000000002';
+        yield* transaction
+          .insert(jobs)
+          .values([
+            fixture(visibleId),
+            fixture(foreignId, tenant, otherEntity),
+            fixture('60000000-0000-4000-8000-000000000003', '70000000-0000-4000-8000-000000000002'),
+          ]);
+        yield* transaction.execute(sql`SET LOCAL ROLE ontos_runtime`);
+        const scope = (tenantId: string, entityId: string) =>
+          transaction.execute(
+            sql`select set_config('ontos.tenant_id',${tenantId},true),set_config('ontos.legal_entity_id',${entityId},true)`,
+          );
+        yield* scope('', '');
+        expect(yield* transaction.select().from(jobs)).toEqual([]);
+        yield* scope(tenant, legalEntity);
+        expect((yield* transaction.select().from(jobs)).map((row) => row.id)).toEqual([visibleId]);
+        expect(yield* transaction.select().from(jobs).where(eq(jobs.id, foreignId))).toEqual([]);
+        expect(
+          yield* transaction.update(jobs).set({ executionNote: 'Forbidden' }).where(eq(jobs.id, foreignId)).returning(),
+        ).toEqual([]);
+        yield* scope(tenant, otherEntity);
+        expect((yield* transaction.select().from(jobs)).map((row) => row.id)).toEqual([foreignId]);
+        yield* scope(tenant, '');
+        expect(yield* transaction.select().from(jobs)).toEqual([]);
+        return yield* new FixtureRollback();
+      }),
+    )
+    .pipe(Effect.catchTag('FixtureRollback', () => Effect.void));
+});
+const concurrencyScenario = Effect.gen(function* concurrencyScenario() {
+  const database = yield* makeWithDefaults({});
+  const insert = (id: string) =>
+    database.transaction(
+      Effect.fn(function* concurrentWrite(transaction) {
+        yield* transaction.execute(sql`SET LOCAL ROLE ontos_runtime`);
+        yield* transaction.execute(
+          sql`select set_config('ontos.tenant_id',${tenant},true),set_config('ontos.legal_entity_id',${legalEntity},true)`,
+        );
+        return yield* transaction
+          .insert(jobs)
+          .values(fixture(id))
+          .onConflictDoNothing({ target: [jobs.tenantId, jobs.legalEntityId, jobs.sourceId] })
+          .returning({ id: jobs.id });
+      }),
+    );
+  yield* Effect.acquireUseRelease(
+    Effect.void,
+    () =>
+      Effect.gen(function* concurrentSourceProof() {
+        const results = yield* Effect.all(
+          [insert('61000000-0000-4000-8000-000000000001'), insert('61000000-0000-4000-8000-000000000002')],
+          { concurrency: 2 },
+        );
+        expect(results.flat()).toHaveLength(1);
+        const rows = yield* database.select().from(jobs).where(eq(jobs.sourceId, sourceId));
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.commercialSummary.total).toBe('1234.00');
+      }),
+    () => database.delete(jobs).where(eq(jobs.sourceId, sourceId)).pipe(Effect.orDie),
+  );
+});
+it.layer(
+  Layer.unwrap(
+    loadDatabaseConnectionPair().pipe(
+      Effect.map((configuration) => PgClient.layer({ url: Redacted.make(configuration.admin.connectionString) })),
+    ),
+  ),
+)('Service job database', (suite) => {
+  suite.effect('forced RLS isolates tenant and legal entity for reads and writes', () => isolationScenario);
+  suite.effect(
+    'concurrent transactions cannot create two jobs from the same accepted source',
+    () => concurrencyScenario,
+  );
+});

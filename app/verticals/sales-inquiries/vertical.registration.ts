@@ -22,6 +22,7 @@ export const salesInquiriesRegistration = defineVerticalRuntimeRegistration({
   entrypoints: {
     api: {
       // <generated-module-registration-apis>
+      'accepted-offer-handoff': () => import('./src/api/accepted-offer-handoff-client.ts'),
       'inquiry-commit-status': () => import('./src/api/inquiry-commit-status-client.ts'),
       'inquiry-detail': () => import('./src/api/inquiry-detail-client.ts'),
       'inquiry-list': () => import('./src/api/inquiry-list-client.ts'),

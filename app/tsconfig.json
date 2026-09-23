@@ -48,6 +48,9 @@
     },
     {
       "path": "verticals/sales-inquiries"
+    },
+    {
+      "path": "verticals/service-jobs"
     }
   ]
 }

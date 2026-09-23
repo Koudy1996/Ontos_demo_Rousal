@@ -1,0 +1,109 @@
+{
+  "service-jobs": {
+    "language": {
+      "cs": "Čeština",
+      "en": "Angličtina",
+      "switcher": "Jazyk"
+    },
+    "routes": {
+      "home": "Domů"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern plocha s lokalizovaným SSR a frameworkem řízenými public metadata."
+    },
+    "federatedSurface": "Federovaná plocha vlastněná tímto verticalem.",
+    "remoteUnavailable": "Remote vertical je nedostupný",
+    "role": "service-jobs",
+    "routeSurface": "Routovaná plocha vlastněná tímto verticalem.",
+    "title": "Zakázky",
+    "widgetBody": "Vlastní routovanou plochu verticalu.",
+    "pages": {
+      "jobs": {
+        "title": "Zakázky",
+        "description": "Plánování a provedení vyklízení."
+      }
+    },
+    "demo": {
+      "title": "Zakázky",
+      "new": "Založit zakázku",
+      "create": "Založit zakázku",
+      "acceptedSources": "Přijaté nabídky",
+      "createHelp": "Vyberte přijatou nabídku. Pokud zakázka již existuje, otevře se původní.",
+      "noSources": "Žádné přijaté nabídky.",
+      "back": "Zpět na seznam",
+      "filters": "Filtry zakázek",
+      "empty": "Žádné zakázky v tomto výběru.",
+      "loading": "Načítání…",
+      "saving": "Ukládání…",
+      "open": "Otevřít zakázku",
+      "contact": "Kontakt",
+      "unscheduled": "Termín zatím neurčen",
+      "location": "Místo realizace",
+      "scope": "Rozsah práce",
+      "objectType": "Typ objektu",
+      "floor": "Patro",
+      "elevator": "Výtah",
+      "volume": "Objem (m³)",
+      "waste": "Zvláštní odpad",
+      "price": "Přijatá cena",
+      "yes": "Ano",
+      "no": "Ne",
+      "scheduledStartAt": "Plánovaný začátek",
+      "startedAt": "Zahájeno",
+      "completedAt": "Dokončeno",
+      "expectedDurationMinutes": "Odhad délky (minuty)",
+      "schedule": "Plánování",
+      "saveSchedule": "Uložit termín",
+      "start": "Zahájit zakázku",
+      "complete": "Dokončit zakázku",
+      "billingReady": "Připraveno k fakturaci",
+      "execution": "Provedení",
+      "executionNote": "Poznámka k provedení",
+      "saveExecution": "Uložit provedení",
+      "timeZone": "Časové pásmo: Praha",
+      "refresh": "Načíst znovu",
+      "retry": "Opakovat stejný požadavek",
+      "resolve": "Ověřit uložení",
+      "view": {
+        "ALL": "Všechny",
+        "TODAY": "Dnes",
+        "UPCOMING": "Nadcházející",
+        "IN_PROGRESS": "Probíhá",
+        "COMPLETED": "Dokončené"
+      },
+      "status": {
+        "NEW": "Nová",
+        "PLANNED": "Naplánovaná",
+        "IN_PROGRESS": "Probíhá",
+        "COMPLETED": "Dokončená"
+      },
+      "object": {
+        "APARTMENT": "Byt",
+        "HOUSE": "Dům",
+        "COMMERCIAL": "Komerční prostor",
+        "OTHER": "Jiné"
+      },
+      "priceBasis": {
+        "EXCLUDING_VAT": "bez DPH",
+        "INCLUDING_VAT": "včetně DPH"
+      },
+      "checklist": {
+        "accessChecked": "Přístup ověřen",
+        "cleared": "Prostor vyklizen",
+        "wasteRemoved": "Odpad odvezen",
+        "handedOver": "Předáno zákazníkovi"
+      },
+      "error": {
+        "authentication": "Přihlaste se znovu.",
+        "forbidden": "K této operaci nemáte oprávnění.",
+        "notFound": "Zakázka nebo zdrojová nabídka nebyla nalezena.",
+        "validation": "Zkontrolujte údaje a stav zdrojové nabídky.",
+        "conflict": "Záznam se změnil. Načtěte aktuální verzi.",
+        "unavailable": "Služba je dočasně nedostupná. Rozpracované údaje zůstaly zachovány.",
+        "internal": "Operaci nelze dokončit. Zkuste načíst data znovu.",
+        "uncertain": "Výsledek uložení zatím není jistý. Nejprve jej ověřte.",
+        "committed": "Požadavek již byl uložen."
+      }
+    }
+  }
+}

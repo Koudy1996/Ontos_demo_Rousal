@@ -1,4 +1,5 @@
 import type { EffectBffRequestContext } from '@app/shared-contracts/client-runtime';
+
 import { Effect, makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client';
 import { makeEffectBffClient } from '@app/shared-contracts/client-runtime';
 import type {
@@ -14,9 +15,11 @@ import {
   salesInquiriesApi,
   salesInquiriesFoundationApi,
   salesInquiriesOperationContexts,
-} from '../../shared/api';
-import type { SalesInquiriesReadiness } from '../../shared/api';
+} from '../../shared/api.ts';
+import type { SalesInquiriesReadiness } from '../../shared/api.ts';
 
+export { executeAcceptedOfferHandoffWithAuthorization } from './accepted-offer-handoff-client.ts';
+export { executeInquiryListWithAuthorization } from './inquiry-list-client.ts';
 // <generated-action-http-client-exports>
 export { executeCreateInquiry, executeCreateInquiryWithAuthorization } from './create-inquiry-action-client.ts';
 export {

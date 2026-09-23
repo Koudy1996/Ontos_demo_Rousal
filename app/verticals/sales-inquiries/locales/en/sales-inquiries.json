@@ -119,7 +119,8 @@
         "unavailable": "A service is temporarily unavailable. A pending write retains the same request for retry.",
         "committed": "The request was already committed. Refreshing data.",
         "uncertain": "The write outcome is not confirmed. Check its status before issuing another command."
-      }
+      },
+      "createJob": "Create service job"
     }
   }
 }

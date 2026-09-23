@@ -4,9 +4,12 @@
 
 export const ultramodernRouteNamespace = 'party-registry' as const;
 
-const ultramodernRouteMetadata = [
+const routeValue1 = 'party.registry';
+const routeValue2 = '/contacts';
+
+export const ultramodernRouteMetadata = [
   {
-    canonicalPath: '/contacts',
+    canonicalPath: routeValue2,
     descriptionKey: 'party-registry.pages.contacts.description',
     entrypoint: {
       access: 'read',
@@ -15,20 +18,20 @@ const ultramodernRouteMetadata = [
         permission: 'module.access',
       },
       entrypointKey: 'party.registry.page.contacts',
-      moduleKey: 'party.registry',
+      moduleKey: routeValue1,
       role: 'page',
       scope: 'tenant',
     },
     id: 'party-registry-contacts',
     indexable: false,
     localisedPaths: {
-      cs: '/contacts',
-      en: '/contacts',
+      cs: routeValue2,
+      en: routeValue2,
     },
     mfBoundaryId: 'verticalPartyRegistry',
-    moduleId: 'party.registry',
-    namespace: 'party-registry',
-    ownerAppId: 'party-registry',
+    moduleId: routeValue1,
+    namespace: ultramodernRouteNamespace,
+    ownerAppId: ultramodernRouteNamespace,
     public: false,
     publicSurface: 'private-app-screen',
     titleKey: 'party-registry.pages.contacts.title',
@@ -36,5 +39,8 @@ const ultramodernRouteMetadata = [
 ] as const;
 
 export const ultramodernLocalisedUrls = {
-  [ultramodernRouteMetadata[0].canonicalPath]: ultramodernRouteMetadata[0].localisedPaths,
+  '/contacts': {
+    cs: routeValue2,
+    en: routeValue2,
+  },
 } as const;

@@ -1,3 +1,4 @@
+import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Schema } from 'effect';
 import { Button } from '@techsio/ui-kit/atoms/button';
 import { Badge } from '@techsio/ui-kit/atoms/badge';
@@ -20,6 +21,7 @@ interface ViewProps {
   readonly label: (key: string) => string;
 }
 export const InquiryDetail = ({ controller, label }: ViewProps) => {
+  const { language } = useModernI18n();
   const { changeStage, dispatch, locked, offerSubmit, state } = controller;
   const { names, selected } = state;
   if (selected === null) {
@@ -180,6 +182,12 @@ export const InquiryDetail = ({ controller, label }: ViewProps) => {
       {selected.stage === 'ACCEPTED' && (
         <section>
           <h3>{label('readyForJob')}</h3>
+          <a
+            className="salesinquiries:flex salesinquiries:min-h-12 salesinquiries:items-center salesinquiries:underline"
+            href={`/${language}/jobs?source=${encodeURIComponent(selected.ref.resourceId)}`}
+          >
+            {label('createJob')}
+          </a>
           <p>{selected.acceptedAt}</p>
           <p>
             {label(`method.${selected.acceptance?.method}`)}: {selected.acceptance?.evidenceNote}

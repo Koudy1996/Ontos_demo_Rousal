@@ -8,6 +8,7 @@ import {
 } from '@app/core-runtime';
 import { Result, Schema } from 'effect';
 // <generated-module-manifest-imports>
+import { AcceptedOfferHandoffApi } from './shared/apis/accepted-offer-handoff.ts';
 import { createInquiryAction } from './src/actions/create-inquiry.action.ts';
 import InquiriesPage from './src/routes/[lang]/inquiries/page.tsx';
 import { InquiryCommitStatusApi } from './shared/apis/inquiry-commit-status.ts';
@@ -57,6 +58,7 @@ export const salesInquiriesManifest = defineOntosModuleManifest({
     ],
     api: {
       // <generated-module-manifest-apis>
+      'accepted-offer-handoff': AcceptedOfferHandoffApi,
       'inquiry-commit-status': InquiryCommitStatusApi,
       'inquiry-detail': InquiryDetailApi,
       'inquiry-list': InquiryListApi,

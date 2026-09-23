@@ -34,6 +34,7 @@
     "@app/payment-term-catalog": "workspace:*",
     "@app/pricing": "workspace:*",
     "@app/sales-inquiries": "workspace:*",
+    "@app/service-jobs": "workspace:*",
     "@app/shared-contracts": "workspace:*",
     "@app/shared-design-tokens": "workspace:*",
     "@app/storefront-registry": "workspace:*",
@@ -102,6 +103,7 @@
     "partyRegistry": "@app/party-registry@workspace:*",
     "commerceMarketCatalog": "@app/commerce-market-catalog@workspace:*",
     "catalog": "@app/catalog@workspace:*",
-    "salesInquiries": "@app/sales-inquiries@workspace:*"
+    "salesInquiries": "@app/sales-inquiries@workspace:*",
+    "serviceJobs": "@app/service-jobs@workspace:*"
   }
 }

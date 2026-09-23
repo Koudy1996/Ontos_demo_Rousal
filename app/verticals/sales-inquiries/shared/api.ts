@@ -1,3 +1,6 @@
+// <generated-governed-http-api-imports>
+import { AcceptedOfferHandoffApi } from './apis/accepted-offer-handoff.ts';
+// </generated-governed-http-api-imports>
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, Schema } from '@modern-js/bff-effect/effect-client';
 import {
   MicroVerticalBuildMarkerSchema,
@@ -30,12 +33,11 @@ export const salesInquiriesFoundationApi = HttpApi.make('SalesInquiriesApiFounda
     HttpApiEndpoint.get('readiness', '/sales-inquiries/readiness', { success: salesInquiriesReadinessSchema }),
   ),
 );
-// <generated-governed-http-api-imports>
-// </generated-governed-http-api-imports>
 
 export const salesInquiriesApi = HttpApi.make('SalesInquiriesApi')
   .addHttpApi(salesInquiriesFoundationApi)
   // <generated-governed-http-api-additions>
+  .addHttpApi(AcceptedOfferHandoffApi)
   .addHttpApi(CreateInquiryActionApi)
   .addHttpApi(InquiryCommitStatusApi)
   .addHttpApi(InquiryDetailApi)

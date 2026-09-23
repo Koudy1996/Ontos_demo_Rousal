@@ -77,5 +77,6 @@ const databaseLive = Layer.unwrap(
     Effect.map((configuration) => PgClient.layer({ url: Redacted.make(configuration.admin.connectionString) })),
   ),
 );
+
 const mainLayer = Layer.effectDiscard(verification).pipe(Layer.provide(databaseLive));
-NodeRuntime.runMain(Layer.launch(mainLayer));
+NodeRuntime.runMain(Effect.scoped(Layer.build(mainLayer)));

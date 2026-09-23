@@ -119,7 +119,8 @@
         "unavailable": "Služba je dočasně nedostupná. U zápisu zachováme stejný požadavek pro opakování.",
         "committed": "Požadavek již byl uložen. Obnovujeme data.",
         "uncertain": "Výsledek zápisu zatím není potvrzen. Neodesílejte nový požadavek; nejprve ověřte výsledek."
-      }
+      },
+      "createJob": "Založit zakázku"
     }
   }
 }

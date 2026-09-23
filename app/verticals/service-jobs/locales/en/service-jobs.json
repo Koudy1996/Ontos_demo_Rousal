@@ -1,0 +1,109 @@
+{
+  "service-jobs": {
+    "language": {
+      "cs": "Czech",
+      "en": "English",
+      "switcher": "Language"
+    },
+    "routes": {
+      "home": "Home"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern surface with localized SSR and framework-owned public metadata."
+    },
+    "federatedSurface": "Federated surface owned by this vertical.",
+    "remoteUnavailable": "Remote vertical unavailable",
+    "role": "service-jobs",
+    "routeSurface": "Route surface owned by this vertical.",
+    "title": "Service jobs",
+    "widgetBody": "Owns a vertical route surface.",
+    "pages": {
+      "jobs": {
+        "title": "Service jobs",
+        "description": "Schedule and execute clearance jobs."
+      }
+    },
+    "demo": {
+      "title": "Service jobs",
+      "new": "Create service job",
+      "create": "Create job",
+      "acceptedSources": "Accepted offers",
+      "createHelp": "Select an accepted offer. An existing job will be opened if already created.",
+      "noSources": "No accepted offers.",
+      "back": "Back to list",
+      "filters": "Job filters",
+      "empty": "No jobs match this view.",
+      "loading": "Loading…",
+      "saving": "Saving…",
+      "open": "Open job",
+      "contact": "Contact",
+      "unscheduled": "Not scheduled yet",
+      "location": "Service location",
+      "scope": "Scope of work",
+      "objectType": "Property type",
+      "floor": "Floor",
+      "elevator": "Elevator",
+      "volume": "Volume (m³)",
+      "waste": "Special waste",
+      "price": "Accepted price",
+      "yes": "Yes",
+      "no": "No",
+      "scheduledStartAt": "Scheduled start",
+      "startedAt": "Started",
+      "completedAt": "Completed",
+      "expectedDurationMinutes": "Expected duration (minutes)",
+      "schedule": "Scheduling",
+      "saveSchedule": "Save schedule",
+      "start": "Start job",
+      "complete": "Complete job",
+      "billingReady": "Ready for billing",
+      "execution": "Execution",
+      "executionNote": "Execution note",
+      "saveExecution": "Save execution",
+      "timeZone": "Time zone: Prague",
+      "refresh": "Reload",
+      "retry": "Retry the same command",
+      "resolve": "Check commit status",
+      "view": {
+        "ALL": "All",
+        "TODAY": "Today",
+        "UPCOMING": "Upcoming",
+        "IN_PROGRESS": "In progress",
+        "COMPLETED": "Completed"
+      },
+      "status": {
+        "NEW": "New",
+        "PLANNED": "Planned",
+        "IN_PROGRESS": "In progress",
+        "COMPLETED": "Completed"
+      },
+      "object": {
+        "APARTMENT": "Apartment",
+        "HOUSE": "House",
+        "COMMERCIAL": "Commercial property",
+        "OTHER": "Other"
+      },
+      "priceBasis": {
+        "EXCLUDING_VAT": "excluding VAT",
+        "INCLUDING_VAT": "including VAT"
+      },
+      "checklist": {
+        "accessChecked": "Access checked",
+        "cleared": "Property cleared",
+        "wasteRemoved": "Waste removed",
+        "handedOver": "Handed over"
+      },
+      "error": {
+        "authentication": "Please sign in again.",
+        "forbidden": "You do not have permission for this operation.",
+        "notFound": "Job or source offer was not found.",
+        "validation": "Check the entered values and source offer status.",
+        "conflict": "The record changed. Reload its current version.",
+        "unavailable": "The service is temporarily unavailable. Your draft has been preserved.",
+        "internal": "The operation could not be completed. Try reloading.",
+        "uncertain": "The commit outcome is uncertain. Check its status first.",
+        "committed": "The command was already committed."
+      }
+    }
+  }
+}

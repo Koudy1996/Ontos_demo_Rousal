@@ -1,0 +1,44 @@
+{
+  "deliveryUnit": {
+    "appId": "service-jobs",
+    "buildMarker": "36eece9daae1ace2",
+    "deployProfile": "cloudflare-ssr-mf-effect-v1",
+    "kind": "microvertical-delivery-unit",
+    "packageName": "@app/service-jobs",
+    "schemaVersion": 1,
+    "sourceRevision": "workspace",
+    "unitId": "app/service-jobs",
+    "version": "0.1.0",
+    "build": "36eece9daae1ace2"
+  },
+  "kind": "ultramodern-build-artifact",
+  "schemaVersion": 1,
+  "surfaces": {
+    "api": {
+      "appId": "service-jobs",
+      "buildMarker": "36eece9daae1ace2",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/service-jobs",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/service-jobs",
+      "version": "0.1.0",
+      "build": "36eece9daae1ace2",
+      "surface": "api"
+    },
+    "ui": {
+      "appId": "service-jobs",
+      "buildMarker": "36eece9daae1ace2",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/service-jobs",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/service-jobs",
+      "version": "0.1.0",
+      "build": "36eece9daae1ace2",
+      "surface": "ui"
+    }
+  }
+}

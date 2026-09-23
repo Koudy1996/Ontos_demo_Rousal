@@ -25,3 +25,5 @@ export type { ApprovedVerticalPageClient, ApprovedVerticalPageComponent } from '
 
 export { createSalesInquiriesClient, getSalesInquiriesReadiness } from '@app/sales-inquiries/api/client';
 export type { SalesInquiriesClientOptions } from '@app/sales-inquiries/api/client';
+export { createServiceJobsClient, getServiceJobsReadiness } from '@app/service-jobs/api/client';
+export type { ServiceJobsClientOptions } from '@app/service-jobs/api/client';

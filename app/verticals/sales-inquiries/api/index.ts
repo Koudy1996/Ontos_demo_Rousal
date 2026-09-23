@@ -32,6 +32,7 @@ import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
 // </generated-governed-http-handler-support-imports>
 
 // <generated-governed-http-handler-imports>
+import { acceptedOfferHandoffReadApiLive } from './accepted-offer-handoff-read-server.ts';
 import { createInquiryActionApiLive } from './create-inquiry-action-server.ts';
 import { inquiryCommitStatusReadApiLive } from './inquiry-commit-status-read-server.ts';
 import { inquiryDetailReadApiLive } from './inquiry-detail-read-server.ts';
@@ -74,6 +75,7 @@ const governedActionRuntimeLive = ActionRuntimeLive.pipe(
 
 export const governedReadApiHandlersLive = Layer.mergeAll(
   // <generated-governed-http-handler-layers>
+  acceptedOfferHandoffReadApiLive.pipe(GovernedReadLayer.provide(governedReadRuntimeLive)),
   createInquiryActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
   inquiryCommitStatusReadApiLive.pipe(
     GovernedReadLayer.provide(governedReadRuntimeLive),
@@ -97,6 +99,7 @@ export const governedReadApiHandlersLive = Layer.mergeAll(
       ),
     ),
   ),
+
   // </generated-governed-http-handler-support-layers>
   GovernedReadLayer.provide(GovernedReadLayer.empty),
 );

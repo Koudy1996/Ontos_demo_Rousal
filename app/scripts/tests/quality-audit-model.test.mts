@@ -279,6 +279,30 @@ const fixture = () =>
   });
 
 it.live(
+  'keeps filename-loaded route search schemas while reporting adjacent unused helpers',
+  Effect.fn(function* routeSearchRoots() {
+    const root = yield* fixture();
+    const base = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(KnipConfigSchema))(
+      readFileSync(path.join(appRoot, 'quality-audit/knip.json'), 'utf-8'),
+    );
+    for (const workspace of ['apps/shell', 'verticals/remote']) {
+      write(root, `${workspace}/package.json`, '{"name":"route-search-fixture","private":true}');
+      write(root, `${workspace}/src/routes/jobs/page.search.ts`, 'export default { validateSearch: {} };');
+      write(root, `${workspace}/src/routes/jobs/unused-search.ts`, 'export const unused = 1;');
+    }
+    const consumerPath = path.join(root, '.codex/knip-model/consumers.mts');
+    const model = yield* buildKnipModel(root, base, consumerPath).pipe(Effect.provide(NodeServices.layer));
+    const run = yield* runPinnedKnip(root, consumerPath, model).pipe(Effect.provide(NodeServices.layer));
+    const report = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(ReportSchema))(run.stdout);
+    const unusedFiles = report.issues.flatMap((issue) => issue.files.map((finding) => finding.name));
+    for (const workspace of ['apps/shell', 'verticals/remote']) {
+      expect(unusedFiles).not.toContain(`${workspace}/src/routes/jobs/page.search.ts`);
+      expect(unusedFiles).toContain(`${workspace}/src/routes/jobs/unused-search.ts`);
+    }
+  }),
+);
+
+it.live(
   'real pinned Knip models exact consumers and preserves neighboring findings',
   Effect.fn(function* testEffect3() {
     const root = yield* fixture();

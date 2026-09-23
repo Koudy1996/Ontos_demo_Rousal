@@ -111,7 +111,8 @@
         "!**/modern-tanstack/**",
         "!**/routeTree.gen.*",
         "!**/.env",
-        "!**/.env.*"
+        "!**/.env.*",
+        "src/routes/**/page.search.{ts,tsx}"
       ],
       "drizzle": {
         "config": []
@@ -169,7 +170,8 @@
         "!**/modern-tanstack/**",
         "!**/routeTree.gen.*",
         "!**/.env",
-        "!**/.env.*"
+        "!**/.env.*",
+        "src/routes/**/page.search.{ts,tsx}"
       ],
       "drizzle": {
         "config": []
