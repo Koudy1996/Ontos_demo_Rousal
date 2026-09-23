@@ -16,6 +16,7 @@ import { partyRegistryGuestResolverFactoryLive } from '../src/integrations/party
 import { partyRegistryRetailPartyResolverFactoryLive } from '../src/integrations/party-registry-retail-party-resolver.ts';
 import { unavailableHistoryActionOwnerPorts, RepeatCartOwner } from '../shared/domain/history-action-ports.ts';
 import { paymentTermCatalogGatewayCredentialLive } from './payment-term-catalog-gateway-credential.ts';
+import { priceGroupCatalogGatewayCredentialLive } from './price-group-catalog-gateway-credential.ts';
 import { catalogQuantityGatewayCredentialLive } from './catalog-quantity-gateway-credential.ts';
 import { purchaseCurrencyPricingGatewayCredentialLive } from './purchase-currency-pricing-gateway-credential.ts';
 import { applicationCompositionMarketReferenceOwnerDeploymentStateAuthorityLive } from './application-composition-market-reference-owner-authority.ts';
@@ -73,6 +74,7 @@ export const commerceCustomerContextProductionExternalPortsLive = Layer.mergeAll
   unavailablePurchaseCurrencyPurchasingContextPortLive,
   purchaseCurrencyPricingGatewayCredentialLive,
   paymentTermCatalogGatewayCredentialLive,
+  priceGroupCatalogGatewayCredentialLive,
   catalogQuantityGatewayCredentialLive,
   unavailableRepeatCartOwnerLive,
   applicationCompositionMarketReferenceOwnerDeploymentStateAuthorityLive,

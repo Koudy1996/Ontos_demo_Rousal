@@ -3,6 +3,7 @@ import type { Redacted } from 'effect';
 
 import type { ActionTransportMetadata } from '../actions/context.ts';
 import type { ActionRegistration } from '../actions/definition.ts';
+import { ActionAlreadyCommitted } from '../actions/errors.ts';
 import type { ActionCoreError } from '../actions/errors.ts';
 import type { DomainEventContractMap } from '../actions/events.ts';
 import type { OperationalScopeRequest } from '../operations/context.ts';
@@ -25,7 +26,11 @@ export interface ActionHttpPrincipalAuthentication<Problem, Requirements> {
   ) => Effect.Effect<TrustedPrincipalContext, Problem, Requirements>;
 }
 
-export interface GovernedActionHttpRunnerInput<
+export type ActionHttpErrorAfterCommittedRecovery<DomainError> =
+  | Exclude<ActionCoreError, ActionAlreadyCommitted>
+  | DomainError;
+
+interface GovernedActionHttpRunnerBaseInput<
   PayloadSchema extends Schema.ConstraintDecoder<unknown> & Schema.ConstraintEncoder<unknown>,
   ResultSchema extends Schema.ConstraintDecoder<unknown>,
   DomainErrorSchema extends Schema.ConstraintDecoder<{ readonly _tag: string }>,
@@ -33,7 +38,6 @@ export interface GovernedActionHttpRunnerInput<
   Owner extends string,
   Services,
   HandlerRequirements,
-  MappedProblem,
   InvalidProblem,
   InternalProblem,
   PrincipalProblem,
@@ -44,7 +48,6 @@ export interface GovernedActionHttpRunnerInput<
   readonly endpointHeaders: ActionHttpEndpointHeaders;
   readonly internalProblem: () => InternalProblem;
   readonly invalidCorrelationProblem: () => InvalidProblem;
-  readonly mapError: (error: ActionCoreError | DomainErrorSchema['Type']) => MappedProblem;
   readonly payload: NoInfer<PayloadSchema['Type']>;
   readonly principal: ActionHttpPrincipalAuthentication<PrincipalProblem, PrincipalRequirements>;
   readonly registration: ActionRegistration<
@@ -59,6 +62,46 @@ export interface GovernedActionHttpRunnerInput<
   readonly requestHeaders: ActionHttpRequestHeaders;
 }
 
+type ActionHttpCommittedRecovery<RecoveryResult, DomainError, MappedProblem> =
+  | {
+      readonly mapError: (error: ActionCoreError | DomainError) => MappedProblem;
+      readonly recoverAlreadyCommitted?: undefined;
+    }
+  | {
+      readonly mapError: (error: ActionHttpErrorAfterCommittedRecovery<DomainError>) => MappedProblem;
+      /** Endpoint-owned translation of a committed retry into its declared success contract. */
+      readonly recoverAlreadyCommitted: (failure: ActionAlreadyCommitted) => RecoveryResult;
+    };
+
+export type GovernedActionHttpRunnerInput<
+  PayloadSchema extends Schema.ConstraintDecoder<unknown> & Schema.ConstraintEncoder<unknown>,
+  ResultSchema extends Schema.ConstraintDecoder<unknown>,
+  DomainErrorSchema extends Schema.ConstraintDecoder<{ readonly _tag: string }>,
+  DomainEvents extends DomainEventContractMap,
+  Owner extends string,
+  Services,
+  HandlerRequirements,
+  MappedProblem,
+  InvalidProblem,
+  InternalProblem,
+  PrincipalProblem,
+  PrincipalRequirements,
+  RecoveryResult = never,
+> = GovernedActionHttpRunnerBaseInput<
+  PayloadSchema,
+  ResultSchema,
+  DomainErrorSchema,
+  DomainEvents,
+  Owner,
+  Services,
+  HandlerRequirements,
+  InvalidProblem,
+  InternalProblem,
+  PrincipalProblem,
+  PrincipalRequirements
+> &
+  ActionHttpCommittedRecovery<RecoveryResult, DomainErrorSchema['Type'], MappedProblem>;
+
 export type GovernedActionHttpEndpointInput<
   PayloadSchema extends Schema.ConstraintDecoder<unknown> & Schema.ConstraintEncoder<unknown>,
   ResultSchema extends Schema.ConstraintDecoder<unknown>,
@@ -70,8 +113,9 @@ export type GovernedActionHttpEndpointInput<
   MappedProblem,
   InvalidProblem,
   InternalProblem,
+  RecoveryResult = never,
 > = Omit<
-  GovernedActionHttpRunnerInput<
+  GovernedActionHttpRunnerBaseInput<
     PayloadSchema,
     ResultSchema,
     DomainErrorSchema,
@@ -79,7 +123,6 @@ export type GovernedActionHttpEndpointInput<
     Owner,
     Services,
     HandlerRequirements,
-    MappedProblem,
     InvalidProblem,
     InternalProblem,
     never,
@@ -88,7 +131,7 @@ export type GovernedActionHttpEndpointInput<
   'payload' | 'principal'
 > & {
   readonly payload: NoInfer<PayloadSchema['Type']>;
-};
+} & ActionHttpCommittedRecovery<RecoveryResult, DomainErrorSchema['Type'], MappedProblem>;
 
 const recoverUnexpectedDefect = <Value, Failure, InternalFailure, Requirements>(
   effect: Effect.Effect<Value, Failure, Requirements>,
@@ -128,6 +171,7 @@ export const runGovernedActionHttp = <
   InternalProblem,
   PrincipalProblem,
   PrincipalRequirements,
+  RecoveryResult = never,
 >(
   input: GovernedActionHttpRunnerInput<
     PayloadSchema,
@@ -141,10 +185,11 @@ export const runGovernedActionHttp = <
     InvalidProblem,
     InternalProblem,
     PrincipalProblem,
-    PrincipalRequirements
+    PrincipalRequirements,
+    RecoveryResult
   >,
 ): Effect.Effect<
-  ResultSchema['Type'],
+  ResultSchema['Type'] | RecoveryResult,
   InternalProblem | InvalidProblem | MappedProblem | PrincipalProblem,
   ActionRuntime | HandlerRequirements | PrincipalRequirements
 > => {
@@ -184,15 +229,22 @@ export const runGovernedActionHttp = <
               traceId: input.endpointHeaders.traceId,
             };
     }
-    return yield* runtime
-      .runAction({
-        ...receivingAudience,
-        payload: encodedPayload,
-        principal,
-        registration: input.registration,
-        transport,
-      })
-      .pipe(Effect.mapError(input.mapError));
+    const action = runtime.runAction({
+      ...receivingAudience,
+      payload: encodedPayload,
+      principal,
+      registration: input.registration,
+      transport,
+    });
+    if (input.recoverAlreadyCommitted === undefined) {
+      return yield* action.pipe(Effect.mapError(input.mapError));
+    }
+    const endpointResult = action.pipe(
+      Effect.catchIf(Schema.is(ActionAlreadyCommitted), (failure) =>
+        Effect.sync(() => input.recoverAlreadyCommitted(failure)),
+      ),
+    );
+    return yield* endpointResult.pipe(Effect.mapError(input.mapError));
   });
 
   return recoverUnexpectedDefect(
@@ -221,6 +273,7 @@ export const bindGovernedActionHttp =
     MappedProblem,
     InvalidProblem,
     InternalProblem,
+    RecoveryResult = never,
   >(
     input: GovernedActionHttpEndpointInput<
       PayloadSchema,
@@ -232,7 +285,8 @@ export const bindGovernedActionHttp =
       HandlerRequirements,
       MappedProblem,
       InvalidProblem,
-      InternalProblem
+      InternalProblem,
+      RecoveryResult
     >,
   ) =>
     runGovernedActionHttp({ ...input, principal });

@@ -392,6 +392,8 @@ const verify = Effect.gen(function* verifyCommerceCustomerContextSchema() {
               `forcedRls=${row.forced_rls_count}/${COMMERCE_CUSTOMER_CONTEXT_TABLES.length}, ` +
               `policies=${row.policy_count}/${COMMERCE_CUSTOMER_CONTEXT_TABLES.length * 5 + 2}, ` +
               `rawRuntimePrivileges=${row.raw_runtime_privilege_count}, exclusions=${row.exclusion_count}/11, ` +
+              `groupDescriptionColumn=${row.group_description_column_count}/1, ` +
+              `groupDescriptionConstraint=${row.group_description_constraint_count}/1, ` +
               `appendOnlyTriggers=${row.append_only_trigger_count}/10, ` +
               `triggers=${row.trigger_count}/${EXPECTED_TRIGGER_NAMES.length}, ` +
               `missingTriggers=[${missingTriggers.join(',')}], unexpectedTriggers=[${unexpectedTriggers.join(',')}], ` +
