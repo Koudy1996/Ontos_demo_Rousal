@@ -61,8 +61,8 @@ const expectedFunctions = [
   'read_definition_revision_with_retirement(uuid, uuid, uuid, timestamp with time zone)',
   'read_price_group_containment_projection_intent(uuid, uuid)',
   'reject_append_only_mutation()',
-  'retirement_acceptance_json(uuid, uuid)',
   'retire_price_group(uuid, jsonb)',
+  'retirement_acceptance_json(uuid, uuid)',
   'validate_compatibility(uuid, uuid, text, bigint, timestamp with time zone, jsonb)',
   'verify_retirement_consistency()',
 ] as const;

@@ -573,7 +573,7 @@ it.live('executes the tenant-only Price Group lifecycle through the six governed
           new Date('2026-09-21T11:59:59.999Z'),
         ),
       );
-      expect(unchangedAfterShortRevision.catalogRevision).toBe(competingGroup.acceptedCatalogRevision);
+      expect(unchangedAfterShortRevision.catalogRevision).toBe(competingRetirement.acceptedCatalogRevision);
       expect(unchangedAfterShortRevision.definition.definitionRevisionId).toBe(competingGroup.definitionRevisionId);
 
       const preRetirementRevision = yield* inScope((invoker) =>
