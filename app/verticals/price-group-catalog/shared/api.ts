@@ -1,11 +1,11 @@
 import { identity } from 'effect';
-import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, Schema } from '@modern-js/bff-effect/effect-client';
 import {
   MicroVerticalBuildMarkerSchema,
   MicroVerticalReadinessSchema,
   createMicroVerticalOperationContext,
 } from '@modern-js/bff-effect/microvertical-api';
 import type { MicroVerticalOperationContext } from '@modern-js/bff-effect/microvertical-api';
+import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, Schema } from '@modern-js/bff-effect/effect-client';
 
 // <generated-governed-http-api-imports>
 import { CreatePriceGroupActionApi } from './apis/create-price-group-action.ts';
@@ -15,7 +15,8 @@ import { RetirePriceGroupActionApi } from './apis/retire-price-group-action.ts';
 import { ValidatePriceGroupCompatibilityApi } from './apis/validate-price-group-compatibility.ts';
 // </generated-governed-http-api-imports>
 
-export const priceGroupCatalogMarkerSchema = MicroVerticalBuildMarkerSchema;
+export const priceGroupCatalogMarkerSchema: Schema.Codec<typeof MicroVerticalBuildMarkerSchema.Type> =
+  MicroVerticalBuildMarkerSchema;
 export type PriceGroupCatalogMarker = typeof priceGroupCatalogMarkerSchema.Type;
 
 export const priceGroupCatalogItemSchema = Schema.Struct({
@@ -25,7 +26,8 @@ export const priceGroupCatalogItemSchema = Schema.Struct({
 });
 export type PriceGroupCatalogItem = typeof priceGroupCatalogItemSchema.Type;
 
-export const priceGroupCatalogReadinessSchema = MicroVerticalReadinessSchema;
+export const priceGroupCatalogReadinessSchema: Schema.Codec<typeof MicroVerticalReadinessSchema.Type> =
+  MicroVerticalReadinessSchema;
 export type PriceGroupCatalogReadiness = typeof priceGroupCatalogReadinessSchema.Type;
 
 export const priceGroupCatalogCreatePayloadSchema = Schema.Struct({

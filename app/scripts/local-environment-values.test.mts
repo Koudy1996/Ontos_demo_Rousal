@@ -63,7 +63,7 @@ it('preserves explicitly configured public-client URLs', () => {
       ],
       {
         partyRegistryApiBaseUrl: 'http://localhost:4102/party-registry-api',
-        priceGroupCatalogApiBaseUrl: 'http://localhost:4104/price-group-catalog-api',
+        priceGroupCatalogApiBaseUrl: 'http://localhost:4108/price-group-catalog-api',
         shellId: 'shell-super-app',
         shellPort: 3020,
       },

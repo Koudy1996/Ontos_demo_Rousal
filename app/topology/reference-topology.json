@@ -2597,7 +2597,7 @@
       "moduleFederation": {
         "role": "remote",
         "name": "verticalPriceGroupCatalog",
-        "manifestUrl": "http://localhost:4104/mf-manifest.json",
+        "manifestUrl": "http://localhost:4108/mf-manifest.json",
         "exposes": [],
         "ssr": true,
         "sharedContractVersion": "mf-ssr-contract-v1"
@@ -2666,8 +2666,8 @@
             "adapterVersion": "backend-mf-effect-v1",
             "remoteName": "verticalPriceGroupCatalogBackend",
             "manifestEnv": "VERTICAL_PRICE_GROUP_CATALOG_BACKEND_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4104/backend-mf-manifest.json",
-            "containerEntry": "http://localhost:4104/backendRemoteEntry.cjs",
+            "manifestUrl": "http://localhost:4108/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4108/backendRemoteEntry.cjs",
             "remoteType": "commonjs-module",
             "expose": "./effect-api",
             "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",

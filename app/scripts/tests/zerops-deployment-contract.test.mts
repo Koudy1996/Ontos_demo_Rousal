@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { expect, it } from 'effect-rstest';
 
 const runtimeDatabaseUrl = `DATABASE_URL: postgresql://ontos_runtime:\${db18_password}@\${db18_hostname}:\${db18_port}/\${db18_dbName}`;
+const commerceCustomerContextSetup = 'commerce-customer-context';
+const priceGroupCatalogSetup = 'price-group-catalog';
 const zeropsYamlPath = new URL('../../zerops.yaml', import.meta.url);
 
 const serviceBlock = (zeropsYaml: string, setup: string): string => {
@@ -19,10 +21,9 @@ it('binds generated PostgreSQL credentials into every database-using service', (
   for (const setup of [
     'migrator',
     'party-registry',
-    'commerce-customer-context',
+    commerceCustomerContextSetup,
     'payment-term-catalog',
-    'price-group-catalog',
-    'price-group-catalog-worker',
+    priceGroupCatalogSetup,
     'commerce-market-catalog',
     'catalog',
     'pricing',
@@ -42,7 +43,7 @@ it('binds the SpiceDB datastore URL into the migrator environment', () => {
 
 it('requires the inherited active composition snapshot for Customer Context without shadowing it', () => {
   const zeropsYaml = readFileSync(zeropsYamlPath, 'utf-8');
-  const customerContext = serviceBlock(zeropsYaml, 'commerce-customer-context');
+  const customerContext = serviceBlock(zeropsYaml, commerceCustomerContextSetup);
 
   expect(customerContext).toContain('test -n "$ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON"');
   expect(customerContext).not.toContain('ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON:');
@@ -50,13 +51,13 @@ it('requires the inherited active composition snapshot for Customer Context with
 
 it('binds Commerce to the independently deployed Price Group Catalog API base', () => {
   const zeropsYaml = readFileSync(zeropsYamlPath, 'utf-8');
-  const commerce = serviceBlock(zeropsYaml, 'commerce-customer-context');
-  const priceGroupCatalog = serviceBlock(zeropsYaml, 'price-group-catalog');
+  const commerce = serviceBlock(zeropsYaml, commerceCustomerContextSetup);
+  const priceGroupCatalog = serviceBlock(zeropsYaml, priceGroupCatalogSetup);
 
   expect(commerce).toContain(
-    `ONTOS_PRICE_GROUP_CATALOG_BASE_URL: 'http://price-group-catalog:4104/price-group-catalog-api'`,
+    `ONTOS_PRICE_GROUP_CATALOG_BASE_URL: 'http://price-group-catalog:4108/price-group-catalog-api'`,
   );
-  expect(priceGroupCatalog).toContain(`VERTICAL_PRICE_GROUP_CATALOG_PORT: '4104'`);
+  expect(priceGroupCatalog).toContain(`VERTICAL_PRICE_GROUP_CATALOG_PORT: '4108'`);
   expect(priceGroupCatalog).toContain(`path: '/price-group-catalog-api/price-group-catalog/readiness'`);
 });
 
@@ -80,9 +81,10 @@ it('starts a dedicated Price Group worker that drains durable pending projection
   const worker = serviceBlock(zeropsYaml, 'price-group-catalog-worker');
 
   expect(worker).toContain(
-    `zerops:materialize --app 'price-group-catalog' --package '@app/price-group-catalog' --package-dir 'verticals/price-group-catalog' --worker`,
+    `zerops:materialize --app '${priceGroupCatalogSetup}' --package '@app/price-group-catalog' --package-dir 'verticals/price-group-catalog' --worker`,
   );
-  expect(worker).toContain(`OUTBOX_WORKER_HEALTH_PORT: '4104'`);
+  expect(worker).toContain(`OUTBOX_WORKER_HEALTH_PORT: '4108'`);
+  expect(worker).toContain(`DATABASE_URL: \${pricegroupcatalog_DATABASE_URL}`);
   expect(worker).toContain(`path: '/ready'`);
   expect(worker).toContain(`exec npm run serve`);
 });

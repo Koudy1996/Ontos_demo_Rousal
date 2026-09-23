@@ -79,21 +79,22 @@ const unavailable = (cause?: unknown): ResourceContainmentMutationUnavailable =>
 
 const ContextAccessObjectIdParts = Schema.fromJsonString(Schema.Array(Schema.String));
 const decodeContextAccessObjectIdParts = Schema.decodeUnknownOption(ContextAccessObjectIdParts);
-const TenantIdSchema = Schema.String.check(Schema.isUUID());
+const TenantIdSchema = Schema.String.check(Schema.isUUID()).pipe(Schema.brand('TenantId'));
+type TenantId = typeof TenantIdSchema.Type;
 
 type PricingPermissionObjectIdentity =
   | Readonly<{
       kind: 'pricing_catalog';
       permission: BusinessPermissionCode;
       pricingCatalogId: string;
-      tenantId: string;
+      tenantId: TenantId;
     }>
   | Readonly<{
       kind: 'price_group';
       permission: BusinessPermissionCode;
       priceGroupId: string;
       pricingCatalogId: string;
-      tenantId: string;
+      tenantId: TenantId;
     }>;
 
 const decodePricingPermissionObjectIdentity = (
@@ -106,7 +107,7 @@ const decodePricingPermissionObjectIdentity = (
   ) {
     return undefined;
   }
-  const serialized = Buffer.from(reference.objectId.slice(4), 'base64url').toString('utf8');
+  const serialized = Buffer.from(reference.objectId.slice(4), 'base64url').toString('utf-8');
   const parts = decodeContextAccessObjectIdParts(serialized).pipe(Option.getOrUndefined);
   if (parts === undefined) {
     return undefined;

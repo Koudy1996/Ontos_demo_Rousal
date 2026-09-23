@@ -50,7 +50,7 @@ it.effect('atomically accepts first use and rejects a repeated durable identity'
       if (!sql.startsWith('insert')) {
         return Effect.succeed([]);
       }
-      const key = params.filter((value): value is string => typeof value === 'string').join('|');
+      const key = params.join('|');
       if (redeemed.has(key)) {
         return Effect.succeed([]);
       }
@@ -76,7 +76,7 @@ it.effect('keys redemption by issuer, audience, and jti rather than jti alone', 
       if (!sql.startsWith('insert')) {
         return Effect.succeed([]);
       }
-      const key = params.filter((value): value is string => typeof value === 'string').join('|');
+      const key = params.join('|');
       if (redeemed.has(key)) {
         return Effect.succeed([]);
       }
@@ -97,7 +97,7 @@ it.effect('keys redemption by issuer, audience, and jti rather than jti alone', 
 
 it.effect('rejects expiry before cleanup and uses the skew-adjusted cleanup boundary', () =>
   Effect.gen(function* preserveExpiredReplayEvidence() {
-    const statementParameters: Array<{ readonly params: readonly unknown[]; readonly sql: string }> = [];
+    const statementParameters: { readonly params: readonly unknown[]; readonly sql: string }[] = [];
     const fixture = yield* makeRedemptionFixture((sql, params) => {
       statementParameters.push({ params, sql });
       return Effect.succeed(sql.startsWith('insert') ? [{ jti: assertion.jti }] : []);
@@ -190,7 +190,7 @@ it.effect('fails with sanitized unavailability after five seconds', () =>
       .consume(assertion)
       .pipe(Effect.provideService(Clock.Clock, fixture.clock), Effect.forkChild);
     yield* Effect.yieldNow;
-    yield* fixture.clock.setTime(expiryWithSkewMs - 1 + 5_000);
+    yield* fixture.clock.setTime(expiryWithSkewMs - 1 + 5000);
     const failure = yield* Fiber.join(fiber).pipe(Effect.flip);
     expect(Schema.is(GatewayAssertionRedemptionUnavailableError)(failure)).toBe(true);
   }),

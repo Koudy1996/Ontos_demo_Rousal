@@ -174,11 +174,11 @@ it.live('commits a scheduled retirement with server-trusted acceptance chronolog
         },
       });
       const expectedCurrent = {
-        catalogRevision: created.definition.acceptedCatalogRevision,
-        definitionRevisionId: created.definition.definitionRevisionId,
-        definitionRevisionNumber: created.definition.revisionNumber,
-        meaningFingerprint: created.definition.meaningFingerprint,
-        priceGroupRef: created.definition.priceGroupRef,
+        catalogRevision: created.acceptance.acceptedCatalogRevision,
+        definitionRevisionId: created.acceptance.definitionRevisionId,
+        definitionRevisionNumber: created.acceptance.definitionRevisionNumber,
+        meaningFingerprint: created.acceptance.meaningFingerprint,
+        priceGroupRef: created.acceptance.priceGroupRef,
       };
 
       const accepted = yield* runtime.runAction({

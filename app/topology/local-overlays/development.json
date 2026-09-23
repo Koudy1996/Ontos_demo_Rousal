@@ -7,7 +7,7 @@
     "catalog": "http://localhost:4105/.well-known/ontos-module-manifest.json",
     "pricing": "http://localhost:4106/.well-known/ontos-module-manifest.json",
     "storefront-registry": "http://localhost:4107/.well-known/ontos-module-manifest.json",
-    "price-group-catalog": "http://localhost:4104/.well-known/ontos-module-manifest.json"
+    "price-group-catalog": "http://localhost:4108/.well-known/ontos-module-manifest.json"
   },
   "schemaVersion": 1,
   "environment": "development",
@@ -21,7 +21,7 @@
     "catalog": 4105,
     "pricing": 4106,
     "storefront-registry": 4107,
-    "price-group-catalog": 4104
+    "price-group-catalog": 4108
   },
   "manifests": {
     "party-registry": "http://localhost:4102/mf-manifest.json",
@@ -391,7 +391,7 @@
       }
     },
     "price-group-catalog": {
-      "apiBaseUrl": "http://localhost:4104/price-group-catalog-api",
+      "apiBaseUrl": "http://localhost:4108/price-group-catalog-api",
       "versionBoundary": "web-and-api-same-build",
       "deliveryUnit": {
         "unitId": "app/price-group-catalog",
@@ -427,8 +427,8 @@
         "adapterVersion": "backend-mf-effect-v1",
         "remoteName": "verticalPriceGroupCatalogBackend",
         "manifestEnv": "VERTICAL_PRICE_GROUP_CATALOG_BACKEND_MF_MANIFEST",
-        "manifestUrl": "http://localhost:4104/backend-mf-manifest.json",
-        "containerEntry": "http://localhost:4104/backendRemoteEntry.cjs",
+        "manifestUrl": "http://localhost:4108/backend-mf-manifest.json",
+        "containerEntry": "http://localhost:4108/backendRemoteEntry.cjs",
         "remoteType": "commonjs-module",
         "expose": "./effect-api",
         "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
@@ -447,6 +447,6 @@
     "catalog": "http://localhost:4105/catalog-api",
     "pricing": "http://localhost:4106/pricing-api",
     "storefront-registry": "http://localhost:4107/storefront-registry-api",
-    "price-group-catalog": "http://localhost:4104/price-group-catalog-api"
+    "price-group-catalog": "http://localhost:4108/price-group-catalog-api"
   }
 }

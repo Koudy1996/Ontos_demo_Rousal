@@ -91,8 +91,8 @@ it('owns durable tenant-only containment projection intent evidence', () => {
 });
 
 it('forces every tenant table through tenant-only RLS', () => {
-  for (const table of PRICE_GROUP_CATALOG_TABLES.filter((table) => table !== gatewayAssertionRedemptions)) {
-    const config = getTableConfig(table);
+  for (const tenantTable of PRICE_GROUP_CATALOG_TABLES.filter((table) => table !== gatewayAssertionRedemptions)) {
+    const config = getTableConfig(tenantTable);
     expect(config.enableRLS, `${config.name} must enable RLS`).toBe(true);
     expect(config.columns.some((column) => column.name === 'tenant_id' && column.notNull)).toBe(true);
     expect(config.columns.some((column) => column.name === 'legal_entity_id')).toBe(false);

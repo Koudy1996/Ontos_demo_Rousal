@@ -7,13 +7,14 @@ import {
   PriceGroupDescriptionSchema,
   PriceGroupEffectivePeriodSchema,
   PriceGroupInstantSchema,
-  PriceGroupCreatedResultSchema,
   PriceGroupNameSchema,
   PriceGroupPurposeSchema,
   PriceGroupReasonSchema,
 } from '../domain/price-group.ts';
 import { PriceGroupCatalogRootRefSchema } from '../resources/price-group-catalog-root.ts';
 import { PriceGroupRefSchema } from '../resources/price-group.ts';
+
+export { PriceGroupCreatedResultSchema as CreatePriceGroupResultSchema } from '../domain/price-group.ts';
 
 const compatibilityContractsSchema = Schema.Array(PriceGroupCompatibilityContractSchema).check(
   Schema.isMinLength(1),
@@ -78,5 +79,3 @@ export const PriceGroupContainmentProjectionRequestedPayloadSchema = Schema.Stru
       : 'Price Group containment projection references must share one Tenant',
   ),
 );
-export const CreatePriceGroupResultSchema = PriceGroupCreatedResultSchema;
-export type CreatePriceGroupResult = typeof CreatePriceGroupResultSchema.Type;

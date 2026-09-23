@@ -21,7 +21,7 @@ const build = createModernBuildContext({
   appId,
   cloudflarePublicUrlEnvironmentVariable: 'ULTRAMODERN_PUBLIC_URL_PRICE_GROUP_CATALOG',
   cloudflareWorkerName,
-  defaultPort: 4104,
+  defaultPort: 4108,
   getBuildConfigEnvironment,
   portEnvironmentVariable: 'VERTICAL_PRICE_GROUP_CATALOG_PORT',
 });

@@ -10,5 +10,3 @@ export const PriceGroupActionCommittedRetryReceiptSchema = Schema.Struct({
   invocationId: ActionInvocationIdSchema,
   replay: Schema.Literal('already_committed'),
 });
-
-export type PriceGroupActionCommittedRetryReceipt = typeof PriceGroupActionCommittedRetryReceiptSchema.Type;

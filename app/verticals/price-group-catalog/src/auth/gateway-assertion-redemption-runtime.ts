@@ -90,6 +90,7 @@ export const makeGatewayAssertionRedemption = (
     if (inserted.length !== 1) {
       return yield* replayError();
     }
+    return yield* Effect.void;
   }),
 });
 

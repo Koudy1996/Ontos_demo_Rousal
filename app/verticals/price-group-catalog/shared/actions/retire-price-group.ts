@@ -4,8 +4,9 @@ import {
   ExpectedPriceGroupCurrentEvidenceSchema,
   PriceGroupInstantSchema,
   PriceGroupReasonSchema,
-  PriceGroupRetirementAcceptanceSchema,
 } from '../domain/price-group.ts';
+
+export { PriceGroupRetirementAcceptanceSchema as RetirePriceGroupResultSchema } from '../domain/price-group.ts';
 
 export const RetirePriceGroupPayloadSchema = Schema.Struct({
   effectiveAt: PriceGroupInstantSchema,
@@ -13,5 +14,3 @@ export const RetirePriceGroupPayloadSchema = Schema.Struct({
   reason: PriceGroupReasonSchema,
 });
 export type RetirePriceGroupPayload = typeof RetirePriceGroupPayloadSchema.Type;
-
-export const RetirePriceGroupResultSchema = PriceGroupRetirementAcceptanceSchema;

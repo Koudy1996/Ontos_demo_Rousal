@@ -122,18 +122,17 @@ it.effect('rejects malformed, duplicate, or unsupported topology before transpor
   Effect.gen(function* rejectInvalidTopology() {
     const { requests, service } = makeHarness();
     const duplicate = containmentRelationship();
+    const invalidRelation = containmentRelationship();
+    Reflect.set(invalidRelation, 'relation', 'Invalid relation');
+    const unsupportedPrincipalRelationship = tenantRelationship();
+    Reflect.set(unsupportedPrincipalRelationship, 'container', {
+      objectId: 'principal_one',
+      objectType: 'principal',
+    });
+    Reflect.set(unsupportedPrincipalRelationship, 'relation', 'grantee');
     const failures = [
       yield* Effect.flip(service.touch({ relationships: [duplicate, duplicate] })),
-      yield* Effect.flip(
-        service.touch({
-          relationships: [
-            {
-              ...containmentRelationship(),
-              relation: 'Invalid relation',
-            } as unknown as ResourceContainmentRelationship,
-          ],
-        }),
-      ),
+      yield* Effect.flip(service.touch({ relationships: [invalidRelation] })),
       yield* Effect.flip(
         service.touch({
           relationships: [
@@ -145,17 +144,7 @@ it.effect('rejects malformed, duplicate, or unsupported topology before transpor
           ],
         }),
       ),
-      yield* Effect.flip(
-        service.touch({
-          relationships: [
-            {
-              container: { objectId: 'principal_one', objectType: 'principal' },
-              relation: 'grantee',
-              resource: groupReference(),
-            } as unknown as ResourceContainmentRelationship,
-          ],
-        }),
-      ),
+      yield* Effect.flip(service.touch({ relationships: [unsupportedPrincipalRelationship] })),
     ];
     expect(failures.every((failure) => Schema.is(ResourceContainmentMutationUnavailable)(failure))).toBe(true);
     expect(requests).toHaveLength(0);

@@ -8,10 +8,6 @@ import { CreatePriceGroupPayloadSchema, CreatePriceGroupResultSchema } from '../
 import { PriceGroupActionCommittedRetryReceiptSchema } from '../domain/action-committed-retry-receipt.ts';
 
 export { CreatePriceGroupPayloadSchema } from '../actions/create-price-group.ts';
-export {
-  PriceGroupActionCommittedRetryReceiptSchema,
-  type PriceGroupActionCommittedRetryReceipt,
-} from '../domain/action-committed-retry-receipt.ts';
 
 const CreatePriceGroupActionHeadersSchema = Schema.Struct({
   'idempotency-key': Schema.optionalKey(Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))),
