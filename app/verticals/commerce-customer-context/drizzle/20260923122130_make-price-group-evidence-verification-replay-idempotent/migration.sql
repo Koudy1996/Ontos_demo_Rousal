@@ -35,7 +35,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, commerce_customer_context
+SET search_path = pg_catalog, commerce_customer_context, pg_temp
 SET row_security = on
 AS $$
 DECLARE
