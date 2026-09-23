@@ -943,7 +943,7 @@ it.live('executes the tenant-only Price Group lifecycle through the six governed
                  where tenant_id = ${tenantId}::uuid
                    and price_group_id = ${created.priceGroupRef.resourceId}::uuid
                    and definition_revision_id = ${created.definitionRevisionId}::uuid
-                   and schedule_catalog_revision = 3`,
+                   and schedule_catalog_revision = ${retirement.acceptedCatalogRevision}`,
           );
         }),
       );
