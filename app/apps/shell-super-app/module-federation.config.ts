@@ -117,6 +117,13 @@ const moduleFederationConfig: Parameters<typeof createModuleFederationConfig>[0]
       publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_PARTY_REGISTRY',
       workerName: 'app-party-registry',
     }),
+    salesInquiries: createRemoteManifestUrl({
+      manifestEnv: 'VERTICAL_SALES_INQUIRIES_MF_MANIFEST',
+      mfName: 'verticalSalesInquiries',
+      port: 4108,
+      publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SALES_INQUIRIES',
+      workerName: 'app-sales-inquiries',
+    }),
   },
   shared: createSharedRuntimeConfig({
     '@modern-js/plugin-i18n/runtime': i18nVersion,

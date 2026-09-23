@@ -5,7 +5,8 @@
   "description": "Server-only verification for audience-bound Shell gateway assertions.",
   "type": "module",
   "exports": {
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./dependency-read": "./src/dependency-read.ts"
   },
   "scripts": {
     "test:unit": "rstest --project unit",

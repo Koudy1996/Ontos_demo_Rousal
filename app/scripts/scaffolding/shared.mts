@@ -220,6 +220,7 @@ export interface SearchProviderAccessScaffoldConfig {
 }
 
 export interface ActionBoundaryScaffoldConfig {
+  readonly provider?: string;
   readonly vertical: string;
 }
 

@@ -45,6 +45,7 @@ const INVENTORY_MODULE_ID = 'inventory.core';
 const LOCAL_MODULES_DIRECTORY_PREFIX = 'ontos-local-modules-';
 const CUSTOMER_CONTEXT_VERTICAL_ID = 'commerce-customer-context';
 const MARKET_CATALOG_VERTICAL_ID = 'commerce-market-catalog';
+const SALES_INQUIRIES_VERTICAL_ID = 'sales-inquiries';
 const PARTY_REGISTRY_VERTICAL_ID = 'party-registry';
 const PARTY_REGISTRY_MODULE_ID = 'party.registry';
 const PARTY_REGISTRY_MODULE_STATE_LABEL = 'Party Registry module state';
@@ -53,6 +54,7 @@ const TOPOLOGY_DIRECTORY = 'topology';
 const TOPOLOGY_PATH = 'topology/reference-topology.json';
 const topology = JSON.stringify({
   verticals: [
+    { id: SALES_INQUIRIES_VERTICAL_ID },
     { id: PARTY_REGISTRY_VERTICAL_ID },
     { id: MARKET_CATALOG_VERTICAL_ID },
     { id: CUSTOMER_CONTEXT_VERTICAL_ID },
@@ -162,8 +164,10 @@ it.effect('derives the fixed local commerce launch modules through generated own
       'commerce-customer-context.core',
       'commerce-market-catalog.core',
       'party-registry.core',
+      'sales-inquiries.core',
     ]);
     expect(LOCAL_DEVELOPMENT_VERTICALS).toEqual([
+      SALES_INQUIRIES_VERTICAL_ID,
       PARTY_REGISTRY_VERTICAL_ID,
       MARKET_CATALOG_VERTICAL_ID,
       CUSTOMER_CONTEXT_VERTICAL_ID,

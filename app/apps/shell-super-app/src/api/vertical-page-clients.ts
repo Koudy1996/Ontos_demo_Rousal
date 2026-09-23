@@ -1,3 +1,5 @@
+import { Effect as PageLoadEffect } from 'effect';
+import type { TimeoutError, UnknownError } from 'effect/Cause';
 import type { ComponentType } from 'react';
 
 import type { ResolvedModuleTarget } from '../../shared/api.ts';
@@ -10,9 +12,12 @@ export type ApprovedVerticalPageComponent = ComponentType<{
 export interface ApprovedVerticalPageClient {
   readonly appId: string;
   readonly componentKey: string;
-  readonly load: () => Promise<{
-    readonly default: ApprovedVerticalPageComponent;
-  }>;
+  readonly load: PageLoadEffect.Effect<
+    {
+      readonly default: ApprovedVerticalPageComponent;
+    },
+    UnknownError | TimeoutError
+  >;
 }
 
 /** Codesmith-owned allowlist. Executable imports remain lazy and owner-deployment-specific. */
@@ -21,8 +26,16 @@ export const ultramodernVerticalClients: readonly ApprovedVerticalPageClient[] =
   {
     appId: 'party-registry',
     componentKey: 'party.registry.page-contacts',
-    // @effect-diagnostics-next-line asyncFunction:off -- Module Federation loaders must return the native import Promise; remove-when: the framework accepts Effect loaders.
-    load: async () => await import('partyRegistry/PageContacts'),
+    load: PageLoadEffect.tryPromise(
+      (): PromiseLike<{ readonly default: ApprovedVerticalPageComponent }> => import('partyRegistry/PageContacts'),
+    ).pipe(PageLoadEffect.timeout('5 seconds')),
+  },
+  {
+    appId: 'sales-inquiries',
+    componentKey: 'sales.inquiries.page-inquiries',
+    load: PageLoadEffect.tryPromise(
+      (): PromiseLike<{ readonly default: ApprovedVerticalPageComponent }> => import('salesInquiries/PageInquiries'),
+    ).pipe(PageLoadEffect.timeout('5 seconds')),
   },
   // @ontos-codegen-end shell-page-clients
 ];

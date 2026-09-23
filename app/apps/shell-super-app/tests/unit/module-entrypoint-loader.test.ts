@@ -209,22 +209,14 @@ it.live('settles browser entrypoint success, rejection, incompatibility, and tim
     const pending = Promise.withResolvers<{ readonly default: () => null }>();
     const [ready, unavailable, incompatible, timedOut] = yield* Effect.all(
       [
+        settleModuleEntrypointLoad(Effect.succeed({ default: remoteDefault }), compatibleRemoteModule, 50),
+        settleModuleEntrypointLoad(Effect.fail(new RemoteLoadUnavailable()), compatibleRemoteModule, 50),
+        settleModuleEntrypointLoad(Effect.succeed({ default: 'not a component' }), compatibleRemoteModule, 50),
         settleModuleEntrypointLoad(
-          Fn.constant(Promise.resolve({ default: remoteDefault })),
+          Effect.tryPromise(() => pending.promise),
           compatibleRemoteModule,
-          50,
+          1,
         ),
-        settleModuleEntrypointLoad(
-          Fn.constant(Promise.reject(new Error('remote unavailable'))),
-          compatibleRemoteModule,
-          50,
-        ),
-        settleModuleEntrypointLoad(
-          Fn.constant(Promise.resolve({ default: 'not a component' })),
-          compatibleRemoteModule,
-          50,
-        ),
-        settleModuleEntrypointLoad(Fn.constant(pending.promise), compatibleRemoteModule, 1),
       ],
       { concurrency: 'unbounded' },
     );
@@ -248,14 +240,14 @@ it.effect('settles several browser entrypoints without one failure hiding health
       {
         identity: 'documents-center/page',
         isCompatible: compatibleRemoteModule,
-        load: Fn.constant(Promise.resolve({ default: remoteDefault })),
+        load: Effect.tryPromise(Fn.constant(Promise.resolve({ default: remoteDefault }))),
         timeoutMs: 50,
       },
       {
         identity: 'property-registry/page',
         isCompatible: compatibleRemoteModule,
 
-        load: () => Promise.reject(new Error('remote unavailable')),
+        load: Effect.tryPromise(() => Promise.reject(new Error('remote unavailable'))),
         timeoutMs: 50,
       },
       {
@@ -263,7 +255,7 @@ it.effect('settles several browser entrypoints without one failure hiding health
         isCompatible: () => {
           throw new TypeError('malformed runtime value');
         },
-        load: Fn.constant(Promise.resolve({ default: remoteDefault })),
+        load: Effect.tryPromise(Fn.constant(Promise.resolve({ default: remoteDefault }))),
         timeoutMs: 50,
       },
     ]);
@@ -303,7 +295,7 @@ it.live('never starts a queued load whose deadline expired before a permit becam
           identity: `module-${index}/page`,
           isCompatible: compatibleRemoteModule,
 
-          load: () => {
+          load: Effect.tryPromise(() => {
             const pending = Promise.withResolvers<RemoteModule>();
             pendingLoads.push(pending);
             loadCount += 1;
@@ -311,7 +303,7 @@ it.live('never starts a queued load whose deadline expired before a permit becam
               firstWindowStarted.resolve(null);
             }
             return Promise.resolve(pending.promise);
-          },
+          }),
           // The first window must outlive runner jitter so every slot is really held; only the
           // queued load carries the short deadline that expires before any permit frees up.
           timeoutMs: index < MODULE_LOAD_CONCURRENCY ? 500 : 10,
@@ -359,7 +351,7 @@ it.live('never starts an expired queued load when synchronous work delays deadli
           identity: `module-${index}/page`,
           isCompatible: compatibleRemoteModule,
 
-          load: () => {
+          load: Effect.tryPromise(() => {
             started.push(index);
             if (index === 0) {
               const unblockAt = clock.currentTimeMillisUnsafe() + 40;
@@ -369,7 +361,7 @@ it.live('never starts an expired queued load when synchronous work delays deadli
               }
             }
             return Promise.resolve({ default: remoteDefault });
-          },
+          }),
           timeoutMs: index === MODULE_LOAD_CONCURRENCY ? 10 : 5000,
         })),
       ),
@@ -396,13 +388,13 @@ it.effect('abandons queued loads when the caller is interrupted', () =>
           identity: `module-${index}/page`,
           isCompatible: compatibleRemoteModule,
 
-          load: () => {
+          load: Effect.tryPromise(() => {
             started.push(index);
             if (started.length === MODULE_LOAD_CONCURRENCY) {
               firstWindowStarted.resolve(null);
             }
             return pendingLoads[index]?.promise ?? Promise.resolve({ default: remoteDefault });
-          },
+          }),
         })),
       ),
     );
@@ -432,7 +424,7 @@ it.effect('holds a running timed-out load permit until settlement then releases 
           identity: `module-${index}/page`,
           isCompatible: compatibleRemoteModule,
 
-          load: () => {
+          load: Effect.tryPromise(() => {
             events.push(`started-${index}`);
             if (index === MODULE_LOAD_CONCURRENCY - 1) {
               firstWindowStarted.resolve(null);
@@ -448,7 +440,7 @@ it.effect('holds a running timed-out load permit until settlement then releases 
                 return value;
               }),
             );
-          },
+          }),
           timeoutMs: index === 0 ? 10 : 1000,
         })),
       ),
@@ -485,14 +477,14 @@ it.effect('does not surface a late remote rejection after a timeout', () =>
           identity: 'late-rejection/page',
           isCompatible: compatibleRemoteModule,
 
-          load: () => {
+          load: Effect.tryPromise(() => {
             loadStarted.resolve(null);
             return Promise.resolve(
               pending.promise.finally(() => {
                 loadSettled.resolve(null);
               }),
             );
-          },
+          }),
           timeoutMs: 10,
         },
       ]),

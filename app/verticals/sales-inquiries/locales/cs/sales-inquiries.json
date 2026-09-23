@@ -1,0 +1,125 @@
+{
+  "sales-inquiries": {
+    "language": {
+      "cs": "Čeština",
+      "en": "Angličtina",
+      "switcher": "Jazyk"
+    },
+    "routes": {
+      "home": "Domů"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern plocha s lokalizovaným SSR a frameworkem řízenými public metadata."
+    },
+    "federatedSurface": "Federovaná plocha vlastněná tímto verticalem.",
+    "remoteUnavailable": "Remote vertical je nedostupný",
+    "role": "sales-inquiries",
+    "routeSurface": "Routovaná plocha vlastněná tímto verticalem.",
+    "title": "Poptávky a nabídky",
+    "widgetBody": "Poptávky na vyklízení, prohlídky a nabídky služeb.",
+    "pages": {
+      "inquiries": {
+        "description": "Poptávky na vyklízení, prohlídky a nabídky služeb.",
+        "title": "Poptávky a nabídky"
+      }
+    },
+    "demo": {
+      "title": "Poptávky a nabídky",
+      "new": "Nová poptávka",
+      "edit": "Upravit údaje",
+      "contactSearch": "Vyhledat kontakt",
+      "search": "Vyhledat",
+      "contactResults": "Nalezené kontakty",
+      "contact": "Kontakt",
+      "chooseContact": "Vyberte existující kontakt",
+      "details": "Místo a údaje o vyklízení",
+      "addressLine": "Ulice a číslo",
+      "city": "Město",
+      "postalCode": "PSČ",
+      "countryCode": "Země (ISO kód)",
+      "description": "Popis vyklízení",
+      "requestedDate": "Požadovaný termín",
+      "floor": "Patro",
+      "estimatedVolumeM3": "Odhad objemu (m³)",
+      "specialWaste": "Zvláštní odpad",
+      "siteVisitAt": "Prohlídka (čas v Praze)",
+      "internalNote": "Interní poznámka",
+      "save": "Uložit poptávku",
+      "cancel": "Zrušit",
+      "back": "Zpět na seznam",
+      "planVisit": "Naplánovat prohlídku",
+      "startPricing": "Přejít k nacenění",
+      "offer": "Nabídka",
+      "work": "Práce (Kč)",
+      "transport": "Doprava (Kč)",
+      "disposal": "Likvidace odpadu (Kč)",
+      "material": "Materiál (Kč)",
+      "other": "Ostatní (Kč)",
+      "total": "Celkem",
+      "sentAt": "Odesláno",
+      "estimatedPersonHours": "Odhad člověkohodin",
+      "saveOffer": "Uložit kalkulaci",
+      "sendOffer": "Označit nabídku jako odeslanou",
+      "acceptanceMeaning": "Zaznamenejte skutečné závazné přijetí nabídky. Zakázku založíte v dalším kroku.",
+      "evidenceNote": "Jak a kdy zákazník přijetí potvrdil",
+      "accept": "Přijata",
+      "decline": "Odmítnuta",
+      "declineReason": "Důvod odmítnutí (volitelně)",
+      "readyForJob": "Nabídka přijata — připraveno k založení zakázky",
+      "loading": "Načítání…",
+      "saving": "Ukládání…",
+      "empty": "Zatím žádné poptávky v tomto stavu.",
+      "notSet": "Neuvedeno",
+      "open": "Otevřít poptávku",
+      "retry": "Zopakovat stejný požadavek",
+      "refresh": "Obnovit",
+      "resolve": "Ověřit výsledek zápisu",
+      "objectType": {
+        "label": "Typ objektu",
+        "APARTMENT": "Byt",
+        "HOUSE": "Dům",
+        "COMMERCIAL": "Komerční prostor",
+        "OTHER": "Jiný objekt"
+      },
+      "elevator": {
+        "label": "Výtah",
+        "unknown": "Nezjištěno",
+        "yes": "Ano",
+        "no": "Ne"
+      },
+      "stage": {
+        "label": "Stav",
+        "ALL": "Vše",
+        "NEW": "Nové",
+        "SITE_VISIT": "K prohlídce",
+        "PRICING": "K nacenění",
+        "OFFER_SENT": "Čeká na zákazníka",
+        "ACCEPTED": "Přijaté",
+        "DECLINED": "Odmítnuté"
+      },
+      "priceBasis": {
+        "label": "Zadaná cena",
+        "EXCLUDING_VAT": "Cena bez DPH",
+        "INCLUDING_VAT": "Cena včetně DPH"
+      },
+      "method": {
+        "label": "Způsob přijetí",
+        "PHONE": "Telefonicky",
+        "EMAIL": "E-mailem",
+        "IN_PERSON": "Osobně",
+        "OTHER": "Jiným způsobem"
+      },
+      "error": {
+        "authentication": "Přihlášení není platné. Přihlaste se znovu.",
+        "forbidden": "Pro tuto operaci nemáte oprávnění.",
+        "internal": "Operaci se nepodařilo dokončit.",
+        "validation": "Zkontrolujte vyplněné údaje a povolený stav poptávky.",
+        "notFound": "Záznam nebyl nalezen v aktuální firmě.",
+        "conflict": "Poptávku mezitím někdo změnil. Obnovte detail.",
+        "unavailable": "Služba je dočasně nedostupná. U zápisu zachováme stejný požadavek pro opakování.",
+        "committed": "Požadavek již byl uložen. Obnovujeme data.",
+        "uncertain": "Výsledek zápisu zatím není potvrzen. Neodesílejte nový požadavek; nejprve ověřte výsledek."
+      }
+    }
+  }
+}

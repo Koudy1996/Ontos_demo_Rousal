@@ -255,7 +255,7 @@ export const installGlobalRequire = (moduleUrl: string) => {
 interface DevelopmentMiddlewareSetup {
   unshift: (
     middleware: (
-      request: { url?: string },
+      request: { url?: string | undefined },
       response: { end: (body: Buffer) => void; setHeader: (name: string, value: string) => void },
       next: () => void,
     ) => void,

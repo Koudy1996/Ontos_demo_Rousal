@@ -3,6 +3,8 @@ import type { EffectHttpApiClientOptions, HttpApi, HttpApiGroup } from '@modern-
 import { Redacted } from 'effect';
 import { Headers as HttpHeaders, HttpClient, HttpClientRequest } from 'effect/unstable/http';
 
+import { attachDependencyReadCredential, sanitizeDependencyTransportError } from './dependency-read-gateway.ts';
+
 const EffectBffOperationContextSchema = Schema.Struct({
   method: Schema.String,
   // eslint-disable-next-line effect-native/no-unbranded-identifier-schema -- The framework operation name is owner-supplied routing metadata, not an interchangeable Resource identifier.
@@ -67,7 +69,13 @@ export const makeEffectBffClient = <ApiId extends string, Groups extends HttpApi
         // Effect injects fresh trace headers after request transforms. This boundary instead makes
         // the caller's request context authoritative so explicit traceparent values survive and
         // absent optional tracing metadata stays absent.
-        return transformedClient.pipe(
+        const governedClient = transformedClient.pipe(
+          HttpClient.mapRequestEffect((request) =>
+            attachDependencyReadCredential(String(defaultApiPrefix), request, String(baseUrl ?? defaultApiPrefix)),
+          ),
+          HttpClient.transform((effect) => Effect.mapError(effect, sanitizeDependencyTransportError)),
+        );
+        return governedClient.pipe(
           HttpClient.transform((effect) => Effect.provideService(effect, HttpClient.TracerPropagationEnabled, false)),
         );
       },

@@ -1,3 +1,4 @@
+import { StaffAuthenticationNamespaceRegistryLive } from '../src/auth/staff-authentication-namespace.ts';
 import { DatabaseConfigLive } from '@app/core-runtime';
 import type { ActionRuntime, ReadRuntime, GatewayAssertionRedemptionService } from '@app/core-runtime';
 import { assembleEffectBffRuntime } from '@app/shared-contracts/server/effect-bff-runtime';
@@ -139,7 +140,11 @@ export const makePartyRegistryApiRuntime = (
     ),
     // </generated-governed-http-handler-layers>
   ).pipe(Layer.provide(Layer.mergeAll(actionPrincipalVerifierLive, gatewayAssertionRedemption)));
-  const resolvedApiHandlersLive = apiHandlersLive.pipe(Layer.provide(runtimeObservabilityLive), Layer.orDie);
+  const resolvedApiHandlersLive = apiHandlersLive.pipe(
+    Layer.provide(runtimeObservabilityLive),
+    Layer.provide(StaffAuthenticationNamespaceRegistryLive),
+    Layer.orDie,
+  );
   const transportLive = HttpRouter.cors({
     allowedHeaders: [...partyRegistryCorsAllowedHeaders],
     allowedMethods: [...partyRegistryCorsAllowedMethods],

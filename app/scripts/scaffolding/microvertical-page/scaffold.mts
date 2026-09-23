@@ -146,6 +146,14 @@ const fileExists = (filePath: string) =>
     return yield* mapFileSystemError(fileSystem.exists(filePath));
   });
 
+const shellPageClientsPath = (workspaceRoot: string) =>
+  Effect.gen(function* findShellPageClients() {
+    const current = resolveContainedPath(workspaceRoot, 'apps', SHELL_APP_ID, 'src', 'api', 'vertical-page-clients.ts');
+    return (yield* fileExists(current))
+      ? current
+      : resolveContainedPath(workspaceRoot, 'apps', SHELL_APP_ID, 'src', 'api', 'vertical-clients.ts');
+  });
+
 const pageRouteIsInvalid = (
   canonicalPath: string,
   canonicalSegments: readonly string[],
@@ -411,9 +419,14 @@ const pageWiring = (
       : `navigationContribution({ contributionKey: '${vertical.moduleId}.navigation.${page}', entrypoint: ${entrypoint}, groupKey: 'shell.navigation.modules', order: 100, pageKey: '${contributionKey}' }),`,
     manifestPage: `pageContribution({ componentKey: '${componentKey}', contributionKey: '${contributionKey}', entrypoint: ${entrypoint}, routePath: '${route.canonicalPath}' }),`,
     registrationPage: `'page-${page}': () => import('./src/routes/[lang]/${route.relativePath}/page.tsx'),`,
-    shellClient: `{ appId: '${vertical.appId}', componentKey: '${componentKey}', load: () => import('${toCamelCase(vertical.appId)}/Page${toPascalCase(page)}') },`,
+    shellClient: `{ appId: '${vertical.appId}', componentKey: '${componentKey}', load: PageLoadEffect.tryPromise((): PromiseLike<{ readonly default: ApprovedVerticalPageComponent }> => import('${toCamelCase(vertical.appId)}/Page${toPascalCase(page)}')).pipe(PageLoadEffect.timeout('5 seconds')) },`,
   } as const;
 };
+
+const withPageLoaderImport = (source: string) =>
+  /^import \{ Effect as PageLoadEffect \} from ['"]effect['"];$/mu.test(source)
+    ? source
+    : `import { Effect as PageLoadEffect } from 'effect';\n${source}`;
 
 const renderFederatedPage = (vertical: PageVerticalMetadata, page: string, route: PageRoute): string => {
   const componentName = `${toPascalCase(page)}Page`;
@@ -546,9 +559,19 @@ export { routeMeta };
 `;
 };
 
-const renderShellConnectorPage = (route: PageRoute): string =>
-  `export { default } from '${relativeFromRoute(route, 'modules/[moduleId]/page.tsx')}';
+const renderShellConnectorPage = (route: PageRoute): string => {
+  const routeId = `/$lang${route.canonicalPath.replaceAll(/:(?<parameter>[A-Za-z][A-Za-z0-9_]*)/gu, '$$$<parameter>')}`;
+  return `import { useLoaderData } from '@modern-js/plugin-tanstack/runtime';
+import type { ModuleTargetPageModel } from '${relativeFromRoute(route, 'modules/[moduleId]/page.data.ts')}';
+import { ModuleTargetView } from '${relativeFromRoute(route, 'modules/[moduleId]/page.tsx')}';
+
+const PageConnector = () => {
+ const initialModel: ModuleTargetPageModel = useLoaderData({from: '${routeId}', structuralSharing:false});
+ return <ModuleTargetView initialModel={initialModel} />;
+};
+export default PageConnector;
 `;
+};
 
 const renderShellConnectorLoader = (vertical: PageVerticalMetadata, page: string, route: PageRoute): string => {
   const loaderImport = route.isDynamic
@@ -899,10 +922,7 @@ const generatedWiringMatches = (
     const wiring = pageWiring(vertical, page, route, config);
     const federationPath = resolveContainedPath(vertical.directory, 'module-federation.config.ts');
     const [federation, shellClients] = yield* Effect.all(
-      [
-        readTextFile(federationPath),
-        readTextFile(resolveContainedPath(workspaceRoot, 'apps', SHELL_APP_ID, 'src', 'api', 'vertical-clients.ts')),
-      ],
+      [readTextFile(federationPath), shellPageClientsPath(workspaceRoot).pipe(Effect.flatMap(readTextFile))],
       { concurrency: 'unbounded' },
     );
     const shellRouteDirectory = resolveContainedPath(
@@ -1112,14 +1132,7 @@ const planPageScaffold = (
     );
     const federationPath = resolveContainedPath(vertical.directory, 'module-federation.config.ts');
     const federatedPagePath = resolveContainedPath(vertical.directory, 'src', 'federation', `page-${page}.tsx`);
-    const shellClientsPath = resolveContainedPath(
-      workspaceRoot,
-      'apps',
-      SHELL_APP_ID,
-      'src',
-      'api',
-      'vertical-clients.ts',
-    );
+    const shellClientsPath = yield* shellPageClientsPath(workspaceRoot);
     const [pageMutation, routeMutation, localeMutations, federationContent, shellClientsContent] = yield* Effect.all(
       [
         createMutationEffect(pagePath, renderPage(vertical, page, route), 'page route could not be created'),
@@ -1161,12 +1174,14 @@ const planPageScaffold = (
     const shellClientsMutation = updateMutation(
       shellClientsPath,
       shellClientsContent,
-      insertSortedSlot(
-        shellClientsContent,
-        SHELL_PAGE_CLIENT_SLOT_START,
-        SHELL_PAGE_CLIENT_SLOT_END,
-        [pageWiring(vertical, page, route, config).shellClient],
-        (candidate) => candidate.endsWith(','),
+      withPageLoaderImport(
+        insertSortedSlot(
+          shellClientsContent,
+          SHELL_PAGE_CLIENT_SLOT_START,
+          SHELL_PAGE_CLIENT_SLOT_END,
+          [pageWiring(vertical, page, route, config).shellClient],
+          (candidate) => candidate.endsWith(','),
+        ),
       ),
     );
     const [shellPageMutation, shellLoaderMutation, shellRouteMetadataMutation] = yield* Effect.all(

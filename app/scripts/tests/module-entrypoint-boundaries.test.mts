@@ -10,6 +10,7 @@ import { expect, it } from 'effect-rstest';
 import { checkModuleEntrypointBoundaries as checkModuleEntrypointBoundariesEffect } from '../check-module-entrypoint-boundaries.mts';
 import {
   hasGeneratedActionRegistrationBinding,
+  hasGeneratedActionClientExports,
   hasGeneratedGovernedServerContract,
 } from '../generated-governed-http-boundary.mts';
 import { hasGeneratedGovernedClientContract, hasGeneratedSourceHeader } from '../generated-module-api-boundary.mts';
@@ -2755,3 +2756,51 @@ for (const outcome of ['success', EARLY_FAILURE, PARTIAL_FAILURE, 'interruption'
     }),
   );
 }
+
+it.live(
+  'accepts owner-local read service factories but rejects cross-owner and type-only bindings',
+  Effect.fn(function* ownerReadFactory() {
+    const root = yield* makeFixture();
+    yield* writeGovernedModuleApi(root);
+    const binding = "import { stockServices } from '../services/stock.service.ts';";
+    const source = `${binding}\n${moduleReadFixture(STOCK_LIST_STEM, 'StockList', 'stockList').replace(
+      '() => Layer.empty',
+      'stockServices',
+    )}`;
+    yield* write(root, STOCK_LIST_READ_FILE, source);
+    yield* checkModuleEntrypointBoundaries(root);
+    for (const invalid of [
+      source.replace('../services/stock.service.ts', '../../../other/src/services/stock.service.ts'),
+      source.replace('../services/stock.service.ts', '../services/../../other/stock.service.ts'),
+      source.replace('import { stockServices }', 'import type { stockServices }'),
+      source.replace('stockServices, () =>', 'notImportedServices, () =>'),
+    ]) {
+      yield* write(root, STOCK_LIST_READ_FILE, invalid);
+      yield* Effect.matchCause(checkModuleEntrypointBoundaries(root), {
+        onFailure: (cause) =>
+          expect(String(Cause.squash(cause))).toMatch(
+            /module APIs require an approved Codesmith generator|cross|private/u,
+          ),
+        onSuccess: () => {
+          throw new Error(EXPECTED_EFFECT_FAILURE);
+        },
+      });
+    }
+  }),
+);
+
+const slot = (body: string) =>
+  `// <generated-action-http-client-exports>\n${body}\n// </generated-action-http-client-exports>`;
+const accepts = (source: string) => hasGeneratedActionClientExports(source, 'create-inquiry');
+
+it('generated Action client exports preserve both governed entrypoints in the owner slot', () => {
+  const named =
+    "export { executeCreateInquiry, executeCreateInquiryWithAuthorization } from './create-inquiry-action-client.ts';";
+  expect(accepts(slot(named))).toBe(true);
+  expect(accepts(slot("export * from './create-inquiry-action-client.ts';"))).toBe(true);
+  expect(accepts(slot(named.replace(', executeCreateInquiryWithAuthorization', '')))).toBe(false);
+  expect(accepts(slot(named.replace('./create-inquiry', '../other/create-inquiry')))).toBe(false);
+  expect(accepts(slot(`// ${named}`))).toBe(false);
+  expect(accepts(named + slot(''))).toBe(false);
+  expect(accepts(slot(`${named}\n${named}`))).toBe(false);
+});

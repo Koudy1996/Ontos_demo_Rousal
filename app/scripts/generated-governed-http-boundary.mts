@@ -458,6 +458,13 @@ const defaultExportExpression = (source: string): string | undefined =>
   assignedExpression(source, /^\s*export default\s+/mu);
 
 const returnedEffectBffDefinition = (source: string): string | undefined => {
+  const conciseBody = /^\(\)\s*=>\s*(?<body>[\s\S]+)$/u.exec(source.trim())?.groups?.body;
+  if (
+    conciseBody !== undefined &&
+    isWholeCallExpression(conciseBody, /^(?:defineEffectBff|assembleEffectBffRuntime)\(/u)
+  ) {
+    return objectArgument(conciseBody, /^(?:defineEffectBff|assembleEffectBffRuntime)\(/u);
+  }
   const structure = maskNonCode(source);
   const returnedCalls = [...structure.matchAll(/\breturn\s+(?:defineEffectBff|assembleEffectBffRuntime)\(/gu)];
   if (returnedCalls.length !== 1 || returnedCalls[0]?.index === undefined) {
@@ -1007,12 +1014,15 @@ const hasReadCallbacks = (source: string, readExpression: string, kind: Governed
     if (candidate === undefined || !/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(candidate)) {
       return false;
     }
-    return [...source.matchAll(/^\s*import\s*\{(?<values>[^}]*)\}\s*from\s*['"]\.\/[a-z][a-z0-9-]*\.ts['"];?/gmu)].some(
-      (match) =>
-        (match.groups?.values ?? '')
-          .split(',')
-          .map((entry) => entry.trim())
-          .includes(candidate),
+    return [
+      ...source.matchAll(
+        /^\s*import\s*\{(?<values>[^}]*)\}\s*from\s*['"](?:\.\/[a-z][a-z0-9-]*|\.\.\/services\/[a-z][a-z0-9-]*\.service)\.ts['"];?/gmu,
+      ),
+    ].some((match) =>
+      (match.groups?.values ?? '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .includes(candidate),
     );
   };
   const isOwnerLocalImportedFactoryResult = (candidate: string | undefined): boolean => {
@@ -1848,6 +1858,19 @@ export const hasGeneratedActionKeyIdentity = (source: string, expectedKey: strin
   });
 };
 
+export const hasGeneratedActionClientExports = (source: string, slug: string): boolean => {
+  const type = toPascalCase(slug);
+  return slotHasExactlyOneCodeMatch(
+    source,
+    '// <generated-action-http-client-exports>',
+    '// </generated-action-http-client-exports>',
+    new RegExp(
+      `export (?:\\*|\\{\\s*execute${type},\\s*execute${type}WithAuthorization,?\\s*\\}) from './${escapeRegExp(slug)}-action-client\\.ts';`,
+      'gu',
+    ),
+  );
+};
+
 const hasCompleteGeneratedActionHttpSeam = (input: {
   readonly deploymentAppId: string;
   readonly handlerRoot: string;
@@ -1925,12 +1948,7 @@ const hasCompleteGeneratedActionHttpSeam = (input: {
           'gu',
         ),
       ),
-      slotHasExactlyOneCodeMatch(
-        clientRoot,
-        '// <generated-action-http-client-exports>',
-        '// </generated-action-http-client-exports>',
-        new RegExp(`export \\* from './${escapedSlug}-action-client\\.ts';`, 'gu'),
-      ),
+      hasGeneratedActionClientExports(clientRoot, slug),
       slotHasExactlyOneCodeMatch(
         input.manifest,
         '// <generated-module-manifest-actions>',

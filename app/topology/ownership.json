@@ -254,6 +254,24 @@
           ]
         }
       }
+    },
+    {
+      "id": "sales-inquiries",
+      "package": "@app/sales-inquiries",
+      "path": "verticals/sales-inquiries",
+      "ownership": {
+        "team": "super-app-platform",
+        "slack": "#super-app-platform",
+        "pagerDuty": "pd-super-app-platform",
+        "runbookRef": "runbooks/verticals/sales-inquiries.md",
+        "adrRef": "docs/super-app-rfc-adr/verticals.md#sales-inquiries",
+        "blastRadius": {
+          "tier": "tier-2-vertical",
+          "references": [
+            "docs/super-app-rfc-adr/blast-radius.md#sales-inquiries"
+          ]
+        }
+      }
     }
   ]
 }

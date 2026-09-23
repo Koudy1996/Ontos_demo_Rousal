@@ -120,7 +120,17 @@ const initializeGovernedHttpApiRoot = (source: string, vertical: VerticalMetadat
     return raiseScaffoldFailure(`vertical ${vertical.slug} shared API already uses reserved governed-read composition`);
   }
   const structure = maskNonCode(source);
-  const declarations = [...structure.matchAll(/export const (?<api>[A-Za-z][A-Za-z0-9]*)\s*=\s*HttpApi\.make\(/gu)];
+  const allDeclarations = [...structure.matchAll(/export const (?<api>[A-Za-z][A-Za-z0-9]*)\s*=\s*HttpApi\.make\(/gu)];
+  const foundation = `${toCamelCase(vertical.slug)}FoundationApi`;
+  const currentRoot = `${toCamelCase(vertical.slug)}Api`;
+  const hasPinnedFoundation =
+    allDeclarations.length === 2 &&
+    allDeclarations.some((declaration) => declaration.groups?.['api'] === foundation) &&
+    allDeclarations.some((declaration) => declaration.groups?.['api'] === currentRoot) &&
+    structure.includes(`.addHttpApi(${foundation})`);
+  const declarations = hasPinnedFoundation
+    ? allDeclarations.filter((declaration) => declaration.groups?.['api'] === currentRoot)
+    : allDeclarations;
   if (declarations.length !== 1) {
     return raiseScaffoldFailure(`vertical ${vertical.slug} shared API must contain exactly one generated HttpApi root`);
   }
@@ -167,11 +177,16 @@ const initializeGovernedHttpHandlerRoot = (source: string, vertical: VerticalMet
   }
   const runtimeLayerNeedle = ') satisfies EffectRuntimeLayer;';
   const runtimeLayerEnd = source.lastIndexOf(runtimeLayerNeedle);
-  if (runtimeLayerEnd === -1) {
+  const assembledHandlersNeedle = 'handlers: apiHandlersLive,';
+  const hasAssembledRuntime =
+    source.includes("import { assembleEffectBffRuntime } from '@app/shared-contracts/server/effect-bff-runtime';") &&
+    source.includes('assembleEffectBffRuntime({') &&
+    source.split(assembledHandlersNeedle).length === 2;
+  if (runtimeLayerEnd === -1 && !hasAssembledRuntime) {
     return raiseScaffoldFailure(`vertical ${vertical.slug} API root must expose the pinned Effect runtime layer`);
   }
   const runtimeLayerStart = source.lastIndexOf('const layer = HttpApiBuilder.layer(', runtimeLayerEnd);
-  if (runtimeLayerStart === -1) {
+  if (runtimeLayerStart === -1 && !hasAssembledRuntime) {
     return raiseScaffoldFailure(`vertical ${vertical.slug} API root must contain the pinned HttpApiBuilder layer`);
   }
   const generatedRoot = `import {
@@ -223,6 +238,12 @@ export const governedReadApiHandlersLive = GovernedReadLayer.mergeAll(
   GovernedReadLayer.provide(GovernedReadLayer.empty),
 );
 `;
+  if (hasAssembledRuntime) {
+    return `${generatedRoot}\n${source.replace(
+      assembledHandlersNeedle,
+      `handlers: GovernedReadLayer.mergeAll(apiHandlersLive, governedReadApiHandlersLive).pipe(\n    GovernedReadLayer.provide(GovernedDatabaseConfigLive),\n    GovernedReadLayer.orDie,\n  ),`,
+    )}`;
+  }
   return `${generatedRoot}\n${source.slice(0, runtimeLayerStart)}${source.slice(
     runtimeLayerStart,
     runtimeLayerEnd,

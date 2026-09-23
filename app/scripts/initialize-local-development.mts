@@ -76,6 +76,7 @@ export const LOCAL_DEVELOPMENT_CONTEXT = Object.freeze({
 });
 
 export const LOCAL_DEVELOPMENT_VERTICALS = Object.freeze([
+  'sales-inquiries',
   'party-registry',
   'commerce-market-catalog',
   'commerce-customer-context',

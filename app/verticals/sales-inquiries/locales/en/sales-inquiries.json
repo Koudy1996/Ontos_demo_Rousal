@@ -1,0 +1,125 @@
+{
+  "sales-inquiries": {
+    "language": {
+      "cs": "Czech",
+      "en": "English",
+      "switcher": "Language"
+    },
+    "routes": {
+      "home": "Home"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern surface with localized SSR and framework-owned public metadata."
+    },
+    "federatedSurface": "Federated surface owned by this vertical.",
+    "remoteUnavailable": "Remote vertical unavailable",
+    "role": "sales-inquiries",
+    "routeSurface": "Route surface owned by this vertical.",
+    "title": "Inquiries and offers",
+    "widgetBody": "Clearance inquiries, site visits and service offers.",
+    "pages": {
+      "inquiries": {
+        "description": "Clearance inquiries, site visits and service offers.",
+        "title": "Inquiries and offers"
+      }
+    },
+    "demo": {
+      "title": "Inquiries and offers",
+      "new": "New inquiry",
+      "edit": "Edit details",
+      "contactSearch": "Search contacts",
+      "search": "Search",
+      "contactResults": "Matching contacts",
+      "contact": "Contact",
+      "chooseContact": "Select an existing contact",
+      "details": "Service location and clearance details",
+      "addressLine": "Street address",
+      "city": "City",
+      "postalCode": "Postal code",
+      "countryCode": "Country (ISO code)",
+      "description": "Clearance description",
+      "requestedDate": "Requested date",
+      "floor": "Floor",
+      "estimatedVolumeM3": "Estimated volume (m³)",
+      "specialWaste": "Special waste",
+      "siteVisitAt": "Site visit (Prague time)",
+      "internalNote": "Internal note",
+      "save": "Save inquiry",
+      "cancel": "Cancel",
+      "back": "Back to inquiries",
+      "planVisit": "Schedule site visit",
+      "startPricing": "Start pricing",
+      "offer": "Service offer",
+      "work": "Work (CZK)",
+      "transport": "Transport (CZK)",
+      "disposal": "Waste disposal (CZK)",
+      "material": "Materials (CZK)",
+      "other": "Other (CZK)",
+      "total": "Total",
+      "sentAt": "Sent at",
+      "estimatedPersonHours": "Estimated person-hours",
+      "saveOffer": "Save calculation",
+      "sendOffer": "Mark offer as sent",
+      "acceptanceMeaning": "Record the customer’s actual binding acceptance. A job can be created in the next step.",
+      "evidenceNote": "How and when the customer confirmed acceptance",
+      "accept": "Accepted",
+      "decline": "Declined",
+      "declineReason": "Reason for declining (optional)",
+      "readyForJob": "Offer accepted — ready to create a job",
+      "loading": "Loading…",
+      "saving": "Saving…",
+      "empty": "No inquiries at this stage yet.",
+      "notSet": "Not specified",
+      "open": "Open inquiry",
+      "retry": "Retry the same request",
+      "refresh": "Refresh",
+      "resolve": "Check commit status",
+      "objectType": {
+        "label": "Property type",
+        "APARTMENT": "Apartment",
+        "HOUSE": "House",
+        "COMMERCIAL": "Commercial premises",
+        "OTHER": "Other"
+      },
+      "elevator": {
+        "label": "Elevator",
+        "unknown": "Unknown",
+        "yes": "Yes",
+        "no": "No"
+      },
+      "stage": {
+        "label": "Stage",
+        "ALL": "All",
+        "NEW": "New",
+        "SITE_VISIT": "Site visit",
+        "PRICING": "Pricing",
+        "OFFER_SENT": "Awaiting response",
+        "ACCEPTED": "Accepted",
+        "DECLINED": "Declined"
+      },
+      "priceBasis": {
+        "label": "Entered price",
+        "EXCLUDING_VAT": "Excluding VAT",
+        "INCLUDING_VAT": "Including VAT"
+      },
+      "method": {
+        "label": "Acceptance method",
+        "PHONE": "Phone",
+        "EMAIL": "Email",
+        "IN_PERSON": "In person",
+        "OTHER": "Other"
+      },
+      "error": {
+        "authentication": "Your session is no longer valid. Please sign in again.",
+        "forbidden": "You do not have permission for this operation.",
+        "internal": "The operation could not be completed.",
+        "validation": "Check the entered details and the permitted inquiry stage.",
+        "notFound": "The record was not found in the current legal entity.",
+        "conflict": "Someone changed the inquiry. Refresh its details.",
+        "unavailable": "A service is temporarily unavailable. A pending write retains the same request for retry.",
+        "committed": "The request was already committed. Refreshing data.",
+        "uncertain": "The write outcome is not confirmed. Check its status before issuing another command."
+      }
+    }
+  }
+}

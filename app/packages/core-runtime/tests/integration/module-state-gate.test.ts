@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import { and, eq } from 'drizzle-orm';
-import { Effect, Exit, Option, Predicate } from 'effect';
+import { and, eq, sql } from 'drizzle-orm';
+import { Deferred, Effect, Exit, Fiber, Option, Predicate } from 'effect';
 import { expect, it } from 'effect-rstest';
 
 import type { CoreDatabase } from '../../src/db/client.ts';
 import { makeCoreDatabase } from '../../src/db/client.ts';
 import { loadDatabaseConfig } from '../../src/db/config.ts';
-import { tenantModuleStates, tenants } from '../../src/db/schema.ts';
+import { dataAccessEvents, principals, tenantModuleStates, tenants } from '../../src/db/schema.ts';
 import { defineTenantModuleEntrypoint } from '../../src/modules/module-entrypoint.ts';
 import { decideModuleStateAccess, makeModuleStateGate } from '../../src/modules/module-state-gate.ts';
 import { TenantModuleStateReadUnavailableError } from '../../src/modules/tenant-module-state-errors.ts';
@@ -32,6 +32,7 @@ it.live('batches tenant-isolated states once, rejects malformed/unavailable read
   Effect.gen(function* moduleStateGate1() {
     const tenantOne = randomUUID();
     const tenantTwo = randomUUID();
+    const auditPrincipal = randomUUID();
     const moduleKey = `gate.integration-${tenantOne}`;
     const stateModuleKey = (state: (typeof TENANT_MODULE_STATES)[number]): string =>
       `${moduleKey}.${state.replaceAll('_', '-')}`;
@@ -39,7 +40,7 @@ it.live('batches tenant-isolated states once, rejects malformed/unavailable read
     const database = yield* makeCoreDatabase(configuration);
     yield* Effect.addFinalizer(() =>
       Effect.forEach(
-        [tenantModuleStates, tenants],
+        [dataAccessEvents, principals, tenantModuleStates, tenants],
         (table) =>
           Effect.forEach(
             [tenantOne, tenantTwo],
@@ -74,6 +75,14 @@ it.live('batches tenant-isolated states once, rejects malformed/unavailable read
         tenantId: tenantOne,
       })),
     ]);
+
+    yield* database.executor.insert(principals).values({
+      displayName: 'Read audit fixture',
+      kind: 'human',
+      principalId: auditPrincipal,
+      status: 'active',
+      tenantId: tenantOne,
+    });
 
     let selects = 0;
     const countingExecutor: DatabaseService['executor'] = Object.create(database.executor);
@@ -165,7 +174,53 @@ it.live('batches tenant-isolated states once, rejects malformed/unavailable read
     const missing = yield* Effect.flip(gate.check(missingSnapshot, missingDescriptor));
     expect(Predicate.isTagged(missing, 'ModuleStateDeniedError')).toBe(true);
 
-    yield* database.executor.transaction((transaction) => gate.recheckWrite(transaction, tenantOne, write));
+    const held = yield* Deferred.make<boolean>();
+    const release = yield* Deferred.make<boolean>();
+    const gateFiber = yield* database.executor
+      .transaction(
+        Effect.fn(function* holdActionFence(transaction) {
+          yield* gate.recheckWrite(transaction, tenantOne, write);
+          yield* Deferred.succeed(held, true);
+          yield* Deferred.await(release);
+        }),
+      )
+      .pipe(Effect.forkScoped);
+    yield* Deferred.await(held);
+    // Independent owner audit must commit while the Action fence remains held.
+    yield* database.executor.transaction(
+      Effect.fn(function* independentAudit(auditTransaction) {
+        yield* auditTransaction.execute(sql`SET LOCAL lock_timeout = '500ms'`);
+        yield* auditTransaction.insert(dataAccessEvents).values({
+          accessKind: 'read',
+          authMethod: 'session',
+          evidenceCaptureMode: 'metadata_only',
+          evidencePolicyKey: 'test.cross-owner-read',
+          outcome: 'allowed',
+          outcomeCode: 'read_allowed',
+          outcomeStage: 'execution',
+          principalId: auditPrincipal,
+          resultCount: 1,
+          servingModuleKey: 'other.owner',
+          tenantId: tenantOne,
+        });
+      }),
+    );
+    // The same FOR UPDATE lock used by lifecycle persistence must still conflict.
+    const competingLifecycle = yield* database.executor
+      .transaction(
+        Effect.fn(function* lifecycleFence(other) {
+          yield* other.execute(sql`SET LOCAL lock_timeout = '100ms'`);
+          return yield* other.select().from(tenants).where(eq(tenants.tenantId, tenantOne)).for('update');
+        }),
+      )
+      .pipe(Effect.exit);
+    expect(Exit.isFailure(competingLifecycle)).toBe(true);
+    yield* Deferred.succeed(release, true);
+    yield* Fiber.join(gateFiber);
+    // Once the Action commits, lifecycle persistence can acquire its fence.
+    yield* database.executor.transaction((transaction) =>
+      transaction.select().from(tenants).where(eq(tenants.tenantId, tenantOne)).for('update'),
+    );
     yield* database.executor
       .update(tenantModuleStates)
       .set({ state: 'read_only' })

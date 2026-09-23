@@ -16,6 +16,8 @@ import type { JsonValue } from '../shared.mts';
 import { write } from './fixture-files.mts';
 import { linkFixtureDependencies, withCreatedFixture } from './fixture-ownership.mts';
 
+const propertyApiPath = 'verticals/property-registry/shared/api.ts';
+const propertyRuntimePath = 'verticals/property-registry/api/index.ts';
 const { checkOntosModuleContracts } = await import(
   /* webpackIgnore: true */
   '../../check-ontos-module-contracts.mts'
@@ -578,11 +580,9 @@ export const fixtureApi = HttpApi.make('Fixture;Api')
   .pipe((api) => { const label = ';'; return api; });
 export const untouched = true;
 `;
-        yield* write(root, 'verticals/property-registry/shared/api.ts', source);
+        yield* write(root, propertyApiPath, source);
         yield* scaffold(root);
-        const generated = yield* Effect.promise(() =>
-          readFile(path.join(root, 'verticals/property-registry/shared/api.ts'), 'utf-8'),
-        );
+        const generated = yield* Effect.promise(() => readFile(path.join(root, propertyApiPath), 'utf-8'));
         expect(generated).toMatch(/HttpApi\.make\('Fixture;Api'\)/u);
         expect(generated).toMatch(/return api;\s*\}\)\s*\/\/ <generated-governed-http-api-additions>/u);
         expect(generated).toMatch(/<\/generated-governed-http-api-additions>\s*\.pipe\(governedHttpApiIdentity\);/u);
@@ -601,7 +601,7 @@ it.live(
       Effect.fn(function* mergedScenario7(root) {
         yield* write(
           root,
-          'verticals/property-registry/api/index.ts',
+          propertyRuntimePath,
           `const layer = HttpApiBuilder.layer(fixtureApi).pipe(
   identity,
 ) satisfies EffectRuntimeLayer;
@@ -609,9 +609,7 @@ export default defineEffectBff({ api: fixtureApi, layer });
 `,
         );
         yield* scaffold(root);
-        const generated = yield* Effect.promise(() =>
-          readFile(path.join(root, 'verticals/property-registry/api/index.ts'), 'utf-8'),
-        );
+        const generated = yield* Effect.promise(() => readFile(path.join(root, propertyRuntimePath), 'utf-8'));
         expect(generated).toMatch(/GovernedReadLayer\.provide\(governedReadApiHandlersLive\)/u);
         expect(generated).toMatch(/GovernedReadLayer\.orDie/u);
         expect(generated).not.toMatch(/\bLayer\./u);
@@ -1643,3 +1641,49 @@ it('follows local and imported aliases of Problem Details factories', () => {
     }
   }
 });
+
+it.live('module-contract composes the pinned foundation API and concise runtime exactly once', () =>
+  withFixture(
+    Effect.fn(function* currentFoundationFixture(root) {
+      yield* write(
+        root,
+        propertyApiPath,
+        `
+export const propertyRegistryFoundationApi = HttpApi.make('Foundation');
+export const propertyRegistryApi = HttpApi.make('Root').addHttpApi(propertyRegistryFoundationApi);
+`,
+      );
+      yield* write(
+        root,
+        propertyRuntimePath,
+        `
+import { assembleEffectBffRuntime } from '@app/shared-contracts/server/effect-bff-runtime';
+export const makePropertyRegistryRuntime = () => assembleEffectBffRuntime({
+  api: propertyRegistryApi,
+  handlers: apiHandlersLive,
+});
+export default makePropertyRegistryRuntime();
+`,
+      );
+      yield* scaffold(root);
+      const contract = yield* Effect.promise(() => readFile(path.join(root, propertyApiPath), 'utf-8'));
+      const runtime = yield* Effect.promise(() => readFile(path.join(root, propertyRuntimePath), 'utf-8'));
+      expect(contract).toContain('export const governedHttpApi = propertyRegistryApi;');
+      expect(contract.match(/generated-governed-http-api-additions>/gu)).toHaveLength(2);
+      expect(runtime).toContain('GovernedReadLayer.mergeAll(apiHandlersLive, governedReadApiHandlersLive)');
+    }),
+  ),
+);
+
+it.live('module-contract refuses unrelated multiple roots without modifying their contract', () =>
+  withFixture(
+    Effect.fn(function* ambiguousRootFixture(root) {
+      const source = `export const unrelatedApi = HttpApi.make('Other');
+export const propertyRegistryApi = HttpApi.make('Root');
+`;
+      yield* write(root, propertyApiPath, source);
+      yield* expectFailure(scaffold(root), (failure) => expect(String(failure)).toMatch(/exactly one/u));
+      expect(yield* Effect.promise(() => readFile(path.join(root, propertyApiPath), 'utf-8'))).toBe(source);
+    }),
+  ),
+);

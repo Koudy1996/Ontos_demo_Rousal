@@ -1,0 +1,44 @@
+{
+  "deliveryUnit": {
+    "appId": "sales-inquiries",
+    "buildMarker": "87c5ca20381b89c4",
+    "deployProfile": "cloudflare-ssr-mf-effect-v1",
+    "kind": "microvertical-delivery-unit",
+    "packageName": "@app/sales-inquiries",
+    "schemaVersion": 1,
+    "sourceRevision": "workspace",
+    "unitId": "app/sales-inquiries",
+    "version": "0.1.0",
+    "build": "87c5ca20381b89c4"
+  },
+  "kind": "ultramodern-build-artifact",
+  "schemaVersion": 1,
+  "surfaces": {
+    "api": {
+      "appId": "sales-inquiries",
+      "buildMarker": "87c5ca20381b89c4",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/sales-inquiries",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/sales-inquiries",
+      "version": "0.1.0",
+      "build": "87c5ca20381b89c4",
+      "surface": "api"
+    },
+    "ui": {
+      "appId": "sales-inquiries",
+      "buildMarker": "87c5ca20381b89c4",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/sales-inquiries",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/sales-inquiries",
+      "version": "0.1.0",
+      "build": "87c5ca20381b89c4",
+      "surface": "ui"
+    }
+  }
+}

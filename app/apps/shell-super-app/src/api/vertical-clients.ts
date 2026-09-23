@@ -22,3 +22,6 @@ export type { StorefrontRegistryClientOptions } from '@app/storefront-registry/a
 
 export { findApprovedVerticalPageClient, ultramodernVerticalClients } from './vertical-page-clients.ts';
 export type { ApprovedVerticalPageClient, ApprovedVerticalPageComponent } from './vertical-page-clients.ts';
+
+export { createSalesInquiriesClient, getSalesInquiriesReadiness } from '@app/sales-inquiries/api/client';
+export type { SalesInquiriesClientOptions } from '@app/sales-inquiries/api/client';

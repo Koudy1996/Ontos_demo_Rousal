@@ -33,6 +33,7 @@
     "@app/party-registry": "workspace:*",
     "@app/payment-term-catalog": "workspace:*",
     "@app/pricing": "workspace:*",
+    "@app/sales-inquiries": "workspace:*",
     "@app/shared-contracts": "workspace:*",
     "@app/shared-design-tokens": "workspace:*",
     "@app/storefront-registry": "workspace:*",
@@ -100,6 +101,7 @@
   "zephyr:dependencies": {
     "partyRegistry": "@app/party-registry@workspace:*",
     "commerceMarketCatalog": "@app/commerce-market-catalog@workspace:*",
-    "catalog": "@app/catalog@workspace:*"
+    "catalog": "@app/catalog@workspace:*",
+    "salesInquiries": "@app/sales-inquiries@workspace:*"
   }
 }

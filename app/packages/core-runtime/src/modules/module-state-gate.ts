@@ -261,7 +261,9 @@ export const makeModuleStateGate = (stateService: TenantModuleStateServiceContra
         .select({ tenantId: tenants.tenantId })
         .from(tenants)
         .where(eq(tenants.tenantId, tenantId))
-        .for('update')
+        // Keep the lifecycle write fence while permitting independent governed-read
+        // evidence to take the tenant foreign key's KEY SHARE lock.
+        .for('no key update')
         .pipe(Effect.mapError(unavailable));
       if (tenantRows[0] === undefined) {
         return yield* unavailable();

@@ -476,7 +476,7 @@ Example:
       }),
   }),
   'microvertical-action-boundary': defineCommand({
-    flags: ['vertical'],
+    flags: ['vertical', 'provider'],
     generator: actionBoundaryGenerator,
     help: `Usage: pnpm scaffold:microvertical-action-boundary -- --vertical <vertical>
 
@@ -486,10 +486,14 @@ Required flags:
   --vertical <vertical>  Existing generated vertical folder (lower-kebab-case)
 
 Options:
+  --provider <vertical>  Bind a one-attempt dependency-read credential gateway to this existing owner
   --help                 Show this help without writing
 `,
     requiredFlags: ['vertical'],
-    toConfig: (flags) => Effect.succeed({ vertical: flags.vertical ?? '' }),
+    toConfig: (flags) => {
+      const vertical = flags.vertical ?? '';
+      return Effect.succeed(flags.provider === undefined ? { vertical } : { provider: flags.provider, vertical });
+    },
   }),
   'microvertical-page': defineCommand({
     afterGenerate: (result, options, workspaceRoot) =>

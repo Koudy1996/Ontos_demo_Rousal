@@ -4507,16 +4507,16 @@ export default PurchaseOrdersPage;
         expect(federation).toMatch(/'\.\/PagePurchaseOrders': '\.\/src\/federation\/page-purchase-orders\.tsx'/u);
         expect(federatedPage).toMatch(/<FederatedI18nBoundary/u);
         expect(federatedPage).toMatch(/resources=\{inventoryStockI18nResources\}/u);
+        expect(shellClients).toContain("import('inventoryStock/PagePurchaseOrders')");
         expect(shellClients).toMatch(
-          /appId: 'inventory-stock',\s*componentKey: 'inventory\.stock\.page-purchase-orders',\s*load: \(\) => import\('inventoryStock\/PagePurchaseOrders'\)/u,
+          /appId: 'inventory-stock',\s*componentKey: 'inventory\.stock\.page-purchase-orders',\s*load: PageLoadEffect\.tryPromise\(/u,
         );
         expect(
           yield* readFixtureFile(
             fixture.root,
             'apps/shell-super-app/src/routes/[lang]/inventory-stock/purchase-orders/page.tsx',
           ),
-        ).toBe(`export { default } from '../../modules/[moduleId]/page.tsx';
-`);
+        ).toContain("from: '/$lang/inventory-stock/purchase-orders'");
         expect(
           yield* readFixtureFile(
             fixture.root,
@@ -6265,4 +6265,39 @@ it.live(
     expect(hasValidGovernedHttpCompositionRoot(shared, outputBearing)).toBe(true);
     expect(hasValidGovernedHttpCompositionRoot(shared, dependencyOnly)).toBe(false);
   }),
+);
+
+it.live('dependency read boundary binds a provider and preserves an owner allowlist on rerun', () =>
+  withFixture(
+    Effect.fn(function* dependencyBoundary(fixture) {
+      const args = [scaffoldFlag.vertical, inventorySlug, scaffoldFlag.provider, 'billing'];
+      yield* run(fixture, scaffoldCommand.microverticalActionBoundary, args);
+      const file = 'verticals/inventory-stock/src/api/dependency-read-gateway.ts';
+      const generated = yield* readFixtureFile(fixture.root, file);
+      expect(generated).toContain("bindDependencyReadGateway('billing', '/inventory-stock-api', [])");
+      const adapted = generated.replace(
+        "'/inventory-stock-api', []",
+        "'/inventory-stock-api', ['/reads/party-selection']",
+      );
+      yield* write(fixture.root, file, adapted);
+      yield* run(fixture, scaffoldCommand.microverticalActionBoundary, args);
+      expect(yield* readFixtureFile(fixture.root, file)).toBe(adapted);
+    }),
+  ),
+);
+it.live('dependency read boundary rejects self and missing providers before any writes', () =>
+  withFixture(
+    Effect.fn(function* invalidDependencyBoundary(fixture) {
+      for (const provider of [inventorySlug, 'missing-provider']) {
+        const before = yield* snapshotTree(fixture.root);
+        yield* assertScaffoldRefused(
+          fixture,
+          scaffoldCommand.microverticalActionBoundary,
+          [scaffoldFlag.vertical, inventorySlug, scaffoldFlag.provider, provider],
+          /different deployment|not found|does not exist|could not|cannot|metadata is missing/u,
+        );
+        expect(yield* snapshotTree(fixture.root)).toEqual(before);
+      }
+    }),
+  ),
 );

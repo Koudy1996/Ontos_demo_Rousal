@@ -59,6 +59,33 @@ export const ultramodernRouteMetadata = [
     titleKey: 'shell.moduleTarget.title',
   },
   {
+    canonicalPath: '/inquiries',
+    descriptionKey: 'shell.moduleTarget.seoDescription',
+    entrypoint: {
+      access: 'read',
+      authorization: {
+        kind: 'context_permission',
+        permission: 'module.access',
+      },
+      entrypointKey: 'shell-super-app.page.sales-inquiries-inquiries',
+      moduleKey: 'shell-super-app',
+      role: 'page',
+      scope: 'system',
+    },
+    id: 'shell-sales-inquiries-inquiries',
+    indexable: false,
+    localisedPaths: {
+      cs: '/inquiries',
+      en: '/inquiries',
+    },
+    mfBoundaryId: 'shellSuperApp',
+    namespace: 'shell',
+    ownerAppId: 'shell-super-app',
+    public: false,
+    publicSurface: 'private-app-screen',
+    titleKey: 'shell.moduleTarget.title',
+  },
+  {
     canonicalPath: '/login',
     descriptionKey: 'shell.login.seo.description',
     entrypoint: {
@@ -168,6 +195,10 @@ export const ultramodernLocalisedUrls = {
   '/contacts': {
     cs: '/contacts',
     en: '/contacts',
+  },
+  '/inquiries': {
+    cs: '/inquiries',
+    en: '/inquiries',
   },
   '/login': {
     cs: '/login',

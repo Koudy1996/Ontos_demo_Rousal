@@ -211,6 +211,25 @@ export const planActionBoundaryScaffold = (
 > =>
   Effect.gen(function* planActionBoundaryScaffoldEffect() {
     const vertical = yield* discoverOntosModuleEffect(workspaceRoot, config.vertical);
+    let dependencyGatewayMutation: Option.Option<Mutation> = Option.none();
+    if (config.provider !== undefined) {
+      const provider = yield* discoverOntosModuleEffect(workspaceRoot, config.provider);
+      if (provider.appId === vertical.appId) {
+        return yield* scaffoldError('A dependency-read provider must be a different deployment');
+      }
+      const dependencyGatewayPath = yield* trySync(() =>
+        resolveContainedPath(workspaceRoot, 'verticals', vertical.slug, 'src', 'api', 'dependency-read-gateway.ts'),
+      );
+      dependencyGatewayMutation = yield* createOrAcceptOwnedMutation(
+        dependencyGatewayPath,
+        `${ACTION_BOUNDARY_GENERATOR_HEADER}\n// @ontos-action-boundary-owner ${vertical.appId}\n// @ontos-dependency-read-provider ${provider.appId}\nimport { bindDependencyReadGateway } from '@app/shared-contracts/dependency-read-gateway';\n\n/** Fail closed until the owner declares exact receiving endpoint paths. One request per invocation. */\nexport const dependencyReadGateway = bindDependencyReadGateway('${provider.appId}', '/${vertical.appId}-api', []);\n`,
+        [
+          `@ontos-action-boundary-owner ${vertical.appId}`,
+          `@ontos-dependency-read-provider ${provider.appId}`,
+          `bindDependencyReadGateway('${provider.appId}', '/${vertical.appId}-api',`,
+        ],
+      );
+    }
     const serverPath = yield* trySync(() =>
       resolveContainedPath(workspaceRoot, 'verticals', vertical.slug, 'api', 'auth', 'action-principal.ts'),
     );
@@ -262,6 +281,7 @@ export const planActionBoundaryScaffold = (
       redemptionMutation,
       runnerMutation,
       dependencyMutation,
+      dependencyGatewayMutation,
     ]);
     yield* trySync(() => ensureUniqueMutationPaths(mutations));
     return {

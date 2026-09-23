@@ -45,7 +45,8 @@
           "verticalRefs": [
             "party-registry",
             "commerce-market-catalog",
-            "catalog"
+            "catalog",
+            "sales-inquiries"
           ],
           "remotes": [
             {
@@ -68,6 +69,13 @@
               "name": "verticalCatalog",
               "manifestEnv": "VERTICAL_CATALOG_MF_MANIFEST",
               "manifestUrl": "http://localhost:4105/mf-manifest.json"
+            },
+            {
+              "id": "sales-inquiries",
+              "alias": "salesInquiries",
+              "name": "verticalSalesInquiries",
+              "manifestEnv": "VERTICAL_SALES_INQUIRIES_MF_MANIFEST",
+              "manifestUrl": "http://localhost:4108/mf-manifest.json"
             }
           ],
           "ssr": true,
@@ -2186,6 +2194,294 @@
             ]
           }
         }
+      },
+      {
+        "id": "sales-inquiries",
+        "kind": "vertical",
+        "package": "@app/sales-inquiries",
+        "packageSuffix": "sales-inquiries",
+        "displayName": "Sales Inquiries Vertical",
+        "path": "verticals/sales-inquiries",
+        "domain": "sales-inquiries",
+        "port": 4108,
+        "portEnv": "VERTICAL_SALES_INQUIRIES_PORT",
+        "moduleFederation": {
+          "role": "remote",
+          "name": "verticalSalesInquiries",
+          "exposes": [
+            "./PageInquiries"
+          ],
+          "ssr": true,
+          "dts": {
+            "compilerInstance": "effect-tsgo",
+            "tsConfigPath": "./tsconfig.mf-types.json"
+          }
+        },
+        "backendFederation": {
+          "role": "microvertical-server",
+          "name": "verticalSalesInquiriesBackend",
+          "runtimeFramework": "effect",
+          "strictEffectApproach": true,
+          "deliveryUnit": {
+            "schemaVersion": 1,
+            "kind": "microvertical-delivery-unit",
+            "unitId": "app/sales-inquiries",
+            "packageName": "@app/sales-inquiries",
+            "version": "0.1.0",
+            "buildMarker": "87c5ca20381b89c4",
+            "sourceRevision": "workspace"
+          },
+          "exposes": {
+            "./effect-api": {
+              "contract": "verticals/sales-inquiries/shared/api.ts",
+              "runtime": "verticals/sales-inquiries/api/index.ts",
+              "client": "verticals/sales-inquiries/src/api/sales-inquiries-client.ts",
+              "openapi": "/sales-inquiries-api/openapi.json",
+              "readiness": "/sales-inquiries-api/sales-inquiries/readiness"
+            }
+          },
+          "versionBoundary": {
+            "invariant": "web-and-api-same-build",
+            "identityRoot": "deliveryUnit",
+            "packageName": "@app/sales-inquiries",
+            "ui": {
+              "manifestEnv": "VERTICAL_SALES_INQUIRIES_MF_MANIFEST",
+              "manifestUrl": "http://localhost:4108/mf-manifest.json",
+              "buildMarker": "verticals/sales-inquiries/src/routes/ultramodern-route-metadata.ts"
+            },
+            "api": {
+              "readiness": "/sales-inquiries-api/sales-inquiries/readiness",
+              "buildMarker": "verticals/sales-inquiries/shared/ultramodern-build.ts",
+              "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_SALES_INQUIRIES"
+            }
+          },
+          "executionSurfaces": {
+            "cloudflare": {
+              "kind": "cloudflare-worker-snapshot",
+              "workerName": "app-sales-inquiries",
+              "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_SALES_INQUIRIES",
+              "ssr": {
+                "workerEntry": ".output/server/index.mjs",
+                "workerManifest": ".output/server/modern-worker-manifest.json",
+                "effectBffBundle": ".output/worker/__modern_bff_effect.js",
+                "routeManifest": ".output/server/route.json",
+                "ssrBundle": ".output/worker/index.js",
+                "assetsBinding": "ASSETS"
+              },
+              "zephyr": {
+                "runtime": "ssr-worker",
+                "integration": "managed-cloudflare",
+                "snapshotIdEnv": "ZEPHYR_SALES_INQUIRIES_SNAPSHOT_ID",
+                "versionIdEnv": "ZEPHYR_SALES_INQUIRIES_VERSION_ID",
+                "applicationUidEnv": "ZEPHYR_SALES_INQUIRIES_APPLICATION_UID"
+              },
+              "workerDispatch": {
+                "preferred": "service-binding",
+                "serviceBinding": "VERTICAL_SALES_INQUIRIES_WORKER",
+                "serviceBindingEnv": "VERTICAL_SALES_INQUIRIES_WORKER_BINDING",
+                "dispatchNamespaceEnv": "VERTICAL_SALES_INQUIRIES_DISPATCH_NAMESPACE",
+                "dispatchWorkerNameEnv": "VERTICAL_SALES_INQUIRIES_WORKER_NAME",
+                "requestInterface": "fetch"
+              }
+            },
+            "node": {
+              "kind": "node-mf-runtime",
+              "adapterVersion": "backend-mf-effect-v1",
+              "remoteName": "verticalSalesInquiriesBackend",
+              "manifestEnv": "VERTICAL_SALES_INQUIRIES_BACKEND_MF_MANIFEST",
+              "manifestUrl": "http://localhost:4108/backend-mf-manifest.json",
+              "containerEntry": "http://localhost:4108/backendRemoteEntry.cjs",
+              "remoteType": "commonjs-module",
+              "expose": "./effect-api",
+              "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
+              "expected": {
+                "unitId": "app/sales-inquiries",
+                "buildMarker": "87c5ca20381b89c4"
+              }
+            }
+          },
+          "compatibility": {
+            "contractVersion": "microvertical-server-effect-v1",
+            "packageName": "@app/sales-inquiries",
+            "effectVersion": "4.0.0-rc.112",
+            "moduleFederationVersion": "2.9.0"
+          },
+          "cache": {
+            "cloudflareSnapshot": "immutable",
+            "nodeManifest": "no-store",
+            "nodeVersionedContainer": "immutable",
+            "nodeUnpinnedContainer": "revalidate"
+          },
+          "fallback": {
+            "timeoutMs": 1500,
+            "failureEvent": "modernjs:microvertical-server-fallback",
+            "strategy": "typed-effect-error"
+          }
+        },
+        "deliveryUnit": {
+          "schemaVersion": 1,
+          "kind": "microvertical-delivery-unit",
+          "unitId": "app/sales-inquiries",
+          "packageName": "@app/sales-inquiries",
+          "version": "0.1.0",
+          "buildMarker": "87c5ca20381b89c4",
+          "sourceRevision": "workspace"
+        },
+        "api": {
+          "runtime": "effect",
+          "stem": "sales-inquiries",
+          "prefix": "/sales-inquiries-api",
+          "consumedBy": [
+            "shell-super-app",
+            "sales-inquiries"
+          ],
+          "serverEntry": "verticals/sales-inquiries/api/index.ts",
+          "domainOperations": {}
+        },
+        "deploy": {
+          "cloudflare": {
+            "target": "cloudflare",
+            "workerName": "app-sales-inquiries",
+            "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_SALES_INQUIRIES",
+            "compatibilityDate": "2026-06-02",
+            "compatibilityFlags": [
+              "nodejs_compat",
+              "global_fetch_strictly_public"
+            ],
+            "assetsBinding": "ASSETS",
+            "routes": {
+              "ssr": "/en",
+              "mfManifest": "/mf-manifest.json",
+              "locale": "/locales/en/sales-inquiries.json",
+              "apiReadiness": "/sales-inquiries-api/sales-inquiries/readiness"
+            },
+            "security": {
+              "enabled": true,
+              "headers": {
+                "referrerPolicy": "strict-origin-when-cross-origin",
+                "contentTypeOptions": "nosniff",
+                "permissionsPolicy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+              },
+              "contentSecurityPolicy": {
+                "mode": "report-only",
+                "directives": {
+                  "base-uri": [
+                    "'self'"
+                  ],
+                  "connect-src": [
+                    "'self'",
+                    "https:",
+                    "http:",
+                    "wss:",
+                    "ws:"
+                  ],
+                  "default-src": [
+                    "'self'"
+                  ],
+                  "font-src": [
+                    "'self'",
+                    "data:",
+                    "https:",
+                    "http:"
+                  ],
+                  "form-action": [
+                    "'self'"
+                  ],
+                  "frame-ancestors": [
+                    "'self'"
+                  ],
+                  "img-src": [
+                    "'self'",
+                    "data:",
+                    "blob:",
+                    "https:",
+                    "http:"
+                  ],
+                  "manifest-src": [
+                    "'self'",
+                    "https:",
+                    "http:"
+                  ],
+                  "object-src": [
+                    "'none'"
+                  ],
+                  "script-src": [
+                    "'self'",
+                    "'unsafe-inline'",
+                    "'unsafe-eval'",
+                    "https:",
+                    "http:",
+                    "blob:"
+                  ],
+                  "style-src": [
+                    "'self'",
+                    "'unsafe-inline'",
+                    "https:",
+                    "http:"
+                  ],
+                  "worker-src": [
+                    "'self'",
+                    "blob:"
+                  ]
+                },
+                "reason": "Report-only by default so Cloudflare Module Federation SSR can prove remote script, style, and connect compatibility before enforcement."
+              },
+              "noindex": {
+                "workersDev": true,
+                "localhost": true,
+                "previewHostnames": []
+              }
+            },
+            "qualityGates": {
+              "publicRoutes": {
+                "requireSitemapWhenPresent": true,
+                "requireRobotsSitemapConsistency": true,
+                "requireWebManifestWhenPresent": true
+              },
+              "statusCodes": {
+                "notFoundRoute": "/__ultramodern-smoke-missing/nope",
+                "unknownRouteStatus": 404
+              },
+              "indexing": {
+                "previewNoindex": true,
+                "productionPublicRoutesIndexable": true
+              },
+              "assets": {
+                "cssPreloadRequired": true,
+                "cssResponseRequired": true,
+                "cacheControlRequiredForCss": true,
+                "sourcemapsPubliclyReferenced": false
+              },
+              "budgets": {
+                "ssrHtmlMaxBytes": 250000,
+                "mfManifestMaxBytes": 500000,
+                "localeJsonMaxBytes": 100000,
+                "sitemapXmlMaxBytes": 500000,
+                "cssAssetMaxBytes": 750000
+              },
+              "csp": {
+                "finalMode": "report-only-dogfood",
+                "decision": "Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface."
+              }
+            },
+            "evidence": {
+              "proofScript": "scripts/proof-cloudflare-version.mts",
+              "reportDefault": ".codex/reports/cloudflare-version-proof/public-url-proof.json"
+            },
+            "jsonSmokeChecks": [
+              {
+                "id": "sales-inquiries-readiness-smoke",
+                "route": "/sales-inquiries-api/sales-inquiries/readiness",
+                "expect": {
+                  "status": "ready",
+                  "checks.api": "ready",
+                  "checks.moduleFederation": "ready",
+                  "checks.ssr": "ready"
+                }
+              }
+            ]
+          }
+        }
       }
     ]
   },
@@ -2284,6 +2580,16 @@
         "role": "remote",
         "name": "verticalStorefrontRegistry",
         "exposes": [],
+        "hostOnly": false
+      },
+      {
+        "id": "sales-inquiries",
+        "path": "verticals/sales-inquiries",
+        "role": "remote",
+        "name": "verticalSalesInquiries",
+        "exposes": [
+          "./PageInquiries"
+        ],
         "hostOnly": false
       }
     ]
@@ -2715,6 +3021,69 @@
             "expected": {
               "unitId": "app/storefront-registry",
               "buildMarker": "6e1423f340df12ea"
+            }
+          }
+        }
+      },
+      {
+        "id": "sales-inquiries",
+        "path": "verticals/sales-inquiries",
+        "role": "microvertical-server",
+        "name": "verticalSalesInquiriesBackend",
+        "runtimeFramework": "effect",
+        "strictEffectApproach": true,
+        "contractVersion": "microvertical-server-effect-v1",
+        "deliveryUnit": {
+          "schemaVersion": 1,
+          "kind": "microvertical-delivery-unit",
+          "unitId": "app/sales-inquiries",
+          "packageName": "@app/sales-inquiries",
+          "version": "0.1.0",
+          "buildMarker": "87c5ca20381b89c4",
+          "sourceRevision": "workspace"
+        },
+        "executionSurfaces": {
+          "cloudflare": {
+            "kind": "cloudflare-worker-snapshot",
+            "workerName": "app-sales-inquiries",
+            "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_SALES_INQUIRIES",
+            "ssr": {
+              "workerEntry": ".output/server/index.mjs",
+              "workerManifest": ".output/server/modern-worker-manifest.json",
+              "effectBffBundle": ".output/worker/__modern_bff_effect.js",
+              "routeManifest": ".output/server/route.json",
+              "ssrBundle": ".output/worker/index.js",
+              "assetsBinding": "ASSETS"
+            },
+            "zephyr": {
+              "runtime": "ssr-worker",
+              "integration": "managed-cloudflare",
+              "snapshotIdEnv": "ZEPHYR_SALES_INQUIRIES_SNAPSHOT_ID",
+              "versionIdEnv": "ZEPHYR_SALES_INQUIRIES_VERSION_ID",
+              "applicationUidEnv": "ZEPHYR_SALES_INQUIRIES_APPLICATION_UID"
+            },
+            "workerDispatch": {
+              "preferred": "service-binding",
+              "serviceBinding": "VERTICAL_SALES_INQUIRIES_WORKER",
+              "serviceBindingEnv": "VERTICAL_SALES_INQUIRIES_WORKER_BINDING",
+              "dispatchNamespaceEnv": "VERTICAL_SALES_INQUIRIES_DISPATCH_NAMESPACE",
+              "dispatchWorkerNameEnv": "VERTICAL_SALES_INQUIRIES_WORKER_NAME",
+              "requestInterface": "fetch"
+            }
+          },
+          "node": {
+            "kind": "node-mf-runtime",
+            "adapterVersion": "backend-mf-effect-v1",
+            "remoteName": "verticalSalesInquiriesBackend",
+            "manifestEnv": "VERTICAL_SALES_INQUIRIES_BACKEND_MF_MANIFEST",
+            "manifestUrl": "http://localhost:4108/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4108/backendRemoteEntry.cjs",
+            "remoteType": "commonjs-module",
+            "expose": "./effect-api",
+            "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
+            "expected": {
+              "unitId": "app/sales-inquiries",
+              "buildMarker": "87c5ca20381b89c4"
             }
           }
         }

@@ -158,10 +158,12 @@ const routeFixture = Effect.fn(function* routeFixture(scope: string) {
   writeFileSync(
     createBin,
     `import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-const manifest = readFileSync(path.join(process.env.ULTRAMODERN_WORKSPACE_ROOT, '${ownerPath}/src/routes/ultramodern-route-metadata.ts'), 'utf8');
-const urls = JSON.parse(manifest.split('export const ultramodernLocalisedUrls = ')[1].split(' as const;')[0]);
+const manifest = await import(pathToFileURL(path.join(process.env.ULTRAMODERN_WORKSPACE_ROOT, '${ownerPath}/src/routes/ultramodern-route-metadata.ts')).href);
+const urls = manifest.ultramodernLocalisedUrls;
+assert.equal(manifest.ultramodernRouteNamespace, 'inventory');
+assert.equal(manifest.ultramodernRouteMetadata[0].entrypoint.moduleKey, 'inventory');
 assert.deepEqual(urls, { '/items': { cs: '/polozky', en: '/items' } });
 console.log('framework observed canonical-only metadata');
 `,

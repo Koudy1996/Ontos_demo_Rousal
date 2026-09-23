@@ -45,6 +45,9 @@
     },
     {
       "path": "packages/email-delivery"
+    },
+    {
+      "path": "verticals/sales-inquiries"
     }
   ]
 }

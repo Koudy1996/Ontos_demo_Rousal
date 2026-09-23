@@ -30,12 +30,12 @@ const safelyCheckCompatibility = <Value>(value: Value, isCompatible: (value: Val
 };
 
 /** Settles one browser entrypoint independently with a bounded, audience-safe result. */
-export const settleModuleEntrypointLoad = <Value>(
-  load: () => Promise<Value>,
+export const settleModuleEntrypointLoad = <Value, Failure>(
+  load: Effect.Effect<Value, Failure>,
   isCompatible: (value: Value) => boolean,
   timeoutMs = 5000,
 ): Effect.Effect<SettledModuleEntrypointLoad<Value>> =>
-  Effect.tryPromise(load).pipe(
+  load.pipe(
     Effect.timeout(`${timeoutMs} millis`),
     Effect.map((value): SettledModuleEntrypointLoad<Value> =>
       safelyCheckCompatibility(value, isCompatible)
@@ -55,7 +55,7 @@ export const settleModuleEntrypointLoad = <Value>(
 export interface ModuleEntrypointLoadRequest<Identity, Value> {
   readonly identity: Identity;
   readonly isCompatible: (value: Value) => boolean;
-  readonly load: Parameters<typeof settleModuleEntrypointLoad<Value>>[0];
+  readonly load: Effect.Effect<Value, Cause.UnknownError>;
   readonly timeoutMs?: number;
 }
 
@@ -67,7 +67,7 @@ const settleIntoDeferred = <Value>(
   { isCompatible, load }: ModuleEntrypointLoadRequest<unknown, Value>,
   result: Deferred.Deferred<SettledModuleEntrypointLoad<Value>>,
 ): Effect.Effect<void> =>
-  Effect.tryPromise(load).pipe(
+  load.pipe(
     // The caller deadline is delivered through its Deferred; settlement itself must not release
     // the concurrency permit before the uncancellable import resolves.
     Effect.timeout(Duration.infinity),
