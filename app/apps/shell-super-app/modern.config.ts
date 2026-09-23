@@ -249,6 +249,13 @@ export default defineConfig(
                 getOptionalBuildConfig('VERTICAL_PAYMENT_TERM_CATALOG_WORKER_NAME') ?? 'app-payment-term-catalog',
             },
             {
+              binding:
+                getOptionalBuildConfig('VERTICAL_PRICE_GROUP_CATALOG_WORKER_BINDING') ??
+                'VERTICAL_PRICE_GROUP_CATALOG_WORKER',
+              prefix: '/price-group-catalog-api',
+              service: getOptionalBuildConfig('VERTICAL_PRICE_GROUP_CATALOG_WORKER_NAME') ?? 'app-price-group-catalog',
+            },
+            {
               binding: getOptionalBuildConfig('VERTICAL_PRICING_WORKER_BINDING') ?? 'VERTICAL_PRICING_WORKER',
               prefix: '/pricing-api',
               service: getOptionalBuildConfig('VERTICAL_PRICING_WORKER_NAME') ?? 'app-pricing',

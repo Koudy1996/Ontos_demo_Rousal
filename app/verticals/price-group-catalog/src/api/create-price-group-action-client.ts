@@ -32,11 +32,19 @@ interface MakeClientOptions {
   readonly requestCorrelation: string;
 }
 
-const makeClient = ({ credential, options, requestCorrelation }: MakeClientOptions) =>
-  makeGovernedEffectBffClient(
-    { api: CreatePriceGroupActionApi, credential, defaultApiPrefix: '/price-group-catalog-api', requestCorrelation },
+const makeClient = ({ credential, options, requestCorrelation }: MakeClientOptions) => {
+  const clientConfig = {
+    api: CreatePriceGroupActionApi,
+    credential,
+    defaultApiPrefix: '/price-group-catalog-api',
+    requestCorrelation,
+  };
+  const requestTrace = options[traceIdOption];
+  return makeGovernedEffectBffClient(
+    requestTrace === undefined ? clientConfig : { ...clientConfig, requestTrace },
     options,
   );
+};
 
 export const executeCreatePriceGroupWithAuthorization = (
   payload: CreatePriceGroupPayload,

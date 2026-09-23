@@ -18,10 +18,10 @@ import type {
   ReadRuntimeService,
 } from '@app/core-runtime';
 import { HttpApi, HttpApiBuilder, HttpRouter, HttpServer } from '@modern-js/bff-effect/effect-edge';
-import { ConfigProvider, Context, Effect, Layer, Schema } from 'effect';
+import { Config, ConfigProvider, Context, Effect, Layer, Redacted, Schema } from 'effect';
 import { describe, expect, it } from 'effect-rstest';
 import { FetchHttpClient } from 'effect/unstable/http';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { exportJWK, generateKeyPair, importJWK, SignJWT } from 'jose';
 
 import { ActionPrincipalVerifierLive } from '../../api/auth/action-principal.ts';
 import {
@@ -249,6 +249,38 @@ const makeAssertion = (audience = 'price-group-catalog') =>
       },
       token,
     };
+  });
+
+const GatewayPrivateJwkSchema = Schema.Struct({
+  alg: Schema.Literal('EdDSA'),
+  crv: Schema.Literal('Ed25519'),
+  d: Schema.String.check(Schema.isNonEmpty()),
+  kid: Schema.String.check(Schema.isNonEmpty()),
+  kty: Schema.Literal('OKP'),
+  use: Schema.Literal('sig'),
+  x: Schema.String.check(Schema.isNonEmpty()),
+});
+
+const makeProductionAssertion = (audience = 'price-group-catalog') =>
+  Effect.gen(function* signConfiguredPriceGroupReadAssertion() {
+    const configuredIssuer = yield* Config.string('ONTOS_GATEWAY_ISSUER');
+    const encodedPrivateJwk = yield* Config.redacted('ONTOS_GATEWAY_PRIVATE_JWK');
+    const privateJwk = yield* Schema.decodeEffect(Schema.fromJsonString(GatewayPrivateJwkSchema))(
+      Redacted.value(encodedPrivateJwk),
+    );
+    const privateKey = yield* Effect.promise(() => importJWK(privateJwk, 'EdDSA'));
+    const token = yield* Effect.promise(() =>
+      new SignJWT({ principal, ver: 1 })
+        .setProtectedHeader({ alg: 'EdDSA', kid: privateJwk.kid, typ: 'JWT' })
+        .setIssuer(configuredIssuer)
+        .setAudience(audience)
+        .setSubject(principal.principalId)
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .setJti(randomUUID())
+        .sign(privateKey),
+    );
+    return { token };
   });
 
 const nonPersistingRedemption: GatewayAssertionRedemption = {
@@ -642,13 +674,10 @@ describe('Price Group governed Read HTTP integration', () => {
   it.live('redeems once through the production runtime constructor and real owner database layer', () =>
     Effect.gen(function* redeemThroughProductionComposition() {
       const connections = yield* loadDatabaseConnectionPair();
-      const assertion = yield* makeAssertion();
+      const assertion = yield* makeProductionAssertion();
       const harness = makeReadRuntime();
       const readLayer = Layer.succeed(ReadRuntime, harness.readRuntime);
-      const actionLayer = Layer.mergeAll(
-        Layer.succeed(ActionRuntime, unusedActionRuntime),
-        ConfigProvider.layer(ConfigProvider.fromUnknown(assertion.environment)),
-      );
+      const actionLayer = Layer.succeed(ActionRuntime, unusedActionRuntime);
       const redemptionLayer = GatewayAssertionRedemptionLive.pipe(
         Layer.provide(GatewayAssertionRedemptionDatabaseLive),
         Layer.provide(Layer.succeed(DatabaseConfig, connections.runtime)),

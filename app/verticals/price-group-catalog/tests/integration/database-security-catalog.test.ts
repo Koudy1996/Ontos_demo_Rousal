@@ -41,6 +41,7 @@ const expectedRuntimeFunctions = [
 
 const expectedFunctions = [
   'assert_operation_scope(uuid)',
+  'canonical_price_group_meaning(text)',
   'complete_price_group_containment_projection(uuid, uuid, timestamp with time zone)',
   'create_definition_revision(uuid, jsonb)',
   'create_definition_revision_with_continuity(uuid, jsonb)',
@@ -53,6 +54,7 @@ const expectedFunctions = [
   'guard_interval_insert()',
   'guard_price_group_update()',
   'guard_retirement_insert()',
+  'price_group_meaning_fingerprint(text)',
   'read_current_definition(uuid, uuid, timestamp with time zone)',
   'read_current_definition_with_retirement(uuid, uuid, timestamp with time zone)',
   'read_definition_revision(uuid, uuid, uuid, timestamp with time zone)',
