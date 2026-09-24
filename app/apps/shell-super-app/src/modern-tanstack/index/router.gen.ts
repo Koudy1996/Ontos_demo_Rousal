@@ -15,28 +15,30 @@ import { loader as loader_0 } from "../../routes/[lang]/page.data";
 import component_0 from "../../routes/[lang]/page";
 import { loader as loader_1 } from "../../routes/[lang]/contacts/page.data";
 import component_1 from "../../routes/[lang]/contacts/page";
-import { loader as loader_2 } from "../../routes/[lang]/expenses/page.data";
-import component_2 from "../../routes/[lang]/expenses/page";
-import { loader as loader_3 } from "../../routes/[lang]/inquiries/page.data";
-import component_3 from "../../routes/[lang]/inquiries/page";
-import { loader as loader_4 } from "../../routes/[lang]/invoices/page.data";
-import component_4 from "../../routes/[lang]/invoices/page";
-import { loader as loader_5 } from "../../routes/[lang]/jobs/page.data";
+import { loader as loader_2 } from "../../routes/[lang]/dashboard/page.data";
+import component_2 from "../../routes/[lang]/dashboard/page";
+import { loader as loader_3 } from "../../routes/[lang]/expenses/page.data";
+import component_3 from "../../routes/[lang]/expenses/page";
+import { loader as loader_4 } from "../../routes/[lang]/inquiries/page.data";
+import component_4 from "../../routes/[lang]/inquiries/page";
+import { loader as loader_5 } from "../../routes/[lang]/invoices/page.data";
+import component_5 from "../../routes/[lang]/invoices/page";
+import { loader as loader_6 } from "../../routes/[lang]/jobs/page.data";
 import { validateSearch as validateSearch_0 } from "../../routes/[lang]/jobs/page.search";
-import component_5 from "../../routes/[lang]/jobs/page";
-import component_6 from "../../routes/[lang]/login/page";
-import { loader as loader_6 } from "../../routes/[lang]/modules/[moduleId]/page.data";
-import component_7 from "../../routes/[lang]/modules/[moduleId]/page";
-import { loader as loader_7 } from "../../routes/[lang]/resources/[moduleId]/[resourceType]/[resourceId]/page.data";
-import component_8 from "../../routes/[lang]/resources/[moduleId]/[resourceType]/[resourceId]/page";
-import { loader as loader_8 } from "../../routes/[lang]/search/page.data";
-import component_9 from "../../routes/[lang]/search/page";
-import { loader as loader_9 } from "../../routes/[lang]/workforce/page.data";
-import component_10 from "../../routes/[lang]/workforce/page";
-import component_11 from "../../routes/layout";
+import component_6 from "../../routes/[lang]/jobs/page";
+import component_7 from "../../routes/[lang]/login/page";
+import { loader as loader_7 } from "../../routes/[lang]/modules/[moduleId]/page.data";
+import component_8 from "../../routes/[lang]/modules/[moduleId]/page";
+import { loader as loader_8 } from "../../routes/[lang]/resources/[moduleId]/[resourceType]/[resourceId]/page.data";
+import component_9 from "../../routes/[lang]/resources/[moduleId]/[resourceType]/[resourceId]/page";
+import { loader as loader_9 } from "../../routes/[lang]/search/page.data";
+import component_10 from "../../routes/[lang]/search/page";
+import { loader as loader_10 } from "../../routes/[lang]/workforce/page.data";
+import component_11 from "../../routes/[lang]/workforce/page";
+import component_12 from "../../routes/layout";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
-  component: component_11,
+  component: component_12,
   staticData: createRouteStaticData({
     modernRouteId: "layout",
   }),
@@ -65,55 +67,66 @@ const route__lang__contacts_page = createRoute({
   }),
 });
 
-const route__lang__expenses_page = createRoute({
+const route__lang__dashboard_page = createRoute({
   getParentRoute: () => rootRoute,
-  path: "$lang/expenses",
+  path: "$lang/dashboard",
   component: component_2,
   loader: modernLoaderToTanstack({ hasSplat: false }, loader_2),
   staticData: createRouteStaticData({
-    modernRouteId: "(lang)/expenses/page",
+    modernRouteId: "(lang)/dashboard/page",
     modernRouteLoader: loader_2,
+  }),
+});
+
+const route__lang__expenses_page = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "$lang/expenses",
+  component: component_3,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
+  staticData: createRouteStaticData({
+    modernRouteId: "(lang)/expenses/page",
+    modernRouteLoader: loader_3,
   }),
 });
 
 const route__lang__inquiries_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/inquiries",
-  component: component_3,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
+  component: component_4,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_4),
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/inquiries/page",
-    modernRouteLoader: loader_3,
+    modernRouteLoader: loader_4,
   }),
 });
 
 const route__lang__invoices_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/invoices",
-  component: component_4,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_4),
+  component: component_5,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_5),
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/invoices/page",
-    modernRouteLoader: loader_4,
+    modernRouteLoader: loader_5,
   }),
 });
 
 const route__lang__jobs_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/jobs",
-  component: component_5,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_5),
+  component: component_6,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_6),
   validateSearch: validateSearch_0,
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/jobs/page",
-    modernRouteLoader: loader_5,
+    modernRouteLoader: loader_6,
   }),
 });
 
 const route__lang__login_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/login",
-  component: component_6,
+  component: component_7,
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/login/page",
   }),
@@ -122,48 +135,48 @@ const route__lang__login_page = createRoute({
 const route__lang__modules__moduleId__page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/modules/$moduleId",
-  component: component_7,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_6),
+  component: component_8,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_7),
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/modules/(moduleId)/page",
-    modernRouteLoader: loader_6,
+    modernRouteLoader: loader_7,
   }),
 });
 
 const route__lang__resources__moduleId___resourceType___resourceId__page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/resources/$moduleId/$resourceType/$resourceId",
-  component: component_8,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_7),
+  component: component_9,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_8),
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/resources/(moduleId)/(resourceType)/(resourceId)/page",
-    modernRouteLoader: loader_7,
+    modernRouteLoader: loader_8,
   }),
 });
 
 const route__lang__search_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/search",
-  component: component_9,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_8),
+  component: component_10,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_9),
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/search/page",
-    modernRouteLoader: loader_8,
+    modernRouteLoader: loader_9,
   }),
 });
 
 const route__lang__workforce_page = createRoute({
   getParentRoute: () => rootRoute,
   path: "$lang/workforce",
-  component: component_10,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_9),
+  component: component_11,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_10),
   staticData: createRouteStaticData({
     modernRouteId: "(lang)/workforce/page",
-    modernRouteLoader: loader_9,
+    modernRouteLoader: loader_10,
   }),
 });
 
-export const routeTree = rootRoute.addChildren([route__lang__page, route__lang__contacts_page, route__lang__expenses_page, route__lang__inquiries_page, route__lang__invoices_page, route__lang__jobs_page, route__lang__login_page, route__lang__modules__moduleId__page, route__lang__resources__moduleId___resourceType___resourceId__page, route__lang__search_page, route__lang__workforce_page]);
+export const routeTree = rootRoute.addChildren([route__lang__page, route__lang__contacts_page, route__lang__dashboard_page, route__lang__expenses_page, route__lang__inquiries_page, route__lang__invoices_page, route__lang__jobs_page, route__lang__login_page, route__lang__modules__moduleId__page, route__lang__resources__moduleId___resourceType___resourceId__page, route__lang__search_page, route__lang__workforce_page]);
 
 export const router = createRouter({
   ...modernTanstackRouterFastDefaults,

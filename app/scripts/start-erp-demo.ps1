@@ -11,6 +11,7 @@ $toolsRoot = Join-Path $runtimeRoot 'tools'
 $logsRoot = Join-Path $runtimeRoot 'logs'
 $pidFile = Join-Path $runtimeRoot 'processes.json'
 $pnpmPath = Join-Path $toolsRoot 'pnpm.cmd'
+$demoUrl = 'http://localhost:3020/cs/dashboard'
 
 New-Item -ItemType Directory -Force -Path $toolsRoot, $logsRoot | Out-Null
 
@@ -91,9 +92,13 @@ $env:ONTOS_GATEWAY_PUBLIC_JWKS = '{"keys":[{"crv":"Ed25519","x":"QnsRCV4QqDIWrlI
 $env:ONTOS_PARTY_REGISTRY_API_URL = 'http://localhost:4102/party-registry-api'
 $env:ONTOS_SALES_INQUIRIES_API_URL = 'http://localhost:4109/sales-inquiries-api'
 $env:ONTOS_SERVICE_JOBS_API_URL = 'http://localhost:4110/service-jobs-api'
+$env:ONTOS_WORKFORCE_API_URL = 'http://localhost:4111/workforce-api'
+$env:ONTOS_JOB_EXPENSES_API_URL = 'http://localhost:4112/job-expenses-api'
+$env:ONTOS_BILLING_DOCUMENTS_API_URL = 'http://localhost:4113/billing-documents-api'
 $env:ONTOS_PAYMENT_TERM_CATALOG_API_URL = 'http://localhost:4103/payment-term-catalog-api'
 $env:ONTOS_SHELL_GATEWAY_BASE_URL = 'http://localhost:3020'
 $env:ONTOS_BILLING_DOCUMENTS_GATEWAY_API_KEY = 'ontos_demo_billing_documents_local_key_v1'
+$env:ONTOS_OPERATIONS_DASHBOARD_GATEWAY_API_KEY = 'ontos_demo_billing_documents_local_key_v1'
 
 function Test-DockerEngine {
   $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
@@ -191,7 +196,8 @@ try {
     @{ Name = 'Service Jobs'; Package = '@app/service-jobs'; Url = 'http://localhost:4110/bundles/remoteEntry.js' },
     @{ Name = 'Workforce'; Package = '@app/workforce'; Url = 'http://localhost:4111/bundles/remoteEntry.js' },
     @{ Name = 'Job Expenses'; Package = '@app/job-expenses'; Url = 'http://localhost:4112/bundles/remoteEntry.js' },
-    @{ Name = 'Billing Documents'; Package = '@app/billing-documents'; Url = 'http://localhost:4113/bundles/remoteEntry.js' }
+    @{ Name = 'Billing Documents'; Package = '@app/billing-documents'; Url = 'http://localhost:4113/bundles/remoteEntry.js' },
+    @{ Name = 'Operations Dashboard'; Package = '@app/operations-dashboard'; Url = 'http://localhost:4114/bundles/remoteEntry.js' }
   )
   & $pnpmPath local:initialize
   if ($LASTEXITCODE -ne 0) {
@@ -213,6 +219,7 @@ try {
   foreach ($endpoint in $remoteEndpoints) {
     Wait-Endpoint -Name $endpoint.Name -Url $endpoint.Url
   }
+  Wait-Endpoint -Name 'Operations Dashboard API' -Url 'http://localhost:4114/operations-dashboard-api/operations-dashboard/readiness'
   Start-Sleep -Seconds 5
 
   $shellReadinessUrl = 'http://localhost:3020/shell-super-app-api/auth/session'
@@ -245,24 +252,29 @@ try {
     throw 'Výchozí platební podmínku ERP dema se nepodařilo inicializovat.'
   }
 
+  Wait-Endpoint -Name 'Provozní dashboard' -Url $demoUrl
+
   if ($startedProcesses.Count -gt 0) {
     $knownProcessIds = if (Test-Path -LiteralPath $pidFile) {
       @((Get-Content -LiteralPath $pidFile -Raw | ConvertFrom-Json).processIds)
     } else {
       @()
     }
-    $activeProcessIds = @($knownProcessIds + $startedProcesses | Sort-Object -Unique | Where-Object {
+    $processIdCandidates = @()
+    $processIdCandidates += @($knownProcessIds)
+    $processIdCandidates += @($startedProcesses)
+    $activeProcessIds = @($processIdCandidates | Sort-Object -Unique | Where-Object {
       $null -ne (Get-Process -Id $_ -ErrorAction SilentlyContinue)
     })
     @{ processIds = $activeProcessIds; startedAt = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $pidFile -Encoding utf8
   }
 
-  Write-Host 'ERP demo běží na http://localhost:3020/cs' -ForegroundColor Green
+  Write-Host "ERP demo běží na $demoUrl" -ForegroundColor Green
   Write-Host 'Přihlášení: demo@test.com / password1234'
   Write-Host "Logy: $logsRoot"
 
   if (-not $NoBrowser) {
-    Start-Process 'http://localhost:3020/cs'
+    Start-Process $demoUrl
   }
 } finally {
   Pop-Location

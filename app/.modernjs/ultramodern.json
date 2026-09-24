@@ -50,7 +50,8 @@
             "service-jobs",
             "workforce",
             "job-expenses",
-            "billing-documents"
+            "billing-documents",
+            "operations-dashboard"
           ],
           "remotes": [
             {
@@ -108,6 +109,13 @@
               "name": "verticalBillingDocuments",
               "manifestEnv": "VERTICAL_BILLING_DOCUMENTS_MF_MANIFEST",
               "manifestUrl": "http://localhost:4113/mf-manifest.json"
+            },
+            {
+              "id": "operations-dashboard",
+              "alias": "operationsDashboard",
+              "name": "verticalOperationsDashboard",
+              "manifestEnv": "VERTICAL_OPERATIONS_DASHBOARD_MF_MANIFEST",
+              "manifestUrl": "http://localhost:4114/mf-manifest.json"
             }
           ],
           "ssr": true,
@@ -3192,6 +3200,239 @@
             ]
           }
         }
+      },
+      {
+        "id": "operations-dashboard",
+        "kind": "vertical",
+        "package": "@app/operations-dashboard",
+        "packageSuffix": "operations-dashboard",
+        "displayName": "Operations Dashboard Vertical",
+        "path": "verticals/operations-dashboard",
+        "domain": "operations-dashboard",
+        "port": 4114,
+        "portEnv": "VERTICAL_OPERATIONS_DASHBOARD_PORT",
+        "moduleFederation": {
+          "role": "remote",
+          "name": "verticalOperationsDashboard",
+          "exposes": ["./PageDashboard"],
+          "ssr": true,
+          "dts": {
+            "compilerInstance": "effect-tsgo",
+            "tsConfigPath": "./tsconfig.mf-types.json"
+          }
+        },
+        "backendFederation": {
+          "role": "microvertical-server",
+          "name": "verticalOperationsDashboardBackend",
+          "runtimeFramework": "effect",
+          "strictEffectApproach": true,
+          "deliveryUnit": {
+            "schemaVersion": 1,
+            "kind": "microvertical-delivery-unit",
+            "unitId": "app/operations-dashboard",
+            "packageName": "@app/operations-dashboard",
+            "version": "0.1.0",
+            "buildMarker": "3241c619985c4ed9",
+            "sourceRevision": "workspace"
+          },
+          "exposes": {
+            "./effect-api": {
+              "contract": "verticals/operations-dashboard/shared/api.ts",
+              "runtime": "verticals/operations-dashboard/api/index.ts",
+              "client": "verticals/operations-dashboard/src/api/operations-dashboard-client.ts",
+              "openapi": "/operations-dashboard-api/openapi.json",
+              "readiness": "/operations-dashboard-api/operations-dashboard/readiness"
+            }
+          },
+          "versionBoundary": {
+            "invariant": "web-and-api-same-build",
+            "identityRoot": "deliveryUnit",
+            "packageName": "@app/operations-dashboard",
+            "ui": {
+              "manifestEnv": "VERTICAL_OPERATIONS_DASHBOARD_MF_MANIFEST",
+              "manifestUrl": "http://localhost:4114/mf-manifest.json",
+              "buildMarker": "verticals/operations-dashboard/src/routes/ultramodern-route-metadata.ts"
+            },
+            "api": {
+              "readiness": "/operations-dashboard-api/operations-dashboard/readiness",
+              "buildMarker": "verticals/operations-dashboard/shared/ultramodern-build.ts",
+              "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_OPERATIONS_DASHBOARD"
+            }
+          },
+          "executionSurfaces": {
+            "cloudflare": {
+              "kind": "cloudflare-worker-snapshot",
+              "workerName": "app-operations-dashboard",
+              "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_OPERATIONS_DASHBOARD",
+              "ssr": {
+                "workerEntry": ".output/server/index.mjs",
+                "workerManifest": ".output/server/modern-worker-manifest.json",
+                "effectBffBundle": ".output/worker/__modern_bff_effect.js",
+                "routeManifest": ".output/server/route.json",
+                "ssrBundle": ".output/worker/index.js",
+                "assetsBinding": "ASSETS"
+              },
+              "zephyr": {
+                "runtime": "ssr-worker",
+                "integration": "managed-cloudflare",
+                "snapshotIdEnv": "ZEPHYR_OPERATIONS_DASHBOARD_SNAPSHOT_ID",
+                "versionIdEnv": "ZEPHYR_OPERATIONS_DASHBOARD_VERSION_ID",
+                "applicationUidEnv": "ZEPHYR_OPERATIONS_DASHBOARD_APPLICATION_UID"
+              },
+              "workerDispatch": {
+                "preferred": "service-binding",
+                "serviceBinding": "VERTICAL_OPERATIONS_DASHBOARD_WORKER",
+                "serviceBindingEnv": "VERTICAL_OPERATIONS_DASHBOARD_WORKER_BINDING",
+                "dispatchNamespaceEnv": "VERTICAL_OPERATIONS_DASHBOARD_DISPATCH_NAMESPACE",
+                "dispatchWorkerNameEnv": "VERTICAL_OPERATIONS_DASHBOARD_WORKER_NAME",
+                "requestInterface": "fetch"
+              }
+            },
+            "node": {
+              "kind": "node-mf-runtime",
+              "adapterVersion": "backend-mf-effect-v1",
+              "remoteName": "verticalOperationsDashboardBackend",
+              "manifestEnv": "VERTICAL_OPERATIONS_DASHBOARD_BACKEND_MF_MANIFEST",
+              "manifestUrl": "http://localhost:4114/backend-mf-manifest.json",
+              "containerEntry": "http://localhost:4114/backendRemoteEntry.cjs",
+              "remoteType": "commonjs-module",
+              "expose": "./effect-api",
+              "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
+              "expected": {
+                "unitId": "app/operations-dashboard",
+                "buildMarker": "3241c619985c4ed9"
+              }
+            }
+          },
+          "compatibility": {
+            "contractVersion": "microvertical-server-effect-v1",
+            "packageName": "@app/operations-dashboard",
+            "effectVersion": "4.0.0-rc.112",
+            "moduleFederationVersion": "2.9.0"
+          },
+          "cache": {
+            "cloudflareSnapshot": "immutable",
+            "nodeManifest": "no-store",
+            "nodeVersionedContainer": "immutable",
+            "nodeUnpinnedContainer": "revalidate"
+          },
+          "fallback": {
+            "timeoutMs": 1500,
+            "failureEvent": "modernjs:microvertical-server-fallback",
+            "strategy": "typed-effect-error"
+          }
+        },
+        "deliveryUnit": {
+          "schemaVersion": 1,
+          "kind": "microvertical-delivery-unit",
+          "unitId": "app/operations-dashboard",
+          "packageName": "@app/operations-dashboard",
+          "version": "0.1.0",
+          "buildMarker": "3241c619985c4ed9",
+          "sourceRevision": "workspace"
+        },
+        "api": {
+          "runtime": "effect",
+          "stem": "operations-dashboard",
+          "prefix": "/operations-dashboard-api",
+          "consumedBy": ["shell-super-app", "operations-dashboard"],
+          "serverEntry": "verticals/operations-dashboard/api/index.ts"
+        },
+        "deploy": {
+          "cloudflare": {
+            "target": "cloudflare",
+            "workerName": "app-operations-dashboard",
+            "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_OPERATIONS_DASHBOARD",
+            "compatibilityDate": "2026-06-02",
+            "compatibilityFlags": ["nodejs_compat", "global_fetch_strictly_public"],
+            "assetsBinding": "ASSETS",
+            "routes": {
+              "ssr": "/en",
+              "mfManifest": "/mf-manifest.json",
+              "locale": "/locales/en/operations-dashboard.json",
+              "apiReadiness": "/operations-dashboard-api/operations-dashboard/readiness"
+            },
+            "security": {
+              "enabled": true,
+              "headers": {
+                "referrerPolicy": "strict-origin-when-cross-origin",
+                "contentTypeOptions": "nosniff",
+                "permissionsPolicy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+              },
+              "contentSecurityPolicy": {
+                "mode": "report-only",
+                "directives": {
+                  "base-uri": ["'self'"],
+                  "connect-src": ["'self'", "https:", "http:", "wss:", "ws:"],
+                  "default-src": ["'self'"],
+                  "font-src": ["'self'", "data:", "https:", "http:"],
+                  "form-action": ["'self'"],
+                  "frame-ancestors": ["'self'"],
+                  "img-src": ["'self'", "data:", "blob:", "https:", "http:"],
+                  "manifest-src": ["'self'", "https:", "http:"],
+                  "object-src": ["'none'"],
+                  "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:", "http:", "blob:"],
+                  "style-src": ["'self'", "'unsafe-inline'", "https:", "http:"],
+                  "worker-src": ["'self'", "blob:"]
+                },
+                "reason": "Report-only by default so Cloudflare Module Federation SSR can prove remote script, style, and connect compatibility before enforcement."
+              },
+              "noindex": {
+                "workersDev": true,
+                "localhost": true,
+                "previewHostnames": []
+              }
+            },
+            "qualityGates": {
+              "publicRoutes": {
+                "requireSitemapWhenPresent": true,
+                "requireRobotsSitemapConsistency": true,
+                "requireWebManifestWhenPresent": true
+              },
+              "statusCodes": {
+                "notFoundRoute": "/__ultramodern-smoke-missing/nope",
+                "unknownRouteStatus": 404
+              },
+              "indexing": {
+                "previewNoindex": true,
+                "productionPublicRoutesIndexable": true
+              },
+              "assets": {
+                "cssPreloadRequired": true,
+                "cssResponseRequired": true,
+                "cacheControlRequiredForCss": true,
+                "sourcemapsPubliclyReferenced": false
+              },
+              "budgets": {
+                "ssrHtmlMaxBytes": 250000,
+                "mfManifestMaxBytes": 500000,
+                "localeJsonMaxBytes": 100000,
+                "sitemapXmlMaxBytes": 500000,
+                "cssAssetMaxBytes": 750000
+              },
+              "csp": {
+                "finalMode": "report-only-dogfood",
+                "decision": "Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface."
+              }
+            },
+            "evidence": {
+              "proofScript": "scripts/proof-cloudflare-version.mts",
+              "reportDefault": ".codex/reports/cloudflare-version-proof/public-url-proof.json"
+            },
+            "jsonSmokeChecks": [
+              {
+                "id": "operations-dashboard-readiness-smoke",
+                "route": "/operations-dashboard-api/operations-dashboard/readiness",
+                "expect": {
+                  "status": "ready",
+                  "checks.api": "ready",
+                  "checks.moduleFederation": "ready",
+                  "checks.ssr": "ready"
+                }
+              }
+            ]
+          }
+        }
       }
     ]
   },
@@ -3325,6 +3566,14 @@
         "role": "remote",
         "name": "verticalBillingDocuments",
         "exposes": ["./Route", "./Widget"],
+        "hostOnly": false
+      },
+      {
+        "id": "operations-dashboard",
+        "path": "verticals/operations-dashboard",
+        "role": "remote",
+        "name": "verticalOperationsDashboard",
+        "exposes": ["./PageDashboard"],
         "hostOnly": false
       }
     ]
@@ -4131,6 +4380,69 @@
             "expected": {
               "unitId": "app/billing-documents",
               "buildMarker": "cfa64cd3af6f9be4"
+            }
+          }
+        }
+      },
+      {
+        "id": "operations-dashboard",
+        "path": "verticals/operations-dashboard",
+        "role": "microvertical-server",
+        "name": "verticalOperationsDashboardBackend",
+        "runtimeFramework": "effect",
+        "strictEffectApproach": true,
+        "contractVersion": "microvertical-server-effect-v1",
+        "deliveryUnit": {
+          "schemaVersion": 1,
+          "kind": "microvertical-delivery-unit",
+          "unitId": "app/operations-dashboard",
+          "packageName": "@app/operations-dashboard",
+          "version": "0.1.0",
+          "buildMarker": "3241c619985c4ed9",
+          "sourceRevision": "workspace"
+        },
+        "executionSurfaces": {
+          "cloudflare": {
+            "kind": "cloudflare-worker-snapshot",
+            "workerName": "app-operations-dashboard",
+            "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_OPERATIONS_DASHBOARD",
+            "ssr": {
+              "workerEntry": ".output/server/index.mjs",
+              "workerManifest": ".output/server/modern-worker-manifest.json",
+              "effectBffBundle": ".output/worker/__modern_bff_effect.js",
+              "routeManifest": ".output/server/route.json",
+              "ssrBundle": ".output/worker/index.js",
+              "assetsBinding": "ASSETS"
+            },
+            "zephyr": {
+              "runtime": "ssr-worker",
+              "integration": "managed-cloudflare",
+              "snapshotIdEnv": "ZEPHYR_OPERATIONS_DASHBOARD_SNAPSHOT_ID",
+              "versionIdEnv": "ZEPHYR_OPERATIONS_DASHBOARD_VERSION_ID",
+              "applicationUidEnv": "ZEPHYR_OPERATIONS_DASHBOARD_APPLICATION_UID"
+            },
+            "workerDispatch": {
+              "preferred": "service-binding",
+              "serviceBinding": "VERTICAL_OPERATIONS_DASHBOARD_WORKER",
+              "serviceBindingEnv": "VERTICAL_OPERATIONS_DASHBOARD_WORKER_BINDING",
+              "dispatchNamespaceEnv": "VERTICAL_OPERATIONS_DASHBOARD_DISPATCH_NAMESPACE",
+              "dispatchWorkerNameEnv": "VERTICAL_OPERATIONS_DASHBOARD_WORKER_NAME",
+              "requestInterface": "fetch"
+            }
+          },
+          "node": {
+            "kind": "node-mf-runtime",
+            "adapterVersion": "backend-mf-effect-v1",
+            "remoteName": "verticalOperationsDashboardBackend",
+            "manifestEnv": "VERTICAL_OPERATIONS_DASHBOARD_BACKEND_MF_MANIFEST",
+            "manifestUrl": "http://localhost:4114/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4114/backendRemoteEntry.cjs",
+            "remoteType": "commonjs-module",
+            "expose": "./effect-api",
+            "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
+            "expected": {
+              "unitId": "app/operations-dashboard",
+              "buildMarker": "3241c619985c4ed9"
             }
           }
         }

@@ -1,0 +1,13 @@
+.codex
+.env
+.git
+.modernjs/cache
+**/.modern-js
+**/.mf
+**/.output
+**/@mf-types
+**/dist
+**/node_modules
+**/test-results
+node_modules
+spicedb-export.tar

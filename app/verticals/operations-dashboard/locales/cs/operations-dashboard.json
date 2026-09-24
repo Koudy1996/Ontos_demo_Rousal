@@ -1,0 +1,76 @@
+{
+  "operations-dashboard": {
+    "language": {
+      "cs": "Čeština",
+      "en": "Angličtina",
+      "switcher": "Jazyk"
+    },
+    "routes": {
+      "home": "Domů"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern plocha s lokalizovaným SSR a frameworkem řízenými public metadata."
+    },
+    "federatedSurface": "Federovaná plocha vlastněná tímto verticalem.",
+    "remoteUnavailable": "Remote vertical je nedostupný",
+    "role": "operations-dashboard",
+    "routeSurface": "Routovaná plocha vlastněná tímto verticalem.",
+    "title": "Operations Dashboard Vertical",
+    "widgetBody": "Vlastní routovanou plochu verticalu.",
+    "pages": {
+      "dashboard": {
+        "description": "Aktuální provozní přehled firmy SOS vyklízení.",
+        "crewConflict": "⚠ Konflikt posádky",
+        "draftInvoices": "Koncepty faktur",
+        "draftTitle": "Rozpracované faktury",
+        "emptyDrafts": "Žádné rozpracované faktury.",
+        "emptyInvoiceable": "Žádné zakázky nečekají na fakturaci.",
+        "emptyIssued": "Zatím nejsou vystavené faktury.",
+        "emptyToday": "Na dnešek nejsou naplánované žádné nedokončené zakázky.",
+        "emptyUpcoming": "Nejsou evidované další naplánované zakázky.",
+        "emptyWorkforce": "Pro tento týden nejsou naplánované zakázky.",
+        "dueAt": "Splatnost",
+        "economics": {
+          "costs": "Náklady",
+          "difference": "Rozdíl",
+          "margin": "Marže",
+          "price": "Přijatá cena"
+        },
+        "economicsUnavailable": "Ekonomika této zakázky je dočasně nedostupná.",
+        "error": {
+          "authentication": "Přihlášení vypršelo. Přihlaste se znovu.",
+          "forbidden": "K provoznímu přehledu nemáte oprávnění.",
+          "notFound": "Provozní přehled nebyl nalezen.",
+          "unavailable": "Provozní přehled se teď nepodařilo načíst."
+        },
+        "inquiries": "Poptávky",
+        "invoiceable": "K fakturaci",
+        "invoiceableIncomplete": "Billing ještě prověřuje další dokončené zakázky.",
+        "invoiceableTitle": "K fakturaci a ekonomika",
+        "issuedAt": "Vystaveno",
+        "issuedTitle": "Vystavené faktury",
+        "jobsInProgress": "Probíhá",
+        "jobsToday": "Dnes",
+        "kpis": "Klíčové provozní ukazatele",
+        "loading": "Načítám provozní přehled…",
+        "openInquiries": "Otevřené poptávky",
+        "refresh": "Obnovit",
+        "refreshing": "Obnovuji…",
+        "retry": "Zkusit znovu",
+        "sectionUnavailable": "Tato část je dočasně nedostupná. Ostatní údaje zůstávají aktuální.",
+        "showAll": "Zobrazit vše",
+        "subtitle": "Aktuální stav poptávek, zakázek, pracovníků, nákladů a fakturace.",
+        "status": {
+          "COMPLETED": "Dokončeno",
+          "IN_PROGRESS": "Probíhá",
+          "NEW": "Nová",
+          "PLANNED": "Naplánováno"
+        },
+        "title": "Provozní přehled",
+        "todayTitle": "Dnešní zakázky",
+        "upcomingTitle": "Další naplánované zakázky",
+        "workforceTitle": "Plán tohoto týdne"
+      }
+    }
+  }
+}

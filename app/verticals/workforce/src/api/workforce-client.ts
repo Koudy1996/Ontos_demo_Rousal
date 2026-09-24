@@ -30,6 +30,8 @@ export { executeUnassignWorker, executeUnassignWorkerWithAuthorization } from '.
 export { executeUpdateWorker, executeUpdateWorkerWithAuthorization } from './update-worker-action-client.ts';
 // </generated-action-http-client-exports>
 
+export { executeWeeklyScheduleWithAuthorization } from './weekly-schedule-client.ts';
+
 type WorkforceApiGroups = typeof workforceApi extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Groups : never;
 
 export type WorkforceClient = HttpApiClient.Client<Extract<WorkforceApiGroups, HttpApiGroup.Constraint>>;

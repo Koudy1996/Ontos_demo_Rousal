@@ -124,14 +124,22 @@ it.effect('requires complete configuration and explicit secure or localhost-inse
   }),
 );
 
-it.effect('allows insecure transport only for the exact Zerops stage private endpoint', () =>
-  Effect.gen(function* allowsInsecureTransportOnlyForTheExactZerops() {
-    const stage = yield* parseSpiceDbConfig({
-      SPICEDB_ENDPOINT: 'spicedb:50051',
-      SPICEDB_INSECURE: 'true',
-      SPICEDB_PRESHARED_KEY: 'test-key',
-      ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: 'stage',
-    });
+it.effect('allows insecure transport only for approved stage private endpoints', () =>
+  Effect.gen(function* allowsInsecureTransportOnlyForApprovedStagePrivateEndpoints() {
+    const [zeropsStage, zaneStage] = yield* Effect.all([
+      parseSpiceDbConfig({
+        SPICEDB_ENDPOINT: 'spicedb:50051',
+        SPICEDB_INSECURE: 'true',
+        SPICEDB_PRESHARED_KEY: 'test-key',
+        ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: 'stage',
+      }),
+      parseSpiceDbConfig({
+        SPICEDB_ENDPOINT: 'spicedb.vyklizeni-sos-demo.internal.zaneops:50051',
+        SPICEDB_INSECURE: 'true',
+        SPICEDB_PRESHARED_KEY: 'test-key',
+        ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: 'stage',
+      }),
+    ]);
     const rejected = yield* Effect.forEach(
       [
         {
@@ -151,13 +159,37 @@ it.effect('allows insecure transport only for the exact Zerops stage private end
           SPICEDB_PRESHARED_KEY: 'test-key',
           ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: 'production',
         },
+        {
+          SPICEDB_ENDPOINT: 'spicedb.vyklizeni-sos-demo.internal.zaneops:50052',
+          SPICEDB_INSECURE: 'true',
+          SPICEDB_PRESHARED_KEY: 'test-key',
+          ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: 'stage',
+        },
+        {
+          SPICEDB_ENDPOINT: 'spicedb.vyklizeni-sos-demo.internal.zaneops.evil.example:50051',
+          SPICEDB_INSECURE: 'true',
+          SPICEDB_PRESHARED_KEY: 'test-key',
+          ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: 'stage',
+        },
+        {
+          SPICEDB_ENDPOINT: 'spicedb.vyklizeni-sos-demo.internal.zaneops:50051',
+          SPICEDB_INSECURE: 'true',
+          SPICEDB_PRESHARED_KEY: 'test-key',
+          ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: 'production',
+        },
       ],
       (environment) => Effect.flip(parseSpiceDbConfig(environment)),
     );
 
-    expect(stage).toEqual({
+    expect(zeropsStage).toEqual({
       deploymentEnvironment: 'stage',
       endpoint: 'spicedb:50051',
+      insecureLocal: true,
+      preSharedKey: 'test-key',
+    });
+    expect(zaneStage).toEqual({
+      deploymentEnvironment: 'stage',
+      endpoint: 'spicedb.vyklizeni-sos-demo.internal.zaneops:50051',
       insecureLocal: true,
       preSharedKey: 'test-key',
     });

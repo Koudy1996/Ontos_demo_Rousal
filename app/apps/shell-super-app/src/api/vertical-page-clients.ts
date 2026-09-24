@@ -38,6 +38,14 @@ export const ultramodernVerticalClients: readonly ApprovedVerticalPageClient[] =
     ).pipe(PageLoadEffect.timeout('5 seconds')),
   },
   {
+    appId: 'operations-dashboard',
+    componentKey: 'operations.dashboard.page-dashboard',
+    load: PageLoadEffect.tryPromise(
+      (): PromiseLike<{ readonly default: ApprovedVerticalPageComponent }> =>
+        import('operationsDashboard/PageDashboard'),
+    ).pipe(PageLoadEffect.timeout('5 seconds')),
+  },
+  {
     appId: 'party-registry',
     componentKey: 'party.registry.page-contacts',
     load: PageLoadEffect.tryPromise(

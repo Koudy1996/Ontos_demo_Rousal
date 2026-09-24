@@ -117,6 +117,13 @@ const moduleFederationConfig: Parameters<typeof createModuleFederationConfig>[0]
       publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_BILLING_DOCUMENTS',
       workerName: 'app-billing-documents',
     }),
+    operationsDashboard: createRemoteManifestUrl({
+      manifestEnv: 'VERTICAL_OPERATIONS_DASHBOARD_MF_MANIFEST',
+      mfName: 'verticalOperationsDashboard',
+      port: 4114,
+      publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_OPERATIONS_DASHBOARD',
+      workerName: 'app-operations-dashboard',
+    }),
     jobExpenses: createRemoteManifestUrl({
       manifestEnv: 'VERTICAL_JOB_EXPENSES_MF_MANIFEST',
       mfName: 'verticalJobExpenses',

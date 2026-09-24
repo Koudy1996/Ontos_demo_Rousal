@@ -1,0 +1,75 @@
+{
+  "operations-dashboard": {
+    "language": {
+      "cs": "Czech",
+      "en": "English",
+      "switcher": "Language"
+    },
+    "routes": {
+      "home": "Home"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern surface with localized SSR and framework-owned public metadata."
+    },
+    "federatedSurface": "Federated surface owned by this vertical.",
+    "remoteUnavailable": "Remote vertical unavailable",
+    "role": "operations-dashboard",
+    "routeSurface": "Route surface owned by this vertical.",
+    "title": "Operations Dashboard Vertical",
+    "widgetBody": "Owns a vertical route surface.",
+    "pages": {
+      "dashboard": {
+        "description": "Current operations overview for SOS Clearance.",
+        "crewConflict": "⚠ Crew conflict",
+        "draftInvoices": "Draft invoices",
+        "draftTitle": "Invoices in progress",
+        "emptyDrafts": "There are no draft invoices.",
+        "emptyInvoiceable": "No jobs are waiting to be invoiced.",
+        "emptyIssued": "No invoices have been issued yet.",
+        "emptyToday": "No unfinished jobs are scheduled for today.",
+        "emptyUpcoming": "No further jobs are scheduled.",
+        "emptyWorkforce": "No jobs are planned for this week.",
+        "dueAt": "Due",
+        "economics": {
+          "costs": "Costs",
+          "difference": "Difference",
+          "margin": "Margin",
+          "price": "Accepted price"
+        },
+        "economicsUnavailable": "Economics for this job is temporarily unavailable.",
+        "error": {
+          "authentication": "Your session expired. Sign in again.",
+          "forbidden": "You do not have access to the operations overview.",
+          "notFound": "The operations overview was not found.",
+          "unavailable": "The operations overview could not be loaded."
+        },
+        "invoiceable": "Ready to invoice",
+        "invoiceableIncomplete": "Billing is still checking additional completed jobs.",
+        "invoiceableTitle": "Ready to invoice and economics",
+        "issuedAt": "Issued",
+        "issuedTitle": "Issued invoices",
+        "jobsInProgress": "In progress",
+        "jobsToday": "Today",
+        "kpis": "Key operations indicators",
+        "loading": "Loading operations overview…",
+        "openInquiries": "Open inquiries",
+        "refresh": "Refresh",
+        "refreshing": "Refreshing…",
+        "retry": "Try again",
+        "sectionUnavailable": "This section is temporarily unavailable. The other information remains current.",
+        "showAll": "Show all",
+        "subtitle": "Current inquiries, jobs, workforce, costs, and billing.",
+        "status": {
+          "COMPLETED": "Completed",
+          "IN_PROGRESS": "In progress",
+          "NEW": "New",
+          "PLANNED": "Planned"
+        },
+        "title": "Operations overview",
+        "todayTitle": "Today's jobs",
+        "upcomingTitle": "Upcoming scheduled jobs",
+        "workforceTitle": "This week's plan"
+      }
+    }
+  }
+}

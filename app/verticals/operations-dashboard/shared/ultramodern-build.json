@@ -1,0 +1,44 @@
+{
+  "deliveryUnit": {
+    "appId": "operations-dashboard",
+    "buildMarker": "3241c619985c4ed9",
+    "deployProfile": "cloudflare-ssr-mf-effect-v1",
+    "kind": "microvertical-delivery-unit",
+    "packageName": "@app/operations-dashboard",
+    "schemaVersion": 1,
+    "sourceRevision": "workspace",
+    "unitId": "app/operations-dashboard",
+    "version": "0.1.0",
+    "build": "3241c619985c4ed9"
+  },
+  "kind": "ultramodern-build-artifact",
+  "schemaVersion": 1,
+  "surfaces": {
+    "api": {
+      "appId": "operations-dashboard",
+      "buildMarker": "3241c619985c4ed9",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/operations-dashboard",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/operations-dashboard",
+      "version": "0.1.0",
+      "build": "3241c619985c4ed9",
+      "surface": "api"
+    },
+    "ui": {
+      "appId": "operations-dashboard",
+      "buildMarker": "3241c619985c4ed9",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/operations-dashboard",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/operations-dashboard",
+      "version": "0.1.0",
+      "build": "3241c619985c4ed9",
+      "surface": "ui"
+    }
+  }
+}

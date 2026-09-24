@@ -52,6 +52,7 @@ const SERVICE_JOBS_VERTICAL_ID = 'service-jobs';
 const WORKFORCE_VERTICAL_ID = 'workforce';
 const JOB_EXPENSES_VERTICAL_ID = 'job-expenses';
 const BILLING_DOCUMENTS_VERTICAL_ID = 'billing-documents';
+const OPERATIONS_DASHBOARD_VERTICAL_ID = 'operations-dashboard';
 const PAYMENT_TERM_CATALOG_VERTICAL_ID = 'payment-term-catalog';
 const PARTY_REGISTRY_MODULE_ID = 'party.registry';
 const PARTY_REGISTRY_MODULE_STATE_LABEL = 'Party Registry module state';
@@ -68,6 +69,7 @@ const topology = JSON.stringify({
     { id: WORKFORCE_VERTICAL_ID },
     { id: JOB_EXPENSES_VERTICAL_ID },
     { id: BILLING_DOCUMENTS_VERTICAL_ID },
+    { id: OPERATIONS_DASHBOARD_VERTICAL_ID },
     { id: PAYMENT_TERM_CATALOG_VERTICAL_ID },
     { id: 'inventory' },
   ],
@@ -176,6 +178,7 @@ it.effect('derives the fixed local commerce launch modules through generated own
       'commerce-customer-context.core',
       'commerce-market-catalog.core',
       'job-expenses.core',
+      'operations-dashboard.core',
       'party-registry.core',
       'payment-term-catalog.core',
       'sales-inquiries.core',
@@ -188,6 +191,7 @@ it.effect('derives the fixed local commerce launch modules through generated own
       WORKFORCE_VERTICAL_ID,
       JOB_EXPENSES_VERTICAL_ID,
       BILLING_DOCUMENTS_VERTICAL_ID,
+      OPERATIONS_DASHBOARD_VERTICAL_ID,
       PAYMENT_TERM_CATALOG_VERTICAL_ID,
       PARTY_REGISTRY_VERTICAL_ID,
       MARKET_CATALOG_VERTICAL_ID,

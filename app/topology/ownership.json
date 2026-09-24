@@ -324,6 +324,22 @@
           "references": ["docs/super-app-rfc-adr/blast-radius.md#billing-documents"]
         }
       }
+    },
+    {
+      "id": "operations-dashboard",
+      "package": "@app/operations-dashboard",
+      "path": "verticals/operations-dashboard",
+      "ownership": {
+        "team": "super-app-platform",
+        "slack": "#super-app-platform",
+        "pagerDuty": "pd-super-app-platform",
+        "runbookRef": "runbooks/verticals/operations-dashboard.md",
+        "adrRef": "docs/super-app-rfc-adr/verticals.md#operations-dashboard",
+        "blastRadius": {
+          "tier": "tier-2-vertical",
+          "references": ["docs/super-app-rfc-adr/blast-radius.md#operations-dashboard"]
+        }
+      }
     }
   ]
 }

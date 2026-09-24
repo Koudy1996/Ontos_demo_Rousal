@@ -14,6 +14,7 @@ const PlatformFieldSchema = Schema.Union([Schema.String, Schema.Array(Schema.Str
 const RuntimePackageSchema = Schema.Struct({
   cpu: Schema.optional(PlatformFieldSchema),
   dependencies: Schema.optional(DependencyMapSchema),
+  devDependencies: Schema.optional(DependencyMapSchema),
   exports: Schema.optional(Schema.Json),
   name: Schema.optional(Schema.String),
   optionalDependencies: Schema.optional(DependencyMapSchema),
@@ -191,6 +192,51 @@ const normalizeRuntimePackageDependencies = (runtimeManifest, workspaceRoot, pat
       normalizedManifest.optionalDependencies = optionalDependencies;
     }
     return yield* decodeRuntimePackage(normalizedManifest);
+  });
+
+/**
+ * Modern's production server loads the BFF runtime adapter dynamically, so it is not visible to
+ * the deploy output's static dependency collector. Preserve the exact workspace-pinned adapter
+ * whenever the generated runtime includes the BFF plugin.
+ *
+ * @param {RuntimePackage} runtimeManifest - Generated runtime package manifest.
+ * @param {string} workspaceRoot - Workspace root.
+ * @param {import('effect/Path').Path} pathService - Path service.
+ */
+const includeDynamicBffRuntimeAdapter = (runtimeManifest, workspaceRoot, pathService) =>
+  Effect.gen(function* includeDynamicBffRuntimeAdapterEffect() {
+    if (runtimeManifest.dependencies?.['@modern-js/plugin-bff'] === undefined) {
+      return runtimeManifest;
+    }
+    const workspaceManifest = yield* readRuntimePackage(pathService.join(workspaceRoot, packageJsonFile));
+    const adapterVersion = workspaceManifest.devDependencies?.['@modern-js/plugin-bff-extensions'];
+    if (adapterVersion === undefined) {
+      return yield* fail('The workspace must pin @modern-js/plugin-bff-extensions for production BFF runtimes');
+    }
+    return yield* decodeRuntimePackage({
+      ...runtimeManifest,
+      dependencies: {
+        ...runtimeManifest.dependencies,
+        '@modern-js/plugin-bff-extensions': adapterVersion,
+      },
+    });
+  });
+
+/**
+ * The Modern deploy manifest is derived from bundled imports and can omit dependencies reached
+ * through owner adapters or other runtime-selected modules. A package's declared dependencies are
+ * its public runtime contract, so retain them before pruning and copying workspace packages.
+ *
+ * @param {RuntimePackage} runtimeManifest - Generated runtime package manifest.
+ * @param {RuntimePackage} applicationManifest - Application package manifest.
+ */
+const includeDeclaredApplicationDependencies = (runtimeManifest, applicationManifest) =>
+  decodeRuntimePackage({
+    ...runtimeManifest,
+    dependencies: {
+      ...applicationManifest.dependencies,
+      ...runtimeManifest.dependencies,
+    },
   });
 
 /**
@@ -652,6 +698,8 @@ const materializeCommand = Command.make(
             }),
         }).pipe(Effect.flatMap(decodeRuntimePackage));
       }
+      runtimePackage = yield* includeDeclaredApplicationDependencies(runtimePackage, appPackage);
+      runtimePackage = yield* includeDynamicBffRuntimeAdapter(runtimePackage, workspaceRoot, pathService);
       runtimePackage = yield* normalizeRuntimePackageDependencies(runtimePackage, workspaceRoot, pathService);
       runtimePackage = yield* removeIncompatiblePlatformDependencies(
         runtimePackage,

@@ -87,6 +87,7 @@ export const LOCAL_DEVELOPMENT_VERTICALS = Object.freeze([
   'workforce',
   'job-expenses',
   'billing-documents',
+  'operations-dashboard',
   'payment-term-catalog',
   'party-registry',
   'commerce-market-catalog',
@@ -116,7 +117,9 @@ export interface LocalDevelopmentConfiguration {
   readonly authBaseUrl: string;
   readonly authSecret: Redacted.Redacted;
   readonly databaseAdminUrl: string;
+  readonly deploymentEnvironment: string;
   readonly email: string;
+  readonly gatewayApiKey: Redacted.Redacted;
   readonly password: Redacted.Redacted;
   readonly principalDisplayName: string;
   readonly spiceDbEndpoint: string;
@@ -293,7 +296,9 @@ const parseLocalDevelopmentConfigurationFromProvider = (provider: ConfigProvider
       authBaseUrl,
       authSecret,
       databaseAdminUrl: databasePair.admin.connectionString,
+      deploymentEnvironment: source.deploymentEnvironment,
       email: LOCAL_DEVELOPMENT_CONTEXT.email,
+      gatewayApiKey: Redacted.make(LOCAL_BILLING_DOCUMENTS_API_KEY),
       password: LOCAL_DEVELOPMENT_CONTEXT.password,
       principalDisplayName: LOCAL_DEVELOPMENT_CONTEXT.principalDisplayName,
       spiceDbEndpoint: spiceDb.endpoint,
@@ -566,7 +571,8 @@ const ensureAuthUser = Effect.fn('LocalDevelopment.ensureAuthUser')(function* en
     userId: string,
   ) {
     const now = yield* DateTime.nowAsDate;
-    const key = createHash('sha256').update(LOCAL_BILLING_DOCUMENTS_API_KEY).digest('base64url');
+    const gatewayApiKey = Redacted.value(configuration.gatewayApiKey);
+    const key = createHash('sha256').update(gatewayApiKey).digest('base64url');
     return yield* database
       .insert(apikey)
       .values({
@@ -578,7 +584,7 @@ const ensureAuthUser = Effect.fn('LocalDevelopment.ensureAuthUser')(function* en
         name: 'Local Billing Documents owner reads',
         rateLimitEnabled: false,
         referenceId: userId,
-        start: LOCAL_BILLING_DOCUMENTS_API_KEY.slice(0, 6),
+        start: gatewayApiKey.slice(0, 6),
         updatedAt: now,
       })
       .onConflictDoUpdate({
@@ -848,6 +854,7 @@ const acquireSpiceDbClient = (configuration: LocalDevelopmentConfiguration) =>
           preSharedKey,
           configuration.spiceDbEndpoint,
           spiceDbClientSecurity({
+            deploymentEnvironment: configuration.deploymentEnvironment,
             endpoint: configuration.spiceDbEndpoint,
             insecureLocal: configuration.spiceDbInsecureLocal,
           }),
@@ -883,18 +890,20 @@ const loadRootConfiguration = () =>
     return yield* parseLocalDevelopmentConfigurationFromProvider(provider);
   });
 
-export const initializeLocalDevelopment = (
-  environmentEffect?: Effect.Effect<LocalDevelopmentEnvironment, LocalDevelopmentInitializationError>,
+export interface FixedDemoContextOptions {
+  readonly secureCookies: boolean;
+  readonly trustedOrigins: readonly string[];
+}
+
+export const initializeFixedDemoContext = (
+  configuration: LocalDevelopmentConfiguration,
+  options: FixedDemoContextOptions,
 ): Effect.Effect<
   LocalDevelopmentInitializationResult,
   LocalDevelopmentInitializationError,
   NodeServices.NodeServices
 > =>
   Effect.gen(function* initialize() {
-    const configuration =
-      environmentEffect === undefined
-        ? yield* loadRootConfiguration()
-        : yield* environmentEffect.pipe(Effect.flatMap(parseLocalDevelopmentConfiguration));
     const verticalModuleIds = yield* deriveActivatedModuleIds(
       path.join(import.meta.dirname, '..'),
       deriveOntosModuleDeploymentContract,
@@ -910,9 +919,9 @@ export const initializeLocalDevelopment = (
               baseUrl: configuration.authBaseUrl,
               connectionString: configuration.databaseAdminUrl,
               secret: Redacted.value(configuration.authSecret),
-              secureCookies: false,
+              secureCookies: options.secureCookies,
               supportUserIds: [],
-              trustedOrigins: [configuration.authBaseUrl],
+              trustedOrigins: [...options.trustedOrigins],
             }),
           ),
         ),
@@ -944,6 +953,24 @@ export const initializeLocalDevelopment = (
       principalId: LOCAL_DEVELOPMENT_CONTEXT.principalId,
       tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId,
     };
+  });
+
+export const initializeLocalDevelopment = (
+  environmentEffect?: Effect.Effect<LocalDevelopmentEnvironment, LocalDevelopmentInitializationError>,
+): Effect.Effect<
+  LocalDevelopmentInitializationResult,
+  LocalDevelopmentInitializationError,
+  NodeServices.NodeServices
+> =>
+  Effect.gen(function* initialize() {
+    const configuration =
+      environmentEffect === undefined
+        ? yield* loadRootConfiguration()
+        : yield* environmentEffect.pipe(Effect.flatMap(parseLocalDevelopmentConfiguration));
+    return yield* initializeFixedDemoContext(configuration, {
+      secureCookies: false,
+      trustedOrigins: [configuration.authBaseUrl],
+    });
   });
 
 const runLocalDevelopmentInitialization = Effect.matchEffect(initializeLocalDevelopment(), {

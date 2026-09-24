@@ -32,6 +32,7 @@
     "@app/commerce-market-catalog": "workspace:*",
     "@app/core-runtime": "workspace:*",
     "@app/job-expenses": "workspace:*",
+    "@app/operations-dashboard": "workspace:*",
     "@app/party-registry": "workspace:*",
     "@app/payment-term-catalog": "workspace:*",
     "@app/price-group-catalog": "workspace:*",
@@ -116,6 +117,7 @@
     "serviceJobs": "@app/service-jobs@workspace:*",
     "workforce": "@app/workforce@workspace:*",
     "jobExpenses": "@app/job-expenses@workspace:*",
-    "billingDocuments": "@app/billing-documents@workspace:*"
+    "billingDocuments": "@app/billing-documents@workspace:*",
+    "operationsDashboard": "@app/operations-dashboard@workspace:*"
   }
 }

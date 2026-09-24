@@ -69,8 +69,25 @@ const isLocalhostEndpoint = (endpoint: string): boolean => {
   }
 };
 
+const isZaneStagePrivateEndpoint = (endpoint: string): boolean => {
+  try {
+    const parsed = new URL(`http://${endpoint}`);
+    return (
+      /^spicedb\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.internal\.zaneops$/u.test(parsed.hostname) &&
+      Number(parsed.port) === 50_051 &&
+      parsed.username.length === 0 &&
+      parsed.password.length === 0 &&
+      parsed.pathname === '/' &&
+      parsed.search.length === 0 &&
+      parsed.hash.length === 0
+    );
+  } catch {
+    return false;
+  }
+};
+
 const isStagePrivateEndpoint = (endpoint: string, deploymentEnvironment?: string): boolean =>
-  deploymentEnvironment === 'stage' && endpoint === 'spicedb:50051';
+  deploymentEnvironment === 'stage' && (endpoint === 'spicedb:50051' || isZaneStagePrivateEndpoint(endpoint));
 
 export const allowsInsecureSpiceDbTransport = (
   configuration: Pick<SpiceDbConfigValue, 'deploymentEnvironment' | 'endpoint' | 'insecureLocal'>,
@@ -147,7 +164,7 @@ const parseSpiceDbConfigWith = Effect.fn('Config.parseSpiceDbConfigWith')(functi
   });
   if (!allowsInsecureSpiceDbTransport(configuration)) {
     return yield* configFailure(
-      'Insecure SpiceDB transport is allowed only for an explicit localhost port or the stage private endpoint',
+      'Insecure SpiceDB transport is allowed only for an explicit localhost port or an approved stage private endpoint',
     );
   }
 
