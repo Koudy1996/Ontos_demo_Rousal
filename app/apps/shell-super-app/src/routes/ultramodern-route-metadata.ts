@@ -9,14 +9,15 @@ const routeValue2 = '/';
 const routeValue3 = '/contacts';
 const routeValue4 = '/expenses';
 const routeValue5 = '/inquiries';
-const routeValue6 = '/jobs';
-const routeValue7 = '/login';
-const routeValue8 = '/modules/:moduleId';
-const routeValue9 = '/resources/:moduleId/:resourceType/:resourceId';
-const routeValue10 = '/zdroje/:moduleId/:resourceType/:resourceId';
-const routeValue11 = '/search';
-const routeValue12 = '/hledat';
-const routeValue13 = '/workforce';
+const routeValue6 = '/invoices';
+const routeValue7 = '/jobs';
+const routeValue8 = '/login';
+const routeValue9 = '/modules/:moduleId';
+const routeValue10 = '/resources/:moduleId/:resourceType/:resourceId';
+const routeValue11 = '/zdroje/:moduleId/:resourceType/:resourceId';
+const routeValue12 = '/search';
+const routeValue13 = '/hledat';
+const routeValue14 = '/workforce';
 
 export const ultramodernRouteMetadata = [
   {
@@ -132,15 +133,14 @@ export const ultramodernRouteMetadata = [
     entrypoint: {
       access: 'read',
       authorization: {
-        kind: 'context_permission',
-        permission: 'module.access',
+        kind: 'authenticated_principal',
       },
-      entrypointKey: 'shell-super-app.page.service-jobs-jobs',
+      entrypointKey: 'shell-super-app.page.billing-documents-invoices',
       moduleKey: routeValue1,
       role: 'page',
       scope: 'system',
     },
-    id: 'shell-service-jobs-jobs',
+    id: 'shell-billing-documents-invoices',
     indexable: false,
     localisedPaths: {
       cs: routeValue6,
@@ -155,6 +155,33 @@ export const ultramodernRouteMetadata = [
   },
   {
     canonicalPath: routeValue7,
+    descriptionKey: 'shell.moduleTarget.seoDescription',
+    entrypoint: {
+      access: 'read',
+      authorization: {
+        kind: 'context_permission',
+        permission: 'module.access',
+      },
+      entrypointKey: 'shell-super-app.page.service-jobs-jobs',
+      moduleKey: routeValue1,
+      role: 'page',
+      scope: 'system',
+    },
+    id: 'shell-service-jobs-jobs',
+    indexable: false,
+    localisedPaths: {
+      cs: routeValue7,
+      en: routeValue7,
+    },
+    mfBoundaryId: 'shellSuperApp',
+    namespace: ultramodernRouteNamespace,
+    ownerAppId: routeValue1,
+    public: false,
+    publicSurface: 'private-app-screen',
+    titleKey: 'shell.moduleTarget.title',
+  },
+  {
+    canonicalPath: routeValue8,
     descriptionKey: 'shell.login.seo.description',
     entrypoint: {
       access: 'read',
@@ -169,8 +196,8 @@ export const ultramodernRouteMetadata = [
     id: 'shell-login',
     indexable: false,
     localisedPaths: {
-      cs: routeValue7,
-      en: routeValue7,
+      cs: routeValue8,
+      en: routeValue8,
     },
     mfBoundaryId: 'shellSuperApp',
     namespace: ultramodernRouteNamespace,
@@ -180,7 +207,7 @@ export const ultramodernRouteMetadata = [
     titleKey: 'shell.login.title',
   },
   {
-    canonicalPath: routeValue8,
+    canonicalPath: routeValue9,
     descriptionKey: 'shell.moduleTarget.seoDescription',
     entrypoint: {
       access: 'read',
@@ -195,8 +222,8 @@ export const ultramodernRouteMetadata = [
     id: 'shell-module-target',
     indexable: false,
     localisedPaths: {
-      cs: routeValue8,
-      en: routeValue8,
+      cs: routeValue9,
+      en: routeValue9,
     },
     mfBoundaryId: 'shellSuperApp',
     namespace: ultramodernRouteNamespace,
@@ -206,7 +233,7 @@ export const ultramodernRouteMetadata = [
     titleKey: 'shell.moduleTarget.title',
   },
   {
-    canonicalPath: routeValue9,
+    canonicalPath: routeValue10,
     descriptionKey: 'shell.resource.seoDescription',
     entrypoint: {
       access: 'read',
@@ -221,8 +248,8 @@ export const ultramodernRouteMetadata = [
     id: 'shell-resource-detail',
     indexable: false,
     localisedPaths: {
-      cs: routeValue10,
-      en: routeValue9,
+      cs: routeValue11,
+      en: routeValue10,
     },
     mfBoundaryId: 'shellSuperApp',
     namespace: ultramodernRouteNamespace,
@@ -232,7 +259,7 @@ export const ultramodernRouteMetadata = [
     titleKey: 'shell.resource.title',
   },
   {
-    canonicalPath: routeValue11,
+    canonicalPath: routeValue12,
     descriptionKey: 'shell.search.seoDescription',
     entrypoint: {
       access: 'read',
@@ -247,8 +274,8 @@ export const ultramodernRouteMetadata = [
     id: 'shell-search',
     indexable: false,
     localisedPaths: {
-      cs: routeValue12,
-      en: routeValue11,
+      cs: routeValue13,
+      en: routeValue12,
     },
     mfBoundaryId: 'shellSuperApp',
     namespace: ultramodernRouteNamespace,
@@ -258,7 +285,7 @@ export const ultramodernRouteMetadata = [
     titleKey: 'shell.search.title',
   },
   {
-    canonicalPath: routeValue13,
+    canonicalPath: routeValue14,
     descriptionKey: 'shell.moduleTarget.seoDescription',
     entrypoint: {
       access: 'read',
@@ -274,8 +301,8 @@ export const ultramodernRouteMetadata = [
     id: 'shell-workforce-workforce',
     indexable: false,
     localisedPaths: {
-      cs: routeValue13,
-      en: routeValue13,
+      cs: routeValue14,
+      en: routeValue14,
     },
     mfBoundaryId: 'shellSuperApp',
     namespace: ultramodernRouteNamespace,
@@ -299,28 +326,32 @@ export const ultramodernLocalisedUrls = {
     cs: routeValue5,
     en: routeValue5,
   },
-  '/jobs': {
+  '/invoices': {
     cs: routeValue6,
     en: routeValue6,
   },
-  '/login': {
+  '/jobs': {
     cs: routeValue7,
     en: routeValue7,
   },
-  '/modules/:moduleId': {
+  '/login': {
     cs: routeValue8,
     en: routeValue8,
   },
-  '/resources/:moduleId/:resourceType/:resourceId': {
-    cs: routeValue10,
+  '/modules/:moduleId': {
+    cs: routeValue9,
     en: routeValue9,
   },
+  '/resources/:moduleId/:resourceType/:resourceId': {
+    cs: routeValue11,
+    en: routeValue10,
+  },
   '/search': {
-    cs: routeValue12,
-    en: routeValue11,
+    cs: routeValue13,
+    en: routeValue12,
   },
   '/workforce': {
-    cs: routeValue13,
-    en: routeValue13,
+    cs: routeValue14,
+    en: routeValue14,
   },
 } as const;

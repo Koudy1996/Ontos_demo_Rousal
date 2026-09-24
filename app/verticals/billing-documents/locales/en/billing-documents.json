@@ -1,0 +1,15 @@
+{
+  "billing-documents": {
+    "title": "Invoices", "role": "Billing", "routeSurface": "Job billing", "widgetBody": "Draft and issued invoices.", "remoteUnavailable": "Billing is temporarily unavailable.",
+    "language": { "cs": "Czech", "en": "English", "switcher": "Language" }, "routes": { "home": "Home" }, "seo": { "description": "SOS clearance invoices" },
+    "pages": { "invoices": { "description": "Draft and issued invoices", "title": "Invoices" } },
+    "demo": {
+      "title": "Invoices", "intro": "Create a draft from a completed job, review the recipient, and issue the invoice.", "new": "New invoice", "back": "Back to invoices", "search": "Search invoices", "empty": "There are no invoices yet.", "customerUnavailable": "Recipient loads in the detail",
+      "loading": "Loading billing…", "saving": "Saving…", "open": "Open", "draft": "Draft", "issued": "Issued", "invoice": "INVOICE", "job": "Job", "chooseJob": "Choose a completed job", "noJobs": "Every completed job already has an invoice.",
+      "createDraft": "Save draft", "description": "Description", "billingAddress": "Billing address", "preferred": "preferred", "oneTimeAddress": "One-time billing address", "street": "Street and number", "city": "City", "postalCode": "Postal code", "country": "Country", "countryPlaceholder": "CZ",
+      "paymentTerm": "Payment term", "choose": "Choose", "taxRequired": "This tax-exclusive price cannot be issued until an authoritative tax result is available.", "save": "Save changes", "issue": "Issue invoice", "print": "Print / save PDF", "supplier": "Supplier", "recipient": "Recipient", "dates": "Dates", "issuedAt": "Issued", "dueAt": "Due", "estimatedDueAt": "Estimated due date", "retry": "Retry", "reload": "Reload", "resolve": "Resolve operation", "loadMore": "Load more", "unsaved": "Save the displayed changes before issuing the invoice.",
+      "status": { "DRAFT": "Draft", "ISSUED": "Issued" }, "priceBasis": { "INCLUDING_VAT": "Accepted price including VAT", "EXCLUDING_VAT": "Accepted price excluding VAT" },
+      "error": { "authentication": "Your sign-in expired.", "forbidden": "You cannot access billing.", "notFound": "The invoice or job was not found.", "conflict": "The data changed. Reload it.", "uncertain": "The write result is uncertain. Resolve the operation.", "unavailable": "Billing or its source is temporarily unavailable.", "validation": "Check the entered data and job state." }
+    }
+  }
+}

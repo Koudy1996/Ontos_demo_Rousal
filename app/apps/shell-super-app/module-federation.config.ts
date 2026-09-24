@@ -110,10 +110,17 @@ const moduleFederationConfig: Parameters<typeof createModuleFederationConfig>[0]
   filename: 'remoteEntry.js',
   name: 'shellSuperApp',
   remotes: {
+    billingDocuments: createRemoteManifestUrl({
+      manifestEnv: 'VERTICAL_BILLING_DOCUMENTS_MF_MANIFEST',
+      mfName: 'verticalBillingDocuments',
+      port: 4113,
+      publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_BILLING_DOCUMENTS',
+      workerName: 'app-billing-documents',
+    }),
     jobExpenses: createRemoteManifestUrl({
       manifestEnv: 'VERTICAL_JOB_EXPENSES_MF_MANIFEST',
       mfName: 'verticalJobExpenses',
-      port: 4111,
+      port: 4112,
       publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_JOB_EXPENSES',
       workerName: 'app-job-expenses',
     }),
@@ -127,21 +134,21 @@ const moduleFederationConfig: Parameters<typeof createModuleFederationConfig>[0]
     salesInquiries: createRemoteManifestUrl({
       manifestEnv: 'VERTICAL_SALES_INQUIRIES_MF_MANIFEST',
       mfName: 'verticalSalesInquiries',
-      port: 4108,
+      port: 4109,
       publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SALES_INQUIRIES',
       workerName: 'app-sales-inquiries',
     }),
     serviceJobs: createRemoteManifestUrl({
       manifestEnv: 'VERTICAL_SERVICE_JOBS_MF_MANIFEST',
       mfName: 'verticalServiceJobs',
-      port: 4109,
+      port: 4110,
       publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SERVICE_JOBS',
       workerName: 'app-service-jobs',
     }),
     workforce: createRemoteManifestUrl({
       manifestEnv: 'VERTICAL_WORKFORCE_MF_MANIFEST',
       mfName: 'verticalWorkforce',
-      port: 4110,
+      port: 4111,
       publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_WORKFORCE',
       workerName: 'app-workforce',
     }),

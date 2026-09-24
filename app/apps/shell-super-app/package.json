@@ -26,6 +26,7 @@
     "test:unit": "rstest --project unit"
   },
   "dependencies": {
+    "@app/billing-documents": "workspace:*",
     "@app/catalog": "workspace:*",
     "@app/commerce-customer-context": "workspace:*",
     "@app/commerce-market-catalog": "workspace:*",
@@ -33,6 +34,7 @@
     "@app/job-expenses": "workspace:*",
     "@app/party-registry": "workspace:*",
     "@app/payment-term-catalog": "workspace:*",
+    "@app/price-group-catalog": "workspace:*",
     "@app/pricing": "workspace:*",
     "@app/sales-inquiries": "workspace:*",
     "@app/service-jobs": "workspace:*",
@@ -69,8 +71,7 @@
     "node-fetch": "^3.3.2",
     "pg": "8.22.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "@app/price-group-catalog": "workspace:*"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260810.1",
@@ -114,6 +115,7 @@
     "salesInquiries": "@app/sales-inquiries@workspace:*",
     "serviceJobs": "@app/service-jobs@workspace:*",
     "workforce": "@app/workforce@workspace:*",
-    "jobExpenses": "@app/job-expenses@workspace:*"
+    "jobExpenses": "@app/job-expenses@workspace:*",
+    "billingDocuments": "@app/billing-documents@workspace:*"
   }
 }

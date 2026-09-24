@@ -14,6 +14,7 @@ declare module '@modern-js/plugin-i18n/runtime' {
     '/contacts': Record<string, never>;
     '/expenses': Record<string, never>;
     '/inquiries': Record<string, never>;
+    '/invoices': Record<string, never>;
     '/jobs': Record<string, never>;
     '/login': Record<string, never>;
     '/modules/$moduleId': { "moduleId": string };

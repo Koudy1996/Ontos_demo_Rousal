@@ -14,7 +14,8 @@
       "sales-inquiries",
       "service-jobs",
       "workforce",
-      "job-expenses"
+      "job-expenses",
+      "billing-documents"
     ],
     "authentication": {
       "kind": "shell-core-capability",
@@ -49,22 +50,27 @@
         {
           "id": "sales-inquiries",
           "name": "verticalSalesInquiries",
-          "manifestUrl": "http://localhost:4108/mf-manifest.json"
+          "manifestUrl": "http://localhost:4109/mf-manifest.json"
         },
         {
           "id": "service-jobs",
           "name": "verticalServiceJobs",
-          "manifestUrl": "http://localhost:4109/mf-manifest.json"
+          "manifestUrl": "http://localhost:4110/mf-manifest.json"
         },
         {
           "id": "workforce",
           "name": "verticalWorkforce",
-          "manifestUrl": "http://localhost:4110/mf-manifest.json"
+          "manifestUrl": "http://localhost:4111/mf-manifest.json"
         },
         {
           "id": "job-expenses",
           "name": "verticalJobExpenses",
-          "manifestUrl": "http://localhost:4111/mf-manifest.json"
+          "manifestUrl": "http://localhost:4112/mf-manifest.json"
+        },
+        {
+          "id": "billing-documents",
+          "name": "verticalBillingDocuments",
+          "manifestUrl": "http://localhost:4113/mf-manifest.json"
         }
       ],
       "ssr": true,
@@ -2139,7 +2145,7 @@
       "moduleFederation": {
         "role": "remote",
         "name": "verticalSalesInquiries",
-        "manifestUrl": "http://localhost:4108/mf-manifest.json",
+        "manifestUrl": "http://localhost:4109/mf-manifest.json",
         "exposes": ["./PageInquiries"],
         "ssr": true,
         "sharedContractVersion": "mf-ssr-contract-v1"
@@ -2173,7 +2179,7 @@
           "packageName": "@app/sales-inquiries",
           "ui": {
             "manifestEnv": "VERTICAL_SALES_INQUIRIES_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4108/mf-manifest.json",
+            "manifestUrl": "http://localhost:4109/mf-manifest.json",
             "buildMarker": "verticals/sales-inquiries/src/routes/ultramodern-route-metadata.ts"
           },
           "api": {
@@ -2216,8 +2222,8 @@
             "adapterVersion": "backend-mf-effect-v1",
             "remoteName": "verticalSalesInquiriesBackend",
             "manifestEnv": "VERTICAL_SALES_INQUIRIES_BACKEND_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4108/backend-mf-manifest.json",
-            "containerEntry": "http://localhost:4108/backendRemoteEntry.cjs",
+            "manifestUrl": "http://localhost:4109/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4109/backendRemoteEntry.cjs",
             "remoteType": "commonjs-module",
             "expose": "./effect-api",
             "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
@@ -2409,7 +2415,7 @@
       "moduleFederation": {
         "role": "remote",
         "name": "verticalServiceJobs",
-        "manifestUrl": "http://localhost:4109/mf-manifest.json",
+        "manifestUrl": "http://localhost:4110/mf-manifest.json",
         "exposes": ["./PageJobs"],
         "ssr": true,
         "sharedContractVersion": "mf-ssr-contract-v1"
@@ -2443,7 +2449,7 @@
           "packageName": "@app/service-jobs",
           "ui": {
             "manifestEnv": "VERTICAL_SERVICE_JOBS_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4109/mf-manifest.json",
+            "manifestUrl": "http://localhost:4110/mf-manifest.json",
             "buildMarker": "verticals/service-jobs/src/routes/ultramodern-route-metadata.ts"
           },
           "api": {
@@ -2486,8 +2492,8 @@
             "adapterVersion": "backend-mf-effect-v1",
             "remoteName": "verticalServiceJobsBackend",
             "manifestEnv": "VERTICAL_SERVICE_JOBS_BACKEND_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4109/backend-mf-manifest.json",
-            "containerEntry": "http://localhost:4109/backendRemoteEntry.cjs",
+            "manifestUrl": "http://localhost:4110/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4110/backendRemoteEntry.cjs",
             "remoteType": "commonjs-module",
             "expose": "./effect-api",
             "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
@@ -2701,7 +2707,7 @@
       "moduleFederation": {
         "role": "remote",
         "name": "verticalWorkforce",
-        "manifestUrl": "http://localhost:4110/mf-manifest.json",
+        "manifestUrl": "http://localhost:4111/mf-manifest.json",
         "exposes": ["./PageWorkforce"],
         "ssr": true,
         "sharedContractVersion": "mf-ssr-contract-v1"
@@ -2735,7 +2741,7 @@
           "packageName": "@app/workforce",
           "ui": {
             "manifestEnv": "VERTICAL_WORKFORCE_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4110/mf-manifest.json",
+            "manifestUrl": "http://localhost:4111/mf-manifest.json",
             "buildMarker": "verticals/workforce/src/routes/ultramodern-route-metadata.ts"
           },
           "api": {
@@ -2778,8 +2784,8 @@
             "adapterVersion": "backend-mf-effect-v1",
             "remoteName": "verticalWorkforceBackend",
             "manifestEnv": "VERTICAL_WORKFORCE_BACKEND_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4110/backend-mf-manifest.json",
-            "containerEntry": "http://localhost:4110/backendRemoteEntry.cjs",
+            "manifestUrl": "http://localhost:4111/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4111/backendRemoteEntry.cjs",
             "remoteType": "commonjs-module",
             "expose": "./effect-api",
             "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
@@ -2993,7 +2999,7 @@
       "moduleFederation": {
         "role": "remote",
         "name": "verticalJobExpenses",
-        "manifestUrl": "http://localhost:4111/mf-manifest.json",
+        "manifestUrl": "http://localhost:4112/mf-manifest.json",
         "exposes": ["./PageExpenses"],
         "ssr": true,
         "sharedContractVersion": "mf-ssr-contract-v1"
@@ -3027,7 +3033,7 @@
           "packageName": "@app/job-expenses",
           "ui": {
             "manifestEnv": "VERTICAL_JOB_EXPENSES_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4111/mf-manifest.json",
+            "manifestUrl": "http://localhost:4112/mf-manifest.json",
             "buildMarker": "verticals/job-expenses/src/routes/ultramodern-route-metadata.ts"
           },
           "api": {
@@ -3070,8 +3076,8 @@
             "adapterVersion": "backend-mf-effect-v1",
             "remoteName": "verticalJobExpensesBackend",
             "manifestEnv": "VERTICAL_JOB_EXPENSES_BACKEND_MF_MANIFEST",
-            "manifestUrl": "http://localhost:4111/backend-mf-manifest.json",
-            "containerEntry": "http://localhost:4111/backendRemoteEntry.cjs",
+            "manifestUrl": "http://localhost:4112/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4112/backendRemoteEntry.cjs",
             "remoteType": "commonjs-module",
             "expose": "./effect-api",
             "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
@@ -3410,10 +3416,7 @@
         },
         "serverEntry": "verticals/price-group-catalog/api/index.ts",
         "basePath": "/price-group-catalog-api/price-group-catalog",
-        "consumedBy": [
-          "shell-super-app",
-          "price-group-catalog"
-        ],
+        "consumedBy": ["shell-super-app", "price-group-catalog"],
         "readiness": {
           "endpoint": "/price-group-catalog/readiness",
           "marker": {
@@ -3421,12 +3424,7 @@
             "api": "ultramodernApiMarker",
             "skew": "none"
           },
-          "checks": [
-            "moduleFederation",
-            "ssr",
-            "translations",
-            "api"
-          ]
+          "checks": ["moduleFederation", "ssr", "translations", "api"]
         },
         "requestContext": {
           "propagatedHeaders": [
@@ -3469,10 +3467,7 @@
         "workerName": "app-price-group-catalog",
         "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_PRICE_GROUP_CATALOG",
         "compatibilityDate": "2026-06-02",
-        "compatibilityFlags": [
-          "nodejs_compat",
-          "global_fetch_strictly_public"
-        ],
+        "compatibilityFlags": ["nodejs_compat", "global_fetch_strictly_public"],
         "assetsBinding": "ASSETS",
         "routes": {
           "apiReadiness": "/price-group-catalog-api/price-group-catalog/readiness"
@@ -3487,64 +3482,18 @@
           "contentSecurityPolicy": {
             "mode": "report-only",
             "directives": {
-              "base-uri": [
-                "'self'"
-              ],
-              "connect-src": [
-                "'self'",
-                "https:",
-                "http:",
-                "wss:",
-                "ws:"
-              ],
-              "default-src": [
-                "'self'"
-              ],
-              "font-src": [
-                "'self'",
-                "data:",
-                "https:",
-                "http:"
-              ],
-              "form-action": [
-                "'self'"
-              ],
-              "frame-ancestors": [
-                "'self'"
-              ],
-              "img-src": [
-                "'self'",
-                "data:",
-                "blob:",
-                "https:",
-                "http:"
-              ],
-              "manifest-src": [
-                "'self'",
-                "https:",
-                "http:"
-              ],
-              "object-src": [
-                "'none'"
-              ],
-              "script-src": [
-                "'self'",
-                "'unsafe-inline'",
-                "'unsafe-eval'",
-                "https:",
-                "http:",
-                "blob:"
-              ],
-              "style-src": [
-                "'self'",
-                "'unsafe-inline'",
-                "https:",
-                "http:"
-              ],
-              "worker-src": [
-                "'self'",
-                "blob:"
-              ]
+              "base-uri": ["'self'"],
+              "connect-src": ["'self'", "https:", "http:", "wss:", "ws:"],
+              "default-src": ["'self'"],
+              "font-src": ["'self'", "data:", "https:", "http:"],
+              "form-action": ["'self'"],
+              "frame-ancestors": ["'self'"],
+              "img-src": ["'self'", "data:", "blob:", "https:", "http:"],
+              "manifest-src": ["'self'", "https:", "http:"],
+              "object-src": ["'none'"],
+              "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:", "http:", "blob:"],
+              "style-src": ["'self'", "'unsafe-inline'", "https:", "http:"],
+              "worker-src": ["'self'", "blob:"]
             },
             "reason": "Report-only by default so Cloudflare Module Federation SSR can prove remote script, style, and connect compatibility before enforcement."
           },
@@ -3611,9 +3560,299 @@
         "adrRef": "docs/super-app-rfc-adr/verticals.md#price-group-catalog",
         "blastRadius": {
           "tier": "tier-2-vertical",
-          "references": [
-            "docs/super-app-rfc-adr/blast-radius.md#price-group-catalog"
-          ]
+          "references": ["docs/super-app-rfc-adr/blast-radius.md#price-group-catalog"]
+        }
+      }
+    },
+    {
+      "id": "billing-documents",
+      "kind": "vertical",
+      "domain": "billing-documents",
+      "package": "@app/billing-documents",
+      "path": "verticals/billing-documents",
+      "moduleFederation": {
+        "role": "remote",
+        "name": "verticalBillingDocuments",
+        "manifestUrl": "http://localhost:4113/mf-manifest.json",
+        "exposes": ["./Route", "./Widget"],
+        "ssr": true,
+        "sharedContractVersion": "mf-ssr-contract-v1"
+      },
+      "backendFederation": {
+        "role": "microvertical-server",
+        "name": "verticalBillingDocumentsBackend",
+        "runtimeFramework": "effect",
+        "strictEffectApproach": true,
+        "deliveryUnit": {
+          "schemaVersion": 1,
+          "kind": "microvertical-delivery-unit",
+          "unitId": "app/billing-documents",
+          "packageName": "@app/billing-documents",
+          "version": "0.1.0",
+          "buildMarker": "cfa64cd3af6f9be4",
+          "sourceRevision": "workspace"
+        },
+        "exposes": {
+          "./effect-api": {
+            "contract": "verticals/billing-documents/shared/api.ts",
+            "runtime": "verticals/billing-documents/api/index.ts",
+            "client": "verticals/billing-documents/src/api/billing-documents-client.ts",
+            "openapi": "/billing-documents-api/openapi.json",
+            "readiness": "/billing-documents-api/billing-documents/readiness"
+          }
+        },
+        "versionBoundary": {
+          "invariant": "web-and-api-same-build",
+          "identityRoot": "deliveryUnit",
+          "packageName": "@app/billing-documents",
+          "ui": {
+            "manifestEnv": "VERTICAL_BILLING_DOCUMENTS_MF_MANIFEST",
+            "manifestUrl": "http://localhost:4113/mf-manifest.json",
+            "buildMarker": "verticals/billing-documents/src/routes/ultramodern-route-metadata.ts"
+          },
+          "api": {
+            "readiness": "/billing-documents-api/billing-documents/readiness",
+            "buildMarker": "verticals/billing-documents/shared/ultramodern-build.ts",
+            "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_BILLING_DOCUMENTS"
+          }
+        },
+        "executionSurfaces": {
+          "cloudflare": {
+            "kind": "cloudflare-worker-snapshot",
+            "workerName": "app-billing-documents",
+            "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_BILLING_DOCUMENTS",
+            "ssr": {
+              "workerEntry": ".output/server/index.mjs",
+              "workerManifest": ".output/server/modern-worker-manifest.json",
+              "effectBffBundle": ".output/worker/__modern_bff_effect.js",
+              "routeManifest": ".output/server/route.json",
+              "ssrBundle": ".output/worker/index.js",
+              "assetsBinding": "ASSETS"
+            },
+            "zephyr": {
+              "runtime": "ssr-worker",
+              "integration": "managed-cloudflare",
+              "snapshotIdEnv": "ZEPHYR_BILLING_DOCUMENTS_SNAPSHOT_ID",
+              "versionIdEnv": "ZEPHYR_BILLING_DOCUMENTS_VERSION_ID",
+              "applicationUidEnv": "ZEPHYR_BILLING_DOCUMENTS_APPLICATION_UID"
+            },
+            "workerDispatch": {
+              "preferred": "service-binding",
+              "serviceBinding": "VERTICAL_BILLING_DOCUMENTS_WORKER",
+              "serviceBindingEnv": "VERTICAL_BILLING_DOCUMENTS_WORKER_BINDING",
+              "dispatchNamespaceEnv": "VERTICAL_BILLING_DOCUMENTS_DISPATCH_NAMESPACE",
+              "dispatchWorkerNameEnv": "VERTICAL_BILLING_DOCUMENTS_WORKER_NAME",
+              "requestInterface": "fetch"
+            }
+          },
+          "node": {
+            "kind": "node-mf-runtime",
+            "adapterVersion": "backend-mf-effect-v1",
+            "remoteName": "verticalBillingDocumentsBackend",
+            "manifestEnv": "VERTICAL_BILLING_DOCUMENTS_BACKEND_MF_MANIFEST",
+            "manifestUrl": "http://localhost:4113/backend-mf-manifest.json",
+            "containerEntry": "http://localhost:4113/backendRemoteEntry.cjs",
+            "remoteType": "commonjs-module",
+            "expose": "./effect-api",
+            "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
+            "expected": {
+              "unitId": "app/billing-documents",
+              "buildMarker": "cfa64cd3af6f9be4"
+            }
+          }
+        },
+        "compatibility": {
+          "contractVersion": "microvertical-server-effect-v1",
+          "packageName": "@app/billing-documents",
+          "effectVersion": "4.0.0-rc.112",
+          "moduleFederationVersion": "2.9.0"
+        },
+        "cache": {
+          "cloudflareSnapshot": "immutable",
+          "nodeManifest": "no-store",
+          "nodeVersionedContainer": "immutable",
+          "nodeUnpinnedContainer": "revalidate"
+        },
+        "fallback": {
+          "timeoutMs": 1500,
+          "failureEvent": "modernjs:microvertical-server-fallback",
+          "strategy": "typed-effect-error"
+        }
+      },
+      "deliveryUnit": {
+        "schemaVersion": 1,
+        "kind": "microvertical-delivery-unit",
+        "unitId": "app/billing-documents",
+        "packageName": "@app/billing-documents",
+        "version": "0.1.0",
+        "buildMarker": "cfa64cd3af6f9be4",
+        "sourceRevision": "workspace"
+      },
+      "api": {
+        "runtime": "effect",
+        "bff": {
+          "prefix": "/billing-documents-api",
+          "openapi": "/openapi.json",
+          "strictEffectApproach": true
+        },
+        "contract": {
+          "export": "./api",
+          "path": "verticals/billing-documents/shared/api.ts"
+        },
+        "client": {
+          "export": "./api/client",
+          "path": "verticals/billing-documents/src/api/billing-documents-client.ts"
+        },
+        "serverEntry": "verticals/billing-documents/api/index.ts",
+        "basePath": "/billing-documents-api/billing-documents",
+        "consumedBy": ["shell-super-app", "billing-documents"],
+        "readiness": {
+          "endpoint": "/billing-documents/readiness",
+          "marker": {
+            "ui": "ultramodernUiMarker",
+            "api": "ultramodernApiMarker",
+            "skew": "none"
+          },
+          "checks": ["moduleFederation", "ssr", "translations", "api"]
+        },
+        "requestContext": {
+          "propagatedHeaders": [
+            "accept-language",
+            "authorization",
+            "traceparent",
+            "x-correlation-id",
+            "x-tenant-id",
+            "x-ultramodern-env",
+            "x-vertical-version-id"
+          ],
+          "source": "shell-to-vertical-api-client"
+        },
+        "domainOperations": {
+          "workspaceFeed": {
+            "client": "listBillingDocuments",
+            "method": "GET",
+            "path": "/billing-documents",
+            "resource": "workspace-items",
+            "owner": "billing-documents"
+          },
+          "workspaceDetail": {
+            "client": "getBillingDocuments",
+            "method": "GET",
+            "path": "/billing-documents/:id",
+            "resource": "workspace-item",
+            "owner": "billing-documents"
+          },
+          "workspaceCreate": {
+            "client": "createBillingDocuments",
+            "method": "POST",
+            "path": "/billing-documents",
+            "resource": "billingDocuments",
+            "owner": "billing-documents"
+          }
+        }
+      },
+      "cloudflare": {
+        "target": "cloudflare",
+        "workerName": "app-billing-documents",
+        "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_BILLING_DOCUMENTS",
+        "compatibilityDate": "2026-06-02",
+        "compatibilityFlags": ["nodejs_compat", "global_fetch_strictly_public"],
+        "assetsBinding": "ASSETS",
+        "routes": {
+          "ssr": "/en",
+          "mfManifest": "/mf-manifest.json",
+          "locale": "/locales/en/billing-documents.json",
+          "apiReadiness": "/billing-documents-api/billing-documents/readiness"
+        },
+        "security": {
+          "enabled": true,
+          "headers": {
+            "referrerPolicy": "strict-origin-when-cross-origin",
+            "contentTypeOptions": "nosniff",
+            "permissionsPolicy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+          },
+          "contentSecurityPolicy": {
+            "mode": "report-only",
+            "directives": {
+              "base-uri": ["'self'"],
+              "connect-src": ["'self'", "https:", "http:", "wss:", "ws:"],
+              "default-src": ["'self'"],
+              "font-src": ["'self'", "data:", "https:", "http:"],
+              "form-action": ["'self'"],
+              "frame-ancestors": ["'self'"],
+              "img-src": ["'self'", "data:", "blob:", "https:", "http:"],
+              "manifest-src": ["'self'", "https:", "http:"],
+              "object-src": ["'none'"],
+              "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https:", "http:", "blob:"],
+              "style-src": ["'self'", "'unsafe-inline'", "https:", "http:"],
+              "worker-src": ["'self'", "blob:"]
+            },
+            "reason": "Report-only by default so Cloudflare Module Federation SSR can prove remote script, style, and connect compatibility before enforcement."
+          },
+          "noindex": {
+            "workersDev": true,
+            "localhost": true,
+            "previewHostnames": []
+          }
+        },
+        "qualityGates": {
+          "publicRoutes": {
+            "requireSitemapWhenPresent": true,
+            "requireRobotsSitemapConsistency": true,
+            "requireWebManifestWhenPresent": true
+          },
+          "statusCodes": {
+            "notFoundRoute": "/__ultramodern-smoke-missing/nope",
+            "unknownRouteStatus": 404
+          },
+          "indexing": {
+            "previewNoindex": true,
+            "productionPublicRoutesIndexable": true
+          },
+          "assets": {
+            "cssPreloadRequired": true,
+            "cssResponseRequired": true,
+            "cacheControlRequiredForCss": true,
+            "sourcemapsPubliclyReferenced": false
+          },
+          "budgets": {
+            "ssrHtmlMaxBytes": 250000,
+            "mfManifestMaxBytes": 500000,
+            "localeJsonMaxBytes": 100000,
+            "sitemapXmlMaxBytes": 500000,
+            "cssAssetMaxBytes": 750000
+          },
+          "csp": {
+            "finalMode": "report-only-dogfood",
+            "decision": "Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface."
+          }
+        },
+        "evidence": {
+          "proofScript": "scripts/proof-cloudflare-version.mts",
+          "reportDefault": ".codex/reports/cloudflare-version-proof/public-url-proof.json"
+        },
+        "jsonSmokeChecks": [
+          {
+            "id": "billing-documents-readiness-smoke",
+            "route": "/billing-documents-api/billing-documents/readiness",
+            "expect": {
+              "status": "ready",
+              "checks.api": "ready",
+              "checks.moduleFederation": "ready",
+              "checks.ssr": "ready"
+            }
+          }
+        ]
+      },
+      "ownership": {
+        "team": "super-app-platform",
+        "slack": "#super-app-platform",
+        "pagerDuty": "pd-super-app-platform",
+        "runbookRef": "runbooks/verticals/billing-documents.md",
+        "adrRef": "docs/super-app-rfc-adr/verticals.md#billing-documents",
+        "blastRadius": {
+          "tier": "tier-2-vertical",
+          "references": ["docs/super-app-rfc-adr/blast-radius.md#billing-documents"]
         }
       }
     }

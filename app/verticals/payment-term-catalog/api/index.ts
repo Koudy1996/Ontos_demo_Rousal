@@ -161,4 +161,4 @@ const apiRuntime = makePaymentTermCatalogApiRuntime(
 
 export default apiRuntime;
 
-export { paymentTermCatalogActionRuntime };
+export { paymentTermCatalogActionRuntime, productionReadRuntimeLive as paymentTermCatalogReadRuntime };

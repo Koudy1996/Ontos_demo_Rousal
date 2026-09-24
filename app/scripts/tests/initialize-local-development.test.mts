@@ -8,6 +8,7 @@ import { expect, it } from 'effect-rstest';
 import { ConnectionError, SqlError } from 'effect/unstable/sql/SqlError';
 
 import { makeModuleContractFixture } from '../../packages/core-runtime/src/testing/module-contract.ts';
+import { toSpiceDbActionObjectId } from '../../packages/core-runtime/src/permissions/service.ts';
 import { makeTestDatabase } from '../../packages/core-runtime/tests/support/database.ts';
 import type { deriveOntosModuleDeploymentContract } from '../generate-ontos-module-contract.mts';
 import {
@@ -50,6 +51,8 @@ const PARTY_REGISTRY_VERTICAL_ID = 'party-registry';
 const SERVICE_JOBS_VERTICAL_ID = 'service-jobs';
 const WORKFORCE_VERTICAL_ID = 'workforce';
 const JOB_EXPENSES_VERTICAL_ID = 'job-expenses';
+const BILLING_DOCUMENTS_VERTICAL_ID = 'billing-documents';
+const PAYMENT_TERM_CATALOG_VERTICAL_ID = 'payment-term-catalog';
 const PARTY_REGISTRY_MODULE_ID = 'party.registry';
 const PARTY_REGISTRY_MODULE_STATE_LABEL = 'Party Registry module state';
 const CATALOG_MODULE_ID = 'commerce.catalog';
@@ -64,6 +67,8 @@ const topology = JSON.stringify({
     { id: SERVICE_JOBS_VERTICAL_ID },
     { id: WORKFORCE_VERTICAL_ID },
     { id: JOB_EXPENSES_VERTICAL_ID },
+    { id: BILLING_DOCUMENTS_VERTICAL_ID },
+    { id: PAYMENT_TERM_CATALOG_VERTICAL_ID },
     { id: 'inventory' },
   ],
 });
@@ -167,10 +172,12 @@ it.effect('derives the fixed local commerce launch modules through generated own
     const deriveContract = ({ vertical }: { readonly vertical: string }) =>
       Effect.succeed(moduleContract(`${vertical}.core`));
     expect(yield* deriveActivatedModuleIds(root, deriveContract).pipe(Effect.provide(NodeServices.layer))).toEqual([
+      'billing-documents.core',
       'commerce-customer-context.core',
       'commerce-market-catalog.core',
       'job-expenses.core',
       'party-registry.core',
+      'payment-term-catalog.core',
       'sales-inquiries.core',
       'service-jobs.core',
       'workforce.core',
@@ -180,6 +187,8 @@ it.effect('derives the fixed local commerce launch modules through generated own
       SERVICE_JOBS_VERTICAL_ID,
       WORKFORCE_VERTICAL_ID,
       JOB_EXPENSES_VERTICAL_ID,
+      BILLING_DOCUMENTS_VERTICAL_ID,
+      PAYMENT_TERM_CATALOG_VERTICAL_ID,
       PARTY_REGISTRY_VERTICAL_ID,
       MARKET_CATALOG_VERTICAL_ID,
       CUSTOMER_CONTEXT_VERTICAL_ID,
@@ -282,8 +291,27 @@ it.effect('generates stable module state IDs and complete access relationships',
   }),
 );
 
-it.effect('a late module conflict rolls back Core bootstrap and retains its typed reason', () =>
+it.effect('grants the single demo principal the Billing and Payment Term owner operations', () =>
   Effect.gen(function* testEffect8() {
+    const relationships = yield* buildLocalDevelopmentRelationships(['billing.documents', 'payment.term-catalog']);
+    expect(
+      relationships
+        .filter(({ relation, resourceType }) => relation === 'executor' && resourceType === 'action')
+        .map(({ resourceId }) => resourceId),
+    ).toEqual([
+      toSpiceDbActionObjectId('billing.documents.create-invoice-draft'),
+      toSpiceDbActionObjectId('billing.documents.issue-invoice'),
+      toSpiceDbActionObjectId('billing.documents.update-invoice-draft'),
+      toSpiceDbActionObjectId('payment.term-catalog.create-payment-term'),
+    ]);
+    expect(
+      relationships.filter(({ resourceType }) => resourceType === 'resource').map(({ relation }) => relation),
+    ).toEqual(['module', 'reader', 'writer']);
+  }),
+);
+
+it.effect('a late module conflict rolls back Core bootstrap and retains its typed reason', () =>
+  Effect.gen(function* testEffect9() {
     const statements: string[] = [];
     const database = yield* makeTestDatabase((sql) =>
       Effect.sync(() => {
@@ -305,7 +333,7 @@ it.effect('a late module conflict rolls back Core bootstrap and retains its type
 );
 
 it.effect('native commit failure becomes a typed bootstrap error', () =>
-  Effect.gen(function* testEffect9() {
+  Effect.gen(function* testEffect10() {
     const database = yield* makeTestDatabase((sql) =>
       sql === 'COMMIT'
         ? Effect.fail(
@@ -320,6 +348,23 @@ it.effect('native commit failure becomes a typed bootstrap error', () =>
 
     const error = yield* reconcileCoreContext(database, LOCAL_AUTH_USER_ID, []).pipe(Effect.flip);
     expect(error.code).toBe('local_persistence_failed');
+  }),
+);
+
+it.effect('fresh Core bootstrap provisions both the user and Billing API-key principal bindings', () =>
+  Effect.gen(function* apiKeyBindingBootstrap() {
+    const statements: string[] = [];
+    const database = yield* makeTestDatabase((sql) =>
+      Effect.sync(() => {
+        statements.push(sql);
+        return [];
+      }),
+    );
+
+    yield* reconcileCoreContext(database, LOCAL_AUTH_USER_ID, []);
+
+    expect(statements.filter((sql) => sql.startsWith('insert into "core"."principal_auth_bindings"'))).toHaveLength(2);
+    expect(statements.at(-1)).toBe('COMMIT');
   }),
 );
 

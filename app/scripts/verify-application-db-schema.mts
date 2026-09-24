@@ -10,6 +10,7 @@ import type { CommercePortalAuthDatabaseConnectionPair } from '../verticals/comm
 
 const EXPECTED_APPLICATION_SCHEMAS = [
   'auth',
+  'billing_documents',
   'catalog',
   'commerce_customer_context',
   'commerce_market_catalog',
@@ -27,6 +28,7 @@ const EXPECTED_APPLICATION_SCHEMAS = [
 ] as const;
 const EXPECTED_MIGRATION_JOURNALS = [
   '__drizzle_migrations_auth',
+  '__drizzle_migrations_billing_documents',
   '__drizzle_migrations_catalog',
   '__drizzle_migrations_commerce_customer_context',
   '__drizzle_migrations_commerce_market_catalog',
@@ -158,6 +160,7 @@ const ownerVerifierPaths = [
   '../verticals/storefront-registry/scripts/verify-db-schema.mts',
   '../verticals/workforce/scripts/verify-db-schema.mts',
   '../verticals/job-expenses/scripts/verify-db-schema.mts',
+  '../verticals/billing-documents/scripts/verify-db-schema.mts',
 ] as const;
 
 const COMMERCE_PORTAL_AUTH_VERIFIER = '../verticals/commerce-customer-context/scripts/verify-portal-auth-db-schema.mts';

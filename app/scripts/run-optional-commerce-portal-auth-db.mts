@@ -75,7 +75,11 @@ const run = Effect.fn('runOptionalCommercePortalAuthDb.run')(function* runEffect
 });
 
 const drizzleKit = (...commandArguments: readonly string[]) =>
-  run(path.join(verticalDirectory, 'node_modules', '.bin', 'drizzle-kit'), commandArguments, verticalDirectory);
+  run(
+    process.execPath,
+    [path.join(verticalDirectory, 'node_modules', 'drizzle-kit', 'bin.cjs'), ...commandArguments],
+    verticalDirectory,
+  );
 
 const ownerScript = (relativePath: string) =>
   run(process.execPath, [path.join(verticalDirectory, relativePath)], appDirectory);

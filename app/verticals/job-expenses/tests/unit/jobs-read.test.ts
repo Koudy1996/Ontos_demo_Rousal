@@ -36,7 +36,7 @@ const reader = jobsReadService(scope).pipe(
   Effect.provideService(
     ConfigProvider.ConfigProvider,
     ConfigProvider.fromUnknown({
-      ONTOS_SERVICE_JOBS_API_URL: 'http://localhost:4109/service-jobs-api',
+      ONTOS_SERVICE_JOBS_API_URL: 'http://localhost:4110/service-jobs-api',
     }),
   ),
   Effect.provideService(

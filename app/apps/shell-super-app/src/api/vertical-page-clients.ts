@@ -24,6 +24,13 @@ export interface ApprovedVerticalPageClient {
 export const ultramodernVerticalClients: readonly ApprovedVerticalPageClient[] = [
   // @ontos-codegen-start shell-page-clients
   {
+    appId: 'billing-documents',
+    componentKey: 'billing.documents.page-invoices',
+    load: PageLoadEffect.tryPromise(
+      (): PromiseLike<{ readonly default: ApprovedVerticalPageComponent }> => import('billingDocuments/PageInvoices'),
+    ).pipe(PageLoadEffect.timeout('5 seconds')),
+  },
+  {
     appId: 'job-expenses',
     componentKey: 'job.expenses.page-expenses',
     load: PageLoadEffect.tryPromise(

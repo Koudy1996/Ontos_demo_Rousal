@@ -24,7 +24,7 @@ const build = createModernBuildContext({
   appId,
   cloudflarePublicUrlEnvironmentVariable: 'ULTRAMODERN_PUBLIC_URL_SALES_INQUIRIES',
   cloudflareWorkerName,
-  defaultPort: 4108,
+  defaultPort: 4109,
   getBuildConfigEnvironment,
   portEnvironmentVariable: 'VERTICAL_SALES_INQUIRIES_PORT',
 });

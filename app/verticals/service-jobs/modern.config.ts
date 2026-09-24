@@ -24,7 +24,7 @@ const build = createModernBuildContext({
   appId,
   cloudflarePublicUrlEnvironmentVariable: 'ULTRAMODERN_PUBLIC_URL_SERVICE_JOBS',
   cloudflareWorkerName,
-  defaultPort: 4109,
+  defaultPort: 4110,
   getBuildConfigEnvironment,
   portEnvironmentVariable: 'VERTICAL_SERVICE_JOBS_PORT',
 });

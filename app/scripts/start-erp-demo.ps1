@@ -89,8 +89,11 @@ $env:ONTOS_GATEWAY_ISSUER = 'http://localhost:3020'
 $env:ONTOS_GATEWAY_PRIVATE_JWK = '{"crv":"Ed25519","d":"UoaeSCRqtNBHKhIQ-gzuhaTWwch5wyr5JUp0NOV_zR0","x":"QnsRCV4QqDIWrlIw_7gfUmHsm_VYzkOzxkaaQllPXqg","kty":"OKP","alg":"EdDSA","use":"sig","kid":"ontos-local-dev"}'
 $env:ONTOS_GATEWAY_PUBLIC_JWKS = '{"keys":[{"crv":"Ed25519","x":"QnsRCV4QqDIWrlIw_7gfUmHsm_VYzkOzxkaaQllPXqg","kty":"OKP","alg":"EdDSA","use":"sig","kid":"ontos-local-dev"}]}'
 $env:ONTOS_PARTY_REGISTRY_API_URL = 'http://localhost:4102/party-registry-api'
-$env:ONTOS_SALES_INQUIRIES_API_URL = 'http://localhost:4108/sales-inquiries-api'
-$env:ONTOS_SERVICE_JOBS_API_URL = 'http://localhost:4109/service-jobs-api'
+$env:ONTOS_SALES_INQUIRIES_API_URL = 'http://localhost:4109/sales-inquiries-api'
+$env:ONTOS_SERVICE_JOBS_API_URL = 'http://localhost:4110/service-jobs-api'
+$env:ONTOS_PAYMENT_TERM_CATALOG_API_URL = 'http://localhost:4103/payment-term-catalog-api'
+$env:ONTOS_SHELL_GATEWAY_BASE_URL = 'http://localhost:3020'
+$env:ONTOS_BILLING_DOCUMENTS_GATEWAY_API_KEY = 'ontos_demo_billing_documents_local_key_v1'
 
 function Test-DockerEngine {
   $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
@@ -175,13 +178,20 @@ try {
     throw 'Databáze nebo SpiceDB se nepodařilo připravit.'
   }
 
+  & $pnpmPath db:migrate
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Databázové migrace ERP dema se nepodařilo provést.'
+  }
+
   $startedProcesses = @()
   $remoteEndpoints = @(
     @{ Name = 'Party Registry'; Package = '@app/party-registry'; Url = 'http://localhost:4102/bundles/remoteEntry.js' },
-    @{ Name = 'Sales Inquiries'; Package = '@app/sales-inquiries'; Url = 'http://localhost:4108/bundles/remoteEntry.js' },
-    @{ Name = 'Service Jobs'; Package = '@app/service-jobs'; Url = 'http://localhost:4109/bundles/remoteEntry.js' },
-    @{ Name = 'Workforce'; Package = '@app/workforce'; Url = 'http://localhost:4110/bundles/remoteEntry.js' },
-    @{ Name = 'Job Expenses'; Package = '@app/job-expenses'; Url = 'http://localhost:4111/bundles/remoteEntry.js' }
+    @{ Name = 'Payment Terms'; Package = '@app/payment-term-catalog'; Url = 'http://localhost:4103/.well-known/ontos-module-manifest.json' },
+    @{ Name = 'Sales Inquiries'; Package = '@app/sales-inquiries'; Url = 'http://localhost:4109/bundles/remoteEntry.js' },
+    @{ Name = 'Service Jobs'; Package = '@app/service-jobs'; Url = 'http://localhost:4110/bundles/remoteEntry.js' },
+    @{ Name = 'Workforce'; Package = '@app/workforce'; Url = 'http://localhost:4111/bundles/remoteEntry.js' },
+    @{ Name = 'Job Expenses'; Package = '@app/job-expenses'; Url = 'http://localhost:4112/bundles/remoteEntry.js' },
+    @{ Name = 'Billing Documents'; Package = '@app/billing-documents'; Url = 'http://localhost:4113/bundles/remoteEntry.js' }
   )
   & $pnpmPath local:initialize
   if ($LASTEXITCODE -ne 0) {
@@ -228,6 +238,11 @@ try {
   Start-Sleep -Seconds 3
   if (-not (Test-Endpoint -Url $shellReadinessUrl)) {
     throw "OntOS shell se po spuštění ukončil. Logy jsou v $logsRoot."
+  }
+
+  & $pnpmPath local:initialize:billing
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Výchozí platební podmínku ERP dema se nepodařilo inicializovat.'
   }
 
   if ($startedProcesses.Count -gt 0) {

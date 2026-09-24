@@ -305,9 +305,23 @@
         "adrRef": "docs/super-app-rfc-adr/verticals.md#price-group-catalog",
         "blastRadius": {
           "tier": "tier-2-vertical",
-          "references": [
-            "docs/super-app-rfc-adr/blast-radius.md#price-group-catalog"
-          ]
+          "references": ["docs/super-app-rfc-adr/blast-radius.md#price-group-catalog"]
+        }
+      }
+    },
+    {
+      "id": "billing-documents",
+      "package": "@app/billing-documents",
+      "path": "verticals/billing-documents",
+      "ownership": {
+        "team": "super-app-platform",
+        "slack": "#super-app-platform",
+        "pagerDuty": "pd-super-app-platform",
+        "runbookRef": "runbooks/verticals/billing-documents.md",
+        "adrRef": "docs/super-app-rfc-adr/verticals.md#billing-documents",
+        "blastRadius": {
+          "tier": "tier-2-vertical",
+          "references": ["docs/super-app-rfc-adr/blast-radius.md#billing-documents"]
         }
       }
     }

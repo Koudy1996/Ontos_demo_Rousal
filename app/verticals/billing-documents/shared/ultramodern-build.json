@@ -1,0 +1,44 @@
+{
+  "deliveryUnit": {
+    "appId": "billing-documents",
+    "buildMarker": "cfa64cd3af6f9be4",
+    "deployProfile": "cloudflare-ssr-mf-effect-v1",
+    "kind": "microvertical-delivery-unit",
+    "packageName": "@app/billing-documents",
+    "schemaVersion": 1,
+    "sourceRevision": "workspace",
+    "unitId": "app/billing-documents",
+    "version": "0.1.0",
+    "build": "cfa64cd3af6f9be4"
+  },
+  "kind": "ultramodern-build-artifact",
+  "schemaVersion": 1,
+  "surfaces": {
+    "api": {
+      "appId": "billing-documents",
+      "buildMarker": "cfa64cd3af6f9be4",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/billing-documents",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/billing-documents",
+      "version": "0.1.0",
+      "build": "cfa64cd3af6f9be4",
+      "surface": "api"
+    },
+    "ui": {
+      "appId": "billing-documents",
+      "buildMarker": "cfa64cd3af6f9be4",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/billing-documents",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/billing-documents",
+      "version": "0.1.0",
+      "build": "cfa64cd3af6f9be4",
+      "surface": "ui"
+    }
+  }
+}

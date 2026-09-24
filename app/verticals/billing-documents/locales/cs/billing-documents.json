@@ -1,0 +1,27 @@
+{
+  "billing-documents": {
+    "title": "Faktury",
+    "role": "Fakturace",
+    "routeSurface": "Fakturace zakázek",
+    "widgetBody": "Koncepty a vystavené faktury.",
+    "remoteUnavailable": "Fakturace je dočasně nedostupná.",
+    "language": { "cs": "Čeština", "en": "Angličtina", "switcher": "Jazyk" },
+    "routes": { "home": "Domů" },
+    "seo": { "description": "Faktury SOS vyklízení" },
+    "pages": { "invoices": { "description": "Koncepty a vystavené faktury", "title": "Faktury" } },
+    "demo": {
+      "title": "Faktury", "intro": "Vytvořte koncept z dokončené zakázky, zkontrolujte odběratele a fakturu vystavte.",
+      "new": "Nová faktura", "back": "Zpět na faktury", "search": "Hledat fakturu", "empty": "Zatím tu není žádná faktura.", "customerUnavailable": "Odběratel se načte v detailu",
+      "loading": "Načítám fakturaci…", "saving": "Ukládám…", "open": "Otevřít", "draft": "Koncept", "issued": "Vystavená",
+      "invoice": "FAKTURA", "job": "Zakázka", "chooseJob": "Vyberte dokončenou zakázku", "noJobs": "Všechny dokončené zakázky už mají fakturu.",
+      "createDraft": "Uložit koncept", "description": "Popis", "billingAddress": "Fakturační adresa", "preferred": "preferovaná",
+      "oneTimeAddress": "Jednorázová fakturační adresa", "street": "Ulice a číslo", "city": "Město", "postalCode": "PSČ", "country": "Země", "countryPlaceholder": "CZ",
+      "paymentTerm": "Platební podmínka", "choose": "Vyberte", "taxRequired": "Tuto cenu bez DPH nelze vystavit, dokud není dostupný autoritativní daňový výpočet.",
+      "save": "Uložit změny", "issue": "Vystavit fakturu", "print": "Vytisknout / uložit PDF", "supplier": "Dodavatel", "recipient": "Odběratel",
+      "dates": "Termíny", "issuedAt": "Datum vystavení", "dueAt": "Splatnost", "estimatedDueAt": "Předpokládaná splatnost", "retry": "Zkusit znovu", "reload": "Načíst znovu", "resolve": "Ověřit výsledek operace", "loadMore": "Načíst další", "unsaved": "Před vystavením nejprve uložte zobrazené změny.",
+      "status": { "DRAFT": "Koncept", "ISSUED": "Vystavená" },
+      "priceBasis": { "INCLUDING_VAT": "Přijatá cena včetně DPH", "EXCLUDING_VAT": "Přijatá cena bez DPH" },
+      "error": { "authentication": "Přihlášení vypršelo.", "forbidden": "Pro fakturaci nemáte oprávnění.", "notFound": "Faktura nebo zakázka nebyla nalezena.", "conflict": "Data se změnila. Načtěte je znovu.", "uncertain": "Výsledek zápisu je nejistý. Ověřte stav operace.", "unavailable": "Fakturace nebo její zdroj je dočasně nedostupný.", "validation": "Zkontrolujte zadané údaje a stav zakázky." }
+    }
+  }
+}

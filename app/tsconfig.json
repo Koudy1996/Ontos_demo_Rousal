@@ -51,6 +51,21 @@
     },
     {
       "path": "verticals/price-group-catalog"
+    },
+    {
+      "path": "verticals/sales-inquiries"
+    },
+    {
+      "path": "verticals/service-jobs"
+    },
+    {
+      "path": "verticals/workforce"
+    },
+    {
+      "path": "verticals/job-expenses"
+    },
+    {
+      "path": "verticals/billing-documents"
     }
   ]
 }

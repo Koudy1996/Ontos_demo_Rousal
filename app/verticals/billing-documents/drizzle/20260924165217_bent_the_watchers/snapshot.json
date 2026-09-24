@@ -1,0 +1,663 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "e09c1c60-ab2a-4705-8d0a-494c204f4703",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "ddl": [
+    {
+      "name": "billing_documents",
+      "entityType": "schemas"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "gateway_assertion_redemptions",
+      "entityType": "tables",
+      "schema": "billing_documents"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "invoice_number_counters",
+      "entityType": "tables",
+      "schema": "billing_documents"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "invoices",
+      "entityType": "tables",
+      "schema": "billing_documents"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "audience",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issuer",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "jti",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "invoice_year",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_number",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "commercial_currency",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "commercial_price_basis",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "numeric(14,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "commercial_total",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "customer_party_id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "due_at",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "invoice_number",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issued_at",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issuer_snapshot",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "payment_term_id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "payment_term_snapshot",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_address_selection",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "recipient_snapshot",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "revision",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_accepted_at",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_job_id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_revision",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "columns": [
+        "issuer",
+        "audience",
+        "jti"
+      ],
+      "nameExplicit": false,
+      "name": "gateway_assertion_redemptions_pkey",
+      "entityType": "pks",
+      "schema": "billing_documents",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "invoice_year"
+      ],
+      "nameExplicit": false,
+      "name": "invoice_number_counters_pkey",
+      "entityType": "pks",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "invoices_pkey",
+      "schema": "billing_documents",
+      "table": "invoices",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "source_job_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "billing_documents_invoice_source_uk",
+      "entityType": "uniques",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "invoice_number"
+      ],
+      "nullsNotDistinct": false,
+      "name": "billing_documents_invoice_number_uk",
+      "entityType": "uniques",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "value": "\"invoice_year\" between 1 and 9999",
+      "name": "billing_documents_counter_year_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "value": "\"last_number\" between 1 and 999999",
+      "name": "billing_documents_counter_value_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "value": "\"status\" in ('DRAFT', 'ISSUED')",
+      "name": "billing_documents_invoice_status_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "value": "\"commercial_total\" >= 0",
+      "name": "billing_documents_invoice_amount_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "value": "\"commercial_currency\" ~ '^[A-Z]{3}$'",
+      "name": "billing_documents_invoice_currency_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "value": "\"commercial_price_basis\" in ('INCLUDING_VAT', 'EXCLUDING_VAT')",
+      "name": "billing_documents_invoice_price_basis_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "value": "length(btrim(\"description\")) between 1 and 500",
+      "name": "billing_documents_invoice_description_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "value": "\"revision\" > 0",
+      "name": "billing_documents_invoice_revision_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "value": "(\"status\" = 'DRAFT' and \"invoice_number\" is null and \"issued_at\" is null and \"due_at\" is null and \"recipient_snapshot\" is null and \"payment_term_snapshot\" is null and \"issuer_snapshot\" is null) or (\"status\" = 'ISSUED' and \"invoice_number\" is not null and \"issued_at\" is not null and \"due_at\" is not null and \"recipient_snapshot\" is not null and \"payment_term_snapshot\" is not null and \"issuer_snapshot\" is not null)",
+      "name": "billing_documents_invoice_lifecycle_ck",
+      "entityType": "checks",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"billing_documents\".\"invoice_number_counters\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoice_number_counters\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "billing_documents_counter_scope_select",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": null,
+      "withCheck": "\"billing_documents\".\"invoice_number_counters\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoice_number_counters\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "billing_documents_counter_scope_insert",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"billing_documents\".\"invoice_number_counters\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoice_number_counters\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": "\"billing_documents\".\"invoice_number_counters\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoice_number_counters\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "billing_documents_counter_scope_update",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "DELETE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"billing_documents\".\"invoice_number_counters\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoice_number_counters\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "billing_documents_counter_scope_delete",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoice_number_counters"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"billing_documents\".\"invoices\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoices\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "billing_documents_invoice_scope_select",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": null,
+      "withCheck": "\"billing_documents\".\"invoices\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoices\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "billing_documents_invoice_scope_insert",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"billing_documents\".\"invoices\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoices\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": "\"billing_documents\".\"invoices\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoices\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "billing_documents_invoice_scope_update",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoices"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "DELETE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"billing_documents\".\"invoices\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"billing_documents\".\"invoices\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "billing_documents_invoice_scope_delete",
+      "entityType": "policies",
+      "schema": "billing_documents",
+      "table": "invoices"
+    }
+  ],
+  "renames": []
+}

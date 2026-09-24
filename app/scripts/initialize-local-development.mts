@@ -8,13 +8,13 @@ import { betterAuth } from 'better-auth';
 import { verifyPassword } from 'better-auth/crypto';
 import { admin } from 'better-auth/plugins/admin';
 import { and, eq, or } from 'drizzle-orm';
-import { Config, ConfigProvider, Console, Effect, FileSystem, Layer, Path, Redacted, Schema } from 'effect';
+import { Config, ConfigProvider, Console, DateTime, Effect, FileSystem, Layer, Path, Redacted, Schema } from 'effect';
 import { isSqlError } from 'effect/unstable/sql/SqlError';
 
 import { STAFF_AUTHENTICATION_NAMESPACE_ID } from '../apps/shell-super-app/api/auth/authentication-namespace.ts';
 import { AuthConfig } from '../apps/shell-super-app/api/auth/config.ts';
 import { AuthDatabase, AuthDatabaseLive } from '../apps/shell-super-app/api/auth/db/client.ts';
-import { account, user } from '../apps/shell-super-app/api/auth/db/schema.ts';
+import { account, apikey, user } from '../apps/shell-super-app/api/auth/db/schema.ts';
 import { CoreDatabase, CoreDatabaseLive } from '../packages/core-runtime/src/db/client.ts';
 import {
   DatabaseConfig,
@@ -39,9 +39,12 @@ import {
 import { spiceDbClientSecurity } from '../packages/core-runtime/src/permissions/client.ts';
 import { parseSpiceDbConfig } from '../packages/core-runtime/src/permissions/config.ts';
 import {
+  toContextPermissionAccessObjectId,
   toLegalEntityAccessObjectId,
   toModuleAccessObjectId,
+  toResourceAccessObjectId,
 } from '../packages/core-runtime/src/permissions/context-access.ts';
+import { toSpiceDbActionObjectId } from '../packages/core-runtime/src/permissions/service.ts';
 import { deriveOntosModuleDeploymentContract } from './generate-ontos-module-contract.mts';
 
 export interface LocalDevelopmentEnvironment {
@@ -58,9 +61,12 @@ type Comparable = boolean | null | number | string;
 type ExactRecord = Readonly<Record<string, Comparable>>;
 
 const localDevelopmentPassword = Redacted.make(['password', '1234'].join(''));
+export const LOCAL_BILLING_DOCUMENTS_API_KEY = 'ontos_demo_billing_documents_local_key_v1';
+export const LOCAL_BILLING_DOCUMENTS_API_KEY_ID = '74000000-0000-4000-8000-000000000010';
 
 export const LOCAL_DEVELOPMENT_CONTEXT = Object.freeze({
   authBindingId: '73000000-0000-4000-8000-000000000010',
+  billingApiKeyAuthBindingId: '73000000-0000-4000-8000-000000000011',
   defaultLocale: 'cs',
   email: 'demo@test.com',
   legalEntityId: '71000000-0000-4000-8000-000000000010',
@@ -80,10 +86,31 @@ export const LOCAL_DEVELOPMENT_VERTICALS = Object.freeze([
   'service-jobs',
   'workforce',
   'job-expenses',
+  'billing-documents',
+  'payment-term-catalog',
   'party-registry',
   'commerce-market-catalog',
   'commerce-customer-context',
 ] as const);
+
+const BILLING_DOCUMENTS_MODULE_ID = 'billing.documents';
+const PAYMENT_TERM_CATALOG_MODULE_ID = 'payment.term-catalog';
+const PAYMENT_TERM_CATALOG_READ_PERMISSION = 'payment.term_catalog.read';
+const BILLING_DOCUMENTS_LOCAL_ACTION_KEYS = Object.freeze([
+  'billing.documents.create-invoice-draft',
+  'billing.documents.issue-invoice',
+  'billing.documents.update-invoice-draft',
+]);
+const PAYMENT_TERM_CATALOG_LOCAL_ACTION_KEYS = Object.freeze(['payment.term-catalog.create-payment-term']);
+const localActionKeysForModule = (moduleId: string): readonly string[] => {
+  if (moduleId === BILLING_DOCUMENTS_MODULE_ID) {
+    return BILLING_DOCUMENTS_LOCAL_ACTION_KEYS;
+  }
+  if (moduleId === PAYMENT_TERM_CATALOG_MODULE_ID) {
+    return PAYMENT_TERM_CATALOG_LOCAL_ACTION_KEYS;
+  }
+  return [];
+};
 
 export interface LocalDevelopmentConfiguration {
   readonly authBaseUrl: string;
@@ -445,6 +472,78 @@ export const buildLocalDevelopmentRelationships = Effect.fn('LocalDevelopment.bu
         },
       );
     }
+    for (const moduleId of moduleIds) {
+      for (const actionKey of localActionKeysForModule(moduleId)) {
+        shared.push({
+          relation: 'executor',
+          resourceId: toSpiceDbActionObjectId(actionKey),
+          resourceType: 'action',
+          subjectId: context.principalId,
+          subjectType: 'principal',
+        });
+      }
+    }
+    if (moduleIds.includes(PAYMENT_TERM_CATALOG_MODULE_ID)) {
+      const paymentTermModuleObjectId = toModuleAccessObjectId(
+        context.tenantId,
+        context.legalEntityId,
+        PAYMENT_TERM_CATALOG_MODULE_ID,
+      );
+      const paymentTermResourceObjectId = toResourceAccessObjectId(context.tenantId, context.legalEntityId, {
+        moduleId: PAYMENT_TERM_CATALOG_MODULE_ID,
+        resourceId: context.legalEntityId,
+        resourceType: 'payment.term-catalog.payment-term-catalog-root',
+      });
+      const paymentTermReadPermissionObjectId = toContextPermissionAccessObjectId(
+        context.tenantId,
+        context.legalEntityId,
+        { moduleId: PAYMENT_TERM_CATALOG_MODULE_ID, permission: PAYMENT_TERM_CATALOG_READ_PERMISSION },
+      );
+      if (
+        paymentTermModuleObjectId === undefined ||
+        paymentTermResourceObjectId === undefined ||
+        paymentTermReadPermissionObjectId === undefined
+      ) {
+        return yield* failure('local_contract_invalid', 'The local Payment Term authorization ID is invalid');
+      }
+      shared.push(
+        {
+          relation: 'tenant',
+          resourceId: paymentTermReadPermissionObjectId,
+          resourceType: 'context_permission',
+          subjectId: context.tenantId,
+          subjectType: 'tenant',
+        },
+        {
+          relation: 'grantee',
+          resourceId: paymentTermReadPermissionObjectId,
+          resourceType: 'context_permission',
+          subjectId: context.principalId,
+          subjectType: 'principal',
+        },
+        {
+          relation: 'module',
+          resourceId: paymentTermResourceObjectId,
+          resourceType: 'resource',
+          subjectId: paymentTermModuleObjectId,
+          subjectType: 'module_access',
+        },
+        {
+          relation: 'reader',
+          resourceId: paymentTermResourceObjectId,
+          resourceType: 'resource',
+          subjectId: context.principalId,
+          subjectType: 'principal',
+        },
+        {
+          relation: 'writer',
+          resourceId: paymentTermResourceObjectId,
+          resourceType: 'resource',
+          subjectId: context.principalId,
+          subjectType: 'principal',
+        },
+      );
+    }
     return shared;
   },
 );
@@ -463,6 +562,36 @@ const ensureAuthUser = Effect.fn('LocalDevelopment.ensureAuthUser')(function* en
     return yield* failure('local_conflict', 'Multiple Better Auth users use the local email');
   }
   const [existingUser] = existingUsers;
+  const ensureBillingApiKey = Effect.fn('LocalDevelopment.ensureBillingApiKey')(function* ensureBillingApiKeyEffect(
+    userId: string,
+  ) {
+    const now = yield* DateTime.nowAsDate;
+    const key = createHash('sha256').update(LOCAL_BILLING_DOCUMENTS_API_KEY).digest('base64url');
+    return yield* database
+      .insert(apikey)
+      .values({
+        configId: 'default',
+        createdAt: now,
+        enabled: true,
+        id: LOCAL_BILLING_DOCUMENTS_API_KEY_ID,
+        key,
+        name: 'Local Billing Documents owner reads',
+        rateLimitEnabled: false,
+        referenceId: userId,
+        start: LOCAL_BILLING_DOCUMENTS_API_KEY.slice(0, 6),
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        set: { enabled: true, key, rateLimitEnabled: false, referenceId: userId, updatedAt: now },
+        target: apikey.id,
+      })
+      .pipe(
+        Effect.mapError(() =>
+          failure('local_persistence_failed', 'The local Billing Documents API key could not be reconciled'),
+        ),
+        Effect.asVoid,
+      );
+  });
   if (existingUser !== undefined) {
     yield* classifyExactLocalRecord('Better Auth user', existingUser, {
       email: configuration.email,
@@ -494,6 +623,7 @@ const ensureAuthUser = Effect.fn('LocalDevelopment.ensureAuthUser')(function* en
     if (!validPassword) {
       return yield* failure('local_conflict', 'The existing local user has conflicting credentials');
     }
+    yield* ensureBillingApiKey(existingUser.id);
     return { status: 'existing' as const, userId: existingUser.id };
   }
   const created = yield* Effect.tryPromise({
@@ -520,6 +650,7 @@ const ensureAuthUser = Effect.fn('LocalDevelopment.ensureAuthUser')(function* en
       });
     },
   });
+  yield* ensureBillingApiKey(created.user.id);
   return { status: 'created' as const, userId: created.user.id };
 });
 
@@ -644,6 +775,52 @@ export const reconcileCoreContext = (
           'create'
         ) {
           yield* transaction.insert(principalAuthBindings).values(expectedBinding);
+        }
+
+        const apiKeyBindingCandidates = yield* transaction
+          .select({
+            authenticationNamespaceId: principalAuthBindings.authenticationNamespaceId,
+            principalAuthBindingId: principalAuthBindings.principalAuthBindingId,
+            principalId: principalAuthBindings.principalId,
+            provider: principalAuthBindings.provider,
+            providerSubjectId: principalAuthBindings.providerSubjectId,
+            status: principalAuthBindings.status,
+            subjectType: principalAuthBindings.subjectType,
+            tenantId: principalAuthBindings.tenantId,
+          })
+          .from(principalAuthBindings)
+          .where(
+            or(
+              eq(principalAuthBindings.principalAuthBindingId, context.billingApiKeyAuthBindingId),
+              and(
+                eq(principalAuthBindings.provider, 'better_auth'),
+                eq(principalAuthBindings.subjectType, 'api_key'),
+                eq(principalAuthBindings.providerSubjectId, LOCAL_BILLING_DOCUMENTS_API_KEY_ID),
+              ),
+            ),
+          )
+          .limit(2);
+        if (apiKeyBindingCandidates.length > 1) {
+          return yield* failure('local_conflict', 'The local Billing Documents API-key binding conflicts');
+        }
+        const expectedApiKeyBinding = {
+          authenticationNamespaceId: STAFF_AUTHENTICATION_NAMESPACE_ID,
+          principalAuthBindingId: context.billingApiKeyAuthBindingId,
+          principalId: context.principalId,
+          provider: 'better_auth',
+          providerSubjectId: LOCAL_BILLING_DOCUMENTS_API_KEY_ID,
+          status: 'active',
+          subjectType: 'api_key',
+          tenantId: context.tenantId,
+        } as const;
+        if (
+          (yield* classifyExactLocalRecord(
+            'Billing Documents API-key binding',
+            apiKeyBindingCandidates[0],
+            expectedApiKeyBinding,
+          )) === 'create'
+        ) {
+          yield* transaction.insert(principalAuthBindings).values(expectedApiKeyBinding);
         }
 
         yield* reconcileLocalModules(transaction, moduleIds);

@@ -33,3 +33,5 @@ export { createWorkforceClient, getWorkforceReadiness } from '@app/workforce/api
 export type { WorkforceClientOptions } from '@app/workforce/api/client';
 export { createJobExpensesClient, getJobExpensesReadiness } from '@app/job-expenses/api/client';
 export type { JobExpensesClientOptions } from '@app/job-expenses/api/client';
+export { createBillingDocumentsClient, getBillingDocumentsReadiness } from '@app/billing-documents/api/client';
+export type { BillingDocumentsClientOptions } from '@app/billing-documents/api/client';
