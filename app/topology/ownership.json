@@ -260,6 +260,22 @@
           "references": ["docs/super-app-rfc-adr/blast-radius.md#service-jobs"]
         }
       }
+    },
+    {
+      "id": "workforce",
+      "package": "@app/workforce",
+      "path": "verticals/workforce",
+      "ownership": {
+        "team": "super-app-platform",
+        "slack": "#super-app-platform",
+        "pagerDuty": "pd-super-app-platform",
+        "runbookRef": "runbooks/verticals/workforce.md",
+        "adrRef": "docs/super-app-rfc-adr/verticals.md#workforce",
+        "blastRadius": {
+          "tier": "tier-2-vertical",
+          "references": ["docs/super-app-rfc-adr/blast-radius.md#workforce"]
+        }
+      }
     }
   ]
 }

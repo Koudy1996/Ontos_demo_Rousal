@@ -21,6 +21,7 @@ const EXPECTED_APPLICATION_SCHEMAS = [
   'sales_inquiries',
   'service_jobs',
   'storefront_registry',
+  'workforce',
 ] as const;
 const EXPECTED_MIGRATION_JOURNALS = [
   '__drizzle_migrations_auth',
@@ -35,6 +36,7 @@ const EXPECTED_MIGRATION_JOURNALS = [
   '__drizzle_migrations_sales_inquiries',
   '__drizzle_migrations_service_jobs',
   '__drizzle_migrations_storefront_registry',
+  '__drizzle_migrations_workforce',
 ] as const;
 const COMMERCE_PORTAL_AUTH_SCHEMA_NAME = 'commerce_auth' as const;
 const COMMERCE_PORTAL_AUTH_MIGRATION_JOURNAL = '__drizzle_migrations_commerce_portal_auth' as const;
@@ -149,6 +151,7 @@ const ownerVerifierPaths = [
   '../verticals/sales-inquiries/scripts/verify-db-schema.mts',
   '../verticals/service-jobs/scripts/verify-db-schema.mts',
   '../verticals/storefront-registry/scripts/verify-db-schema.mts',
+  '../verticals/workforce/scripts/verify-db-schema.mts',
 ] as const;
 
 const COMMERCE_PORTAL_AUTH_VERIFIER = '../verticals/commerce-customer-context/scripts/verify-portal-auth-db-schema.mts';

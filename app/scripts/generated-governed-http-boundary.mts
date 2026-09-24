@@ -1118,9 +1118,10 @@ const hasReadContract = (source: string, contribution: GovernedReadContribution,
     callbacks: hasReadCallbacks(source, readExpression, contribution.kind),
     descriptorReferences: hasObjectProperties(read, {
       entrypoint: `${camel}Entrypoint`,
-      inputSchema,
       resultSchema,
     }),
+    // HttpApi passes decoded payloads to Core. A read may validate that same
+    // contract's decoded type without applying its wire codec a second time.
     descriptorStrings: (
       [
         ['owningModuleKey', moduleId],
@@ -1155,6 +1156,10 @@ const hasReadContract = (source: string, contribution: GovernedReadContribution,
       defineRead: CORE_RUNTIME_MODULE,
       defineTenantModuleEntrypoint: CORE_RUNTIME_MODULE,
     }),
+    inputSchema:
+      objectProperty(read, 'inputSchema') === inputSchema ||
+      (objectProperty(read, 'inputSchema') === `Schema.toType(${inputSchema})` &&
+        hasExactValueImport(source, 'Schema', 'effect')),
     policy: hasReadDescriptorPolicy(read, allowedAccessKinds),
     readCall: isWholeObjectCall(readExpression, read, /^defineRead\(/u),
   };
@@ -1944,7 +1949,7 @@ const hasCompleteGeneratedActionHttpSeam = (input: {
         GOVERNED_HANDLER_LAYER_SLOT_START,
         GOVERNED_HANDLER_LAYER_SLOT_END,
         new RegExp(
-          `${escapedLayerValue}\\.pipe\\(\\s*GovernedReadLayer\\.provide\\(governedActionRuntimeLive\\),?\\s*\\),`,
+          `\\b${escapedLayerValue}\\.pipe\\(\\s*GovernedReadLayer\\.provide\\(governedActionRuntimeLive\\),?\\s*\\),`,
           'gu',
         ),
       ),
@@ -1953,13 +1958,13 @@ const hasCompleteGeneratedActionHttpSeam = (input: {
         input.manifest,
         '// <generated-module-manifest-actions>',
         '// </generated-module-manifest-actions>',
-        new RegExp(`${escapedActionValue},`, 'gu'),
+        new RegExp(`\\b${escapedActionValue},`, 'gu'),
       ),
       slotHasExactlyOneCodeMatch(
         input.registration,
         '// <generated-module-registration-actions>',
         '// </generated-module-registration-actions>',
-        new RegExp(`${escapedActionValue},`, 'gu'),
+        new RegExp(`\\b${escapedActionValue},`, 'gu'),
       ),
     ].every(Boolean);
   });

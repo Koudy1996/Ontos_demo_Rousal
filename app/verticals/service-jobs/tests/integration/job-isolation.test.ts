@@ -1,10 +1,12 @@
-import { loadDatabaseConnectionPair } from '@app/core-runtime';
+import { loadDatabaseConnectionPair, TrustedPrincipalContextSchema } from '@app/core-runtime';
 import { PgClient } from '@effect/sql-pg';
 import { makeWithDefaults } from 'drizzle-orm/effect-postgres';
 import { eq, sql } from 'drizzle-orm';
-import { Effect, Redacted, Schema, Layer } from 'effect';
+import { Effect, Redacted, Schema, Layer, Result } from 'effect';
 import { expect, it } from 'effect-rstest';
 import { jobs } from '../../src/db/schema.ts';
+import { JobListRequestSchema } from '../../shared/apis/job-list.ts';
+import { jobPersistenceService } from '../../src/services/job-persistence.service.ts';
 
 class FixtureRollback extends Schema.TaggedError<FixtureRollback>()('FixtureRollback', {}) {}
 const tenant = '70000000-0000-4000-8000-000000000001';
@@ -105,6 +107,115 @@ const concurrencyScenario = Effect.gen(function* concurrencyScenario() {
     () => database.delete(jobs).where(eq(jobs.sourceId, sourceId)).pipe(Effect.orDie),
   );
 });
+const selectionScenario = Effect.gen(function* selectionScenario() {
+  const database = yield* makeWithDefaults({});
+  yield* database
+    .transaction(
+      Effect.fn(function* completeSelection(transaction) {
+        const rows = Array.from({ length: 105 }, (_, index) => {
+          const id = `62000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`;
+          return {
+            ...fixture(id),
+            expectedDurationMinutes: 120,
+            scheduledStartAt: '2026-10-05T06:00:00.000Z',
+            sourceId: id,
+            status: 'PLANNED' as const,
+          };
+        });
+        yield* transaction.insert(jobs).values(rows);
+        const crossingId = '62000000-0000-4000-8000-000000000201';
+        const outsideId = '62000000-0000-4000-8000-000000000202';
+        const unknownId = '62000000-0000-4000-8000-000000000203';
+        const adjacentId = '62000000-0000-4000-8000-000000000204';
+        yield* transaction.insert(jobs).values([
+          {
+            ...fixture(crossingId),
+            expectedDurationMinutes: 180,
+            scheduledStartAt: '2026-10-04T21:00:00.000Z',
+            sourceId: crossingId,
+            status: 'PLANNED',
+          },
+          {
+            ...fixture(outsideId),
+            scheduledStartAt: '2026-11-01T08:00:00.000Z',
+            sourceId: outsideId,
+            status: 'PLANNED',
+          },
+          {
+            ...fixture(unknownId),
+            scheduledStartAt: '2026-10-06T08:00:00.000Z',
+            sourceId: unknownId,
+            status: 'PLANNED',
+          },
+          {
+            ...fixture(adjacentId),
+            expectedDurationMinutes: 60,
+            scheduledStartAt: '2026-10-04T21:00:00.000Z',
+            sourceId: adjacentId,
+            status: 'PLANNED',
+          },
+        ]);
+        yield* transaction.execute(sql`SET LOCAL ROLE ontos_runtime`);
+        yield* transaction.execute(
+          sql`select set_config('ontos.tenant_id',${tenant},true),set_config('ontos.legal_entity_id',${legalEntity},true)`,
+        );
+        const principal = yield* Schema.decodeEffect(TrustedPrincipalContextSchema)({
+          authBindingId: '10000000-0000-4000-8000-000000000001',
+          authContextRef: 'better-auth-session:selection',
+          authMethod: 'session',
+          legalEntityId: legalEntity,
+          principalId: '20000000-0000-4000-8000-000000000001',
+          tenantId: tenant,
+        });
+        const persistence = yield* jobPersistenceService(transaction, { ...principal, correlationId: 'selection' });
+        expect(yield* persistence.list('ALL')).toHaveLength(100);
+        const request = yield* Schema.decodeEffect(JobListRequestSchema)({
+          selection: { interval: { from: '2026-10-04T22:00:00Z', to: '2026-10-11T22:00:00Z' }, references: [] },
+        });
+        expect(yield* persistence.list(undefined, request.selection)).toHaveLength(107);
+        const withReference = yield* Schema.decodeEffect(JobListRequestSchema)({
+          selection: {
+            references: [
+              {
+                moduleId: 'service.jobs',
+                resourceId: outsideId,
+                resourceType: 'service.jobs.service-job',
+                tenantId: tenant,
+              },
+            ],
+          },
+        });
+        expect(yield* persistence.list(undefined, withReference.selection)).toHaveLength(1);
+        const absent = yield* Schema.decodeEffect(JobListRequestSchema)({
+          selection: {
+            references: [
+              {
+                moduleId: 'service.jobs',
+                resourceId: '62000000-0000-4000-8000-000000000999',
+                resourceType: 'service.jobs.service-job',
+                tenantId: tenant,
+              },
+            ],
+          },
+        });
+        expect(Result.isFailure(yield* Effect.result(persistence.list(undefined, absent.selection)))).toBe(true);
+        const overflowRows = Array.from({ length: 1900 }, (_, index) => {
+          const id = `63000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`;
+          return {
+            ...fixture(id),
+            expectedDurationMinutes: 120,
+            scheduledStartAt: '2026-10-05T06:00:00.000Z',
+            sourceId: id,
+            status: 'PLANNED' as const,
+          };
+        });
+        yield* transaction.insert(jobs).values(overflowRows);
+        expect(Result.isFailure(yield* Effect.result(persistence.list(undefined, request.selection)))).toBe(true);
+        return yield* new FixtureRollback();
+      }),
+    )
+    .pipe(Effect.catchTag('FixtureRollback', () => Effect.void));
+});
 it.layer(
   Layer.unwrap(
     loadDatabaseConnectionPair().pipe(
@@ -113,6 +224,10 @@ it.layer(
   ),
 )('Service job database', (suite) => {
   suite.effect('forced RLS isolates tenant and legal entity for reads and writes', () => isolationScenario);
+  suite.effect(
+    'complete schedule selection crosses week boundaries and preserves old list limits',
+    () => selectionScenario,
+  );
   suite.effect(
     'concurrent transactions cannot create two jobs from the same accepted source',
     () => concurrencyScenario,

@@ -34,6 +34,7 @@ export {
 export { executeUpdateExecution, executeUpdateExecutionWithAuthorization } from './update-execution-action-client.ts';
 // </generated-action-http-client-exports>
 export { executeJobDetailWithAuthorization } from './job-detail-client.ts';
+export { executeJobListWithAuthorization } from './job-list-client.ts';
 
 type ServiceJobsApiGroups = typeof serviceJobsApi extends HttpApi.HttpApi<infer _ApiId, infer Groups> ? Groups : never;
 

@@ -1,0 +1,734 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "518c2289-e8f6-4ec0-a159-057fe521ec2f",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "ddl": [
+    {
+      "name": "workforce",
+      "entityType": "schemas"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "absences",
+      "entityType": "tables",
+      "schema": "workforce"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "assignments",
+      "entityType": "tables",
+      "schema": "workforce"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "gateway_assertion_redemptions",
+      "entityType": "tables",
+      "schema": "workforce"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "workers",
+      "entityType": "tables",
+      "schema": "workforce"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date_from",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "date_to",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "reason",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "worker_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "job_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "worker_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "audience",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issuer",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "jti",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "agreement_type",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "agreement_valid_from",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "agreement_valid_to",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "display_name",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "numeric(14,2)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "internal_hourly_cost_czk",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "phone",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "position",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "revision",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "worker_id"
+      ],
+      "schemaTo": "workforce",
+      "tableTo": "workers",
+      "columnsTo": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "absence_worker_scope",
+      "entityType": "fks",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "worker_id"
+      ],
+      "schemaTo": "workforce",
+      "tableTo": "workers",
+      "columnsTo": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "assignment_worker_scope",
+      "entityType": "fks",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "worker_id",
+        "job_id"
+      ],
+      "nameExplicit": false,
+      "name": "assignments_pkey",
+      "entityType": "pks",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "columns": [
+        "issuer",
+        "audience",
+        "jti"
+      ],
+      "nameExplicit": false,
+      "name": "gateway_assertion_redemptions_pkey",
+      "entityType": "pks",
+      "schema": "workforce",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "absences_pkey",
+      "schema": "workforce",
+      "table": "absences",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "workers_pkey",
+      "schema": "workforce",
+      "table": "workers",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "workers_scope_identity",
+      "entityType": "uniques",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "value": "\"date_to\" >= \"date_from\"",
+      "name": "absence_dates_valid",
+      "entityType": "checks",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "value": "\"reason\" IN ('VACATION','SICK','OTHER')",
+      "name": "absence_reason_valid",
+      "entityType": "checks",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "value": "length(trim(\"display_name\")) > 0 AND length(\"display_name\") <= 500",
+      "name": "workers_name_valid",
+      "entityType": "checks",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "value": "\"status\" IN ('ACTIVE','INACTIVE')",
+      "name": "workers_status_valid",
+      "entityType": "checks",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "value": "\"agreement_type\" IN ('EMPLOYMENT','DPP','DPC','CONTRACTOR') AND (\"agreement_valid_to\" IS NULL OR \"agreement_valid_to\" >= \"agreement_valid_from\")",
+      "name": "workers_agreement_valid",
+      "entityType": "checks",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "value": "\"internal_hourly_cost_czk\" IS NULL OR \"internal_hourly_cost_czk\" >= 0",
+      "name": "workers_cost_valid",
+      "entityType": "checks",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "value": "\"revision\" > 0",
+      "name": "workers_revision_positive",
+      "entityType": "checks",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"absences\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"absences\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "absences_scope_select",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": null,
+      "withCheck": "\"workforce\".\"absences\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"absences\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "absences_scope_insert",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"absences\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"absences\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": "\"workforce\".\"absences\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"absences\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "absences_scope_update",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "DELETE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"absences\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"absences\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "absences_scope_delete",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "absences"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"assignments\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"assignments\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "assignments_scope_select",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": null,
+      "withCheck": "\"workforce\".\"assignments\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"assignments\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "assignments_scope_insert",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"assignments\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"assignments\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": "\"workforce\".\"assignments\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"assignments\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "assignments_scope_update",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "DELETE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"assignments\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"assignments\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "assignments_scope_delete",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "assignments"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"workers\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"workers\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "workers_scope_select",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": null,
+      "withCheck": "\"workforce\".\"workers\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"workers\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "workers_scope_insert",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"workers\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"workers\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": "\"workforce\".\"workers\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"workers\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "workers_scope_update",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "workers"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "DELETE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"workforce\".\"workers\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"workforce\".\"workers\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "workers_scope_delete",
+      "entityType": "policies",
+      "schema": "workforce",
+      "table": "workers"
+    }
+  ],
+  "renames": []
+}

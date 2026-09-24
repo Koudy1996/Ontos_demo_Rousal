@@ -131,6 +131,13 @@ const moduleFederationConfig: Parameters<typeof createModuleFederationConfig>[0]
       publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SERVICE_JOBS',
       workerName: 'app-service-jobs',
     }),
+    workforce: createRemoteManifestUrl({
+      manifestEnv: 'VERTICAL_WORKFORCE_MF_MANIFEST',
+      mfName: 'verticalWorkforce',
+      port: 4110,
+      publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_WORKFORCE',
+      workerName: 'app-workforce',
+    }),
   },
   shared: createSharedRuntimeConfig({
     '@modern-js/plugin-i18n/runtime': i18nVersion,

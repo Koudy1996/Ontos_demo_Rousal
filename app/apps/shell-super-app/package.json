@@ -38,6 +38,7 @@
     "@app/shared-contracts": "workspace:*",
     "@app/shared-design-tokens": "workspace:*",
     "@app/storefront-registry": "workspace:*",
+    "@app/workforce": "workspace:*",
     "@authzed/authzed-node": "1.6.1",
     "@better-auth/api-key": "1.7.2",
     "@better-auth/drizzle-adapter": "1.7.2",
@@ -104,6 +105,7 @@
     "commerceMarketCatalog": "@app/commerce-market-catalog@workspace:*",
     "catalog": "@app/catalog@workspace:*",
     "salesInquiries": "@app/sales-inquiries@workspace:*",
-    "serviceJobs": "@app/service-jobs@workspace:*"
+    "serviceJobs": "@app/service-jobs@workspace:*",
+    "workforce": "@app/workforce@workspace:*"
   }
 }

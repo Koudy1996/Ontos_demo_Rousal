@@ -44,6 +44,13 @@ export const ultramodernVerticalClients: readonly ApprovedVerticalPageClient[] =
       (): PromiseLike<{ readonly default: ApprovedVerticalPageComponent }> => import('serviceJobs/PageJobs'),
     ).pipe(PageLoadEffect.timeout('5 seconds')),
   },
+  {
+    appId: 'workforce',
+    componentKey: 'workforce.planning.page-workforce',
+    load: PageLoadEffect.tryPromise(
+      (): PromiseLike<{ readonly default: ApprovedVerticalPageComponent }> => import('workforce/PageWorkforce'),
+    ).pipe(PageLoadEffect.timeout('5 seconds')),
+  },
   // @ontos-codegen-end shell-page-clients
 ];
 

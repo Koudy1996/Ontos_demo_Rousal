@@ -1,0 +1,121 @@
+{
+  "workforce": {
+    "language": {
+      "cs": "Czech",
+      "en": "English",
+      "switcher": "Language"
+    },
+    "routes": {
+      "home": "Home"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern surface with localized SSR and framework-owned public metadata."
+    },
+    "federatedSurface": "Federated surface owned by this vertical.",
+    "remoteUnavailable": "Remote vertical unavailable",
+    "role": "workforce",
+    "routeSurface": "Route surface owned by this vertical.",
+    "title": "Workers and schedule",
+    "widgetBody": "Owns a vertical route surface.",
+    "pages": {
+      "workforce": {
+        "title": "Workers and schedule",
+        "description": "Workers and schedule"
+      }
+    },
+    "demo": {
+      "title": "Workers and schedule",
+      "workers": "Workers",
+      "schedule": "Schedule",
+      "perspectives": "Planning views",
+      "newWorker": "Add worker",
+      "editWorker": "Edit worker",
+      "name": "Full name",
+      "phone": "Phone",
+      "position": "Position",
+      "agreement": "Work agreement",
+      "validFrom": "Valid from",
+      "validTo": "Valid until (optional)",
+      "hourlyCost": "Internal hourly cost (CZK)",
+      "agreementHelp": "One current agreement. Use a decimal point for cost; this is not payroll or a timesheet.",
+      "save": "Save",
+      "activate": "Activate worker",
+      "deactivate": "Deactivate worker",
+      "absences": "Absences",
+      "noAbsences": "No absences recorded.",
+      "removeAbsence": "Remove absence",
+      "historicalAbsence": "Started and historical absences cannot be changed.",
+      "addAbsence": "Add absence",
+      "dateFrom": "From",
+      "dateTo": "Until",
+      "absenceReason": "Reason",
+      "absenceHelp": "Whole inclusive days. Only absences starting after today in Prague can be added or removed.",
+      "assignedJobs": "Assigned jobs",
+      "noAssignedJobs": "No jobs assigned yet.",
+      "unknownTime": "Unknown start",
+      "unknownDuration": "Unknown duration",
+      "previousWeek": "Previous week",
+      "nextWeek": "Next week",
+      "weekStart": "Week starting",
+      "timeZone": "Times use Europe/Prague. Jobs are included when they overlap the week.",
+      "loading": "Loading…",
+      "saving": "Saving…",
+      "noJobs": "No jobs this week.",
+      "crew": "Crew",
+      "noCrew": "Unassigned",
+      "crewReadonly": "Crew is read-only for jobs in progress or completed.",
+      "unknownDurationHelp": "Set a start and expected duration in Jobs before assigning workers.",
+      "manageCrew": "Manage crew",
+      "noWorkers": "No workers in this view.",
+      "assign": "Assign",
+      "unassign": "Remove from job",
+      "refresh": "Reload",
+      "retry": "Retry same attempt",
+      "resolve": "Resolve commit",
+      "back": "Back to list",
+      "search": "Search by name",
+      "noResults": "No matching workers.",
+      "open": "Open details",
+      "status": {
+        "ACTIVE": "Active",
+        "INACTIVE": "Inactive",
+        "ALL": "All"
+      },
+      "agreementType": {
+        "EMPLOYMENT": "Employment",
+        "DPP": "DPP",
+        "DPC": "DPČ",
+        "CONTRACTOR": "Contractor"
+      },
+      "reason": {
+        "VACATION": "Vacation",
+        "SICK": "Sick leave",
+        "OTHER": "Other absence"
+      },
+      "jobStatus": {
+        "NEW": "New",
+        "PLANNED": "Planned",
+        "IN_PROGRESS": "In progress",
+        "COMPLETED": "Completed"
+      },
+      "availability": {
+        "AVAILABLE": "Available",
+        "INACTIVE": "Inactive worker",
+        "OUTSIDE_AGREEMENT": "Outside agreement",
+        "UNAVAILABLE": "Unavailable",
+        "JOB_CONFLICT": "Job conflict"
+      },
+      "error": {
+        "authentication": "Please sign in again.",
+        "forbidden": "Access is denied or the current legal entity is missing.",
+        "internal": "The operation could not be completed.",
+        "notFound": "Record not found. Reload the list.",
+        "unavailable": "Data is temporarily unavailable. Worker availability cannot be confirmed.",
+        "validation": "Check the inputs and current agreement, absence, job status and duration.",
+        "conflict": "Data changed or schedules overlap. Reload the current state.",
+        "uncertain": "The commit outcome is uncertain. Resolve the original attempt first.",
+        "committed": "The change was already committed."
+      }
+    }
+  }
+}

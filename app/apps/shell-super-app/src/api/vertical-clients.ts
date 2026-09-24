@@ -27,3 +27,5 @@ export { createSalesInquiriesClient, getSalesInquiriesReadiness } from '@app/sal
 export type { SalesInquiriesClientOptions } from '@app/sales-inquiries/api/client';
 export { createServiceJobsClient, getServiceJobsReadiness } from '@app/service-jobs/api/client';
 export type { ServiceJobsClientOptions } from '@app/service-jobs/api/client';
+export { createWorkforceClient, getWorkforceReadiness } from '@app/workforce/api/client';
+export type { WorkforceClientOptions } from '@app/workforce/api/client';

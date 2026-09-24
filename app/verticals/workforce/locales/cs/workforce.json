@@ -1,0 +1,121 @@
+{
+  "workforce": {
+    "language": {
+      "cs": "Čeština",
+      "en": "Angličtina",
+      "switcher": "Jazyk"
+    },
+    "routes": {
+      "home": "Domů"
+    },
+    "seo": {
+      "description": "Route-owned UltraModern plocha s lokalizovaným SSR a frameworkem řízenými public metadata."
+    },
+    "federatedSurface": "Federovaná plocha vlastněná tímto verticalem.",
+    "remoteUnavailable": "Remote vertical je nedostupný",
+    "role": "workforce",
+    "routeSurface": "Routovaná plocha vlastněná tímto verticalem.",
+    "title": "Pracovníci a harmonogram",
+    "widgetBody": "Vlastní routovanou plochu verticalu.",
+    "pages": {
+      "workforce": {
+        "title": "Pracovníci a harmonogram",
+        "description": "Pracovníci a harmonogram"
+      }
+    },
+    "demo": {
+      "title": "Pracovníci a harmonogram",
+      "workers": "Pracovníci",
+      "schedule": "Harmonogram",
+      "perspectives": "Pohledy plánování",
+      "newWorker": "Přidat pracovníka",
+      "editWorker": "Upravit pracovníka",
+      "name": "Jméno a příjmení",
+      "phone": "Telefon",
+      "position": "Pozice",
+      "agreement": "Pracovní vztah",
+      "validFrom": "Platnost od",
+      "validTo": "Platnost do (nepovinné)",
+      "hourlyCost": "Interní hodinový náklad (Kč)",
+      "agreementHelp": "Jeden aktuální pracovní vztah. Částku zadejte s desetinnou tečkou; nejde o mzdu ani výkaz práce.",
+      "save": "Uložit",
+      "activate": "Aktivovat pracovníka",
+      "deactivate": "Deaktivovat pracovníka",
+      "absences": "Absence",
+      "noAbsences": "Žádné evidované absence.",
+      "removeAbsence": "Odstranit absenci",
+      "historicalAbsence": "Zahájenou nebo minulou absenci nelze měnit.",
+      "addAbsence": "Přidat absenci",
+      "dateFrom": "Od",
+      "dateTo": "Do",
+      "absenceReason": "Důvod",
+      "absenceHelp": "Celé dny včetně prvního a posledního dne. Přidávat a odebírat lze pouze absence začínající po dnešku v Praze.",
+      "assignedJobs": "Přiřazené zakázky",
+      "noAssignedJobs": "Pracovník zatím nemá přiřazené zakázky.",
+      "unknownTime": "Termín není znám",
+      "unknownDuration": "Délka není známá",
+      "previousWeek": "Předchozí týden",
+      "nextWeek": "Následující týden",
+      "weekStart": "Týden od",
+      "timeZone": "Časy jsou uvedené pro Europe/Prague. Zakázky se zobrazují podle překryvu s týdnem.",
+      "loading": "Načítání…",
+      "saving": "Ukládání…",
+      "noJobs": "V tomto týdnu nejsou zakázky.",
+      "crew": "Posádka",
+      "noCrew": "Bez posádky",
+      "crewReadonly": "U rozpracované nebo dokončené zakázky je posádka pouze ke čtení.",
+      "unknownDurationHelp": "Před přiřazením doplňte v Zakázkách začátek a předpokládanou délku.",
+      "manageCrew": "Upravit posádku",
+      "noWorkers": "Žádní pracovníci v tomto pohledu.",
+      "assign": "Přiřadit",
+      "unassign": "Odebrat ze zakázky",
+      "refresh": "Načíst znovu",
+      "retry": "Opakovat stejný pokus",
+      "resolve": "Ověřit uložení",
+      "back": "Zpět na seznam",
+      "search": "Hledat podle jména",
+      "noResults": "Žádný pracovník neodpovídá hledání.",
+      "open": "Otevřít detail",
+      "status": {
+        "ACTIVE": "Aktivní",
+        "INACTIVE": "Neaktivní",
+        "ALL": "Všichni"
+      },
+      "agreementType": {
+        "EMPLOYMENT": "Pracovní poměr",
+        "DPP": "DPP",
+        "DPC": "DPČ",
+        "CONTRACTOR": "Externista"
+      },
+      "reason": {
+        "VACATION": "Dovolená",
+        "SICK": "Nemoc",
+        "OTHER": "Jiná absence"
+      },
+      "jobStatus": {
+        "NEW": "Nová",
+        "PLANNED": "Naplánovaná",
+        "IN_PROGRESS": "Probíhá",
+        "COMPLETED": "Dokončená"
+      },
+      "availability": {
+        "AVAILABLE": "Dostupný",
+        "INACTIVE": "Neaktivní pracovník",
+        "OUTSIDE_AGREEMENT": "Mimo platnost vztahu",
+        "UNAVAILABLE": "Nedostupný",
+        "JOB_CONFLICT": "Kolize se zakázkou"
+      },
+      "error": {
+        "authentication": "Přihlaste se znovu.",
+        "forbidden": "K tomuto kroku nemáte oprávnění nebo chybí aktuální právní subjekt.",
+        "internal": "Operaci se nepodařilo dokončit.",
+        "notFound": "Záznam nebyl nalezen. Obnovte seznam.",
+        "unavailable": "Data jsou dočasně nedostupná. Dostupnost pracovníků nyní nelze potvrdit.",
+        "validation": "Zkontrolujte údaje a aktuální podmínky: platnost vztahu, absenci, stav a délku zakázky.",
+        "conflict": "Data se změnila nebo se termíny překrývají. Načtěte aktuální stav.",
+        "uncertain": "Výsledek uložení není jistý. Nejprve ověřte původní pokus.",
+        "committed": "Změna již byla uložena."
+      }
+    }
+  }
+}

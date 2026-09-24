@@ -27,10 +27,12 @@ import { loader as loader_5 } from "../../routes/[lang]/resources/[moduleId]/[re
 import component_6 from "../../routes/[lang]/resources/[moduleId]/[resourceType]/[resourceId]/page";
 import { loader as loader_6 } from "../../routes/[lang]/search/page.data";
 import component_7 from "../../routes/[lang]/search/page";
-import component_8 from "../../routes/layout";
+import { loader as loader_7 } from "../../routes/[lang]/workforce/page.data";
+import component_8 from "../../routes/[lang]/workforce/page";
+import component_9 from "../../routes/layout";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
-  component: component_8,
+  component: component_9,
   staticData: createRouteStaticData({
     modernRouteId: "layout",
   }),
@@ -124,7 +126,18 @@ const route__lang__search_page = createRoute({
   }),
 });
 
-export const routeTree = rootRoute.addChildren([route__lang__page, route__lang__contacts_page, route__lang__inquiries_page, route__lang__jobs_page, route__lang__login_page, route__lang__modules__moduleId__page, route__lang__resources__moduleId___resourceType___resourceId__page, route__lang__search_page]);
+const route__lang__workforce_page = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "$lang/workforce",
+  component: component_8,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_7),
+  staticData: createRouteStaticData({
+    modernRouteId: "(lang)/workforce/page",
+    modernRouteLoader: loader_7,
+  }),
+});
+
+export const routeTree = rootRoute.addChildren([route__lang__page, route__lang__contacts_page, route__lang__inquiries_page, route__lang__jobs_page, route__lang__login_page, route__lang__modules__moduleId__page, route__lang__resources__moduleId___resourceType___resourceId__page, route__lang__search_page, route__lang__workforce_page]);
 
 export const router = createRouter({
   ...modernTanstackRouterFastDefaults,

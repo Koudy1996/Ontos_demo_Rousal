@@ -15,6 +15,7 @@ const routeValue8 = '/resources/:moduleId/:resourceType/:resourceId';
 const routeValue9 = '/zdroje/:moduleId/:resourceType/:resourceId';
 const routeValue10 = '/search';
 const routeValue11 = '/hledat';
+const routeValue12 = '/workforce';
 
 export const ultramodernRouteMetadata = [
   {
@@ -228,6 +229,33 @@ export const ultramodernRouteMetadata = [
     publicSurface: 'private-app-screen',
     titleKey: 'shell.search.title',
   },
+  {
+    canonicalPath: routeValue12,
+    descriptionKey: 'shell.moduleTarget.seoDescription',
+    entrypoint: {
+      access: 'read',
+      authorization: {
+        kind: 'context_permission',
+        permission: 'module.access',
+      },
+      entrypointKey: 'shell-super-app.page.workforce-workforce',
+      moduleKey: routeValue1,
+      role: 'page',
+      scope: 'system',
+    },
+    id: 'shell-workforce-workforce',
+    indexable: false,
+    localisedPaths: {
+      cs: routeValue12,
+      en: routeValue12,
+    },
+    mfBoundaryId: 'shellSuperApp',
+    namespace: ultramodernRouteNamespace,
+    ownerAppId: routeValue1,
+    public: false,
+    publicSurface: 'private-app-screen',
+    titleKey: 'shell.moduleTarget.title',
+  },
 ] as const;
 
 export const ultramodernLocalisedUrls = {
@@ -258,5 +286,9 @@ export const ultramodernLocalisedUrls = {
   '/search': {
     cs: routeValue11,
     en: routeValue10,
+  },
+  '/workforce': {
+    cs: routeValue12,
+    en: routeValue12,
   },
 } as const;
