@@ -29,3 +29,5 @@ export { createServiceJobsClient, getServiceJobsReadiness } from '@app/service-j
 export type { ServiceJobsClientOptions } from '@app/service-jobs/api/client';
 export { createWorkforceClient, getWorkforceReadiness } from '@app/workforce/api/client';
 export type { WorkforceClientOptions } from '@app/workforce/api/client';
+export { createJobExpensesClient, getJobExpensesReadiness } from '@app/job-expenses/api/client';
+export type { JobExpensesClientOptions } from '@app/job-expenses/api/client';

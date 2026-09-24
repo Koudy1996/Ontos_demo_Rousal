@@ -276,6 +276,22 @@
           "references": ["docs/super-app-rfc-adr/blast-radius.md#workforce"]
         }
       }
+    },
+    {
+      "id": "job-expenses",
+      "package": "@app/job-expenses",
+      "path": "verticals/job-expenses",
+      "ownership": {
+        "team": "super-app-platform",
+        "slack": "#super-app-platform",
+        "pagerDuty": "pd-super-app-platform",
+        "runbookRef": "runbooks/verticals/job-expenses.md",
+        "adrRef": "docs/super-app-rfc-adr/verticals.md#job-expenses",
+        "blastRadius": {
+          "tier": "tier-2-vertical",
+          "references": ["docs/super-app-rfc-adr/blast-radius.md#job-expenses"]
+        }
+      }
     }
   ]
 }

@@ -127,6 +127,11 @@ const failure = (message: string, cause?: unknown): OntosModuleContractGeneratio
 
 const repositoryEsbuildPath = (): string => {
   const createEntry = require.resolve('@modern-js/ultramodern-create');
+  if (process.platform === 'win32') {
+    return require.resolve(`@esbuild/${process.platform}-${process.arch}/esbuild.exe`, {
+      paths: [path.dirname(createEntry)],
+    });
+  }
   return require.resolve('esbuild/bin/esbuild', {
     paths: [path.dirname(createEntry)],
   });

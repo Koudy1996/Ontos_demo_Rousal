@@ -30,6 +30,7 @@
     "@app/commerce-customer-context": "workspace:*",
     "@app/commerce-market-catalog": "workspace:*",
     "@app/core-runtime": "workspace:*",
+    "@app/job-expenses": "workspace:*",
     "@app/party-registry": "workspace:*",
     "@app/payment-term-catalog": "workspace:*",
     "@app/pricing": "workspace:*",
@@ -55,7 +56,9 @@
     "@modern-js/runtime": "npm:@bleedingdev/modern-js-runtime@3.9.0-ultramodern.12",
     "@modern-js/runtime-extensions": "npm:@bleedingdev/modern-js-runtime-extensions@3.9.0-ultramodern.12",
     "@modern-js/runtime-renderer-extensions": "npm:@bleedingdev/modern-js-runtime-renderer-extensions@3.9.0-ultramodern.12",
+    "@module-federation/bridge-react": "2.9.0",
     "@module-federation/modern-js-v3": "2.9.0",
+    "@module-federation/runtime": "2.9.0",
     "@tanstack/react-router": "1.170.33",
     "@techsio/ui-kit": "0.25.1",
     "better-auth": "1.7.2",
@@ -63,12 +66,14 @@
     "effect": "4.0.0-rc.112",
     "i18next": "26.4.2",
     "jose": "6.2.5",
+    "node-fetch": "^3.3.2",
     "pg": "8.22.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260810.1",
+    "@effect/tsgo": "0.41.0",
     "@modern-js/adapter-rstest": "npm:@bleedingdev/modern-js-adapter-rstest@3.9.0-ultramodern.12",
     "@modern-js/app-tools": "npm:@bleedingdev/modern-js-app-tools@3.9.0-ultramodern.12",
     "@modern-js/app-tools-extensions": "npm:@bleedingdev/modern-js-app-tools-extensions@3.9.0-ultramodern.12",
@@ -84,6 +89,7 @@
     "@types/pg": "8.20.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@typescript/native": "npm:typescript@7.0.2",
     "bun-types": "1.4.0",
     "cross-env": "10.1.0",
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
@@ -106,6 +112,7 @@
     "catalog": "@app/catalog@workspace:*",
     "salesInquiries": "@app/sales-inquiries@workspace:*",
     "serviceJobs": "@app/service-jobs@workspace:*",
-    "workforce": "@app/workforce@workspace:*"
+    "workforce": "@app/workforce@workspace:*",
+    "jobExpenses": "@app/job-expenses@workspace:*"
   }
 }

@@ -2,7 +2,7 @@
 import { OperationContextUnavailable, findPostgresFailure } from '@app/core-runtime';
 import type { ReadServiceFactory } from '@app/core-runtime';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
-import { DateTime, Effect, Schema } from 'effect';
+import { DateTime, Effect, Option, Schema } from 'effect';
 import { jobs } from '../db/schema.ts';
 import { JobRejected, JobUnavailable, ServiceJobSchema } from '../../shared/resources/service-job.ts';
 import type { ServiceJob } from '../../shared/resources/service-job.ts';
@@ -10,6 +10,12 @@ import type { ServiceJob } from '../../shared/resources/service-job.ts';
 import type { JobListRequest } from '../../shared/apis/job-list.ts';
 
 export interface JobPersistence {
+  readonly browse: (
+    request: Pick<JobListRequest, 'cursor' | 'pageSize' | 'view'>,
+  ) => Effect.Effect<
+    { readonly items: readonly ServiceJob[]; readonly nextCursor: string | null },
+    JobRejected | JobUnavailable
+  >;
   readonly get: (id: string) => Effect.Effect<ServiceJob, JobRejected | JobUnavailable>;
   readonly getBySource: (id: string) => Effect.Effect<ServiceJob, JobRejected | JobUnavailable>;
   readonly insert: (
@@ -55,6 +61,24 @@ const toRow = ({ partyRef, ref, sourceRef, ...value }: typeof ServiceJobSchema.E
   partyId: partyRef.resourceId,
   sourceId: sourceRef.resourceId,
   tenantId: ref.tenantId,
+});
+const invalidCursor = () => new JobRejected({ code: 'source_invalid', reason: 'Invalid Job cursor' });
+const decodeBrowseCursor = Effect.fn('JobPersistence.decodeBrowseCursor')(function* decodeBrowseCursor(
+  value: JobListRequest['cursor'],
+) {
+  if (value === undefined) {
+    return null;
+  }
+  const match = /^(?<updatedAtMillis>\d{1,17})~(?<id>[0-9a-f-]{36})$/u.exec(value);
+  if (match?.groups === undefined) {
+    return yield* invalidCursor();
+  }
+  const { id, updatedAtMillis } = match.groups;
+  const instant = DateTime.make(Number(updatedAtMillis));
+  if (Option.isNone(instant) || id === undefined) {
+    return yield* invalidCursor();
+  }
+  return { id, updatedAt: DateTime.formatIso(instant.value) };
 });
 
 export const jobPersistenceService = (
@@ -139,9 +163,46 @@ export const jobPersistenceService = (
       .limit(100)
       .pipe(
         Effect.mapError(unavailable),
-        Effect.flatMap((rows) => Effect.forEach(rows, (row) => decodeRow(row), { concurrency: 1 })),
+        Effect.flatMap((rows) => Effect.forEach(rows, decodeRow, { concurrency: 1 })),
       );
   };
+  const browse: JobPersistence['browse'] = Effect.fn('JobPersistence.browse')(function* browseJobs(request) {
+    const cursor = yield* decodeBrowseCursor(request.cursor);
+    const pageSize = request.pageSize ?? 100;
+    const rows = yield* transaction
+      .select()
+      .from(jobs)
+      .where(
+        and(
+          scoped,
+          request.view === 'IN_PROGRESS' || request.view === 'COMPLETED' ? eq(jobs.status, request.view) : undefined,
+          request.view === 'TODAY'
+            ? sql`${jobs.status} <> 'COMPLETED' AND (${jobs.scheduledStartAt}::timestamptz AT TIME ZONE 'Europe/Prague')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Prague')::date`
+            : undefined,
+          request.view === 'UPCOMING'
+            ? sql`${jobs.status} <> 'COMPLETED' AND (${jobs.scheduledStartAt}::timestamptz AT TIME ZONE 'Europe/Prague')::date > (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Prague')::date`
+            : undefined,
+          cursor === null
+            ? undefined
+            : or(
+                sql`${jobs.updatedAt} < ${cursor.updatedAt}`,
+                and(eq(jobs.updatedAt, cursor.updatedAt), sql`${jobs.id} < ${cursor.id}::uuid`),
+              ),
+        ),
+      )
+      .orderBy(desc(jobs.updatedAt), desc(jobs.id))
+      .limit(pageSize + 1)
+      .pipe(Effect.mapError(unavailable));
+    const items = yield* Effect.forEach(rows.slice(0, pageSize), decodeRow, { concurrency: 1 });
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor:
+        rows.length > pageSize && last !== undefined
+          ? `${DateTime.toEpochMillis(last.updatedAt)}~${last.ref.resourceId}`
+          : null,
+    };
+  });
   const insert: JobPersistence['insert'] = (job) =>
     Schema.encodeEffect(ServiceJobSchema)(job).pipe(
       Effect.flatMap((encoded) =>
@@ -202,6 +263,7 @@ export const jobPersistenceService = (
     );
   };
   return Effect.succeed({
+    browse,
     get: (id: string) => find(id, false),
     getBySource: (id: string) => find(id, true),
     insert,

@@ -7,6 +7,13 @@ const decode = Schema.decodeUnknownResult(JobListRequestSchema);
 it('old list callers remain valid and bounded schedule queries reject ambiguous or empty inputs', () => {
   expect(Result.isSuccess(decode({}))).toBe(true);
   expect(Result.isSuccess(decode({ view: 'UPCOMING' }))).toBe(true);
+  expect(Result.isSuccess(decode({ pageSize: 100, view: 'ALL' }))).toBe(true);
+  expect(Result.isSuccess(decode({ cursor: '1790236800000~60000000-0000-4000-8000-000000000001', view: 'ALL' }))).toBe(
+    true,
+  );
+  expect(Result.isFailure(decode({ cursor: '1790236800000~------------------------------------', view: 'ALL' }))).toBe(
+    true,
+  );
   expect(Result.isSuccess(decode({ selection: { references: [] } }))).toBe(false);
   const interval = { from: '2026-10-04T22:00:00Z', to: '2026-10-11T22:00:00Z' };
   expect(Result.isSuccess(decode({ selection: { interval, references: [] } }))).toBe(true);
@@ -36,6 +43,15 @@ it('old list callers remain valid and bounded schedule queries reject ambiguous 
     expect(Result.isFailure(decode({ selection: { interval: { from, to }, references: [] } }))).toBe(true);
   }
   expect(Result.isSuccess(decode({ selection: { interval, references: [] }, view: 'ALL' }))).toBe(false);
+  expect(
+    Result.isSuccess(
+      decode({
+        cursor: '1790236800000~60000000-0000-4000-8000-000000000001',
+        selection: { interval, references: [] },
+      }),
+    ),
+  ).toBe(false);
+  expect(Result.isSuccess(decode({ pageSize: 101, view: 'ALL' }))).toBe(false);
   expect(
     Result.isSuccess(decode({ selection: { interval: { ...interval, to: '2026-10-04T22:00:00Z' }, references: [] } })),
   ).toBe(false);

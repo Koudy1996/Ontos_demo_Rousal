@@ -54,6 +54,9 @@
     },
     {
       "path": "verticals/workforce"
+    },
+    {
+      "path": "verticals/job-expenses"
     }
   ]
 }

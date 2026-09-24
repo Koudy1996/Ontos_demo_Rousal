@@ -34,11 +34,16 @@ export const jobListRead = defineRead(
     resultSchema: JobListResponseSchema,
     schemaVersion: '1',
   },
-  (input: typeof JobListRequestSchema.Type, context: ReadHandlerContext<JobPersistence>) =>
-    context.services.list(input.view, input.selection).pipe(
-      Effect.map((value) => ({ evidence: { resultCount: value.length }, result: { items: value } })),
+  (input: typeof JobListRequestSchema.Type, context: ReadHandlerContext<JobPersistence>) => {
+    const result =
+      input.cursor === undefined && input.pageSize === undefined
+        ? context.services.list(input.view, input.selection).pipe(Effect.map((items) => ({ items, nextCursor: null })))
+        : context.services.browse(input);
+    return result.pipe(
+      Effect.map((value) => ({ evidence: { resultCount: value.items.length }, result: value })),
       Effect.mapError(mapJobReadFailure),
-    ),
+    );
+  },
   jobPersistenceService,
   () => ({ kind: 'module', moduleId: jobListEntrypoint.moduleKey }),
 );

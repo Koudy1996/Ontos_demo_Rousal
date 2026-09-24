@@ -47,6 +47,9 @@ const CUSTOMER_CONTEXT_VERTICAL_ID = 'commerce-customer-context';
 const MARKET_CATALOG_VERTICAL_ID = 'commerce-market-catalog';
 const SALES_INQUIRIES_VERTICAL_ID = 'sales-inquiries';
 const PARTY_REGISTRY_VERTICAL_ID = 'party-registry';
+const SERVICE_JOBS_VERTICAL_ID = 'service-jobs';
+const WORKFORCE_VERTICAL_ID = 'workforce';
+const JOB_EXPENSES_VERTICAL_ID = 'job-expenses';
 const PARTY_REGISTRY_MODULE_ID = 'party.registry';
 const PARTY_REGISTRY_MODULE_STATE_LABEL = 'Party Registry module state';
 const CATALOG_MODULE_ID = 'commerce.catalog';
@@ -58,6 +61,9 @@ const topology = JSON.stringify({
     { id: PARTY_REGISTRY_VERTICAL_ID },
     { id: MARKET_CATALOG_VERTICAL_ID },
     { id: CUSTOMER_CONTEXT_VERTICAL_ID },
+    { id: SERVICE_JOBS_VERTICAL_ID },
+    { id: WORKFORCE_VERTICAL_ID },
+    { id: JOB_EXPENSES_VERTICAL_ID },
     { id: 'inventory' },
   ],
 });
@@ -163,11 +169,17 @@ it.effect('derives the fixed local commerce launch modules through generated own
     expect(yield* deriveActivatedModuleIds(root, deriveContract).pipe(Effect.provide(NodeServices.layer))).toEqual([
       'commerce-customer-context.core',
       'commerce-market-catalog.core',
+      'job-expenses.core',
       'party-registry.core',
       'sales-inquiries.core',
+      'service-jobs.core',
+      'workforce.core',
     ]);
     expect(LOCAL_DEVELOPMENT_VERTICALS).toEqual([
       SALES_INQUIRIES_VERTICAL_ID,
+      SERVICE_JOBS_VERTICAL_ID,
+      WORKFORCE_VERTICAL_ID,
+      JOB_EXPENSES_VERTICAL_ID,
       PARTY_REGISTRY_VERTICAL_ID,
       MARKET_CATALOG_VERTICAL_ID,
       CUSTOMER_CONTEXT_VERTICAL_ID,

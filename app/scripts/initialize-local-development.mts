@@ -64,19 +64,22 @@ export const LOCAL_DEVELOPMENT_CONTEXT = Object.freeze({
   defaultLocale: 'cs',
   email: 'demo@test.com',
   legalEntityId: '71000000-0000-4000-8000-000000000010',
-  legalName: 'TechsioCZ',
+  legalName: 'SOS vyklízení',
   password: localDevelopmentPassword,
-  principalDisplayName: 'Techsio Demo',
+  principalDisplayName: 'SOS vyklízení Demo',
   principalId: '72000000-0000-4000-8000-000000000010',
   registrationCountry: 'CZ',
   registrationNumber: 'DEMO-TECHSIOCZ',
   tenantId: '70000000-0000-4000-8000-000000000010',
-  tenantName: 'Techsio',
-  tenantSlug: 'techsio',
+  tenantName: 'SOS vyklízení',
+  tenantSlug: 'vyklizeni-sos',
 });
 
 export const LOCAL_DEVELOPMENT_VERTICALS = Object.freeze([
   'sales-inquiries',
+  'service-jobs',
+  'workforce',
+  'job-expenses',
   'party-registry',
   'commerce-market-catalog',
   'commerce-customer-context',
@@ -715,11 +718,12 @@ export const initializeLocalDevelopment = (
       environmentEffect === undefined
         ? yield* loadRootConfiguration()
         : yield* environmentEffect.pipe(Effect.flatMap(parseLocalDevelopmentConfiguration));
-    const moduleIds = yield* deriveActivatedModuleIds(
+    const verticalModuleIds = yield* deriveActivatedModuleIds(
       path.join(import.meta.dirname, '..'),
       deriveOntosModuleDeploymentContract,
       LOCAL_DEVELOPMENT_VERTICALS,
     );
+    const moduleIds = ['core.shell', ...verticalModuleIds];
     const relationships = yield* buildLocalDevelopmentRelationships(moduleIds);
     const authUser = yield* ensureAuthUser(configuration).pipe(
       Effect.provide(

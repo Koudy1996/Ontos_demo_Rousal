@@ -1,0 +1,430 @@
+{
+  "version": "8",
+  "dialect": "postgres",
+  "id": "38e38b44-4f15-4c8c-b5f4-492a7805a2fb",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "ddl": [
+    {
+      "name": "job_expenses",
+      "entityType": "schemas"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "gateway_assertion_redemptions",
+      "entityType": "tables",
+      "schema": "job_expenses"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "job_expenses",
+      "entityType": "tables",
+      "schema": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "audience",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issuer",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "jti",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "type": "numeric(14,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount_czk",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "category",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cost_basis",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "currency",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "description",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "date",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "incurred_on",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "legal_entity_id",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "revision",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "service_job_id",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tenant_id",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "voided_at",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "void_reason",
+      "entityType": "columns",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "columns": [
+        "issuer",
+        "audience",
+        "jti"
+      ],
+      "nameExplicit": false,
+      "name": "gateway_assertion_redemptions_pkey",
+      "entityType": "pks",
+      "schema": "job_expenses",
+      "table": "gateway_assertion_redemptions"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "job_expenses_pkey",
+      "schema": "job_expenses",
+      "table": "job_expenses",
+      "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "tenant_id",
+        "legal_entity_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "job_expenses_scope_identity",
+      "entityType": "uniques",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "\"amount_czk\" > 0",
+      "name": "job_expenses_amount_positive",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "\"category\" IN ('WORK','TRANSPORT','DISPOSAL','MATERIAL','OTHER')",
+      "name": "job_expenses_category_valid",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "length(trim(\"description\")) > 0 AND length(\"description\") <= 500",
+      "name": "job_expenses_description_valid",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "\"currency\" = 'CZK'",
+      "name": "job_expenses_currency_valid",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "\"cost_basis\" = 'EXCLUDING_VAT'",
+      "name": "job_expenses_cost_basis_valid",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "\"status\" IN ('RECORDED','VOIDED')",
+      "name": "job_expenses_status_valid",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "\"revision\" > 0",
+      "name": "job_expenses_revision_positive",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "value": "(\"status\" = 'RECORDED' AND \"voided_at\" IS NULL AND \"void_reason\" IS NULL) OR (\"status\" = 'VOIDED' AND \"voided_at\" IS NOT NULL AND length(trim(\"void_reason\")) > 0 AND length(\"void_reason\") <= 500)",
+      "name": "job_expenses_void_state_valid",
+      "entityType": "checks",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "SELECT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"job_expenses\".\"job_expenses\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"job_expenses\".\"job_expenses\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "job_expenses_scope_select",
+      "entityType": "policies",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "INSERT",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": null,
+      "withCheck": "\"job_expenses\".\"job_expenses\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"job_expenses\".\"job_expenses\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "job_expenses_scope_insert",
+      "entityType": "policies",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "UPDATE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"job_expenses\".\"job_expenses\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"job_expenses\".\"job_expenses\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": "\"job_expenses\".\"job_expenses\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"job_expenses\".\"job_expenses\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "name": "job_expenses_scope_update",
+      "entityType": "policies",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "DELETE",
+      "roles": [
+        "ontos_runtime"
+      ],
+      "using": "\"job_expenses\".\"job_expenses\".\"tenant_id\" = nullif(current_setting('ontos.tenant_id', true), '')::uuid and \"job_expenses\".\"job_expenses\".\"legal_entity_id\" = nullif(current_setting('ontos.legal_entity_id', true), '')::uuid",
+      "withCheck": null,
+      "name": "job_expenses_scope_delete",
+      "entityType": "policies",
+      "schema": "job_expenses",
+      "table": "job_expenses"
+    }
+  ],
+  "renames": []
+}

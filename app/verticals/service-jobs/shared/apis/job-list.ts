@@ -6,6 +6,13 @@ import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi'
 import { ServiceJobRefSchema, ServiceJobSchema } from '../resources/service-job.ts';
 
 export const JobListViewSchema = Schema.Literals(['ALL', 'TODAY', 'UPCOMING', 'IN_PROGRESS', 'COMPLETED']);
+const isUuid = Schema.is(Schema.String.check(Schema.isUUID()));
+export const JobListCursorSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(120),
+  Schema.isPattern(/^\d{1,17}~[^~]{36}$/u),
+  Schema.makeFilter((value) => isUuid(value.slice(value.indexOf('~') + 1))),
+);
 const utcInstantSchema = Schema.String.check(
   Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u),
   Schema.makeFilter((value) => {
@@ -38,11 +45,22 @@ export const JobScheduleSelectionSchema = Schema.Struct({
   references: Schema.Array(ServiceJobRefSchema).check(Schema.isMaxLength(1000)),
 }).check(Schema.makeFilter(({ interval, references }) => interval !== undefined || references.length > 0));
 export const JobListRequestSchema = Schema.Struct({
+  cursor: Schema.optionalKey(JobListCursorSchema),
+  pageSize: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(100))),
   selection: Schema.optionalKey(JobScheduleSelectionSchema),
   view: Schema.optionalKey(JobListViewSchema),
-}).check(Schema.makeFilter(({ selection, view }) => selection === undefined || view === undefined));
+}).check(
+  Schema.makeFilter(
+    ({ cursor, pageSize, selection, view }) =>
+      selection === undefined || (view === undefined && cursor === undefined && pageSize === undefined),
+  ),
+);
 export type JobListRequest = typeof JobListRequestSchema.Type;
-export const JobListResponseSchema = Schema.Struct({ items: Schema.Array(ServiceJobSchema) });
+export const JobListResponseSchema = Schema.Struct({
+  items: Schema.Array(ServiceJobSchema),
+  nextCursor: Schema.toEncoded(Schema.OptionFromNullOr(JobListCursorSchema)),
+});
+export type JobListResponse = typeof JobListResponseSchema.Type;
 
 export const JobListAuthenticationProblemSchema = makeProblemDetailsSchema('JobListAuthenticationProblem', 401);
 export const JobListInvalidProblemSchema = makeProblemDetailsSchema('JobListInvalidProblem', 400);

@@ -9,7 +9,8 @@
     "storefront-registry": "http://localhost:4107/.well-known/ontos-module-manifest.json",
     "sales-inquiries": "http://localhost:4108/.well-known/ontos-module-manifest.json",
     "service-jobs": "http://localhost:4109/.well-known/ontos-module-manifest.json",
-    "workforce": "http://localhost:4110/.well-known/ontos-module-manifest.json"
+    "workforce": "http://localhost:4110/.well-known/ontos-module-manifest.json",
+    "job-expenses": "http://localhost:4111/.well-known/ontos-module-manifest.json"
   },
   "schemaVersion": 1,
   "environment": "development",
@@ -25,7 +26,8 @@
     "storefront-registry": 4107,
     "sales-inquiries": 4108,
     "service-jobs": 4109,
-    "workforce": 4110
+    "workforce": 4110,
+    "job-expenses": 4111
   },
   "manifests": {
     "party-registry": "http://localhost:4102/mf-manifest.json",
@@ -33,7 +35,8 @@
     "catalog": "http://localhost:4105/mf-manifest.json",
     "sales-inquiries": "http://localhost:4108/mf-manifest.json",
     "service-jobs": "http://localhost:4109/mf-manifest.json",
-    "workforce": "http://localhost:4110/mf-manifest.json"
+    "workforce": "http://localhost:4110/mf-manifest.json",
+    "job-expenses": "http://localhost:4111/mf-manifest.json"
   },
   "serverExecution": {
     "party-registry": {
@@ -549,6 +552,57 @@
           "buildMarker": "4e37453a3d835d3e"
         }
       }
+    },
+    "job-expenses": {
+      "apiBaseUrl": "http://localhost:4111/job-expenses-api",
+      "versionBoundary": "web-and-api-same-build",
+      "deliveryUnit": {
+        "unitId": "app/job-expenses",
+        "buildMarker": "20e613af8c17b540"
+      },
+      "cloudflare": {
+        "kind": "cloudflare-worker-snapshot",
+        "workerName": "app-job-expenses",
+        "publicUrlEnv": "ULTRAMODERN_PUBLIC_URL_JOB_EXPENSES",
+        "ssr": {
+          "workerEntry": ".output/server/index.mjs",
+          "workerManifest": ".output/server/modern-worker-manifest.json",
+          "effectBffBundle": ".output/worker/__modern_bff_effect.js",
+          "routeManifest": ".output/server/route.json",
+          "ssrBundle": ".output/worker/index.js",
+          "assetsBinding": "ASSETS"
+        },
+        "zephyr": {
+          "runtime": "ssr-worker",
+          "integration": "managed-cloudflare",
+          "snapshotIdEnv": "ZEPHYR_JOB_EXPENSES_SNAPSHOT_ID",
+          "versionIdEnv": "ZEPHYR_JOB_EXPENSES_VERSION_ID",
+          "applicationUidEnv": "ZEPHYR_JOB_EXPENSES_APPLICATION_UID"
+        },
+        "workerDispatch": {
+          "preferred": "service-binding",
+          "serviceBinding": "VERTICAL_JOB_EXPENSES_WORKER",
+          "serviceBindingEnv": "VERTICAL_JOB_EXPENSES_WORKER_BINDING",
+          "dispatchNamespaceEnv": "VERTICAL_JOB_EXPENSES_DISPATCH_NAMESPACE",
+          "dispatchWorkerNameEnv": "VERTICAL_JOB_EXPENSES_WORKER_NAME",
+          "requestInterface": "fetch"
+        }
+      },
+      "node": {
+        "kind": "node-mf-runtime",
+        "adapterVersion": "backend-mf-effect-v1",
+        "remoteName": "verticalJobExpensesBackend",
+        "manifestEnv": "VERTICAL_JOB_EXPENSES_BACKEND_MF_MANIFEST",
+        "manifestUrl": "http://localhost:4111/backend-mf-manifest.json",
+        "containerEntry": "http://localhost:4111/backendRemoteEntry.cjs",
+        "remoteType": "commonjs-module",
+        "expose": "./effect-api",
+        "runtimePackage": "@modern-js/plugin-bff-extensions/backend-federation-manifest/node",
+        "expected": {
+          "unitId": "app/job-expenses",
+          "buildMarker": "20e613af8c17b540"
+        }
+      }
     }
   },
   "apis": {
@@ -561,6 +615,7 @@
     "storefront-registry": "http://localhost:4107/storefront-registry-api",
     "sales-inquiries": "http://localhost:4108/sales-inquiries-api",
     "service-jobs": "http://localhost:4109/service-jobs-api",
-    "workforce": "http://localhost:4110/workforce-api"
+    "workforce": "http://localhost:4110/workforce-api",
+    "job-expenses": "http://localhost:4111/job-expenses-api"
   }
 }

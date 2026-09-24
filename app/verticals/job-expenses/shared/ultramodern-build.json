@@ -1,0 +1,44 @@
+{
+  "deliveryUnit": {
+    "appId": "job-expenses",
+    "buildMarker": "20e613af8c17b540",
+    "deployProfile": "cloudflare-ssr-mf-effect-v1",
+    "kind": "microvertical-delivery-unit",
+    "packageName": "@app/job-expenses",
+    "schemaVersion": 1,
+    "sourceRevision": "workspace",
+    "unitId": "app/job-expenses",
+    "version": "0.1.0",
+    "build": "20e613af8c17b540"
+  },
+  "kind": "ultramodern-build-artifact",
+  "schemaVersion": 1,
+  "surfaces": {
+    "api": {
+      "appId": "job-expenses",
+      "buildMarker": "20e613af8c17b540",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/job-expenses",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/job-expenses",
+      "version": "0.1.0",
+      "build": "20e613af8c17b540",
+      "surface": "api"
+    },
+    "ui": {
+      "appId": "job-expenses",
+      "buildMarker": "20e613af8c17b540",
+      "deployProfile": "cloudflare-ssr-mf-effect-v1",
+      "kind": "microvertical-delivery-unit",
+      "packageName": "@app/job-expenses",
+      "schemaVersion": 1,
+      "sourceRevision": "workspace",
+      "unitId": "app/job-expenses",
+      "version": "0.1.0",
+      "build": "20e613af8c17b540",
+      "surface": "ui"
+    }
+  }
+}

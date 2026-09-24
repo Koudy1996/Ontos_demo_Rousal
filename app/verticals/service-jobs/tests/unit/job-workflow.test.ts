@@ -77,6 +77,7 @@ const setup = (
     const rows = new Map<string, ServiceJob>();
     let reads = 0;
     const persistence: JobPersistence = {
+      browse: () => Effect.die('Browse is not used by workflow Actions'),
       get: (id) =>
         Effect.suspend(() => {
           const value = rows.get(id);

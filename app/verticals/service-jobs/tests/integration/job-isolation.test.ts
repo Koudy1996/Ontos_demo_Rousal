@@ -127,6 +127,8 @@ const selectionScenario = Effect.gen(function* selectionScenario() {
         const outsideId = '62000000-0000-4000-8000-000000000202';
         const unknownId = '62000000-0000-4000-8000-000000000203';
         const adjacentId = '62000000-0000-4000-8000-000000000204';
+        const newWithoutScheduleId = '62000000-0000-4000-8000-000000000205';
+        const completedId = '62000000-0000-4000-8000-000000000206';
         yield* transaction.insert(jobs).values([
           {
             ...fixture(crossingId),
@@ -154,6 +156,17 @@ const selectionScenario = Effect.gen(function* selectionScenario() {
             sourceId: adjacentId,
             status: 'PLANNED',
           },
+          {
+            ...fixture(newWithoutScheduleId),
+            sourceId: newWithoutScheduleId,
+          },
+          {
+            ...fixture(completedId),
+            completedAt: '2026-09-24T08:00:00.000Z',
+            sourceId: completedId,
+            status: 'COMPLETED',
+            updatedAt: '2026-09-01T08:00:00.000Z',
+          },
         ]);
         yield* transaction.execute(sql`SET LOCAL ROLE ontos_runtime`);
         yield* transaction.execute(
@@ -169,6 +182,24 @@ const selectionScenario = Effect.gen(function* selectionScenario() {
         });
         const persistence = yield* jobPersistenceService(transaction, { ...principal, correlationId: 'selection' });
         expect(yield* persistence.list('ALL')).toHaveLength(100);
+        const firstPage = yield* persistence.browse({ pageSize: 100, view: 'ALL' });
+        expect(firstPage.items).toHaveLength(100);
+        expect(firstPage.nextCursor).not.toBeNull();
+        if (firstPage.nextCursor === null) {
+          return yield* Effect.die('Expected a second Job discovery page');
+        }
+        const secondPage = yield* persistence.browse({
+          cursor: firstPage.nextCursor,
+          pageSize: 100,
+          view: 'ALL',
+        });
+        const discoveredIds = [...firstPage.items, ...secondPage.items].map((job) => job.ref.resourceId);
+        expect(discoveredIds).toHaveLength(111);
+        expect(new Set(discoveredIds).size).toBe(111);
+        expect(discoveredIds).toContain(newWithoutScheduleId);
+        expect(discoveredIds).toContain(completedId);
+        const completed = yield* persistence.browse({ pageSize: 100, view: 'COMPLETED' });
+        expect(completed.items.map((job) => job.ref.resourceId)).toEqual([completedId]);
         const request = yield* Schema.decodeEffect(JobListRequestSchema)({
           selection: { interval: { from: '2026-10-04T22:00:00Z', to: '2026-10-11T22:00:00Z' }, references: [] },
         });

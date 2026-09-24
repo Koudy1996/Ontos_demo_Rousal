@@ -110,6 +110,13 @@ const moduleFederationConfig: Parameters<typeof createModuleFederationConfig>[0]
   filename: 'remoteEntry.js',
   name: 'shellSuperApp',
   remotes: {
+    jobExpenses: createRemoteManifestUrl({
+      manifestEnv: 'VERTICAL_JOB_EXPENSES_MF_MANIFEST',
+      mfName: 'verticalJobExpenses',
+      port: 4111,
+      publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_JOB_EXPENSES',
+      workerName: 'app-job-expenses',
+    }),
     partyRegistry: createRemoteManifestUrl({
       manifestEnv: 'VERTICAL_PARTY_REGISTRY_MF_MANIFEST',
       mfName: 'verticalPartyRegistry',

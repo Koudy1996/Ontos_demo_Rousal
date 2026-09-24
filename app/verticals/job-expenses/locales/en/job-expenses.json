@@ -1,0 +1,110 @@
+{
+  "job-expenses": {
+    "demo": {
+      "category": {
+        "DISPOSAL": "Waste disposal",
+        "MATERIAL": "Material",
+        "OTHER": "Other",
+        "TRANSPORT": "Transport",
+        "WORK": "Work",
+        "label": "Category"
+      },
+      "comparison": {
+        "NO_RECORDED_COSTS": "No costs have been recorded yet.",
+        "PRICE_BASIS_NOT_COMPARABLE": "A VAT-inclusive price cannot be compared directly with VAT-exclusive costs.",
+        "ZERO_AGREED_PRICE": "Margin cannot be calculated when the agreed price is zero.",
+        "unavailable": "Comparison is unavailable."
+      },
+      "error": {
+        "authentication": "Your session has expired. Please sign in again.",
+        "committed": "The change has already been saved safely.",
+        "conflict": "Someone changed this record. Reload the current data.",
+        "forbidden": "You cannot access costs for this company.",
+        "internal": "Costs could not be processed right now.",
+        "notFound": "The job or expense no longer exists.",
+        "uncertain": "The save result is uncertain. Resolve the operation status.",
+        "unavailable": "The service is temporarily unavailable. Try again.",
+        "validation": "Check the entered values and the required change reason."
+      },
+      "eyebrow": "SOS vyklízení",
+      "form": {
+        "addTitle": "Add expense",
+        "amount": "Amount in CZK",
+        "amountHelp": "Enter a positive VAT-exclusive amount with two decimal places.",
+        "cancel": "Cancel",
+        "changeReason": "Reason for correction",
+        "description": "Description",
+        "editTitle": "Edit expense",
+        "incurredOn": "Date incurred",
+        "save": "Save expense"
+      },
+      "intro": "Record actual operating costs and compare them with the job's agreed price as work progresses.",
+      "jobStatus": {
+        "COMPLETED": "Completed",
+        "IN_PROGRESS": "In progress",
+        "NEW": "New",
+        "PLANNED": "Planned"
+      },
+      "jobs": {
+        "back": "Back to jobs",
+        "empty": "No jobs are available yet.",
+        "loadMore": "Load more jobs",
+        "noResults": "No job matches the search.",
+        "open": "Open economics",
+        "search": "Search jobs",
+        "unscheduled": "Unscheduled"
+      },
+      "list": {
+        "add": "Add expense",
+        "edit": "Edit",
+        "empty": "No expenses have been recorded for this job yet.",
+        "loadMore": "Load more expenses",
+        "title": "Recorded expenses",
+        "void": "Void"
+      },
+      "loading": {
+        "costs": "Loading recorded expenses…",
+        "jobs": "Loading jobs…",
+        "summary": "Loading economics…"
+      },
+      "money": {
+        "currency": "CZK",
+        "decimalSeparator": "."
+      },
+      "reload": "Reload current data",
+      "resolve": "Resolve result",
+      "retry": "Try again",
+      "saving": "Saving change…",
+      "status": {
+        "RECORDED": "Active expense",
+        "VOIDED": "Voided"
+      },
+      "summary": {
+        "agreedPrice": "Agreed price",
+        "difference": "Current difference",
+        "disclaimer": "This overview is based only on manually recorded costs and is not a final accounting result.",
+        "excludingVat": "Recorded excluding VAT",
+        "margin": "Current margin",
+        "recordedCosts": "Costs recorded so far",
+        "title": "Job economics"
+      },
+      "priceBasis": {
+        "EXCLUDING_VAT": "excluding VAT",
+        "INCLUDING_VAT": "including VAT"
+      },
+      "title": "Costs and economics",
+      "void": {
+        "confirm": "Confirm void",
+        "reason": "Reason for voiding",
+        "title": "Void incorrect expense"
+      }
+    },
+    "pages": {
+      "expenses": {
+        "description": "Operating cost records and current job economics.",
+        "title": "Costs and economics"
+      }
+    },
+    "title": "Costs and economics"
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "job-expenses": {
+    "demo": {
+      "category": {
+        "DISPOSAL": "Likvidace odpadu",
+        "MATERIAL": "Materiál",
+        "OTHER": "Ostatní",
+        "TRANSPORT": "Doprava",
+        "WORK": "Práce",
+        "label": "Kategorie"
+      },
+      "comparison": {
+        "NO_RECORDED_COSTS": "Náklady zatím nejsou evidované.",
+        "PRICE_BASIS_NOT_COMPARABLE": "Cena včetně DPH není přímo srovnatelná s náklady bez DPH.",
+        "ZERO_AGREED_PRICE": "Při nulové sjednané ceně nelze vypočítat marži.",
+        "unavailable": "Porovnání není dostupné."
+      },
+      "error": {
+        "authentication": "Přihlášení vypršelo. Přihlaste se znovu.",
+        "committed": "Změna už byla bezpečně uložena.",
+        "conflict": "Záznam mezitím někdo změnil. Načtěte aktuální data.",
+        "forbidden": "K nákladům této firmy nemáte přístup.",
+        "internal": "Náklady se nyní nepodařilo zpracovat.",
+        "notFound": "Zakázka nebo náklad už neexistuje.",
+        "uncertain": "Výsledek uložení je nejasný. Ověřte stav operace.",
+        "unavailable": "Služba je dočasně nedostupná. Zkuste to znovu.",
+        "validation": "Zkontrolujte zadané údaje a povinný důvod změny."
+      },
+      "eyebrow": "SOS vyklízení",
+      "form": {
+        "addTitle": "Přidat náklad",
+        "amount": "Částka v Kč",
+        "amountHelp": "Zadejte kladnou částku bez DPH se dvěma desetinnými místy.",
+        "cancel": "Zrušit",
+        "changeReason": "Důvod opravy",
+        "description": "Popis",
+        "editTitle": "Upravit náklad",
+        "incurredOn": "Datum vzniku",
+        "save": "Uložit náklad"
+      },
+      "intro": "Evidujte skutečně vzniklé provozní náklady a průběžně je porovnávejte se sjednanou cenou zakázky.",
+      "jobStatus": {
+        "COMPLETED": "Dokončená",
+        "IN_PROGRESS": "Probíhá",
+        "NEW": "Nová",
+        "PLANNED": "Naplánovaná"
+      },
+      "jobs": {
+        "back": "Zpět na zakázky",
+        "empty": "Zatím nejsou dostupné žádné zakázky.",
+        "loadMore": "Načíst další zakázky",
+        "noResults": "Žádná zakázka neodpovídá hledání.",
+        "open": "Otevřít ekonomiku",
+        "search": "Hledat zakázku",
+        "unscheduled": "Bez termínu"
+      },
+      "list": {
+        "add": "Přidat náklad",
+        "edit": "Upravit",
+        "empty": "K této zakázce zatím nejsou evidované žádné náklady.",
+        "loadMore": "Načíst další náklady",
+        "title": "Evidované náklady",
+        "void": "Stornovat"
+      },
+      "loading": {
+        "costs": "Načítám evidované náklady…",
+        "jobs": "Načítám zakázky…",
+        "summary": "Načítám ekonomický přehled…"
+      },
+      "money": {
+        "currency": "Kč",
+        "decimalSeparator": ","
+      },
+      "reload": "Načíst aktuální data",
+      "resolve": "Ověřit výsledek",
+      "retry": "Zkusit znovu",
+      "saving": "Ukládám změnu…",
+      "status": {
+        "RECORDED": "Aktivní náklad",
+        "VOIDED": "Stornováno"
+      },
+      "summary": {
+        "agreedPrice": "Sjednaná cena",
+        "difference": "Průběžný rozdíl",
+        "disclaimer": "Přehled vychází pouze z ručně zadaných nákladů a není konečným účetním výsledkem.",
+        "excludingVat": "Evidováno bez DPH",
+        "margin": "Průběžná marže",
+        "recordedCosts": "Dosud evidované náklady",
+        "title": "Ekonomika zakázky"
+      },
+      "priceBasis": {
+        "EXCLUDING_VAT": "bez DPH",
+        "INCLUDING_VAT": "včetně DPH"
+      },
+      "title": "Náklady a ekonomika",
+      "void": {
+        "confirm": "Potvrdit storno",
+        "reason": "Důvod storna",
+        "title": "Stornovat chybný náklad"
+      }
+    },
+    "pages": {
+      "expenses": {
+        "description": "Evidence provozních nákladů a průběžná ekonomika zakázky.",
+        "title": "Náklady a ekonomika"
+      }
+    },
+    "title": "Náklady a ekonomika"
+  }
+}
