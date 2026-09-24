@@ -30,7 +30,7 @@ interface ProviderVertical {
   readonly path: string;
 }
 
-const renderProvider = (vertical: ProviderVertical) =>
+const renderProvider = (vertical: ProviderVertical, priceGroupCatalogBaseUrl: string | undefined) =>
   Effect.gen(function* renderProviderEffect() {
     const { id, package: packageName, path: packageDir } = vertical;
     if (
@@ -54,6 +54,10 @@ const renderProvider = (vertical: ProviderVertical) =>
     const runtimeConfigurationPreflight =
       id === 'commerce-customer-context'
         ? 'test -n "$ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON" || { echo "ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON is required" >&2; exit 1; }; '
+        : '';
+    const dependencyEnvironment =
+      id === 'commerce-customer-context' && priceGroupCatalogBaseUrl !== undefined
+        ? `\n        ONTOS_PRICE_GROUP_CATALOG_BASE_URL: '${priceGroupCatalogBaseUrl}'`
         : '';
     return `  - setup: '${id}'
     build:
@@ -89,7 +93,7 @@ const renderProvider = (vertical: ProviderVertical) =>
           httpSupport: true
       envVariables:
         DATABASE_URL: postgresql://ontos_runtime:\${db18_password}@\${db18_hostname}:\${db18_port}/\${db18_dbName}
-        NODE_ENV: production
+        NODE_ENV: production${dependencyEnvironment}
         PORT: '${port}'
         SPICEDB_ENDPOINT: 'spicedb:50051'
         SPICEDB_INSECURE: 'true'
@@ -128,7 +132,14 @@ export const generateZeropsProviderDeployment = (
       }
       ports.add(port);
     }
-    const providers = yield* Effect.all(topology.verticals.map((vertical) => renderProvider(vertical)));
+    const priceGroupCatalog = topology.verticals.find((vertical) => vertical.id === 'price-group-catalog');
+    const priceGroupCatalogBaseUrl =
+      priceGroupCatalog === undefined
+        ? undefined
+        : `http://price-group-catalog:${new URL(priceGroupCatalog.moduleFederation.manifestUrl).port}/price-group-catalog-api`;
+    const providers = yield* Effect.all(
+      topology.verticals.map((vertical) => renderProvider(vertical, priceGroupCatalogBaseUrl)),
+    );
     const rendered = `${begin}\n${providers.join('\n\n')}\n${end}`;
     const start = source.indexOf(begin);
     const stop = source.indexOf(end);

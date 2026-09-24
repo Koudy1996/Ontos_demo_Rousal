@@ -45,6 +45,12 @@
     },
     {
       "path": "packages/email-delivery"
+    },
+    {
+      "path": "packages/price-group-catalog-contracts"
+    },
+    {
+      "path": "verticals/price-group-catalog"
     }
   ]
 }
