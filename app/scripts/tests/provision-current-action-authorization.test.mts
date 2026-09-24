@@ -233,6 +233,9 @@ const addedVerticalActionKeys = [
   'payment.term-catalog.create-payment-term',
   'payment.term-catalog.reconcile-payment-term-reference',
   'payment.term-catalog.retire-payment-term',
+  'pricing.price-group-catalog.create-price-group',
+  'pricing.price-group-catalog.create-price-group-definition-revision',
+  'pricing.price-group-catalog.retire-price-group',
 ] as const;
 
 // These Actions are provisioned as 'explicit' (not Tenant-membership default), so they are discovered
@@ -391,6 +394,7 @@ it.effect(
     expect(completeCurrentActionKeys).toContain('commerce.customer-context.claim-counterparty-access-invitation');
     expect(completeCurrentActionKeys).toContain('commerce.catalog.publish-product-configuration');
     expect(completeCurrentActionKeys).toContain('payment.term-catalog.retire-payment-term');
+    expect(completeCurrentActionKeys).toContain('pricing.price-group-catalog.retire-price-group');
   }),
 );
 

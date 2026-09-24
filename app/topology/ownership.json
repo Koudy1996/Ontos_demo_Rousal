@@ -292,6 +292,24 @@
           "references": ["docs/super-app-rfc-adr/blast-radius.md#job-expenses"]
         }
       }
+    },
+    {
+      "id": "price-group-catalog",
+      "package": "@app/price-group-catalog",
+      "path": "verticals/price-group-catalog",
+      "ownership": {
+        "team": "super-app-platform",
+        "slack": "#super-app-platform",
+        "pagerDuty": "pd-super-app-platform",
+        "runbookRef": "runbooks/verticals/price-group-catalog.md",
+        "adrRef": "docs/super-app-rfc-adr/verticals.md#price-group-catalog",
+        "blastRadius": {
+          "tier": "tier-2-vertical",
+          "references": [
+            "docs/super-app-rfc-adr/blast-radius.md#price-group-catalog"
+          ]
+        }
+      }
     }
   ]
 }

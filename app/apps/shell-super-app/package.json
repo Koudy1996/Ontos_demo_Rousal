@@ -69,7 +69,8 @@
     "node-fetch": "^3.3.2",
     "pg": "8.22.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "@app/price-group-catalog": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260810.1",

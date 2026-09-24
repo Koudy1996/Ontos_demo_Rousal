@@ -55,7 +55,7 @@ const generateOutboxWorkerDeploymentEffect = (root, source) =>
         continue;
       }
       const ownerSection = result
-        .split(/(?=^ {2}- setup:)/mu)
+        .split(/(?=^ {2}(?:- setup:|# <\/generated-vertical-provider-deployments>))/mu)
         .find((section) => section.startsWith(`  - setup: '${vertical.id}'\n`));
       if (ownerSection === undefined) {
         return yield* Effect.fail(failure(`Missing owner deployment for ${vertical.id}`));

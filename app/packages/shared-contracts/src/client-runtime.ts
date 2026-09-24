@@ -96,6 +96,7 @@ interface GovernedEffectBffClientConfig<ApiId extends string, Groups extends Htt
   readonly credential: Redacted.Redacted;
   readonly defaultApiPrefix: string | URL;
   readonly requestCorrelation: string;
+  readonly requestTrace?: string;
 }
 
 const isGovernedBaseUrl = (value: string): boolean => {
@@ -114,18 +115,20 @@ const isGovernedBaseUrl = (value: string): boolean => {
 
 /** Fresh per-invocation transport; credentials remain redacted until HTTP header construction. */
 export const makeGovernedEffectBffClient = <ApiId extends string, Groups extends HttpApiGroup.Constraint>(
-  { api, credential, defaultApiPrefix, requestCorrelation }: GovernedEffectBffClientConfig<ApiId, Groups>,
+  { api, credential, defaultApiPrefix, requestCorrelation, requestTrace }: GovernedEffectBffClientConfig<ApiId, Groups>,
   options: Pick<EffectBffClientOptions, 'baseUrl'>,
 ) => {
   const baseUrl = String(options.baseUrl ?? defaultApiPrefix);
+  const transportHeaders = {
+    authorization: Redacted.value(credential),
+    'x-correlation-id': requestCorrelation,
+  };
   const clientConfig = {
     api,
     baseUrl,
     defaultApiPrefix,
-    transportHeaders: {
-      authorization: Redacted.value(credential),
-      'x-correlation-id': requestCorrelation,
-    },
+    transportHeaders:
+      requestTrace === undefined ? transportHeaders : { ...transportHeaders, 'x-trace-id': requestTrace },
   };
   return Schema.decodeUnknownEffect(Schema.Literal(true))(isGovernedBaseUrl(baseUrl)).pipe(
     Effect.map(() => clientConfig),

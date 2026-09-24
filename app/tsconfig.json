@@ -47,16 +47,10 @@
       "path": "packages/email-delivery"
     },
     {
-      "path": "verticals/sales-inquiries"
+      "path": "packages/price-group-catalog-contracts"
     },
     {
-      "path": "verticals/service-jobs"
-    },
-    {
-      "path": "verticals/workforce"
-    },
-    {
-      "path": "verticals/job-expenses"
+      "path": "verticals/price-group-catalog"
     }
   ]
 }

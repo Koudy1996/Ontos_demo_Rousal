@@ -29,6 +29,7 @@ zerops:
         - 'app/verticals/commerce-customer-context'
         - 'app/verticals/party-registry'
         - 'app/verticals/payment-term-catalog'
+        - 'app/verticals/price-group-catalog'
     deploy:
       temporaryShutdown: false
       readinessCheck:
@@ -183,6 +184,7 @@ zerops:
       envVariables:
         DATABASE_URL: postgresql://ontos_runtime:${db18_password}@${db18_hostname}:${db18_port}/${db18_dbName}
         NODE_ENV: production
+        ONTOS_PRICE_GROUP_CATALOG_BASE_URL: 'http://price-group-catalog:4108/price-group-catalog-api'
         PORT: '4101'
         SPICEDB_ENDPOINT: 'spicedb:50051'
         SPICEDB_INSECURE: 'true'
@@ -435,6 +437,54 @@ zerops:
           port: 4107
           path: '/storefront-registry-api/storefront-registry/readiness'
       start: sh -c 'cd app/.zerops/runtime/storefront-registry && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
+
+  - setup: 'price-group-catalog'
+    build:
+      base: 'alpine@3.23'
+      prepareCommands:
+        - sudo apk add --no-cache curl libstdc++
+        - sh /build/source/app/scripts/install-zerops-node.sh --with-pnpm 12.4.2
+      buildCommands:
+        - cd app && PATH="$HOME/.local/node-26.7.0/bin:$PATH" node scripts/reset-workspace-dependencies.mjs
+        - cd app && PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=false PATH="$HOME/.local/node-26.7.0/bin:$PATH" pnpm install --frozen-lockfile --force --config.enable-global-virtual-store=false --virtual-store-dir=node_modules/.pnpm
+        - cd app && NODE_OPTIONS=--max-old-space-size=4096 PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=false ULTRAMODERN_SOURCE_REVISION="$(git rev-parse HEAD)" PATH="$HOME/.local/node-26.7.0/bin:$PATH" pnpm --config.enable-global-virtual-store=false --filter '@app/price-group-catalog' run build
+        - cd app && PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=false PATH="$HOME/.local/node-26.7.0/bin:$PATH" pnpm --config.enable-global-virtual-store=false run zerops:materialize --app 'price-group-catalog' --package '@app/price-group-catalog' --package-dir 'verticals/price-group-catalog'
+        - cp 'app/topology/reference-topology.json' 'app/.zerops/runtime/price-group-catalog/topology.json'
+        - cp 'app/topology/local-overlays/development.json' 'app/.zerops/runtime/price-group-catalog/local-overlay.json'
+      deployFiles:
+        - 'app/.zerops/runtime/price-group-catalog'
+        - 'app/scripts/install-zerops-node.sh'
+    deploy:
+      temporaryShutdown: false
+      readinessCheck:
+        httpGet:
+          port: 4108
+          path: '/price-group-catalog-api/price-group-catalog/readiness'
+        failureTimeout: 3m
+        retryPeriod: 10s
+    run:
+      base: 'nodejs@24'
+      initCommands:
+        - ZEROPS_NODE_ROOT=/var/www sh app/scripts/install-zerops-node.sh
+      ports:
+        - port: 4108
+          protocol: tcp
+          httpSupport: true
+      envVariables:
+        DATABASE_URL: postgresql://ontos_runtime:${db18_password}@${db18_hostname}:${db18_port}/${db18_dbName}
+        NODE_ENV: production
+        PORT: '4108'
+        SPICEDB_ENDPOINT: 'spicedb:50051'
+        SPICEDB_INSECURE: 'true'
+        SPICEDB_PRESHARED_KEY: ${spicedb_SPICEDB_GRPC_PRESHARED_KEY}
+        ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: stage
+        ULTRAMODERN_ZEROPS_SERVICE: price-group-catalog
+        VERTICAL_PRICE_GROUP_CATALOG_PORT: '4108'
+      healthCheck:
+        httpGet:
+          port: 4108
+          path: '/price-group-catalog-api/price-group-catalog/readiness'
+      start: sh -c 'cd app/.zerops/runtime/price-group-catalog && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
   # </generated-vertical-provider-deployments>
 
   - setup: 'shellsuperapp'
@@ -564,6 +614,7 @@ zerops:
           httpSupport: true
       envVariables:
         NODE_ENV: production
+        ONTOS_PRICE_GROUP_CATALOG_BASE_URL: 'http://price-group-catalog:4108/price-group-catalog-api'
         PORT: '4101'
         OUTBOX_WORKER_HEALTH_PORT: '4101'
         DATABASE_URL: ${commercecustomercontext_DATABASE_URL}
@@ -577,4 +628,49 @@ zerops:
           port: 4101
           path: '/ready'
       start: sh -c 'test -n "$ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON" || { echo "ONTOS_ACTIVE_APPLICATION_COMPOSITION_SNAPSHOT_JSON is required" >&2; exit 1; }; cd app/.zerops/runtime/commerce-customer-context-worker && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
+
+  - setup: 'price-group-catalog-worker'
+    build:
+      base: 'alpine@3.23'
+      prepareCommands:
+        - sudo apk add --no-cache curl libstdc++
+        - sh /build/source/app/scripts/install-zerops-node.sh --with-pnpm 12.4.2
+      buildCommands:
+        - cd app && PATH="$HOME/.local/node-26.7.0/bin:$PATH" node scripts/reset-workspace-dependencies.mjs
+        - cd app && PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=false PATH="$HOME/.local/node-26.7.0/bin:$PATH" pnpm install --frozen-lockfile --force --config.enable-global-virtual-store=false --virtual-store-dir=node_modules/.pnpm
+        - cd app && ULTRAMODERN_SOURCE_REVISION="$(git rev-parse HEAD)" PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE=false PATH="$HOME/.local/node-26.7.0/bin:$PATH" pnpm --config.enable-global-virtual-store=false run zerops:materialize --app 'price-group-catalog' --package '@app/price-group-catalog' --package-dir 'verticals/price-group-catalog' --worker
+      deployFiles:
+        - 'app/.zerops/runtime/price-group-catalog-worker'
+        - 'app/scripts/install-zerops-node.sh'
+    deploy:
+      temporaryShutdown: false
+      readinessCheck:
+        httpGet:
+          port: 4108
+          path: '/ready'
+        failureTimeout: 3m
+        retryPeriod: 10s
+    run:
+      base: 'nodejs@24'
+      initCommands:
+        - ZEROPS_NODE_ROOT=/var/www sh app/scripts/install-zerops-node.sh
+      ports:
+        - port: 4108
+          protocol: tcp
+          httpSupport: true
+      envVariables:
+        NODE_ENV: production
+        PORT: '4108'
+        OUTBOX_WORKER_HEALTH_PORT: '4108'
+        DATABASE_URL: ${pricegroupcatalog_DATABASE_URL}
+        SPICEDB_ENDPOINT: 'spicedb:50051'
+        SPICEDB_INSECURE: 'true'
+        SPICEDB_PRESHARED_KEY: ${spicedb_SPICEDB_GRPC_PRESHARED_KEY}
+        ULTRAMODERN_DEPLOYMENT_ENVIRONMENT: stage
+        ULTRAMODERN_ZEROPS_SERVICE: price-group-catalog-worker
+      healthCheck:
+        httpGet:
+          port: 4108
+          path: '/ready'
+      start: sh -c 'cd app/.zerops/runtime/price-group-catalog-worker && PATH="/var/www/.local/node-26.7.0/bin:$PATH" exec npm run serve'
   # </generated-outbox-worker-deployments>
