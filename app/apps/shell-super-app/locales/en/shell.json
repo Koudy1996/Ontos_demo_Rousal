@@ -7,7 +7,7 @@
         "legalEntity": "Legal entity",
         "principal": "Principal",
         "tenant": "Tenant",
-        "title": "Authenticated identity"
+        "title": "Account information"
       },
       "loginLink": "Login",
       "logout": {
@@ -21,18 +21,22 @@
     },
     "dashboard": {
       "account": {
-        "label": "Account menu"
+        "action": "Account",
+        "label": "Account and workspace"
       },
-      "brand": "OntOS",
+      "brand": "Rousal",
       "header": {
         "label": "Dashboard header"
       },
       "home": {
-        "title": "Home"
+        "title": "Home",
+        "welcome": "Welcome to your workspace",
+        "intro": "Inquiries, jobs and your team. Everything you need for your working day in one place.",
+        "open": "Open"
       },
       "legalEntity": {
         "accessBlocked": "No legal entity is available for this account.",
-        "accessibleLabel": "Current legal entity",
+        "accessibleLabel": "Company",
         "failed": "Legal-entity switching failed. Try again.",
         "pending": "Switching legal entity…",
         "placeholder": "Select a legal entity",
@@ -41,18 +45,44 @@
       },
       "navigation": {
         "home": "Home",
-        "label": "Dashboard navigation"
+        "label": "Dashboard navigation",
+        "show": "Show navigation",
+        "hide": "Hide navigation"
       },
       "sidebar": {
         "label": "Dashboard sidebar"
       },
-    "tenant": {
-        "accessibleLabel": "Current tenant",
+      "tenant": {
+        "accessibleLabel": "Workspace",
         "failed": "Tenant switching failed. Try again.",
         "pending": "Switching tenant…",
-      "unavailable": "Tenant choices are temporarily unavailable. Reload the page to try again."
-    },
-    "unavailable": "The authenticated Shell is temporarily unavailable. Reload the page to try again."
+        "unavailable": "Tenant choices are temporarily unavailable. Reload the page to try again."
+      },
+      "unavailable": "The authenticated Shell is temporarily unavailable. Reload the page to try again.",
+      "tagline": "Less admin. More clarity.",
+      "moduleNames": {
+        "billing": {
+          "documents": "Invoices"
+        },
+        "job": {
+          "expenses": "Expenses"
+        },
+        "operations": {
+          "dashboard": "Business overview"
+        },
+        "party": {
+          "registry": "Contacts"
+        },
+        "sales": {
+          "inquiries": "Inquiries and offers"
+        },
+        "workforce": {
+          "planning": "Team and planning"
+        },
+        "service": {
+          "jobs": "Jobs"
+        }
+      }
     },
     "hero": {
       "cardOne": "Add the first business vertical with create <domain> --vertical when the product needs one.",
@@ -134,17 +164,22 @@
       "archived": "Archived",
       "counterparty": "Counterparty",
       "empty": "No authorized results found.",
-      "label": "Search this tenant and selected legal entity",
+      "label": "Search workspace",
       "legal_entity": "Legal Entity",
       "partial": "Some search providers are temporarily unavailable. The available results are shown.",
       "party": "Party",
       "reconciliation_required": "Reconciliation required",
-      "roles": { "CUSTOMER": "Customer", "SUPPLIER": "Supplier" },
+      "roles": {
+        "CUSTOMER": "Customer",
+        "SUPPLIER": "Supplier"
+      },
       "selection_required": "Sign in and select a tenant before searching.",
       "seoDescription": "Search authorized resources in the selected OntOS context.",
       "submit": "Search",
       "title": "Search results",
-      "unavailable": "Search is temporarily unavailable. Try again."
+      "unavailable": "Search is temporarily unavailable. Try again.",
+      "placeholder": "Search…",
+      "clear": "Clear search"
     },
     "resource": {
       "forbidden": "You do not have permission to view this resource.",

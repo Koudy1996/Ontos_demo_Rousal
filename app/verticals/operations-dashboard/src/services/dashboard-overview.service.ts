@@ -7,9 +7,13 @@ import type { OperationalScope, ReadServiceFactory } from '@app/core-runtime';
 import { executeJobEconomicsWithAuthorization } from '@app/job-expenses/api/client';
 import { executeInquiryListWithAuthorization } from '@app/sales-inquiries/api/client';
 import { executeJobListWithAuthorization } from '@app/service-jobs/api/client';
-import { withDependencyCredentialRedaction } from '@app/shared-contracts/dependency-read-gateway';
+import {
+  makeDependencyReadGateway,
+  withDependencyCredentialRedaction,
+} from '@app/shared-contracts/dependency-read-gateway';
 import { executeWeeklyScheduleWithAuthorization } from '@app/workforce/api/client';
 import { Config, DateTime, Effect, Option, Redacted, Schema } from 'effect';
+import type { FetchHttpClient } from 'effect/unstable/http';
 import type { DashboardOverviewResponse } from '../../shared/apis/dashboard-overview.ts';
 import {
   DashboardDependencyUnavailable,
@@ -140,7 +144,10 @@ const assertInvoiceScope = (item: InvoiceListItem, scope: OperationalScope) =>
     ? Effect.void
     : Effect.fail(dependencyUnavailable('Owner returned an Invoice outside the dashboard scope'));
 
-const settleSection = <Value, Failure>(decision: PermissionDecision, load: Effect.Effect<Value, Failure>) => {
+const settleSection = <Value, Failure, Requirements>(
+  decision: PermissionDecision,
+  load: Effect.Effect<Value, Failure, Requirements>,
+) => {
   if (decision === 'denied') {
     return Effect.succeed(hidden());
   }
@@ -154,7 +161,7 @@ const settleSection = <Value, Failure>(decision: PermissionDecision, load: Effec
 };
 
 export interface DashboardOverviewServices {
-  readonly load: Effect.Effect<DashboardOverviewResponse>;
+  readonly load: Effect.Effect<DashboardOverviewResponse, never, FetchHttpClient.RequestInit>;
 }
 
 export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.services')(function* makeServices(
@@ -179,11 +186,12 @@ export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.servi
   const decision = (moduleId: (typeof PROVIDER_MODULES)[number]): PermissionDecision =>
     decisionByModule.get(moduleId) ?? 'unavailable';
 
-  const ownerCall = <Value, Failure>(
+  const ownerCall = <Value, Failure, Requirements>(
     audience: DashboardOwnerAudience,
     environmentName: string,
     requiredPath: string,
-    run: (authorization: Redacted.Redacted, baseUrl: string) => Effect.Effect<Value, Failure>,
+    run: (authorization: Redacted.Redacted, baseUrl: string) => Effect.Effect<Value, Failure, Requirements>,
+    dependencyPath?: '/reads/job-economics' | '/reads/weekly-schedule',
   ) =>
     Effect.gen(function* executeOwnerCall() {
       const [authorization, baseUrl] = yield* Effect.all(
@@ -193,7 +201,24 @@ export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.servi
         ],
         { concurrency: 2 },
       );
-      return yield* run(authorization, baseUrl).pipe(
+      const attempt = run(Redacted.make(`Bearer ${Redacted.value(authorization).token}`), baseUrl);
+      // These owners verify a separate, single-use Service Jobs assertion for their nested read.
+      const authorizedAttempt =
+        dependencyPath === undefined
+          ? attempt
+          : makeDependencyReadGateway(
+              {
+                audience: 'service-jobs',
+                ownerApiPrefix: requiredPath,
+                ownerBaseUrl: () => baseUrl,
+                paths: [dependencyPath],
+              },
+              ({ audience: dependencyAudience }) =>
+                credentials
+                  .issue({ audience: dependencyAudience, legalEntityId, requestCorrelation: scope.correlationId })
+                  .pipe(Effect.map(Redacted.value)),
+            ).invoke(attempt);
+      return yield* authorizedAttempt.pipe(
         Effect.mapError((cause) => dependencyUnavailable(`${audience} owner read failed`, cause)),
       );
     }).pipe(withDependencyCredentialRedaction);
@@ -255,6 +280,7 @@ export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.servi
         executeWeeklyScheduleWithAuthorization({ weekStart }, Redacted.value(authorization), scope.correlationId, {
           baseUrl,
         }),
+      '/reads/weekly-schedule',
     );
     yield* Effect.forEach(
       result.items,
@@ -304,6 +330,7 @@ export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.servi
               scope.correlationId,
               { baseUrl },
             ),
+          '/reads/job-economics',
         );
         if (
           result.serviceJobRef.tenantId !== scope.tenantId ||
@@ -373,8 +400,8 @@ export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.servi
     } satisfies InvoiceableReadyBase;
   });
 
-  const loadInvoiceable: Effect.Effect<DashboardOverviewResponse['invoiceable']> = Effect.gen(
-    function* loadInvoiceableSection() {
+  const loadInvoiceable: Effect.Effect<DashboardOverviewResponse['invoiceable'], never, FetchHttpClient.RequestInit> =
+    Effect.gen(function* loadInvoiceableSection() {
       const section = yield* settleSection(decision(BILLING_MODULE_ID), loadInvoiceableJobs);
       if (section.state !== 'READY') {
         return section;
@@ -387,8 +414,7 @@ export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.servi
           job: mapJob(job),
         })),
       };
-    },
-  );
+    });
 
   const loadInvoices = Effect.fn('OperationsDashboard.loadInvoices')(function* loadInvoiceStatus(
     status: 'DRAFT' | 'ISSUED',
@@ -459,5 +485,5 @@ export const makeDashboardOverviewService = Effect.fn('OperationsDashboard.servi
 
 export const dashboardOverviewService: ReadServiceFactory<
   DashboardOverviewServices,
-  ContextAccess | DashboardOwnerGatewayCredentialService
+  ContextAccess | DashboardOwnerGatewayCredentialService | FetchHttpClient.RequestInit
 > = (_transaction, scope) => makeDashboardOverviewService(scope);

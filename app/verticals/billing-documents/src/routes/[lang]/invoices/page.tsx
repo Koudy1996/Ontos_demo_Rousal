@@ -7,9 +7,9 @@ import { UltramodernRouteHead } from '../../ultramodern-route-head';
 import { useInvoicesController } from './use-invoices-controller.ts';
 
 const card =
-  'billingdocuments:min-w-0 billingdocuments:rounded-2xl billingdocuments:border billingdocuments:border-stone-200 billingdocuments:bg-white billingdocuments:p-4 billingdocuments:shadow-sm';
+  'billingdocuments:min-w-0 billingdocuments:rounded-2xl billingdocuments:border billingdocuments:border-um-border billingdocuments:bg-um-surface billingdocuments:p-4 billingdocuments:shadow-sm';
 const field =
-  'billingdocuments:w-full billingdocuments:rounded-xl billingdocuments:border billingdocuments:border-stone-300 billingdocuments:bg-white billingdocuments:px-3 billingdocuments:py-3 billingdocuments:text-base';
+  'billingdocuments:w-full billingdocuments:rounded-xl billingdocuments:border billingdocuments:border-um-border billingdocuments:bg-um-surface billingdocuments:px-3 billingdocuments:py-3 billingdocuments:text-base billingdocuments:text-um-foreground';
 const money = (value: string, currency: string, language: string) =>
   new Intl.NumberFormat(language, { currency, style: 'currency' }).format(Number(value));
 const addressText = (address: InvoiceAddress) =>
@@ -165,7 +165,7 @@ const InvoiceDraft = ({
         <p>
           {label('estimatedDueAt')}: {estimatedDueText(selectedTerm?.semantics, language)}
         </p>
-        <p className="billingdocuments:text-sm billingdocuments:text-stone-600">
+        <p className="billingdocuments:text-sm billingdocuments:text-um-muted">
           {label(`priceBasis.${invoice.commercialSnapshot.priceBasis}`)}
         </p>
       </section>
@@ -310,7 +310,7 @@ const IssuedInvoice = ({
       <header className="billingdocuments:flex billingdocuments:flex-wrap billingdocuments:items-start billingdocuments:justify-between billingdocuments:gap-4">
         <div>
           <p className="billingdocuments:text-sm billingdocuments:font-semibold">{label('issued')}</p>
-          <h2 className="billingdocuments:text-3xl billingdocuments:font-black">
+          <h2 className="billingdocuments:text-3xl billingdocuments:font-semibold">
             {label('invoice')} {invoice.invoiceNumber}
           </h2>
         </div>
@@ -347,7 +347,7 @@ const IssuedInvoice = ({
           <p>{invoice.paymentTermSnapshot?.name}</p>
         </section>
       </div>
-      <div className="billingdocuments:mt-8 billingdocuments:grid billingdocuments:grid-cols-[1fr_auto] billingdocuments:gap-4 billingdocuments:border-t billingdocuments:border-stone-300 billingdocuments:pt-4">
+      <div className="billingdocuments:mt-8 billingdocuments:grid billingdocuments:grid-cols-[1fr_auto] billingdocuments:gap-4 billingdocuments:border-t billingdocuments:border-um-border billingdocuments:pt-4">
         <p>{invoice.description}</p>
         <strong>{money(invoice.commercialSnapshot.total, invoice.commercialSnapshot.currency, language)}</strong>
       </div>
@@ -383,10 +383,10 @@ export const InvoicesPage = () => {
             <p className="billingdocuments:text-sm billingdocuments:font-semibold billingdocuments:uppercase billingdocuments:text-stone-500">
               SOS vyklízení
             </p>
-            <h1 className="billingdocuments:text-3xl billingdocuments:font-black billingdocuments:sm:text-4xl">
+            <h1 className="billingdocuments:text-3xl billingdocuments:font-semibold billingdocuments:sm:text-4xl">
               {label('title')}
             </h1>
-            <p className="billingdocuments:mt-2 billingdocuments:text-stone-600">{label('intro')}</p>
+            <p className="billingdocuments:mt-2 billingdocuments:text-um-muted">{label('intro')}</p>
           </div>
           {state.view === 'list' ? (
             <Button onClick={handleNewInvoice} size="lg">

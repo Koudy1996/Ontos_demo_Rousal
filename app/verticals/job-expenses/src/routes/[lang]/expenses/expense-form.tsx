@@ -89,7 +89,7 @@ export const ExpenseForm = ({ disabled, expense, label, onCancel, onSubmit, toda
           required
           value={draft.amountCzk}
         />
-        <p className="jobexpenses:text-sm jobexpenses:text-stone-600">{label('form.amountHelp')}</p>
+        <p className="jobexpenses:text-sm jobexpenses:text-um-muted">{label('form.amountHelp')}</p>
         {expense !== undefined && (
           <label className={stackClass} htmlFor="expense-change-reason">
             <span>{label('form.changeReason')}</span>

@@ -1,3 +1,4 @@
+import type { GatewayContextResponse } from '@app/shared-contracts';
 import { Context, Schema } from 'effect';
 import type { Effect, Redacted } from 'effect';
 import type { DashboardDependencyUnavailable } from './dashboard-dependency-unavailable.ts';
@@ -18,7 +19,7 @@ export interface DashboardOwnerGatewayCredentialIssuer {
     readonly audience: DashboardOwnerAudience;
     readonly legalEntityId: string;
     readonly requestCorrelation: string;
-  }) => Effect.Effect<Redacted.Redacted, DashboardDependencyUnavailable>;
+  }) => Effect.Effect<Redacted.Redacted<GatewayContextResponse>, DashboardDependencyUnavailable>;
 }
 
 export class DashboardOwnerGatewayCredentialService extends Context.Service<

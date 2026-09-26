@@ -1,6 +1,11 @@
 import { ContextAccess } from '@app/core-runtime';
 import type { executeJobListWithAuthorization } from '@app/service-jobs/api/client';
-import { ConfigProvider, DateTime, Effect, Fiber, Option, Redacted, Schema } from 'effect';
+import {
+  attachDependencyReadCredential,
+  DEPENDENCY_READ_AUTHORIZATION_HEADER,
+} from '@app/shared-contracts/dependency-read-gateway';
+import { ConfigProvider, DateTime, Effect, Fiber, Option, Redacted, Result, Schema } from 'effect';
+import { FetchHttpClient, HttpClientRequest } from 'effect/unstable/http';
 import { beforeEach, expect, it, rstest } from 'effect-rstest';
 import { TestClock } from 'effect/testing';
 import { DashboardOwnerGatewayCredentialService } from '../../shared/domain/dashboard-owner-gateway-credential.ts';
@@ -72,10 +77,13 @@ const dashboard = (overrides: Readonly<Partial<Record<string, ModuleDecision>>> 
     Effect.provideService(DashboardOwnerGatewayCredentialService, {
       issue: ({ audience }) => {
         issuedAudiences.push(audience);
-        return Effect.succeed(Redacted.make(`Bearer ${audience}-${issuedAudiences.length}`));
+        return Effect.succeed(
+          Redacted.make({ expiresAt: 1_800_000_000, token: `${audience}-${issuedAudiences.length}` }),
+        );
       },
     }),
     Effect.provideService(ConfigProvider.ConfigProvider, urls),
+    Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'error' }),
   );
   return { effect, issuedAudiences };
 };
@@ -117,7 +125,7 @@ it.effect('uses a fresh bounded assertion per owner call and marks capped inquir
     expect(new Set(fixture.issuedAudiences)).toEqual(
       new Set(['billing-documents', 'sales-inquiries', 'service-jobs', 'workforce']),
     );
-    expect(fixture.issuedAudiences).toHaveLength(11);
+    expect(fixture.issuedAudiences).toHaveLength(12);
   }),
 );
 
@@ -159,6 +167,62 @@ it.effect('keeps an invoiceable job visible when its economics owner is unavaila
     } else {
       expect(result.invoiceable.state).toBe('READY');
     }
+  }),
+);
+
+it.effect('supplies a fresh single-use Jobs dependency assertion to each economics request', () =>
+  Effect.gen(function* economicsDependency() {
+    const dependencyHeaders: string[] = [];
+    mocks.executeInvoiceableJobs.mockReturnValue(Effect.succeed({ items: [job, job], nextCursor: null }));
+    mocks.executeJobEconomics.mockReturnValue(
+      Effect.gen(function* readEconomicsWithDependency() {
+        const request = HttpClientRequest.post('/reads/job-economics');
+        const attach = attachDependencyReadCredential(
+          '/job-expenses-api',
+          request,
+          'http://expenses.test/job-expenses-api',
+        );
+        const authorized = yield* attach;
+        const header = authorized.headers[DEPENDENCY_READ_AUTHORIZATION_HEADER];
+        expect(header).toMatch(/^Bearer service-jobs-/u);
+        dependencyHeaders.push(header ?? 'missing');
+        expect(Result.isFailure(yield* attach.pipe(Effect.result))).toBe(true);
+        return {
+          agreedPriceCzk: '20000.00',
+          comparisonReason: null,
+          currency: 'CZK',
+          differenceCzk: '5000.00',
+          marginPercent: '25.00',
+          recordedCostTotal: '15000.00',
+          serviceJobRef: job.ref,
+        };
+      }),
+    );
+    const result = yield* dashboard().effect;
+    expect(dependencyHeaders).toHaveLength(2);
+    expect(new Set(dependencyHeaders).size).toBe(2);
+    expect(result.invoiceable.state).toBe('READY');
+    if (result.invoiceable.state === 'READY') {
+      expect(result.invoiceable.items.map(({ economics }) => economics.state)).toEqual(['READY', 'READY']);
+    }
+  }),
+);
+
+it.effect('supplies the Jobs dependency assertion to the weekly schedule owner', () =>
+  Effect.gen(function* scheduleDependency() {
+    mocks.executeWeeklySchedule.mockReturnValue(
+      Effect.gen(function* readScheduleWithDependency() {
+        const request = yield* attachDependencyReadCredential(
+          '/workforce-api',
+          HttpClientRequest.post('/reads/weekly-schedule'),
+          'http://workforce.test/workforce-api',
+        );
+        expect(request.headers[DEPENDENCY_READ_AUTHORIZATION_HEADER]).toMatch(/^Bearer service-jobs-/u);
+        return { items: [] };
+      }),
+    );
+    const result = yield* dashboard().effect;
+    expect(result.weeklySchedule.state).toBe('READY');
   }),
 );
 

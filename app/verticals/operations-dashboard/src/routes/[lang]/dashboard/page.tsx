@@ -11,7 +11,7 @@ import { UltramodernRouteHead } from '../../ultramodern-route-head';
 import { useDashboardController } from './use-dashboard-controller.ts';
 
 const card =
-  'operationsdashboard:min-w-0 operationsdashboard:rounded-2xl operationsdashboard:border operationsdashboard:border-stone-200 operationsdashboard:bg-white operationsdashboard:p-4 operationsdashboard:shadow-sm';
+  'operationsdashboard:min-w-0 operationsdashboard:rounded-2xl operationsdashboard:border operationsdashboard:border-um-border operationsdashboard:bg-um-surface operationsdashboard:p-4 operationsdashboard:shadow-sm';
 type OverviewSection = DashboardOverviewResponse[keyof DashboardOverviewResponse];
 type StatefulSection = Extract<OverviewSection, { readonly state: string }>;
 type CountSection = Extract<StatefulSection, { readonly count: DashboardCount }>;
@@ -44,13 +44,13 @@ const CountCard = ({
   readonly section: CountSection | { readonly retryable: true; readonly state: 'UNAVAILABLE' };
 }) => (
   <Link
-    className={`${card} operationsdashboard:block operationsdashboard:transition hover:operationsdashboard:border-blue-300 focus-visible:operationsdashboard:outline-2 focus-visible:operationsdashboard:outline-offset-2 focus-visible:operationsdashboard:outline-blue-700`}
+    className={`${card} operationsdashboard:block operationsdashboard:transition operationsdashboard:hover:border-um-accent operationsdashboard:focus-visible:outline-2 operationsdashboard:focus-visible:outline-offset-2 operationsdashboard:focus-visible:outline-um-link`}
     to={href}
   >
-    <p className="operationsdashboard:text-sm operationsdashboard:font-semibold operationsdashboard:text-stone-600">
+    <p className="operationsdashboard:text-sm operationsdashboard:font-semibold operationsdashboard:text-um-muted">
       {label}
     </p>
-    <p className="operationsdashboard:mt-2 operationsdashboard:text-3xl operationsdashboard:font-black operationsdashboard:text-stone-950">
+    <p className="operationsdashboard:mt-2 operationsdashboard:text-3xl operationsdashboard:font-semibold operationsdashboard:text-um-foreground">
       {section.state === 'READY' ? countText(section.count) : '—'}
     </p>
   </Link>
@@ -66,11 +66,11 @@ const SectionHeader = ({
   readonly linkLabel: string;
 }) => (
   <div className="operationsdashboard:flex operationsdashboard:items-center operationsdashboard:justify-between operationsdashboard:gap-3">
-    <h2 className="operationsdashboard:text-xl operationsdashboard:font-bold operationsdashboard:text-stone-950">
+    <h2 className="operationsdashboard:text-xl operationsdashboard:font-bold operationsdashboard:text-um-foreground">
       {label}
     </h2>
     <Link
-      className="operationsdashboard:min-h-11 operationsdashboard:shrink-0 operationsdashboard:py-3 operationsdashboard:text-sm operationsdashboard:font-bold operationsdashboard:text-blue-700 operationsdashboard:underline-offset-4 hover:operationsdashboard:underline"
+      className="operationsdashboard:min-h-11 operationsdashboard:shrink-0 operationsdashboard:py-3 operationsdashboard:text-sm operationsdashboard:font-bold operationsdashboard:text-um-link operationsdashboard:underline-offset-4 operationsdashboard:hover:underline"
       to={href}
     >
       {linkLabel}
@@ -87,15 +87,15 @@ const JobRow = ({
   readonly language: string;
   readonly statusLabel: string;
 }) => (
-  <div className="operationsdashboard:grid operationsdashboard:min-w-0 operationsdashboard:gap-1 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-stone-200 operationsdashboard:p-3">
-    <p className="operationsdashboard:font-bold operationsdashboard:text-stone-950">{job.description}</p>
-    <p className="operationsdashboard:text-sm operationsdashboard:text-stone-700">
+  <div className="operationsdashboard:grid operationsdashboard:min-w-0 operationsdashboard:gap-1 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-um-border operationsdashboard:p-3">
+    <p className="operationsdashboard:font-bold operationsdashboard:text-um-foreground">{job.description}</p>
+    <p className="operationsdashboard:text-sm operationsdashboard:text-um-muted">
       {job.addressLine}, {job.city}
     </p>
-    <p className="operationsdashboard:text-sm operationsdashboard:text-stone-600">
+    <p className="operationsdashboard:text-sm operationsdashboard:text-um-muted">
       {dateTimeText(job.scheduledStartAt, language)}
     </p>
-    <p className="operationsdashboard:text-xs operationsdashboard:font-bold operationsdashboard:uppercase operationsdashboard:tracking-wide operationsdashboard:text-blue-700">
+    <p className="operationsdashboard:text-xs operationsdashboard:font-bold operationsdashboard:uppercase operationsdashboard:tracking-wide operationsdashboard:text-um-link">
       {statusLabel}
     </p>
   </div>
@@ -132,7 +132,7 @@ const JobsPanel = ({
     );
   } else if (section.items.length === 0) {
     content = (
-      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-stone-600">
+      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-um-muted">
         {emptyLabel}
       </p>
     );
@@ -186,7 +186,7 @@ const WorkforcePanel = ({
     );
   } else if (section.items.length === 0) {
     content = (
-      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-stone-600">
+      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-um-muted">
         {emptyLabel}
       </p>
     );
@@ -195,11 +195,11 @@ const WorkforcePanel = ({
       <ul className="operationsdashboard:mt-3 operationsdashboard:grid operationsdashboard:gap-2">
         {section.items.map(({ crew, job }) => (
           <li
-            className="operationsdashboard:grid operationsdashboard:gap-2 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-stone-200 operationsdashboard:p-3"
+            className="operationsdashboard:grid operationsdashboard:gap-2 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-um-border operationsdashboard:p-3"
             key={job.id}
           >
             <JobRow job={job} language={language} statusLabel={statusLabel(job.status)} />
-            <p className="operationsdashboard:text-sm operationsdashboard:text-stone-700">
+            <p className="operationsdashboard:text-sm operationsdashboard:text-um-muted">
               {crew.length === 0 ? '—' : crew.map(({ displayName }) => displayName).join(', ')}
             </p>
             {crew.some(({ availability }) => availability === 'JOB_CONFLICT') && (
@@ -244,15 +244,15 @@ const EconomicsSummary = ({
   }
   return (
     <div className="operationsdashboard:grid operationsdashboard:grid-cols-2 operationsdashboard:gap-2 operationsdashboard:text-sm">
-      <span className="operationsdashboard:text-stone-600">{labels.price}</span>
+      <span className="operationsdashboard:text-um-muted">{labels.price}</span>
       <strong className="operationsdashboard:text-right">{moneyText(economics.agreedPriceCzk, language)}</strong>
-      <span className="operationsdashboard:text-stone-600">{labels.costs}</span>
+      <span className="operationsdashboard:text-um-muted">{labels.costs}</span>
       <strong className="operationsdashboard:text-right">{moneyText(economics.recordedCostTotal, language)}</strong>
-      <span className="operationsdashboard:text-stone-600">{labels.difference}</span>
+      <span className="operationsdashboard:text-um-muted">{labels.difference}</span>
       <strong className="operationsdashboard:text-right">
         {economics.differenceCzk === null ? '—' : moneyText(economics.differenceCzk, language)}
       </strong>
-      <span className="operationsdashboard:text-stone-600">{labels.margin}</span>
+      <span className="operationsdashboard:text-um-muted">{labels.margin}</span>
       <strong className="operationsdashboard:text-right">
         {economics.marginPercent === null ? '—' : `${economics.marginPercent} %`}
       </strong>
@@ -296,7 +296,7 @@ const InvoiceablePanel = ({
     );
   } else if (section.items.length === 0) {
     content = (
-      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-stone-600">
+      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-um-muted">
         {section.hasMore ? incompleteLabel : emptyLabel}
       </p>
     );
@@ -305,10 +305,10 @@ const InvoiceablePanel = ({
       <ul className="operationsdashboard:mt-3 operationsdashboard:grid operationsdashboard:gap-2">
         {section.items.map(({ economics, job }) => (
           <li
-            className="operationsdashboard:grid operationsdashboard:gap-2 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-stone-200 operationsdashboard:p-3"
+            className="operationsdashboard:grid operationsdashboard:gap-2 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-um-border operationsdashboard:p-3"
             key={job.id}
           >
-            <p className="operationsdashboard:font-bold operationsdashboard:text-stone-950">{job.description}</p>
+            <p className="operationsdashboard:font-bold operationsdashboard:text-um-foreground">{job.description}</p>
             <EconomicsSummary
               economics={economics}
               labels={economicsLabels}
@@ -359,7 +359,7 @@ const InvoicePanel = ({
     );
   } else if (section.items.length === 0) {
     content = (
-      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-stone-600">
+      <p className="operationsdashboard:mt-3 operationsdashboard:text-sm operationsdashboard:text-um-muted">
         {emptyLabel}
       </p>
     );
@@ -368,23 +368,23 @@ const InvoicePanel = ({
       <ul className="operationsdashboard:mt-3 operationsdashboard:grid operationsdashboard:gap-2">
         {section.items.map((invoice) => (
           <li
-            className="operationsdashboard:grid operationsdashboard:gap-1 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-stone-200 operationsdashboard:p-3"
+            className="operationsdashboard:grid operationsdashboard:gap-1 operationsdashboard:rounded-xl operationsdashboard:border operationsdashboard:border-um-border operationsdashboard:p-3"
             key={invoice.id}
           >
             <div className="operationsdashboard:flex operationsdashboard:items-start operationsdashboard:justify-between operationsdashboard:gap-3">
-              <p className="operationsdashboard:min-w-0 operationsdashboard:font-bold operationsdashboard:text-stone-950">
+              <p className="operationsdashboard:min-w-0 operationsdashboard:font-bold operationsdashboard:text-um-foreground">
                 {invoice.customerDisplayName}
               </p>
               <strong className="operationsdashboard:shrink-0">{moneyText(invoice.total, language)}</strong>
             </div>
-            <p className="operationsdashboard:text-sm operationsdashboard:text-stone-600">
+            <p className="operationsdashboard:text-sm operationsdashboard:text-um-muted">
               {invoice.invoiceNumber ?? invoice.sourceJobDisplayName}
             </p>
             {invoice.status === 'ISSUED' && (
               <dl className="operationsdashboard:mt-1 operationsdashboard:grid operationsdashboard:grid-cols-2 operationsdashboard:gap-1 operationsdashboard:text-sm">
-                <dt className="operationsdashboard:text-stone-600">{issuedAtLabel}</dt>
+                <dt className="operationsdashboard:text-um-muted">{issuedAtLabel}</dt>
                 <dd className="operationsdashboard:text-right">{dateTimeText(invoice.issuedAt, language)}</dd>
-                <dt className="operationsdashboard:text-stone-600">{dueAtLabel}</dt>
+                <dt className="operationsdashboard:text-um-muted">{dueAtLabel}</dt>
                 <dd className="operationsdashboard:text-right">{dateTimeText(invoice.dueAt, language)}</dd>
               </dl>
             )}
@@ -540,12 +540,12 @@ export const DashboardPage = () => {
         <header className="operationsdashboard:flex operationsdashboard:flex-wrap operationsdashboard:items-center operationsdashboard:justify-between operationsdashboard:gap-3">
           <div>
             <h1
-              className="operationsdashboard:text-3xl operationsdashboard:font-black operationsdashboard:text-stone-950"
+              className="operationsdashboard:text-3xl operationsdashboard:font-semibold operationsdashboard:text-um-foreground"
               id={headingId}
             >
               {label('title')}
             </h1>
-            <p className="operationsdashboard:mt-1 operationsdashboard:text-sm operationsdashboard:text-stone-600">
+            <p className="operationsdashboard:mt-1 operationsdashboard:text-sm operationsdashboard:text-um-muted">
               {label('subtitle')}
             </p>
           </div>

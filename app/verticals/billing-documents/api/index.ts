@@ -96,7 +96,8 @@ export const governedReadApiHandlersLive = Layer.mergeAll(
     ),
   ),
   // </generated-governed-http-handler-support-layers>
-  GovernedReadLayer.provide(GovernedReadLayer.empty),
+  // Invoice Actions resolve the issuer through Core's governed Legal Entity read.
+  GovernedReadLayer.provide(governedReadRuntimeLive),
 );
 
 const operationAttributes = (operationContext: OperationContext) => {

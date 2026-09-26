@@ -120,7 +120,7 @@ const concurrencyScenario = Effect.gen(function* optimisticConcurrency() {
   });
   expect(outcomes.filter(Result.isSuccess)).toHaveLength(1);
   const failure = outcomes.find(Result.isFailure);
-  expect(failure === undefined ? undefined : Result.getFailure(failure)).toMatchObject({ code: 'revision_conflict' });
+  expect(failure?.failure).toMatchObject({ code: 'revision_conflict' });
   const current = yield* database.select().from(jobExpenses).where(eq(jobExpenses.id, concurrentRow.id));
   expect(current).toHaveLength(1);
   expect(current[0]?.revision).toBe(2);

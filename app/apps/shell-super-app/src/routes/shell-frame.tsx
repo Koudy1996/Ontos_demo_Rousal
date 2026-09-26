@@ -1,14 +1,14 @@
 import { Link as LocalizedLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Badge } from '@techsio/ui-kit/atoms/badge';
+import { Button } from '@techsio/ui-kit/atoms/button';
 import { Link } from '@techsio/ui-kit/atoms/link';
 import { StatusText } from '@techsio/ui-kit/atoms/status-text';
-import { Menu } from '@techsio/ui-kit/molecules/menu';
-import type { MenuItem } from '@techsio/ui-kit/molecules/menu';
+import { Popover } from '@techsio/ui-kit/molecules/popover';
 import { SearchForm } from '@techsio/ui-kit/molecules/search-form';
 import { Select } from '@techsio/ui-kit/molecules/select';
 import type { SelectItem } from '@techsio/ui-kit/molecules/select';
 import { Header } from '@techsio/ui-kit/organisms/header';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 
 import type { ShellUnavailableDeployment } from '../../shared/api.ts';
@@ -115,12 +115,24 @@ interface DashboardNavigationProps {
   readonly unavailableDeployments: readonly ShellUnavailableDeployment[];
 }
 
-interface DashboardHeaderProps {
+interface DashboardHeaderProps extends DashboardSearchProps {
+  readonly children: ReactNode;
   readonly identity: DashboardAccount;
   readonly logoutPending: boolean;
+  readonly navigationOpen: boolean;
   readonly onLogout: () => void;
-  readonly title: string | undefined;
+  readonly onNavigationToggle: () => void;
 }
+
+export const moduleNavigationLabel = (
+  moduleId: string,
+  fallback: string,
+  translate: (key: string) => string,
+): string => {
+  const key = `shell.dashboard.moduleNames.${moduleId}`;
+  const translated = translate(key);
+  return translated === key ? fallback : translated;
+};
 
 const selectorStatus = (failed: boolean, unavailable: boolean): 'default' | 'error' | 'warning' => {
   if (failed) {
@@ -278,6 +290,7 @@ const DashboardSearch = ({ onSearch, onValueChange, value }: DashboardSearchProp
 
   return (
     <SearchForm
+      className="shell:min-w-0 shell:flex-1"
       onSubmit={(event) => {
         event.preventDefault();
         const query = value.trim();
@@ -286,13 +299,24 @@ const DashboardSearch = ({ onSearch, onValueChange, value }: DashboardSearchProp
         }
       }}
       onValueChange={onValueChange}
+      size="sm"
       value={value}
     >
-      <SearchForm.Label>{t('shell.search.label')}</SearchForm.Label>
+      <SearchForm.Label className="shell:sr-only">{t('shell.search.label')}</SearchForm.Label>
       <SearchForm.Control>
-        <SearchForm.Input />
-        <SearchForm.ClearButton />
-        <SearchForm.Button showSearchIcon>{t('shell.search.submit')}</SearchForm.Button>
+        <SearchForm.Input
+          aria-label={t('shell.search.label')}
+          className="shell:min-h-11 shell:text-base"
+          placeholder={t('shell.search.placeholder')}
+        />
+        <SearchForm.ClearButton aria-label={t('shell.search.clear')} />
+        <SearchForm.Button
+          aria-label={t('shell.search.submit')}
+          className="shell:min-h-11 shell:min-w-11"
+          showSearchIcon
+        >
+          <span className="shell:sr-only shell:sm:not-sr-only">{t('shell.search.submit')}</span>
+        </SearchForm.Button>
       </SearchForm.Control>
     </SearchForm>
   );
@@ -307,12 +331,13 @@ const DashboardModuleNavigationItem = ({ currentModuleId, module }: DashboardMod
         <Link
           aria-current={currentModuleId === module.moduleId ? 'page' : undefined}
           as={LocalizedLink}
+          className="shell:flex shell:min-h-11 shell:w-full shell:items-center shell:rounded-xl shell:px-4 shell:py-3 shell:text-sm shell:font-medium shell:text-um-muted shell:transition-colors shell:hover:bg-um-cream shell:hover:text-um-foreground shell:focus-visible:outline-2 shell:focus-visible:outline-offset-2 shell:focus-visible:outline-um-link shell:aria-[current=page]:bg-um-accent-subtle shell:aria-[current=page]:font-semibold shell:aria-[current=page]:text-um-link"
           to={module.href}
         >
-          {module.label}
+          {moduleNavigationLabel(module.moduleId, module.label, t)}
         </Link>
       ) : (
-        <span>{module.label}</span>
+        <span>{moduleNavigationLabel(module.moduleId, module.label, t)}</span>
       )}
       {module.state === 'read_only' ? (
         <Badge size="sm" variant="warning">
@@ -356,11 +381,12 @@ const DashboardNavigation = ({
 
   return (
     <nav aria-label={t('shell.dashboard.navigation.label')}>
-      <ul className="shell:flex shell:flex-col shell:gap-2">
+      <ul className="shell:flex shell:flex-col shell:gap-1">
         <li>
           <Link
             aria-current={homeCurrent && currentModuleId === undefined ? 'page' : undefined}
             as={LocalizedLink}
+            className="shell:flex shell:min-h-11 shell:w-full shell:items-center shell:rounded-xl shell:px-4 shell:py-3 shell:text-sm shell:font-medium shell:text-um-muted shell:transition-colors shell:hover:bg-um-cream shell:hover:text-um-foreground shell:focus-visible:outline-2 shell:focus-visible:outline-offset-2 shell:focus-visible:outline-um-link shell:aria-[current=page]:bg-um-accent-subtle shell:aria-[current=page]:font-semibold shell:aria-[current=page]:text-um-link"
             to="/"
           >
             {t('shell.dashboard.navigation.home')}
@@ -377,39 +403,68 @@ const DashboardNavigation = ({
   );
 };
 
-const DashboardHeader = ({ identity, logoutPending, onLogout, title }: DashboardHeaderProps) => {
+const DashboardHeader = ({
+  children,
+  identity,
+  logoutPending,
+  navigationOpen,
+  onLogout,
+  onNavigationToggle,
+  onSearch,
+  onValueChange,
+  value,
+}: DashboardHeaderProps) => {
   const { t } = useModernI18n();
-  const accountItems: MenuItem[] = [
-    {
-      disabled: logoutPending,
-      label: t(logoutPending ? 'shell.auth.logout.pending' : 'shell.auth.logout.action'),
-      type: 'action',
-      value: 'logout',
-    },
-  ];
 
   return (
-    <Header aria-label={t('shell.dashboard.header.label')}>
-      {title === undefined ? null : (
-        <Header.Container position="start">
-          <h1>{title}</h1>
-        </Header.Container>
-      )}
-      <Header.Container position="end">
-        <Header.Actions>
-          <Header.ActionItem>
-            <Menu
-              aria-label={t('shell.dashboard.account.label')}
-              items={accountItems}
-              onSelect={({ value }) => {
-                if (value === 'logout') {
-                  onLogout();
-                }
-              }}
-              triggerText={identity.displayName}
-            />
-          </Header.ActionItem>
-        </Header.Actions>
+    <Header
+      aria-label={t('shell.dashboard.header.label')}
+      className="shell:sticky shell:top-0 shell:z-30 shell:gap-2 shell:border-b shell:border-um-border shell:bg-um-surface shell:px-3 shell:py-2 shell:md:px-5"
+      size="sm"
+    >
+      <Header.Container
+        className="shell:flex shell:min-w-0 shell:flex-1 shell:items-center shell:gap-2"
+        position="start"
+      >
+        <Button
+          aria-controls="workspace-navigation"
+          aria-expanded={navigationOpen}
+          aria-label={t(navigationOpen ? 'shell.dashboard.navigation.hide' : 'shell.dashboard.navigation.show')}
+          className="shell:min-h-11 shell:min-w-11 shell:shrink-0 shell:md:hidden"
+          icon={navigationOpen ? 'token-icon-header-close' : 'token-icon-header-menu'}
+          onClick={onNavigationToggle}
+          size="sm"
+          theme="outlined"
+          variant="secondary"
+        />
+        <div className="shell:min-w-0 shell:max-w-xl shell:flex-1">
+          <DashboardSearch onSearch={onSearch} onValueChange={onValueChange} value={value} />
+        </div>
+      </Header.Container>
+      <Header.Container className="shell:w-auto shell:shrink-0" position="end">
+        <Popover placement="bottom-end">
+          <Popover.Trigger
+            aria-label={t('shell.dashboard.account.label')}
+            className="shell:min-h-11"
+            size="sm"
+            theme="outlined"
+            variant="secondary"
+          >
+            {t('shell.dashboard.account.action')}
+          </Popover.Trigger>
+          <Popover.Positioner className="shell:z-50">
+            <Popover.Content className="shell:w-80 shell:max-w-[calc(100vw-1rem)]">
+              <Popover.Title>{t('shell.dashboard.account.label')}</Popover.Title>
+              <p className="shell:mb-4 shell:break-words shell:text-sm shell:text-um-muted">{identity.displayName}</p>
+              <div className="shell:flex shell:flex-col shell:gap-4">
+                {children}
+                <Button disabled={logoutPending} onClick={onLogout} size="sm" theme="outlined" variant="secondary">
+                  {t(logoutPending ? 'shell.auth.logout.pending' : 'shell.auth.logout.action')}
+                </Button>
+              </div>
+            </Popover.Content>
+          </Popover.Positioner>
+        </Popover>
       </Header.Container>
     </Header>
   );
@@ -418,21 +473,20 @@ const DashboardHeader = ({ identity, logoutPending, onLogout, title }: Dashboard
 export const AuthenticatedDashboardLayout = (props: AuthenticatedDashboardLayoutProps) => {
   const { t } = useModernI18n();
   const [searchValue, setSearchValue] = useState('');
-  const { tenantSwitchFailed } = props;
-
-  useEffect(() => {
-    if (tenantSwitchFailed) {
-      document.querySelector('#tenant-switch-status')?.scrollIntoView({ block: 'nearest' });
-    }
-  }, [tenantSwitchFailed]);
+  const [navigationOpen, setNavigationOpen] = useState(false);
 
   return (
-    <div className="shell:flex shell:min-h-screen shell:min-w-0 shell:flex-col shell:overflow-x-hidden shell:bg-(--color-page-bg) shell:text-(--color-page-fg) shell:md:flex-row">
-      <aside
-        aria-label={t('shell.dashboard.sidebar.label')}
-        className="shell:flex shell:w-full shell:shrink-0 shell:flex-col shell:gap-6 shell:bg-(--color-surface) shell:p-4 shell:md:w-64"
+    <div className="shell:flex shell:min-h-screen shell:min-w-0 shell:flex-col shell:bg-(--color-page-bg) shell:text-(--color-page-fg)">
+      <DashboardHeader
+        identity={props.identity}
+        logoutPending={props.logoutPending}
+        navigationOpen={navigationOpen}
+        onLogout={props.onLogout}
+        onNavigationToggle={() => setNavigationOpen((open) => !open)}
+        onSearch={props.onSearch}
+        onValueChange={setSearchValue}
+        value={searchValue}
       >
-        <p>{t('shell.dashboard.brand')}</p>
         <DashboardTenantSelector
           currentTenantId={props.currentTenantId}
           onTenantChange={props.onTenantChange}
@@ -449,23 +503,31 @@ export const AuthenticatedDashboardLayout = (props: AuthenticatedDashboardLayout
           legalEntitySwitchPending={props.legalEntitySwitchPending}
           onLegalEntityChange={props.onLegalEntityChange}
         />
-        <DashboardSearch onSearch={props.onSearch} onValueChange={setSearchValue} value={searchValue} />
-        <DashboardNavigation
-          currentModuleId={props.currentModuleId}
-          homeCurrent={props.homeCurrent}
-          navigation={props.navigation}
-          unavailableDeployments={props.unavailableDeployments}
-        />
-      </aside>
-      <main className="shell:flex shell:min-w-0 shell:flex-1 shell:flex-col">
-        <DashboardHeader
-          identity={props.identity}
-          logoutPending={props.logoutPending}
-          onLogout={props.onLogout}
-          title={props.title}
-        />
-        <div className="shell:min-w-0 shell:flex-1 shell:px-2 shell:py-4">{props.children}</div>
-      </main>
+      </DashboardHeader>
+      <div className="shell:flex shell:min-w-0 shell:flex-1 shell:flex-col shell:md:flex-row">
+        <aside
+          aria-label={t('shell.dashboard.sidebar.label')}
+          className={`${navigationOpen ? 'shell:block' : 'shell:hidden'} shell:shrink-0 shell:border-b shell:border-um-border shell:bg-um-surface shell:p-3 shell:md:block shell:md:w-64 shell:md:border-r shell:md:border-b-0`}
+          id="workspace-navigation"
+        >
+          <DashboardNavigation
+            currentModuleId={props.currentModuleId}
+            homeCurrent={props.homeCurrent}
+            navigation={props.navigation}
+            unavailableDeployments={props.unavailableDeployments}
+          />
+        </aside>
+        <main className="shell:flex shell:min-w-0 shell:flex-1 shell:flex-col">
+          {props.title === undefined ? null : (
+            <h2 className="shell:px-4 shell:pt-4 shell:text-sm shell:font-semibold shell:text-um-muted">
+              {props.title}
+            </h2>
+          )}
+          <div className="shell:min-w-0 shell:flex-1 shell:px-2 shell:py-4 shell:leading-relaxed shell:lg:px-4">
+            {props.children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

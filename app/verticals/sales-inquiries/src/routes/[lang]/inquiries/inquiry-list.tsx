@@ -36,7 +36,7 @@ export const InquiryList = ({ controller, label }: ViewProps) => {
         <ul className="salesinquiries:grid salesinquiries:grid-cols-1 salesinquiries:gap-4 salesinquiries:md:grid-cols-2">
           {rows.map((item) => (
             <li
-              className="salesinquiries:min-w-0 salesinquiries:rounded-lg salesinquiries:border salesinquiries:p-4"
+              className="salesinquiries:min-w-0 salesinquiries:rounded-2xl salesinquiries:border salesinquiries:border-um-border salesinquiries:bg-um-surface salesinquiries:p-5 salesinquiries:shadow-sm"
               key={item.ref.resourceId}
             >
               <article className={formClass}>

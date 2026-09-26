@@ -25,7 +25,7 @@ export const JobList = ({ controller, label }: ViewProps) => {
             key={value}
             onClick={() => controller.dispatch({ loading: true, query: { view: value }, rows: [] })}
             size="lg"
-            theme="outlined"
+            theme={view === value ? 'solid' : 'outlined'}
           >
             {label(`view.${value}`)}
           </Button>
@@ -36,10 +36,12 @@ export const JobList = ({ controller, label }: ViewProps) => {
       <ul className="servicejobs:grid servicejobs:gap-4 servicejobs:md:grid-cols-2">
         {visible.map((job) => (
           <li
-            className="servicejobs:min-w-0 servicejobs:rounded-lg servicejobs:border servicejobs:border-(--color-border) servicejobs:p-4"
+            className="servicejobs:min-w-0 servicejobs:rounded-2xl servicejobs:border servicejobs:border-um-border servicejobs:bg-um-surface servicejobs:flex servicejobs:flex-col servicejobs:gap-2 servicejobs:p-5 servicejobs:shadow-sm"
             key={job.ref.resourceId}
           >
-            <p className="servicejobs:font-semibold">{names.get(job.partyRef.resourceId) ?? label('contact')}</p>
+            <p className="servicejobs:mb-2 servicejobs:text-lg servicejobs:font-semibold">
+              {names.get(job.partyRef.resourceId) ?? label('contact')}
+            </p>
             <p>
               {job.serviceLocation.addressLine}, {job.serviceLocation.city}
             </p>

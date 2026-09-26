@@ -95,7 +95,7 @@ export const ExpensesPage = () => {
         className="jobexpenses:mx-auto jobexpenses:w-full jobexpenses:max-w-6xl jobexpenses:min-w-0 jobexpenses:px-4 jobexpenses:py-6 jobexpenses:break-words jobexpenses:sm:px-8"
       >
         <header className="jobexpenses:mb-6">
-          <p className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:uppercase jobexpenses:tracking-wide jobexpenses:text-stone-600">
+          <p className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:uppercase jobexpenses:tracking-wide jobexpenses:text-um-muted">
             {label('eyebrow')}
           </p>
           <h1
@@ -104,7 +104,7 @@ export const ExpensesPage = () => {
           >
             {label('title')}
           </h1>
-          <p className="jobexpenses:mt-2 jobexpenses:max-w-3xl jobexpenses:text-stone-600">{label('intro')}</p>
+          <p className="jobexpenses:mt-2 jobexpenses:max-w-3xl jobexpenses:text-um-muted">{label('intro')}</p>
         </header>
         {state.selectedJob === null ? (
           <div className={stackClass}>
@@ -128,7 +128,7 @@ export const ExpensesPage = () => {
                     <p>
                       {job.serviceLocation.addressLine}, {job.serviceLocation.postalCode} {job.serviceLocation.city}
                     </p>
-                    <p className="jobexpenses:text-sm jobexpenses:text-stone-600">
+                    <p className="jobexpenses:text-sm jobexpenses:text-um-muted">
                       {label(`jobStatus.${job.status}`)} ·{' '}
                       {Option.match(job.scheduledStartAt, {
                         onNone: () => label('jobs.unscheduled'),

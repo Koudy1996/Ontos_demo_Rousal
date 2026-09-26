@@ -8,6 +8,7 @@ import {
   index,
   integer,
   pgSchema,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -18,6 +19,7 @@ import {
 export const PAYMENT_TERM_CATALOG_SCHEMA_NAME = 'payment_term_catalog';
 
 export const PAYMENT_TERM_CATALOG_TABLE_INVENTORY = [
+  'gateway_assertion_redemptions',
   'payment_term_aliases',
   'payment_term_lifecycle_events',
   'payment_term_revisions',
@@ -268,3 +270,17 @@ export const PAYMENT_TERM_CATALOG_TABLES = [
 
 /** Relational Queries v2 entry point for this owner. */
 export const paymentTermCatalogRelations = defineRelations(paymentTermCatalogDatabaseSchema);
+
+// Authentication replay evidence is infrastructure, separate from the governed business tables.
+export const gatewayAssertionRedemptions = paymentTermCatalogSchema.table(
+  'gateway_assertion_redemptions',
+  {
+    audience: text('audience').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    issuer: text('issuer').notNull(),
+    jti: uuid('jti').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.issuer, table.audience, table.jti] })],
+);
+
+export const PAYMENT_TERM_CATALOG_ALL_TABLES = [gatewayAssertionRedemptions, ...PAYMENT_TERM_CATALOG_TABLES] as const;

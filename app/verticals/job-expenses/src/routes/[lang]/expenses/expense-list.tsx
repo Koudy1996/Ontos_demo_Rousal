@@ -75,7 +75,7 @@ export const ExpenseList = ({ controller, label }: Props) => {
               <div className="jobexpenses:min-w-0">
                 <p className="jobexpenses:font-semibold">{label(`category.${expense.category}`)}</p>
                 <p className="jobexpenses:break-words">{expense.description}</p>
-                <p className="jobexpenses:text-sm jobexpenses:text-stone-600">{expense.incurredOn}</p>
+                <p className="jobexpenses:text-sm jobexpenses:text-um-muted">{expense.incurredOn}</p>
               </div>
               <p className="jobexpenses:text-lg jobexpenses:font-bold">{formatMoney(expense.amountCzk, label)}</p>
             </div>

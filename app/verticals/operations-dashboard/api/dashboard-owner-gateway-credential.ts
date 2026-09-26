@@ -48,10 +48,7 @@ export const makeDashboardOwnerGatewayCredentialIssuer = (
     issue(
       { audience, legalEntityId },
       { apiKey: configured.apiKey, baseUrl: configured.baseUrl, requestCorrelation },
-    ).pipe(
-      Effect.mapError(unavailable),
-      Effect.map(({ token }) => Redacted.make(`Bearer ${token}`)),
-    ),
+    ).pipe(Effect.mapError(unavailable), Effect.map(Redacted.make)),
 });
 
 export const dashboardOwnerGatewayCredentialLive = Layer.effect(

@@ -2,7 +2,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { v1 } from '@authzed/authzed-node';
-import { NodeRuntime, NodeServices } from '@effect/platform-node';
+import { NodeServices } from '@effect/platform-node';
 import {
   Array as EffectArray,
   Cause,
@@ -10,7 +10,7 @@ import {
   Duration,
   Effect,
   FileSystem,
-  Layer,
+  Exit,
   Option,
   Order,
   Path,
@@ -20,6 +20,7 @@ import { Command } from 'effect/unstable/cli';
 
 import { coreActionCatalog } from '../packages/core-runtime/src/index.ts';
 import {
+  ACTION_AUTHORIZATION_DENIED_PRINCIPAL_ID,
   ActionAuthorizationProvisioningError,
   provisionActionAuthorization,
 } from '../packages/core-runtime/src/install/action-authorization-provisioning.ts';
@@ -30,11 +31,12 @@ import type {
   ActionAuthorizationProvisioningResult,
 } from '../packages/core-runtime/src/install/action-authorization-provisioning.ts';
 import { STAGE_CONTEXTS } from '../packages/core-runtime/src/install/stage-context-bootstrap.ts';
-import { spiceDbClientSecurity } from '../packages/core-runtime/src/permissions/client.ts';
+import { fullyConsistent, spiceDbClientSecurity } from '../packages/core-runtime/src/permissions/client.ts';
+import { toSpiceDbActionObjectId } from '../packages/core-runtime/src/permissions/service.ts';
 import { loadSpiceDbConfig } from '../packages/core-runtime/src/permissions/config.ts';
 import type { SpiceDbConfigValue } from '../packages/core-runtime/src/permissions/config.ts';
 import { deriveOntosModuleDeploymentContract } from './generate-ontos-module-contract.mts';
-import { LOCAL_DEVELOPMENT_CONTEXT } from './initialize-local-development.mts';
+import { LOCAL_DEVELOPMENT_CONTEXT, localActionKeysForModule } from './initialize-local-development.mts';
 
 const TopologySchema = Schema.Struct({
   verticals: Schema.Array(
@@ -193,7 +195,8 @@ export const discoverCurrentActions = (
     const collectVerticalActions = Effect.gen(function* collectVerticalActionsEffect() {
       const verticalActions: ActionAuthorizationProvisioningAction[] = [];
       for (const { contract, id } of contracts) {
-        if (contract.deployment.appId !== id || contract.manifest.publicSurface.actions.length === 0) {
+        // Read-only modules (for example Operations Dashboard) legitimately publish no Actions.
+        if (contract.deployment.appId !== id) {
           return yield* discoveryFailure();
         }
         for (const { actionKey, entrypoint } of contract.manifest.publicSurface.actions) {
@@ -289,6 +292,49 @@ const acquireProvisioningClient = (configuration: SpiceDbConfigValue) =>
     (client) => Effect.sync(() => client.close()),
   );
 
+export const verifyLocalExplicitActionPolicy = (
+  client: ActionAuthorizationProvisioningClient,
+  actions: readonly ActionAuthorizationProvisioningAction[],
+  contexts: readonly ActionAuthorizationContext[],
+) =>
+  Effect.forEach(
+    actions.filter(({ provisioning }) => provisioning === 'explicit'),
+    ({ actionKey }) =>
+      Effect.forEach(
+        [...contexts.map(({ principalId }) => principalId), ACTION_AUTHORIZATION_DENIED_PRINCIPAL_ID],
+        (principalId) =>
+          client
+            .checkPermission(
+              v1.CheckPermissionRequest.create({
+                consistency: fullyConsistent,
+                permission: 'execute',
+                resource: { objectId: toSpiceDbActionObjectId(actionKey), objectType: 'action' },
+                subject: { object: { objectId: principalId, objectType: 'principal' } },
+              }),
+            )
+            .pipe(
+              Effect.mapError(provisioningServiceFailure),
+              Effect.flatMap((response) =>
+                Option.isSome(response) &&
+                response.value.permissionship ===
+                  (principalId !== ACTION_AUTHORIZATION_DENIED_PRINCIPAL_ID &&
+                  localActionKeysForModule(actionKey.slice(0, actionKey.lastIndexOf('.'))).includes(actionKey)
+                    ? v1.CheckPermissionResponse_Permissionship.HAS_PERMISSION
+                    : v1.CheckPermissionResponse_Permissionship.NO_PERMISSION)
+                  ? Effect.void
+                  : Effect.fail(
+                      failure(
+                        'action_authorization_verification_failed',
+                        `Local explicit Action ${actionKey} does not match the recorded local policy`,
+                      ),
+                    ),
+              ),
+            ),
+        { concurrency: 1, discard: true },
+      ),
+    { concurrency: 1, discard: true },
+  );
+
 const runCurrentActionAuthorizationProvisioningWithServices = (
   workspaceRoot: string,
   commandArguments: readonly string[] = [],
@@ -315,9 +361,17 @@ const runCurrentActionAuthorizationProvisioningWithServices = (
     const actions = yield* discoverCurrentActions(workspaceRoot);
     const client = yield* acquireProvisioningClient(target.configuration);
     const result = yield* provisionActionAuthorization(client, {
-      actions,
+      actions:
+        target.environment === 'development'
+          ? actions.filter(({ provisioning }) => provisioning === 'tenant_membership_default')
+          : actions,
       contexts: target.contexts,
     });
+    // Local staff must not acquire explicit portal/identity lifecycle privileges.
+    // Verify the existing local Billing/Payment grants and deny every other explicit Action.
+    if (target.environment === 'development') {
+      yield* verifyLocalExplicitActionPolicy(client, actions, target.contexts);
+    }
     return { ...result, environment: target.environment };
   }).pipe(Effect.scoped);
 
@@ -363,17 +417,14 @@ const command = Command.make('authorization-provision-current-actions', {}, () =
       Effect.tapError((cause) => Console.error(formatActionAuthorizationProvisioningFailure(cause))),
     );
     yield* Console.log(
-      `Provisioned ${result.grantCount} explicit Action grants for ${result.actionCount} Actions across ${result.tenantCount} ${result.environment} Tenant(s).`,
+      `Provisioned ${result.grantCount} membership Action grants for ${result.actionCount} Actions across ${result.tenantCount} ${result.environment} Tenant(s).`,
     );
   }),
 );
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  NodeRuntime.runMain(
-    Layer.effectDiscard(Command.run(command, { version: '0.1.0' })).pipe(
-      Layer.provide(NodeServices.layer),
-      Layer.launch,
-    ),
-    { disableErrorReporting: true },
+  const exit = await Effect.runPromiseExit(
+    Command.run(command, { version: '0.1.0' }).pipe(Effect.provide(NodeServices.layer)),
   );
+  process.exitCode = Exit.isFailure(exit) ? 1 : 0;
 }

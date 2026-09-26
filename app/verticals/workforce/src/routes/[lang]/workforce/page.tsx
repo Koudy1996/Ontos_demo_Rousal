@@ -54,7 +54,7 @@ const WorkforcePage = () => {
               key={view}
               onClick={() => dispatch({ creating: false, failure: null, jobRef: null, selectedId: null, view })}
               size="lg"
-              theme="outlined"
+              theme={state.view === view ? 'solid' : 'outlined'}
             >
               {label(view)}
             </Button>

@@ -76,6 +76,13 @@ if (-not (Test-Path -LiteralPath $pnpmPath)) {
 }
 
 $env:Path = "$toolsRoot;$nodeHome;$env:Path"
+# Compose and application processes share the same disposable local database.
+$env:POSTGRES_DB = 'ontos'
+$env:POSTGRES_USER = 'ontos_admin'
+$env:POSTGRES_PASSWORD = 'ontos_admin'
+$env:POSTGRES_PORT = '5433'
+$env:SPICEDB_GRPC_PORT = '50051'
+$env:SPICEDB_HTTP_PORT = '8443'
 $env:DATABASE_ADMIN_URL = 'postgresql://ontos_admin:ontos_admin@localhost:5433/ontos'
 $env:DATABASE_URL = 'postgresql://ontos_runtime:ontos_runtime@localhost:5433/ontos'
 $env:COMMERCE_PORTAL_AUTH_DATABASE_ADMIN_URL = $env:DATABASE_ADMIN_URL
@@ -86,6 +93,7 @@ $env:SPICEDB_ENDPOINT = 'localhost:50051'
 $env:SPICEDB_INSECURE = 'true'
 $env:SPICEDB_PRESHARED_KEY = 'ontos-local-development-key'
 $env:ONTOS_DEPLOYMENT_ENVIRONMENT = 'local'
+$env:ULTRAMODERN_DEPLOYMENT_ENVIRONMENT = 'development'
 $env:ONTOS_GATEWAY_ISSUER = 'http://localhost:3020'
 $env:ONTOS_GATEWAY_PRIVATE_JWK = '{"crv":"Ed25519","d":"UoaeSCRqtNBHKhIQ-gzuhaTWwch5wyr5JUp0NOV_zR0","x":"QnsRCV4QqDIWrlIw_7gfUmHsm_VYzkOzxkaaQllPXqg","kty":"OKP","alg":"EdDSA","use":"sig","kid":"ontos-local-dev"}'
 $env:ONTOS_GATEWAY_PUBLIC_JWKS = '{"keys":[{"crv":"Ed25519","x":"QnsRCV4QqDIWrlIw_7gfUmHsm_VYzkOzxkaaQllPXqg","kty":"OKP","alg":"EdDSA","use":"sig","kid":"ontos-local-dev"}]}'
@@ -96,9 +104,19 @@ $env:ONTOS_WORKFORCE_API_URL = 'http://localhost:4111/workforce-api'
 $env:ONTOS_JOB_EXPENSES_API_URL = 'http://localhost:4112/job-expenses-api'
 $env:ONTOS_BILLING_DOCUMENTS_API_URL = 'http://localhost:4113/billing-documents-api'
 $env:ONTOS_PAYMENT_TERM_CATALOG_API_URL = 'http://localhost:4103/payment-term-catalog-api'
-$env:ONTOS_SHELL_GATEWAY_BASE_URL = 'http://localhost:3020'
+$env:ONTOS_SHELL_GATEWAY_BASE_URL = 'http://localhost:3020/shell-super-app-api'
 $env:ONTOS_BILLING_DOCUMENTS_GATEWAY_API_KEY = 'ontos_demo_billing_documents_local_key_v1'
 $env:ONTOS_OPERATIONS_DASHBOARD_GATEWAY_API_KEY = 'ontos_demo_billing_documents_local_key_v1'
+$env:OUTBOX_WORKER_HEALTH_PORT = '4122'
+# Explicit ports also apply when only a subset of remotes needs restarting.
+$env:VERTICAL_PARTY_REGISTRY_PORT = '4102'
+$env:VERTICAL_PAYMENT_TERM_CATALOG_PORT = '4103'
+$env:VERTICAL_SALES_INQUIRIES_PORT = '4109'
+$env:VERTICAL_SERVICE_JOBS_PORT = '4110'
+$env:VERTICAL_WORKFORCE_PORT = '4111'
+$env:VERTICAL_JOB_EXPENSES_PORT = '4112'
+$env:VERTICAL_BILLING_DOCUMENTS_PORT = '4113'
+$env:VERTICAL_OPERATIONS_DASHBOARD_PORT = '4114'
 
 function Test-DockerEngine {
   $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
@@ -164,10 +182,23 @@ function Wait-Endpoint {
   throw "$Name se nespustil do $TimeoutSeconds sekund. Logy jsou v $logsRoot."
 }
 
+$startedProcesses = @()
 Push-Location $appRoot
 try {
+  & $pnpmPath install --frozen-lockfile
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Závislosti ERP dema se nepodařilo nainstalovat.'
+  }
+  & $pnpmPath env:local:ensure
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Lokální prostředí ERP dema se nepodařilo připravit.'
+  }
+
   Ensure-DockerEngine
   docker compose up -d
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Lokální kontejnery ERP dema se nepodařilo spustit.'
+  }
 
   $deadline = (Get-Date).AddSeconds(90)
   do {
@@ -188,7 +219,6 @@ try {
     throw 'Databázové migrace ERP dema se nepodařilo provést.'
   }
 
-  $startedProcesses = @()
   $remoteEndpoints = @(
     @{ Name = 'Party Registry'; Package = '@app/party-registry'; Url = 'http://localhost:4102/bundles/remoteEntry.js' },
     @{ Name = 'Payment Terms'; Package = '@app/payment-term-catalog'; Url = 'http://localhost:4103/.well-known/ontos-module-manifest.json' },
@@ -203,6 +233,18 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw 'Lokální demo kontext SOS vyklízení se nepodařilo inicializovat.'
   }
+
+  & $pnpmPath authorization:provision-current-actions
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Action oprávnění lokálního ERP dema se nepodařilo připravit.'
+  }
+
+  $workerReadinessUrl = 'http://localhost:4122/ready'
+  if (-not (Test-Endpoint -Url $workerReadinessUrl)) {
+    $workerProcess = Start-Process -FilePath $pnpmPath -ArgumentList @('--filter', '@app/party-registry', 'dev:worker') -WorkingDirectory $appRoot -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logsRoot 'party-worker.out.log') -RedirectStandardError (Join-Path $logsRoot 'party-worker.err.log') -PassThru
+    $startedProcesses += $workerProcess.Id
+  }
+  Wait-Endpoint -Name 'Party Registry search worker' -Url $workerReadinessUrl
 
   $missingPackages = @($remoteEndpoints | Where-Object { -not (Test-Endpoint -Url $_.Url) } | ForEach-Object { $_.Package })
 
@@ -252,8 +294,22 @@ try {
     throw 'Výchozí platební podmínku ERP dema se nepodařilo inicializovat.'
   }
 
+  & $pnpmPath local:initialize:erp-demo
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Demo zákazníka a pracovníka se nepodařilo připravit. Zkontrolujte logy Party Registry workeru a remotes.'
+  }
+
   Wait-Endpoint -Name 'Provozní dashboard' -Url $demoUrl
 
+  Write-Host "ERP demo běží na $demoUrl" -ForegroundColor Green
+  Write-Host 'Přihlášení: demo@test.com / password1234'
+  Write-Host "Logy: $logsRoot"
+
+  if (-not $NoBrowser) {
+    Start-Process $demoUrl
+  }
+} finally {
+  # Keep cleanup possible even when a later bootstrap step fails.
   if ($startedProcesses.Count -gt 0) {
     $knownProcessIds = if (Test-Path -LiteralPath $pidFile) {
       @((Get-Content -LiteralPath $pidFile -Raw | ConvertFrom-Json).processIds)
@@ -269,13 +325,5 @@ try {
     @{ processIds = $activeProcessIds; startedAt = (Get-Date).ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath $pidFile -Encoding utf8
   }
 
-  Write-Host "ERP demo běží na $demoUrl" -ForegroundColor Green
-  Write-Host 'Přihlášení: demo@test.com / password1234'
-  Write-Host "Logy: $logsRoot"
-
-  if (-not $NoBrowser) {
-    Start-Process $demoUrl
-  }
-} finally {
   Pop-Location
 }

@@ -103,7 +103,7 @@ const BILLING_DOCUMENTS_LOCAL_ACTION_KEYS = Object.freeze([
   'billing.documents.update-invoice-draft',
 ]);
 const PAYMENT_TERM_CATALOG_LOCAL_ACTION_KEYS = Object.freeze(['payment.term-catalog.create-payment-term']);
-const localActionKeysForModule = (moduleId: string): readonly string[] => {
+export const localActionKeysForModule = (moduleId: string): readonly string[] => {
   if (moduleId === BILLING_DOCUMENTS_MODULE_ID) {
     return BILLING_DOCUMENTS_LOCAL_ACTION_KEYS;
   }
@@ -455,6 +455,17 @@ export const buildLocalDevelopmentRelationships = Effect.fn('LocalDevelopment.bu
         subjectType: 'principal',
       },
     ];
+    if (moduleIds.includes('party.registry')) {
+      for (const relation of ['party_identity_manager', 'party_identity_reader', 'party_identity_reviewer']) {
+        shared.push({
+          relation,
+          resourceId: context.tenantId,
+          resourceType: 'tenant',
+          subjectId: context.principalId,
+          subjectType: 'principal',
+        });
+      }
+    }
     for (const moduleId of moduleIds) {
       const moduleObjectId = toModuleAccessObjectId(context.tenantId, context.legalEntityId, moduleId);
       if (moduleObjectId === undefined) {

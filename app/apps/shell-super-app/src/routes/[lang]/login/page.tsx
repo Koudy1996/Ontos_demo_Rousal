@@ -136,14 +136,21 @@ const LoginPage = () => {
   return (
     <>
       <UltramodernRouteHead />
-      <main className="shell:flex shell:min-h-screen shell:items-center shell:justify-center shell:bg-(--color-page-bg) shell:px-4 shell:py-10 shell:text-(--color-page-fg) shell:md:px-20 shell:md:pt-[120px] shell:md:pb-10">
-        <section className="shell:flex shell:w-full shell:max-w-[360px] shell:flex-col">
-          <Link as={LocalizedLink} className="shell:self-center" to="/">
+      <main className="shell:flex shell:min-h-screen shell:items-center shell:justify-center shell:bg-um-canvas shell:px-5 shell:py-12 shell:text-um-foreground">
+        <section className="shell:flex shell:w-full shell:max-w-md shell:flex-col shell:rounded-3xl shell:border shell:border-um-border shell:bg-um-surface shell:p-8 shell:shadow-sm shell:sm:p-10">
+          <Link
+            as={LocalizedLink}
+            className="shell:self-start shell:text-sm shell:font-medium shell:text-um-link shell:hover:underline"
+            to="/"
+          >
             {t('shell.login.back')}
           </Link>
           <div className="shell:mt-6">
-            <h1 className="shell:text-2xl shell:font-bold">{t('shell.login.title')}</h1>
-            <form action={handleSubmit} className="shell:mt-4 shell:flex shell:flex-col shell:gap-4" noValidate>
+            <p className="shell:mb-2 shell:text-sm shell:font-semibold shell:text-um-link">
+              {t('shell.dashboard.brand')}
+            </p>
+            <h1 className="shell:text-3xl shell:font-semibold shell:tracking-tight">{t('shell.login.title')}</h1>
+            <form action={handleSubmit} className="shell:mt-7 shell:flex shell:flex-col shell:gap-5" noValidate>
               <FormInput
                 aria-invalid={validation.loginMissing || undefined}
                 autoComplete="username"

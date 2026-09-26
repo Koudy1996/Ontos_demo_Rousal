@@ -1,7 +1,7 @@
 export const sharedDesignTokens = {
   color: {
-    accent: '#2f8f68',
-    foreground: '#133225',
-    surface: '#f6fbf7',
+    accent: '#f18a80',
+    foreground: '#302724',
+    surface: '#ffffff',
   },
 } as const;

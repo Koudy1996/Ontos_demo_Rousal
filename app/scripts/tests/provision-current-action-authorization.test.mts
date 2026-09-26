@@ -26,17 +26,19 @@ import {
   formatActionAuthorizationProvisioningFailure,
   runCurrentActionAuthorizationProvisioning,
   selectActionAuthorizationProvisioningTarget,
+  verifyLocalExplicitActionPolicy,
 } from '../provision-current-action-authorization.mts';
 import type { discoverCurrentActionKeys as DiscoverCurrentActionKeys } from '../provision-current-action-authorization.mts';
 
 const attachPersonEngagementAction = 'party.registry.attach-person-engagement';
+const bindManagedApiKeyAction = 'core.identity.bind-managed-api-key';
 const restrictedAction = 'core.identity.restricted';
 const testPreSharedKey = 'not-a-real-secret';
 const ProvisioningFailureCauseSchema = Schema.Struct({ cause: Schema.Unknown });
 const decodeProvisioningFailureCause = Schema.decodeUnknownSync(ProvisioningFailureCauseSchema);
 
 const currentActionKeys = [
-  'core.identity.bind-managed-api-key',
+  bindManagedApiKeyAction,
   'core.identity.bind-self-api-key',
   'core.identity.change-principal-status',
   'core.identity.create-non-human-principal',
@@ -77,6 +79,29 @@ const currentActionKeys = [
 ] as const;
 
 const addedVerticalActionKeys = [
+  'billing.documents.create-invoice-draft',
+  'billing.documents.issue-invoice',
+  'billing.documents.update-invoice-draft',
+  'job.expenses.record-job-expense',
+  'job.expenses.update-job-expense',
+  'job.expenses.void-job-expense',
+  'sales.inquiries.create-inquiry',
+  'sales.inquiries.transition-inquiry',
+  'sales.inquiries.update-inquiry-details',
+  'sales.inquiries.update-offer-draft',
+  'service.jobs.complete-service-job',
+  'service.jobs.create-service-job',
+  'service.jobs.schedule-service-job',
+  'service.jobs.start-service-job',
+  'service.jobs.update-execution',
+  'workforce.planning.add-absence',
+  'workforce.planning.assign-worker',
+  'workforce.planning.change-worker-status',
+  'workforce.planning.create-worker',
+  'workforce.planning.remove-absence',
+  'workforce.planning.unassign-worker',
+  'workforce.planning.update-worker',
+
   'commerce.catalog.activate-local-override',
   'commerce.catalog.activate-package-definition',
   'commerce.catalog.activate-package-option',
@@ -755,7 +780,7 @@ const writeInventory = (
   });
 
 it.effect(
-  'rejects incomplete and duplicate public Action discovery',
+  'accepts read-only modules and rejects mismatched or duplicate Action discovery',
   Effect.fn(function* testEffect19() {
     const workspaceRoot = path.resolve(import.meta.dirname, '../..');
     // Native discovery imports registrations dynamically; keep its private registry in one module instance.
@@ -811,13 +836,13 @@ it.effect(
           },
         },
       });
+    const readOnlyKeys = yield* discoverCurrentActionKeys(root, incomplete).pipe(Effect.provide(NodeServices.layer));
+    expect(readOnlyKeys).toContain(bindManagedApiKeyAction);
+    const mismatched: typeof deriveOntosModuleDeploymentContract = () => Effect.succeed(currentContract);
     const incompleteError = yield* rejectionOf(
-      discoverCurrentActionKeys(root, incomplete).pipe(Effect.provide(NodeServices.layer)),
+      discoverCurrentActionKeys(root, mismatched).pipe(Effect.provide(NodeServices.layer)),
     );
     expect(Schema.is(NativeProvisioningError)(incompleteError)).toBe(true);
-    expect(Schema.decodeUnknownSync(NativeProvisioningError)(incompleteError).code).toBe(
-      'action_authorization_discovery_failed',
-    );
 
     const duplicate: typeof deriveOntosModuleDeploymentContract = () =>
       Effect.succeed({
@@ -830,7 +855,7 @@ it.effect(
             actions: [
               {
                 ...currentPublicAction,
-                actionKey: 'core.identity.bind-managed-api-key',
+                actionKey: bindManagedApiKeyAction,
               },
             ],
           },
@@ -862,5 +887,25 @@ it.effect(
     );
     expect(error.code).toBe('action_authorization_configuration_invalid');
     expect(error.reason).toMatch(/no command-line arguments/u);
+  }),
+);
+
+it.effect('verifies local explicit grants without granting unrelated explicit Actions', () =>
+  Effect.gen(function* localExplicitPolicyTest() {
+    const contexts = [
+      { principalId: LOCAL_DEVELOPMENT_CONTEXT.principalId, tenantId: LOCAL_DEVELOPMENT_CONTEXT.tenantId },
+    ];
+    const { client, state } = makeProvisioningClient(contexts);
+    const paymentAction = 'payment.term-catalog.create-payment-term';
+    const actions = [paymentAction, restrictedAction].map((actionKey) => ({
+      actionKey,
+      provisioning: 'explicit' as const,
+    }));
+    state.grants.add(`${toSpiceDbActionObjectId(paymentAction)}:${LOCAL_DEVELOPMENT_CONTEXT.principalId}`);
+    yield* verifyLocalExplicitActionPolicy(client, actions, contexts);
+    expect(state.relationshipWriteCount).toBe(0);
+    state.grants.add(`${toSpiceDbActionObjectId(restrictedAction)}:${LOCAL_DEVELOPMENT_CONTEXT.principalId}`);
+    const failure = yield* verifyLocalExplicitActionPolicy(client, actions, contexts).pipe(Effect.flip);
+    expect(failure.code).toBe('action_authorization_verification_failed');
   }),
 );

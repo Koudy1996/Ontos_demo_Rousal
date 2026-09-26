@@ -1,7 +1,78 @@
-@theme {
-  --color-um-accent: #2f8f68;
-  --color-um-canvas: #f1eadc;
-  --color-um-foreground: #133225;
-  --color-um-link: #166b4b;
-  --color-um-surface: #f6fbf7;
+@theme static {
+  --color-um-accent: #f18a80;
+  --color-um-canvas: #faf7f2;
+  --color-um-foreground: #302724;
+  --color-um-link: #9c342c;
+  --color-um-surface: #ffffff;
+  --color-um-muted: #70635b;
+  --color-um-border: #e6ddd3;
+  --color-um-cream: #f3eadb;
+  --color-um-accent-subtle: #fdece8;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-sans);
+  --font-heading: var(--font-sans);
+  --color-page-bg: var(--color-um-canvas);
+  --color-page-fg: var(--color-um-foreground);
+  --color-surface: var(--color-um-surface);
+  --color-surface-subtle: var(--color-um-cream);
+  --color-border-muted: var(--color-um-border);
+  --color-border: var(--color-um-border);
+  --color-base: var(--color-um-canvas);
+  --color-base-reverse: var(--color-um-foreground);
+  --color-fg-primary: var(--color-um-foreground);
+  --color-fg-secondary: var(--color-um-muted);
+  --color-status-text-fg-warning: #856022;
+  --color-fg-placeholder: var(--color-um-muted);
+  --color-fill-surface: var(--color-um-surface);
+  --color-fill-base: var(--color-um-canvas);
+  --color-fill-hover: var(--color-um-cream);
+  --color-fill-active: var(--color-um-accent-subtle);
+  --color-border-primary: var(--color-um-border);
+
+  --color-primary: var(--color-um-accent);
+  --color-primary-100: var(--color-um-accent-subtle);
+  --color-primary-200: #fbded7;
+  --color-primary-300: var(--color-um-accent);
+  --color-primary-400: #df675d;
+  --color-primary-500: #bf4b41;
+  --color-primary-600: var(--color-um-link);
+  --color-primary-700: #812a24;
+  --color-primary-800: #63241f;
+  --color-primary-900: #47211d;
+  --color-primary-alpha-10: var(--color-um-accent-subtle);
+  --color-ring-default: var(--color-um-link);
+  --color-bg-primary-base: var(--color-um-accent);
+  --color-bg-primary-hover: #eb776c;
+  --color-bg-primary-active: #df675d;
+  --color-bg-light-primary-base: var(--color-um-accent-subtle);
+  --color-bg-light-primary-hover: #fbded7;
+  --color-bg-light-primary-active: #f8cec6;
+  --color-bg-outlined-primary-hover: var(--color-um-accent-subtle);
+  --color-bg-outlined-primary-active: #fbded7;
+  --color-fg-accent-primary: var(--color-um-link);
+  --color-button-fg-primary: var(--color-um-foreground);
+  --color-button-fg-primary-light: var(--color-um-link);
+  --color-button-bg-outlined: var(--color-um-surface);
+  --color-button-border-primary: var(--color-um-border);
+  --color-button-border-secondary: var(--color-um-border);
+
+  --color-secondary: var(--color-um-surface);
+  --color-bg-secondary-base: var(--color-um-surface);
+  --color-bg-secondary-hover: var(--color-um-canvas);
+  --color-bg-secondary-active: var(--color-um-cream);
+  --color-bg-light-secondary-base: var(--color-um-canvas);
+  --color-bg-light-secondary-hover: var(--color-um-cream);
+  --color-bg-light-secondary-active: var(--color-um-border);
+  --color-bg-outlined-secondary-hover: var(--color-um-canvas);
+  --color-bg-outlined-secondary-active: var(--color-um-cream);
+  --color-fg-accent-secondary: var(--color-um-foreground);
+  --color-button-fg-secondary: var(--color-um-foreground);
+  --color-button-fg-secondary-light: var(--color-um-foreground);
+
+  --color-tertiary: var(--color-um-cream);
+  --color-bg-tertiary-base: var(--color-um-cream);
+  --color-bg-tertiary-hover: #eadcc6;
+  --color-bg-tertiary-active: #dfcdb2;
+  --color-button-fg-tertiary: var(--color-um-foreground);
 }

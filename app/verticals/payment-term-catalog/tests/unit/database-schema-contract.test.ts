@@ -3,6 +3,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { Array as EffectArray, Order } from 'effect';
 import {
   PAYMENT_TERM_CATALOG_SCHEMA_NAME,
+  PAYMENT_TERM_CATALOG_ALL_TABLES,
   PAYMENT_TERM_CATALOG_TABLE_INVENTORY,
   PAYMENT_TERM_CATALOG_TABLES,
   paymentTermAliases,
@@ -13,7 +14,7 @@ import {
 
 it('owns the exact Payment Term Catalog in one legal-entity-scoped schema', () => {
   const qualifiedNames = EffectArray.sort(
-    PAYMENT_TERM_CATALOG_TABLES.map((table) => {
+    PAYMENT_TERM_CATALOG_ALL_TABLES.map((table) => {
       const config = getTableConfig(table);
       return `${config.schema}.${config.name}`;
     }),
@@ -22,6 +23,7 @@ it('owns the exact Payment Term Catalog in one legal-entity-scoped schema', () =
 
   expect(PAYMENT_TERM_CATALOG_SCHEMA_NAME).toBe('payment_term_catalog');
   expect(PAYMENT_TERM_CATALOG_TABLE_INVENTORY).toEqual([
+    'gateway_assertion_redemptions',
     'payment_term_aliases',
     'payment_term_lifecycle_events',
     'payment_term_revisions',

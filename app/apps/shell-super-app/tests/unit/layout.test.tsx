@@ -1,10 +1,7 @@
-import { Menu as ActualMenu } from '@techsio/ui-kit/molecules/menu' with {
-  rstest: 'importActual',
-};
 import { Select as ActualSelect } from '@techsio/ui-kit/molecules/select' with {
   rstest: 'importActual',
 };
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Effect } from 'effect';
 import { afterEach, expect, it, rstest, test } from 'effect-rstest';
@@ -14,11 +11,9 @@ import { AppIdSchema } from '../../shared/api';
 import Layout from '../../src/routes/layout';
 import { AuthenticatedDashboardLayout } from '../../src/routes/shell-frame';
 
-const { accountMenuSelectHandlers, tenantValueChangeHandlers } = rstest.hoisted(() => {
-  const accountHandlers: ComponentProps<typeof ActualMenu>['onSelect'][] = [];
+const { tenantValueChangeHandlers } = rstest.hoisted(() => {
   const tenantHandlers: ComponentProps<typeof ActualSelect>['onValueChange'][] = [];
   return {
-    accountMenuSelectHandlers: accountHandlers,
     tenantValueChangeHandlers: tenantHandlers,
   };
 });
@@ -45,7 +40,8 @@ rstest.mock('@modern-js/plugin-i18n/runtime', () => ({
       ({
         'shell.auth.logout.action': 'Logout',
         'shell.auth.logout.pending': 'Logging out…',
-        'shell.dashboard.account.label': 'Account menu',
+        'shell.dashboard.account.action': 'Account',
+        'shell.dashboard.account.label': 'Account and workspace',
         'shell.dashboard.brand': 'OntOS',
         'shell.dashboard.header.label': 'Dashboard header',
         'shell.dashboard.legalEntity.accessibleLabel': 'Current legal entity',
@@ -53,8 +49,10 @@ rstest.mock('@modern-js/plugin-i18n/runtime', () => ({
         'shell.dashboard.legalEntity.pending': 'Switching legal entity…',
         'shell.dashboard.legalEntity.placeholder': 'Select a legal entity',
         'shell.dashboard.legalEntity.unavailable': 'Legal entity choices are temporarily unavailable.',
+        'shell.dashboard.navigation.hide': 'Hide navigation',
         'shell.dashboard.navigation.home': 'Home',
         'shell.dashboard.navigation.label': 'Dashboard navigation',
+        'shell.dashboard.navigation.show': 'Show navigation',
         'shell.dashboard.sidebar.label': 'Dashboard sidebar',
         'shell.dashboard.tenant.accessibleLabel': 'Current tenant',
         'shell.dashboard.tenant.failed': 'Tenant switching failed. Try again.',
@@ -64,15 +62,10 @@ rstest.mock('@modern-js/plugin-i18n/runtime', () => ({
         'shell.modules.discovery.revoked': 'Module revoked',
         'shell.modules.discovery.timeout': 'Module deployment timed out',
         'shell.modules.discovery.unavailable': 'Module deployment unavailable',
+        'shell.search.label': 'Search the application',
+        'shell.search.submit': 'Search',
       })[key] ?? key,
   }),
-}));
-
-rstest.mock('@techsio/ui-kit/molecules/menu', () => ({
-  Menu: (props: ComponentProps<typeof ActualMenu>) => {
-    accountMenuSelectHandlers.push(props.onSelect);
-    return <ActualMenu {...props} />;
-  },
 }));
 
 rstest.mock('@techsio/ui-kit/molecules/select', () => ({
@@ -141,7 +134,6 @@ const testingWorkspaceTitle = 'Testing workspace';
 
 afterEach(() => {
   cleanup();
-  accountMenuSelectHandlers.length = 0;
   tenantValueChangeHandlers.length = 0;
 });
 
@@ -153,43 +145,49 @@ test('leaves route content free of global user-perceivable UI', () => {
   expect(document.body.textContent?.trim()).toBe('Current route');
 });
 
-test('renders the default Home dashboard contract and preserves page children', () => {
-  render(
-    <AuthenticatedDashboardLayout
-      {...tenantProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      title={homeOverviewTitle}
-    >
-      <section>Page-specific content</section>
-    </AuthenticatedDashboardLayout>,
-  );
+it.effect('renders the default Home dashboard contract and preserves page children', () =>
+  Effect.gen(function* accountControls() {
+    render(
+      <AuthenticatedDashboardLayout
+        {...tenantProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        title={homeOverviewTitle}
+      >
+        <section>Page-specific content</section>
+      </AuthenticatedDashboardLayout>,
+    );
 
-  expect(screen.getByRole('complementary', { name: 'Dashboard sidebar' })).toBeTruthy();
-  expect(screen.getByText('OntOS')).toBeTruthy();
-  expect(screen.getByRole('heading', { level: 1, name: 'Home overview' })).toBeTruthy();
-  expect(screen.getByText('Page-specific content')).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'Dashboard sidebar' })).toBeTruthy();
+    expect(screen.queryByText('OntOS')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    const header = screen.getByRole('banner', { name: 'Dashboard header' });
+    expect(within(header).getByRole('searchbox', { name: 'Search the application' })).toBeTruthy();
+    yield* Effect.promise(() => userEvent.setup().click(screen.getByRole('button', { name: 'Account and workspace' })));
+    expect(screen.getByRole('heading', { level: 2, name: 'Home overview' })).toBeTruthy();
+    expect(screen.getByText('Page-specific content')).toBeTruthy();
 
-  const tenantSelect = screen.getByRole('combobox', { name: 'Current tenant' });
-  expect(tenantSelect.hasAttribute('disabled')).toBe(false);
-  expect(screen.getAllByText('Alpha tenant').length).toBeGreaterThan(0);
+    const tenantSelect = screen.getByRole('combobox', { name: 'Current tenant' });
+    expect(tenantSelect.hasAttribute('disabled')).toBe(false);
+    expect(screen.getAllByText('Alpha tenant').length).toBeGreaterThan(0);
 
-  const navigationElement = screen.getByRole('navigation', {
-    name: 'Dashboard navigation',
-  });
-  const links = [...navigationElement.querySelectorAll('a')];
-  expect(links.map((link) => link.textContent)).toEqual(['Home', 'Future generated', 'Testing one']);
-  expect(links.map((link) => link.getAttribute('href'))).toEqual([
-    '/en/',
-    '/en/modules/future-generated',
-    '/en/modules/testing.one',
-  ]);
-  expect(links[0]?.getAttribute('aria-current')).toBe('page');
-  expect(links.slice(1).every((link) => link.tabIndex === 0)).toBe(true);
-  expect(navigationElement.textContent).not.toContain('inactive');
-});
+    const navigationElement = screen.getByRole('navigation', {
+      name: 'Dashboard navigation',
+    });
+    const links = [...navigationElement.querySelectorAll('a')];
+    expect(links.map((link) => link.textContent)).toEqual(['Home', 'Future generated', 'Testing one']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/en/',
+      '/en/modules/future-generated',
+      '/en/modules/testing.one',
+    ]);
+    expect(links[0]?.getAttribute('aria-current')).toBe('page');
+    expect(links.slice(1).every((link) => link.tabIndex === 0)).toBe(true);
+    expect(navigationElement.textContent).not.toContain('inactive');
+  }),
+);
 
 test('supports an alternate title and current MicroVertical without changing children', () => {
   render(
@@ -206,7 +204,7 @@ test('supports an alternate title and current MicroVertical without changing chi
     </AuthenticatedDashboardLayout>,
   );
 
-  expect(screen.getByRole('heading', { level: 1, name: 'Testing workspace' })).toBeTruthy();
+  expect(screen.getByRole('heading', { level: 2, name: 'Testing workspace' })).toBeTruthy();
   expect(screen.getByText('Stable child content')).toBeTruthy();
   expect(screen.getByRole('link', { name: 'Home' }).hasAttribute('aria-current')).toBe(false);
   expect(screen.getByRole('link', { name: 'Testing one' }).getAttribute('aria-current')).toBe('page');
@@ -287,7 +285,7 @@ test('shows failed installed deployments as disabled identities with typed reaso
   expect(screen.queryByRole('link', { name: 'legacy-center' })).toBeNull();
 });
 
-it.effect('renders the account Menu last and dispatches only the logout command by keyboard', () =>
+it.effect('opens account controls by keyboard, closes with Escape and dispatches logout', () =>
   Effect.gen(function* accountKeyboardLogout() {
     const onLogout = rstest.fn();
     const user = userEvent.setup();
@@ -304,26 +302,22 @@ it.effect('renders the account Menu last and dispatches only the logout command 
       </AuthenticatedDashboardLayout>,
     );
 
-    const header = document.querySelector('header[aria-label="Dashboard header"]');
-    const trigger = screen.getByRole('button', { name: 'Ada Lovelace' });
-    expect(header?.lastElementChild?.contains(trigger)).toBe(true);
-    const accountMenu = header?.querySelector<HTMLElement>(':scope > :last-child');
-    expect(accountMenu?.dataset['position']).toBe('end');
-
+    const trigger = screen.getByRole('button', { name: 'Account and workspace' });
+    expect(screen.queryByRole('combobox')).toBeNull();
     trigger.focus();
     yield* Effect.promise(() => user.keyboard('{Enter}'));
-    const commands = yield* Effect.promise(() => screen.findAllByRole('menuitem'));
-    expect(commands).toHaveLength(1);
-    expect(commands[0]?.textContent).toBe('Logout');
-    yield* Effect.promise(() => user.keyboard('{ArrowDown}{Enter}'));
-    expect(onLogout).toHaveBeenCalledTimes(1);
-
-    accountMenuSelectHandlers.at(-1)?.({ value: 'unexpected' });
+    expect(screen.getByRole('combobox', { name: 'Current tenant' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Current legal entity' })).toBeTruthy();
+    yield* Effect.promise(() => user.keyboard('{Escape}'));
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    yield* Effect.promise(() => user.click(trigger));
+    yield* Effect.promise(() => user.click(screen.getByRole('button', { name: 'Logout' })));
     expect(onLogout).toHaveBeenCalledTimes(1);
   }),
 );
 
-it.effect('retains the account trigger and disables the sole command while logout is pending', () =>
+it.effect('disables logout while pending inside the account popover', () =>
   Effect.gen(function* pendingLogoutCommand() {
     const onLogout = rstest.fn();
     const user = userEvent.setup();
@@ -340,10 +334,9 @@ it.effect('retains the account trigger and disables the sole command while logou
       </AuthenticatedDashboardLayout>,
     );
 
-    const trigger = screen.getByRole('button', { name: 'Ada Lovelace' });
-    yield* Effect.promise(() => user.click(trigger));
-    const command = yield* Effect.promise(() => screen.findByRole('menuitem', { name: 'Logging out…' }));
-    expect(command.getAttribute('aria-disabled')).toBe('true');
+    yield* Effect.promise(() => user.click(screen.getByRole('button', { name: 'Account and workspace' })));
+    const command = screen.getByRole('button', { name: 'Logging out…' });
+    expect(command.hasAttribute('disabled')).toBe(true);
     yield* Effect.promise(() => user.click(command));
     expect(onLogout).not.toHaveBeenCalled();
   }),
@@ -367,6 +360,7 @@ it.effect('renders complete ordered tenant items and dispatches keyboard selecti
       </AuthenticatedDashboardLayout>,
     );
 
+    yield* Effect.promise(() => user.click(screen.getByRole('button', { name: 'Account and workspace' })));
     const trigger = screen.getByRole('combobox', { name: 'Current tenant' });
     yield* Effect.promise(() => user.click(trigger));
     const options = yield* Effect.promise(() => screen.findAllByRole('option'));
@@ -386,132 +380,141 @@ it.effect('renders complete ordered tenant items and dispatches keyboard selecti
   }),
 );
 
-test('disables unavailable, one-choice, and pending tenant states with associated feedback', () => {
-  const { rerender } = render(
-    <AuthenticatedDashboardLayout
-      {...tenantProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      tenantChoices={tenantProps.tenantChoices.slice(0, 1)}
-      title={homeTitle}
-    >
-      Content
-    </AuthenticatedDashboardLayout>,
-  );
-  expect(screen.getByRole('combobox', { name: 'Current tenant' }).hasAttribute('disabled')).toBe(true);
+it.effect('disables unavailable, one-choice, and pending tenant states with associated feedback', () =>
+  Effect.gen(function* accountControls() {
+    const { rerender } = render(
+      <AuthenticatedDashboardLayout
+        {...tenantProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        tenantChoices={tenantProps.tenantChoices.slice(0, 1)}
+        title={homeTitle}
+      >
+        Content
+      </AuthenticatedDashboardLayout>,
+    );
+    yield* Effect.promise(() => userEvent.setup().click(screen.getByRole('button', { name: 'Account and workspace' })));
+    expect(screen.getByRole('combobox', { name: 'Current tenant' }).hasAttribute('disabled')).toBe(true);
 
-  rerender(
-    <AuthenticatedDashboardLayout
-      {...tenantProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      tenantChoices={[]}
-      title={homeTitle}
-    >
-      Content
-    </AuthenticatedDashboardLayout>,
-  );
-  expect(screen.getByRole('combobox', { name: 'Current tenant' }).hasAttribute('disabled')).toBe(true);
+    rerender(
+      <AuthenticatedDashboardLayout
+        {...tenantProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        tenantChoices={[]}
+        title={homeTitle}
+      >
+        Content
+      </AuthenticatedDashboardLayout>,
+    );
+    expect(screen.getByRole('combobox', { name: 'Current tenant' }).hasAttribute('disabled')).toBe(true);
 
-  rerender(
-    <AuthenticatedDashboardLayout
-      {...tenantProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      tenantState="unavailable"
-      title={homeTitle}
-    >
-      Content
-    </AuthenticatedDashboardLayout>,
-  );
-  const unavailable = screen.getByRole('combobox', { name: 'Current tenant' });
-  expect(unavailable.hasAttribute('disabled')).toBe(true);
-  expect(unavailable.getAttribute('aria-describedby')).toBe('tenant-switch-status');
-  expect(screen.getByText('Tenant choices are temporarily unavailable.')).toBeTruthy();
+    rerender(
+      <AuthenticatedDashboardLayout
+        {...tenantProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        tenantState="unavailable"
+        title={homeTitle}
+      >
+        Content
+      </AuthenticatedDashboardLayout>,
+    );
+    const unavailable = screen.getByRole('combobox', { name: 'Current tenant' });
+    expect(unavailable.hasAttribute('disabled')).toBe(true);
+    expect(unavailable.getAttribute('aria-describedby')).toBe('tenant-switch-status');
+    expect(screen.getByText('Tenant choices are temporarily unavailable.')).toBeTruthy();
 
-  rerender(
-    <AuthenticatedDashboardLayout
-      {...tenantProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      tenantSwitchPending
-      title={homeTitle}
-    >
-      Content
-    </AuthenticatedDashboardLayout>,
-  );
-  expect(screen.getByRole('combobox', { name: 'Current tenant' }).hasAttribute('disabled')).toBe(true);
-  expect(screen.getByText('Switching tenant…')).toBeTruthy();
-});
+    rerender(
+      <AuthenticatedDashboardLayout
+        {...tenantProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        tenantSwitchPending
+        title={homeTitle}
+      >
+        Content
+      </AuthenticatedDashboardLayout>,
+    );
+    expect(screen.getByRole('combobox', { name: 'Current tenant' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('Switching tenant…')).toBeTruthy();
+  }),
+);
 
-test('associates failed tenant feedback and keeps multiple choices operable', () => {
-  render(
-    <AuthenticatedDashboardLayout
-      {...tenantProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      tenantSwitchFailed
-      title={homeTitle}
-    >
-      Content
-    </AuthenticatedDashboardLayout>,
-  );
-  const trigger = screen.getByRole('combobox', { name: 'Current tenant' });
-  expect(trigger.hasAttribute('disabled')).toBe(false);
-  expect(trigger.getAttribute('aria-describedby')).toBe('tenant-switch-status');
-  expect(trigger.getAttribute('aria-invalid')).toBe('true');
-  expect(screen.getByText('Tenant switching failed. Try again.')).toBeTruthy();
-});
+it.effect('associates failed tenant feedback and keeps multiple choices operable', () =>
+  Effect.gen(function* accountControls() {
+    render(
+      <AuthenticatedDashboardLayout
+        {...tenantProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        tenantSwitchFailed
+        title={homeTitle}
+      >
+        Content
+      </AuthenticatedDashboardLayout>,
+    );
+    yield* Effect.promise(() => userEvent.setup().click(screen.getByRole('button', { name: 'Account and workspace' })));
+    const trigger = screen.getByRole('combobox', { name: 'Current tenant' });
+    expect(trigger.hasAttribute('disabled')).toBe(false);
+    expect(trigger.getAttribute('aria-describedby')).toBe('tenant-switch-status');
+    expect(trigger.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText('Tenant switching failed. Try again.')).toBeTruthy();
+  }),
+);
 
-test('names the legal-entity selector by its own label and keeps a sole choice operable', () => {
-  const { rerender } = render(
-    <AuthenticatedDashboardLayout
-      {...tenantProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      title={homeTitle}
-    >
-      Content
-    </AuthenticatedDashboardLayout>,
-  );
+it.effect('names the legal-entity selector by its own label and keeps a sole choice operable', () =>
+  Effect.gen(function* accountControls() {
+    const { rerender } = render(
+      <AuthenticatedDashboardLayout
+        {...tenantProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        title={homeTitle}
+      >
+        Content
+      </AuthenticatedDashboardLayout>,
+    );
 
-  const legalEntity = screen.getByRole('combobox', {
-    name: 'Current legal entity',
-  });
-  expect(legalEntity.hasAttribute('aria-label')).toBe(false);
-  expect(legalEntity.hasAttribute('aria-describedby')).toBe(false);
-  expect(legalEntity.hasAttribute('disabled')).toBe(false);
-  expect(screen.getByRole('combobox', { name: 'Current tenant' }).getAttribute('aria-label')).toBe('Current tenant');
-  expect(screen.queryByText('Select a legal entity')).toBeNull();
+    yield* Effect.promise(() => userEvent.setup().click(screen.getByRole('button', { name: 'Account and workspace' })));
+    const legalEntity = screen.getByRole('combobox', {
+      name: 'Current legal entity',
+    });
+    expect(legalEntity.hasAttribute('aria-label')).toBe(false);
+    expect(legalEntity.hasAttribute('aria-describedby')).toBe(false);
+    expect(legalEntity.hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('combobox', { name: 'Current tenant' }).getAttribute('aria-label')).toBe('Current tenant');
+    expect(screen.queryByText('Select a legal entity')).toBeNull();
 
-  const { currentLegalEntityId: _selectedLegalEntityId, ...unselectedLegalEntityProps } = tenantProps;
-  rerender(
-    <AuthenticatedDashboardLayout
-      {...unselectedLegalEntityProps}
-      identity={identity}
-      logoutPending={false}
-      navigation={navigation}
-      onLogout={noopLogout}
-      title={homeTitle}
-    >
-      Content
-    </AuthenticatedDashboardLayout>,
-  );
+    const { currentLegalEntityId: _selectedLegalEntityId, ...unselectedLegalEntityProps } = tenantProps;
+    rerender(
+      <AuthenticatedDashboardLayout
+        {...unselectedLegalEntityProps}
+        identity={identity}
+        logoutPending={false}
+        navigation={navigation}
+        onLogout={noopLogout}
+        title={homeTitle}
+      >
+        Content
+      </AuthenticatedDashboardLayout>,
+    );
 
-  expect(screen.getByText('Select a legal entity')).toBeTruthy();
-});
+    expect(screen.getByText('Select a legal entity')).toBeTruthy();
+  }),
+);
 
 interface LegalEntitySelectorStateCase {
   readonly disabled: boolean;
@@ -546,29 +549,58 @@ const legalEntitySelectorStateCases: LegalEntitySelectorStateCase[] = [
   },
 ];
 
-test.each(legalEntitySelectorStateCases)(
+it.effect.each(legalEntitySelectorStateCases)(
   'associates legal-entity feedback with its own selector when $name',
-  ({ disabled, overrides, statusText }) => {
+  ({ disabled, overrides, statusText }) =>
+    Effect.gen(function* selectorFeedback() {
+      render(
+        <AuthenticatedDashboardLayout
+          {...tenantProps}
+          {...overrides}
+          identity={identity}
+          logoutPending={false}
+          navigation={navigation}
+          onLogout={noopLogout}
+          title={homeTitle}
+        >
+          Content
+        </AuthenticatedDashboardLayout>,
+      );
+
+      yield* Effect.promise(() =>
+        userEvent.setup().click(screen.getByRole('button', { name: 'Account and workspace' })),
+      );
+      const legalEntity = screen.getByRole('combobox', {
+        name: 'Current legal entity',
+      });
+      expect(legalEntity.hasAttribute('disabled')).toBe(disabled);
+      expect(legalEntity.getAttribute('aria-describedby')).toBe('legal-entity-switch-status');
+      expect(screen.getByText(statusText)).toBeTruthy();
+      expect(screen.getByRole('combobox', { name: 'Current tenant' }).getAttribute('aria-describedby')).toBeNull();
+    }),
+);
+
+it.effect('opens and closes the mobile navigation without changing page content', () =>
+  Effect.gen(function* mobileNavigation() {
+    const user = userEvent.setup();
     render(
       <AuthenticatedDashboardLayout
         {...tenantProps}
-        {...overrides}
         identity={identity}
         logoutPending={false}
         navigation={navigation}
         onLogout={noopLogout}
-        title={homeTitle}
       >
-        Content
+        <section>Current work</section>
       </AuthenticatedDashboardLayout>,
     );
-
-    const legalEntity = screen.getByRole('combobox', {
-      name: 'Current legal entity',
-    });
-    expect(legalEntity.hasAttribute('disabled')).toBe(disabled);
-    expect(legalEntity.getAttribute('aria-describedby')).toBe('legal-entity-switch-status');
-    expect(screen.getByText(statusText)).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'Current tenant' }).getAttribute('aria-describedby')).toBeNull();
-  },
+    const trigger = screen.getByRole('button', { name: 'Show navigation' });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    yield* Effect.promise(() => user.click(trigger));
+    expect(screen.getByRole('button', { name: 'Hide navigation' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('link', { name: 'Testing one' }).getAttribute('href')).toBe('/en/modules/testing.one');
+    yield* Effect.promise(() => user.click(screen.getByRole('button', { name: 'Hide navigation' })));
+    expect(screen.getByRole('button', { name: 'Show navigation' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByText('Current work')).toBeTruthy();
+  }),
 );

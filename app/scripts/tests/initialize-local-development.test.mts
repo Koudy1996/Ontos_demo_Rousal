@@ -289,7 +289,15 @@ it.effect('generates stable module state IDs and complete access relationships',
     expect(moduleStateIdFor(PARTY_REGISTRY_MODULE_ID)).toBe(moduleStateIdFor(PARTY_REGISTRY_MODULE_ID));
     expect(moduleStateIdFor(PARTY_REGISTRY_MODULE_ID)).not.toBe(moduleStateIdFor(INVENTORY_MODULE_ID));
     const relationships = yield* buildLocalDevelopmentRelationships([PARTY_REGISTRY_MODULE_ID, INVENTORY_MODULE_ID]);
-    expect(relationships.length).toBe(7);
+    expect(relationships.length).toBe(10);
+    expect(relationships.filter(({ relation }) => relation.startsWith('party_identity_'))).toEqual([
+      expect.objectContaining({ relation: 'party_identity_manager', subjectId: LOCAL_DEVELOPMENT_CONTEXT.principalId }),
+      expect.objectContaining({ relation: 'party_identity_reader', subjectId: LOCAL_DEVELOPMENT_CONTEXT.principalId }),
+      expect.objectContaining({
+        relation: 'party_identity_reviewer',
+        subjectId: LOCAL_DEVELOPMENT_CONTEXT.principalId,
+      }),
+    ]);
     expect(relationships.filter(({ relation }) => relation === 'accessor').length).toBe(2);
     expect(relationships.filter(({ relation }) => relation === 'legal_entity').length).toBe(2);
   }),

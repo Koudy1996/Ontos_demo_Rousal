@@ -163,7 +163,10 @@ const selectionScenario = Effect.gen(function* selectionScenario() {
           {
             ...fixture(completedId),
             completedAt: '2026-09-24T08:00:00.000Z',
+            expectedDurationMinutes: 60,
+            scheduledStartAt: '2026-09-24T07:00:00.000Z',
             sourceId: completedId,
+            startedAt: '2026-09-24T07:00:00.000Z',
             status: 'COMPLETED',
             updatedAt: '2026-09-01T08:00:00.000Z',
           },

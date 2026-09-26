@@ -5,7 +5,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core';
 import { Array as EffectArray, Effect, Layer, Order, Schema } from 'effect';
 import { comparePaymentTermCatalog } from '../src/database/catalog.ts';
 import { PaymentTermCatalogDatabase, PaymentTermCatalogDatabaseLive } from '../src/database/client.ts';
-import { PAYMENT_TERM_CATALOG_SCHEMA_NAME, PAYMENT_TERM_CATALOG_TABLES } from '../src/database/schema.ts';
+import { PAYMENT_TERM_CATALOG_SCHEMA_NAME, PAYMENT_TERM_CATALOG_ALL_TABLES } from '../src/database/schema.ts';
 
 class PaymentTermCatalogVerificationError extends Schema.TaggedError<PaymentTermCatalogVerificationError>()(
   'PaymentTermCatalogVerificationError',
@@ -35,6 +35,7 @@ interface InfrastructureRow extends Readonly<Record<string, boolean | number | s
   readonly runtime_create: boolean;
   readonly runtime_delete: boolean;
   readonly runtime_insert: boolean;
+  readonly runtime_replay: boolean;
   readonly runtime_select: boolean;
   readonly runtime_update: boolean;
   readonly runtime_usage: boolean;
@@ -43,8 +44,10 @@ interface InfrastructureRow extends Readonly<Record<string, boolean | number | s
   readonly wrong_owner_count: number;
 }
 
+const replayTableName = 'payment_term_catalog.gateway_assertion_redemptions';
+
 const expectedColumns = EffectArray.sort(
-  PAYMENT_TERM_CATALOG_TABLES.flatMap((table) => {
+  PAYMENT_TERM_CATALOG_ALL_TABLES.flatMap((table) => {
     const config = getTableConfig(table);
     return config.columns.map((column) => `${config.name}.${column.name}`);
   }),
@@ -52,7 +55,7 @@ const expectedColumns = EffectArray.sort(
 );
 
 const schemaInfrastructureIsValid = (infrastructure: InfrastructureRow): boolean =>
-  infrastructure.table_count === 4 &&
+  infrastructure.table_count === 5 &&
   infrastructure.force_rls_count === 4 &&
   infrastructure.wrong_owner_count === 0 &&
   infrastructure.policy_count === 16 &&
@@ -64,6 +67,7 @@ const schemaInfrastructureIsValid = (infrastructure: InfrastructureRow): boolean
   infrastructure.unexpected_runtime_routine_count === 0;
 
 const runtimePrivilegesAreValid = (infrastructure: InfrastructureRow): boolean =>
+  infrastructure.runtime_replay &&
   !infrastructure.runtime_create &&
   infrastructure.runtime_usage &&
   !infrastructure.runtime_select &&
@@ -78,7 +82,7 @@ const verification = Effect.gen(function* verifyPaymentTermCatalogDatabase() {
   const connections = yield* loadDatabaseConnectionPair();
   const database = yield* PaymentTermCatalogDatabase;
 
-  for (const table of PAYMENT_TERM_CATALOG_TABLES) {
+  for (const table of PAYMENT_TERM_CATALOG_ALL_TABLES) {
     yield* database.executor
       .select()
       .from(table)
@@ -219,10 +223,14 @@ const verification = Effect.gen(function* verifyPaymentTermCatalogDatabase() {
             or has_function_privilege(${'ontos_runtime'}, ${'payment_term_catalog.assert_operation_scope(uuid,uuid)'}, ${'EXECUTE'}) as private_routine_executable,
           has_schema_privilege(${'ontos_runtime'}, ${PAYMENT_TERM_CATALOG_SCHEMA_NAME}, ${'CREATE'}) as runtime_create,
           has_schema_privilege(${'ontos_runtime'}, ${PAYMENT_TERM_CATALOG_SCHEMA_NAME}, ${'USAGE'}) as runtime_usage,
-          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'SELECT'})) as runtime_select,
-          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'INSERT'})) as runtime_insert,
-          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'UPDATE'})) as runtime_update,
-          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'DELETE'})) as runtime_delete,
+          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'SELECT'})) filter (where relation.relname <> ${'gateway_assertion_redemptions'}) as runtime_select,
+          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'INSERT'})) filter (where relation.relname <> ${'gateway_assertion_redemptions'}) as runtime_insert,
+          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'UPDATE'})) filter (where relation.relname <> ${'gateway_assertion_redemptions'}) as runtime_update,
+          bool_or(has_table_privilege(${'ontos_runtime'}, format('%I.%I', namespace.nspname, relation.relname), ${'DELETE'})) filter (where relation.relname <> ${'gateway_assertion_redemptions'}) as runtime_delete,
+          (has_table_privilege(${'ontos_runtime'}, ${replayTableName}, ${'SELECT'})
+            and has_table_privilege(${'ontos_runtime'}, ${replayTableName}, ${'INSERT'})
+            and has_table_privilege(${'ontos_runtime'}, ${replayTableName}, ${'DELETE'})
+            and not has_table_privilege(${'ontos_runtime'}, ${replayTableName}, ${'UPDATE'})) as runtime_replay,
           runtime_role.rolsuper as role_super,
           runtime_role.rolbypassrls as role_bypass_rls
         from pg_catalog.pg_class as relation
@@ -255,7 +263,7 @@ const verification = Effect.gen(function* verifyPaymentTermCatalogDatabase() {
     });
   }
 
-  return { typedTableCount: PAYMENT_TERM_CATALOG_TABLES.length };
+  return { typedTableCount: PAYMENT_TERM_CATALOG_ALL_TABLES.length };
 });
 
 const runtime = PaymentTermCatalogDatabaseLive.pipe(

@@ -23,6 +23,8 @@ import { ActionPrincipalVerifierLive as GovernedActionPrincipalVerifierLive } fr
 import { GatewayAssertionRedemptionLive as GovernedGatewayAssertionRedemptionLive } from './auth/gateway-assertion-redemption.ts';
 // </generated-governed-http-handler-support-imports>
 import { unavailableCustomerContextGatewayCredentialLive } from './payment-term-catalog-production-layers.ts';
+import { PaymentTermCatalogDatabaseLive } from '../src/database/client.ts';
+import { StaffAuthenticationNamespaceRegistryLive } from './auth/staff-authentication-namespace.ts';
 import {
   paymentTermCatalogCorsAllowedHeaders,
   paymentTermCatalogCorsAllowedMethods,
@@ -113,11 +115,18 @@ const productionReadRuntimeLive = ReadRuntimeLive.pipe(
   ),
   Layer.provide(DatabaseConfigLive),
 );
+const productionGatewayAssertionRedemptionLive = GovernedGatewayAssertionRedemptionLive.pipe(
+  Layer.provide(PaymentTermCatalogDatabaseLive),
+  Layer.provide(DatabaseConfigLive),
+);
 
 type PaymentTermCatalogApiRuntimeArguments = readonly [
   readRuntime: Layer.Layer<ReadRuntime, Layer.Error<typeof productionReadRuntimeLive>>,
   actionRuntime: Layer.Layer<ActionRuntime, Layer.Error<typeof productionActionRuntimeLive>>,
-  gatewayAssertionRedemption: Layer.Layer<GatewayAssertionRedemptionService>,
+  gatewayAssertionRedemption: Layer.Layer<
+    GatewayAssertionRedemptionService,
+    Layer.Error<typeof productionGatewayAssertionRedemptionLive>
+  >,
 ];
 
 export const makePaymentTermCatalogApiRuntime = (
@@ -138,7 +147,11 @@ export const makePaymentTermCatalogApiRuntime = (
     retirePaymentTermActionApiLive.pipe(GovernedReadLayer.provide(governedActionRuntimeLive)),
     // </generated-governed-http-handler-layers>
   ).pipe(Layer.provide(Layer.mergeAll(actionPrincipalVerifierLive, gatewayAssertionRedemption)));
-  const resolvedApiHandlersLive = apiHandlersLive.pipe(Layer.provide(runtimeObservabilityLive), Layer.orDie);
+  const resolvedApiHandlersLive = apiHandlersLive.pipe(
+    Layer.provide(runtimeObservabilityLive),
+    Layer.provide(StaffAuthenticationNamespaceRegistryLive),
+    Layer.orDie,
+  );
   const transportLive = HttpRouter.cors({
     allowedHeaders: [...paymentTermCatalogCorsAllowedHeaders],
     allowedMethods: [...paymentTermCatalogCorsAllowedMethods],
@@ -156,7 +169,7 @@ export const makePaymentTermCatalogApiRuntime = (
 const apiRuntime = makePaymentTermCatalogApiRuntime(
   productionReadRuntimeLive,
   productionActionRuntimeLive,
-  GovernedGatewayAssertionRedemptionLive,
+  productionGatewayAssertionRedemptionLive,
 );
 
 export default apiRuntime;

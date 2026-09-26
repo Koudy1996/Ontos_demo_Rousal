@@ -198,6 +198,15 @@ importers:
 
   .:
     dependencies:
+      '@app/party-registry':
+        specifier: workspace:*
+        version: link:verticals/party-registry
+      '@app/shared-contracts':
+        specifier: workspace:*
+        version: link:packages/shared-contracts
+      '@app/workforce':
+        specifier: workspace:*
+        version: link:verticals/workforce
       '@authzed/authzed-node':
         specifier: 1.6.1
         version: 1.6.1

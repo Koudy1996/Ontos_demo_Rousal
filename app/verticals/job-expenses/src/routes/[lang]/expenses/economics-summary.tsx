@@ -13,7 +13,7 @@ export const EconomicsSummary = ({ economics, label }: Props) => (
     </h2>
     <div className="jobexpenses:grid jobexpenses:gap-3 jobexpenses:sm:grid-cols-2 jobexpenses:lg:grid-cols-3">
       <article className={cardClass}>
-        <h3 className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:text-stone-600">
+        <h3 className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:text-um-muted">
           {label('summary.agreedPrice')}
         </h3>
         <p className="jobexpenses:mt-2 jobexpenses:text-2xl jobexpenses:font-bold">
@@ -22,7 +22,7 @@ export const EconomicsSummary = ({ economics, label }: Props) => (
         <p>{label(`priceBasis.${economics.priceBasis}`)}</p>
       </article>
       <article className={cardClass}>
-        <h3 className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:text-stone-600">
+        <h3 className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:text-um-muted">
           {label('summary.recordedCosts')}
         </h3>
         <p className="jobexpenses:mt-2 jobexpenses:text-2xl jobexpenses:font-bold">
@@ -31,7 +31,7 @@ export const EconomicsSummary = ({ economics, label }: Props) => (
         <p>{label('summary.excludingVat')}</p>
       </article>
       <article className={cardClass}>
-        <h3 className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:text-stone-600">
+        <h3 className="jobexpenses:text-sm jobexpenses:font-semibold jobexpenses:text-um-muted">
           {label('summary.difference')}
         </h3>
         {economics.differenceCzk === null ? (
@@ -53,11 +53,11 @@ export const EconomicsSummary = ({ economics, label }: Props) => (
     <dl className="jobexpenses:grid jobexpenses:grid-cols-1 jobexpenses:gap-2 jobexpenses:sm:grid-cols-2 jobexpenses:lg:grid-cols-5">
       {(['WORK', 'TRANSPORT', 'DISPOSAL', 'MATERIAL', 'OTHER'] as const).map((category) => (
         <div className={cardClass} key={category}>
-          <dt className="jobexpenses:text-sm jobexpenses:text-stone-600">{label(`category.${category}`)}</dt>
+          <dt className="jobexpenses:text-sm jobexpenses:text-um-muted">{label(`category.${category}`)}</dt>
           <dd className="jobexpenses:font-semibold">{formatMoney(economics.categoryTotals[category], label)}</dd>
         </div>
       ))}
     </dl>
-    <p className="jobexpenses:text-sm jobexpenses:text-stone-600">{label('summary.disclaimer')}</p>
+    <p className="jobexpenses:text-sm jobexpenses:text-um-muted">{label('summary.disclaimer')}</p>
   </section>
 );

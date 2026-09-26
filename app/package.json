@@ -66,6 +66,7 @@
     "db:verify": "node ./scripts/verify-application-db-schema.mts",
     "local:initialize": "node ./scripts/initialize-local-development.mts",
     "local:initialize:billing": "node ./scripts/initialize-billing-demo.mts",
+    "local:initialize:erp-demo": "node ./scripts/initialize-erp-demo.mts",
     "test:unit": "pnpm -r --if-present run test:unit && pnpm -r --if-present run test:component",
     "test:integration": "rstest --project integration && pnpm -r --if-present run test:integration",
     "test:scripts": "rstest --project scripts",
@@ -115,6 +116,9 @@
     "zerops:providers": "node ./scripts/generate-zerops-provider-deployment.mts"
   },
   "dependencies": {
+    "@app/party-registry": "workspace:*",
+    "@app/shared-contracts": "workspace:*",
+    "@app/workforce": "workspace:*",
     "@authzed/authzed-node": "1.6.1",
     "@effect/sql-pg": "4.0.0-rc.112",
     "better-auth": "1.7.2",

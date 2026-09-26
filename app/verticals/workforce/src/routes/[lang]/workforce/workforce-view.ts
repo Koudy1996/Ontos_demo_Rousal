@@ -3,9 +3,9 @@ import type { Availability } from '../../../../shared/workforce-views.ts';
 
 export const stackClass = 'workforce:flex workforce:flex-col workforce:gap-4 workforce:min-w-0';
 export const cardClass =
-  'workforce:rounded-lg workforce:border workforce:border-(--color-border) workforce:p-4 workforce:min-w-0 workforce:break-words';
+  'workforce:rounded-2xl workforce:border workforce:border-um-border workforce:bg-um-surface workforce:p-5 workforce:shadow-sm workforce:min-w-0 workforce:break-words';
 export const selectClass =
-  'workforce:w-full workforce:min-h-12 workforce:rounded workforce:border workforce:bg-(--color-page-bg) workforce:p-3';
+  'workforce:w-full workforce:min-h-12 workforce:rounded-lg workforce:border workforce:border-um-border workforce:bg-um-surface workforce:p-3';
 export const inputDate = (value: DateTime.Utc) =>
   Option.match(DateTime.makeZoned(value, { timeZone: 'Europe/Prague' }), {
     onNone: () => '',
